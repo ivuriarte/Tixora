@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { EventsService } from '../events/events.service';
 import { CreateTierDto, UpdateTierDto } from './dto/tier.dto';
@@ -70,5 +70,14 @@ export class TicketTiersService {
       where: { eventId },
       orderBy: { sortOrder: 'asc' },
     });
+  }
+
+  async delete(tierId: string) {
+    const tier = await this.findById(tierId);
+    if (tier.soldQuantity > 0) {
+      throw new BadRequestException('Cannot delete a tier that already has sold tickets');
+    }
+    await this.prisma.ticketTier.delete({ where: { id: tierId } });
+    return { deleted: true };
   }
 }

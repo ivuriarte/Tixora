@@ -12,16 +12,20 @@ import { CreateOrderDto } from './dto/order.dto';
 import { generateQrToken } from '@tixora/utils';
 import { ConfigService } from '@nestjs/config';
 import { calculateFee } from '@tixora/utils';
+import { Resend } from 'resend';
 
 @Injectable()
 export class OrdersService {
   private readonly logger = new Logger(OrdersService.name);
+  private readonly resend: Resend;
 
   constructor(
     private readonly prisma: PrismaService,
     private readonly redis: RedisService,
     private readonly config: ConfigService,
-  ) {}
+  ) {
+    this.resend = new Resend(this.config.get<string>('resend.apiKey'));
+  }
 
   async create(dto: CreateOrderDto, userId: string, ip: string, userAgent: string) {
     // Idempotency check
@@ -104,6 +108,12 @@ export class OrdersService {
 
       return newOrder;
     });
+
+    // Free ticket — skip payment, generate tickets immediately
+    if (total === 0) {
+      await this.confirmPayment(order.id, 'free');
+      return { ...this.formatOrder(order), status: 'paid' };
+    }
 
     return this.formatOrder(order);
   }
@@ -205,33 +215,104 @@ export class OrdersService {
         data: { status: 'paid', paymentRef },
       });
 
-      // Generate one ticket per item quantity
+      // Generate all ticket records in batch (avoid N+1 sequential inserts)
+      const ticketRecords: Array<{
+        id: string;
+        orderId: string;
+        orderItemId: string;
+        userId: string;
+        eventId: string;
+        ticketTierId: string;
+        qrCode: string;
+      }> = [];
+
       for (const item of order.items) {
         for (let i = 0; i < item.quantity; i++) {
+          const ticketId = crypto.randomUUID();
           const qrPayload = {
-            ticketId: crypto.randomUUID(),
+            ticketId,
             userId: order.userId,
             eventId: order.eventId,
             tierId: item.ticketTierId,
           };
-          const qrToken = generateQrToken(qrPayload, qrSecret);
-
-          await tx.ticket.create({
-            data: {
-              id: qrPayload.ticketId,
-              orderId,
-              orderItemId: item.id,
-              userId: order.userId,
-              eventId: order.eventId,
-              ticketTierId: item.ticketTierId,
-              qrCode: qrToken,
-            },
+          ticketRecords.push({
+            id: ticketId,
+            orderId,
+            orderItemId: item.id,
+            userId: order.userId,
+            eventId: order.eventId,
+            ticketTierId: item.ticketTierId,
+            qrCode: generateQrToken(qrPayload, qrSecret),
           });
         }
       }
+
+      await tx.ticket.createMany({ data: ticketRecords });
     });
 
     this.logger.log({ msg: 'Order confirmed and tickets generated', orderId });
+
+    // Send confirmation email with QR codes (fire-and-forget; never throws)
+    this.sendTicketConfirmationEmail(orderId).catch((err: unknown) => {
+      this.logger.warn({ msg: 'Failed to send ticket confirmation email', orderId, err });
+    });
+  }
+
+  private async sendTicketConfirmationEmail(orderId: string): Promise<void> {
+    const order = await this.prisma.order.findUnique({
+      where: { id: orderId },
+      include: {
+        user: { select: { email: true, firstName: true, lastName: true } },
+        event: { select: { title: true, startsAt: true, venue: true } },
+        tickets: { select: { id: true, qrCode: true, ticketTier: { select: { name: true } } } },
+      },
+    });
+    if (!order) return;
+
+    const fromName = this.config.get<string>('resend.fromName') ?? 'Tixora';
+    const fromEmail = this.config.get<string>('resend.fromEmail') ?? '';
+
+    const ticketRows = order.tickets
+      .map(
+        (t: (typeof order.tickets)[number]) =>
+          `<tr>
+            <td style="padding:12px;border-bottom:1px solid #e5e7eb">${t.ticketTier.name}</td>
+            <td style="padding:12px;border-bottom:1px solid #e5e7eb;text-align:center">
+              <img src="https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(t.qrCode)}"
+                   alt="QR Code" width="150" height="150" />
+              <br/><small style="color:#6b7280;font-size:11px">${t.id}</small>
+            </td>
+          </tr>`,
+      )
+      .join('');
+
+    const { error } = await this.resend.emails.send({
+      from: `${fromName} <${fromEmail}>`,
+      to: order.user.email,
+      subject: `Your tickets for ${order.event.title}`,
+      html: `
+        <div style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:24px">
+          <h1 style="color:#7c3aed;margin-bottom:4px">You're going!</h1>
+          <h2 style="margin-top:0">${order.event.title}</h2>
+          <p style="color:#6b7280">${new Date(order.event.startsAt).toLocaleDateString('en-PH', { dateStyle: 'full' })} · ${order.event.venue}</p>
+          <p>Hi ${order.user.firstName}, here are your tickets. Show the QR code at the door.</p>
+          <table style="width:100%;border-collapse:collapse;margin-top:16px">
+            <thead>
+              <tr style="background:#f9fafb">
+                <th style="padding:12px;text-align:left">Tier</th>
+                <th style="padding:12px;text-align:center">QR Code</th>
+              </tr>
+            </thead>
+            <tbody>${ticketRows}</tbody>
+          </table>
+          <p style="margin-top:24px;color:#9ca3af;font-size:12px">Tixora · Online Ticketing Platform</p>
+        </div>
+      `,
+    });
+
+    if (error) {
+      this.logger.warn({ msg: 'Resend error sending ticket email', orderId, error: error.message });
+    }
   }
 
   async markFailed(orderId: string): Promise<void> {

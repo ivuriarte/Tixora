@@ -10,7 +10,7 @@
     "start": "node dist/main",
     "lint": "eslint \"src/**/*.ts\"",
     "typecheck": "tsc --noEmit",
-    "test": "jest",
+    "test": "jest --passWithNoTests",
     "test:e2e": "jest --config ./test/jest-e2e.json"
   },
   "dependencies": {
@@ -63,5 +63,9 @@
     "@vercel/ncc": "^0.38.3",
     "ts-node": "^10.9.2",
     "typescript": "^5.5.0"
+  },
+  "jest": {
+    "testPathIgnorePatterns": ["/node_modules/", "/.vercel/"],
+    "moduleNameMapper": { "^@tixora/(.*)$": "<rootDir>/../../packages/$1/src" }
   }
 }

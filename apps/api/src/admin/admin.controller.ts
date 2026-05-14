@@ -4,6 +4,7 @@ import {
   Get,
   Put,
   Patch,
+  Delete,
   Body,
   Param,
   Query,
@@ -49,6 +50,12 @@ export class AdminController {
     return this.adminService.updateEvent(id, dto);
   }
 
+  @Delete('events/:id')
+  @ApiOperation({ summary: 'Cancel / soft-delete event' })
+  cancelEvent(@Param('id') id: string) {
+    return this.adminService.cancelEvent(id);
+  }
+
   // ── Tiers ────────────────────────────────────────────────────────────────
 
   @Post('events/:eventId/tiers')
@@ -61,6 +68,12 @@ export class AdminController {
   @ApiOperation({ summary: 'Update ticket tier' })
   updateTier(@Param('tierId') tierId: string, @Body() dto: UpdateTierDto) {
     return this.adminService.updateTier(tierId, dto);
+  }
+
+  @Delete('tiers/:tierId')
+  @ApiOperation({ summary: 'Delete ticket tier (only if no tickets sold)' })
+  deleteTier(@Param('tierId') tierId: string) {
+    return this.adminService.deleteTier(tierId);
   }
 
   // ── Orders ───────────────────────────────────────────────────────────────
@@ -79,6 +92,18 @@ export class AdminController {
       page ? parseInt(page, 10) : 1,
       limit ? Math.min(parseInt(limit, 10), 100) : 20,
     );
+  }
+
+  @Get('orders/:id')
+  @ApiOperation({ summary: 'Get order detail (admin)' })
+  getOrder(@Param('id') id: string) {
+    return this.adminService.getOrder(id);
+  }
+
+  @Post('orders/:id/resend-ticket')
+  @ApiOperation({ summary: 'Resend ticket confirmation email to buyer' })
+  resendTicket(@Param('id') id: string) {
+    return this.adminService.resendTicket(id);
   }
 
   // ── Check-in ─────────────────────────────────────────────────────────────
