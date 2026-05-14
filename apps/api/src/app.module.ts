@@ -1,0 +1,69 @@
+import { Module } from '@nestjs/common';
+import { ConfigModule } from '@nestjs/config';
+import { ThrottlerModule } from '@nestjs/throttler';
+import { ScheduleModule } from '@nestjs/schedule';
+import { LoggerModule } from 'nestjs-pino';
+import configuration from './config/configuration';
+import { validationSchema } from './config/env.validation';
+import { PrismaModule } from './prisma/prisma.module';
+import { RedisModule } from './redis/redis.module';
+import { HealthModule } from './health/health.module';
+import { AuthModule } from './auth/auth.module';
+import { UsersModule } from './users/users.module';
+import { EventsModule } from './events/events.module';
+import { TicketTiersModule } from './ticket-tiers/ticket-tiers.module';
+import { ReservationsModule } from './reservations/reservations.module';
+import { OrdersModule } from './orders/orders.module';
+import { TicketsModule } from './tickets/tickets.module';
+import { PaymentsModule } from './payments/payments.module';
+import { AdminModule } from './admin/admin.module';
+import { UploadModule } from './upload/upload.module';
+
+@Module({
+  imports: [
+    ConfigModule.forRoot({
+      isGlobal: true,
+      load: [configuration],
+      validationSchema,
+      validationOptions: { abortEarly: false },
+    }),
+
+    LoggerModule.forRoot({
+      pinoHttp: {
+        level: process.env.NODE_ENV === 'production' ? 'info' : 'debug',
+        transport:
+          process.env.NODE_ENV !== 'production'
+            ? { target: 'pino-pretty', options: { colorize: true } }
+            : undefined,
+        redact: ['req.headers.authorization', 'req.headers.cookie'],
+        customProps: () => ({ service: 'tixora-api' }),
+      },
+    }),
+
+    ThrottlerModule.forRootAsync({
+      useFactory: () => [
+        {
+          ttl: parseInt(process.env.THROTTLE_TTL ?? '60000', 10),
+          limit: parseInt(process.env.THROTTLE_LIMIT ?? '60', 10),
+        },
+      ],
+    }),
+
+    ScheduleModule.forRoot(),
+
+    PrismaModule,
+    RedisModule,
+    HealthModule,
+    AuthModule,
+    UsersModule,
+    EventsModule,
+    TicketTiersModule,
+    ReservationsModule,
+    OrdersModule,
+    TicketsModule,
+    PaymentsModule,
+    AdminModule,
+    UploadModule,
+  ],
+})
+export class AppModule {}

@@ -1,0 +1,2238 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Tixora — MVP Architecture Plan</title>
+  <style>
+    /* ===========================
+       RESET & BASE
+    =========================== */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Segoe UI', Arial, sans-serif;
+      font-size: 13px;
+      line-height: 1.6;
+      color: #1a1a2e;
+      background: #fff;
+      padding: 0;
+    }
+
+    /* ===========================
+       PRINT STYLES
+    =========================== */
+    @media print {
+      body { font-size: 11px; }
+      .no-print { display: none !important; }
+      .page-break { page-break-before: always; }
+      .avoid-break { page-break-inside: avoid; }
+      a { text-decoration: none; color: inherit; }
+      .cover { page-break-after: always; }
+    }
+
+    /* ===========================
+       LAYOUT
+    =========================== */
+    .document {
+      max-width: 900px;
+      margin: 0 auto;
+      padding: 40px 48px;
+    }
+
+    /* ===========================
+       COVER PAGE
+    =========================== */
+    .cover {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 80vh;
+      text-align: center;
+      border-bottom: 3px solid #e63946;
+      padding-bottom: 60px;
+      margin-bottom: 60px;
+    }
+
+    .cover-logo {
+      font-size: 48px;
+      font-weight: 900;
+      letter-spacing: -2px;
+      color: #e63946;
+      margin-bottom: 6px;
+    }
+
+    .cover-tagline {
+      font-size: 16px;
+      color: #555;
+      margin-bottom: 48px;
+      font-style: italic;
+    }
+
+    .cover-title {
+      font-size: 28px;
+      font-weight: 700;
+      color: #1a1a2e;
+      margin-bottom: 12px;
+    }
+
+    .cover-subtitle {
+      font-size: 15px;
+      color: #555;
+      margin-bottom: 48px;
+      max-width: 500px;
+    }
+
+    .cover-meta {
+      display: flex;
+      gap: 40px;
+      font-size: 13px;
+      color: #777;
+    }
+
+    .cover-meta-item strong {
+      display: block;
+      color: #1a1a2e;
+      font-weight: 600;
+    }
+
+    /* ===========================
+       SECTION HEADERS
+    =========================== */
+    .phase-header {
+      background: #1a1a2e;
+      color: #fff;
+      padding: 14px 20px;
+      border-radius: 6px;
+      margin: 48px 0 24px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .phase-number {
+      background: #e63946;
+      color: #fff;
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 800;
+      font-size: 13px;
+      flex-shrink: 0;
+    }
+
+    .phase-header h2 {
+      font-size: 16px;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+    }
+
+    h3 {
+      font-size: 14px;
+      font-weight: 700;
+      color: #1a1a2e;
+      margin: 28px 0 10px;
+      padding-bottom: 6px;
+      border-bottom: 2px solid #e63946;
+      display: inline-block;
+    }
+
+    h4 {
+      font-size: 13px;
+      font-weight: 700;
+      color: #e63946;
+      margin: 16px 0 6px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    p {
+      margin-bottom: 10px;
+      color: #333;
+    }
+
+    /* ===========================
+       TABLES
+    =========================== */
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 12px 0 20px;
+      font-size: 12px;
+    }
+
+    th {
+      background: #1a1a2e;
+      color: #fff;
+      padding: 8px 10px;
+      text-align: left;
+      font-weight: 600;
+    }
+
+    td {
+      padding: 7px 10px;
+      border-bottom: 1px solid #e8e8f0;
+      vertical-align: top;
+    }
+
+    tr:nth-child(even) td { background: #f8f8fc; }
+    tr:hover td { background: #f0f0f8; }
+
+    /* ===========================
+       CODE BLOCKS
+    =========================== */
+    pre {
+      background: #f4f4f8;
+      border-left: 3px solid #e63946;
+      padding: 14px 16px;
+      border-radius: 4px;
+      overflow-x: auto;
+      font-family: 'Courier New', monospace;
+      font-size: 11px;
+      line-height: 1.5;
+      margin: 12px 0 20px;
+      color: #1a1a2e;
+    }
+
+    code {
+      font-family: 'Courier New', monospace;
+      background: #f0f0f8;
+      padding: 1px 5px;
+      border-radius: 3px;
+      font-size: 11px;
+      color: #e63946;
+    }
+
+    /* ===========================
+       CALLOUT BOXES
+    =========================== */
+    .callout {
+      border-left: 4px solid;
+      padding: 12px 16px;
+      border-radius: 0 6px 6px 0;
+      margin: 12px 0;
+    }
+
+    .callout-critical {
+      border-color: #e63946;
+      background: #fff0f1;
+    }
+
+    .callout-info {
+      border-color: #457b9d;
+      background: #f0f6fb;
+    }
+
+    .callout-warning {
+      border-color: #f4a261;
+      background: #fff8f2;
+    }
+
+    .callout strong {
+      display: block;
+      margin-bottom: 4px;
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    /* ===========================
+       BADGES / PRIORITY LABELS
+    =========================== */
+    .badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 12px;
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .badge-critical { background: #ffe0e3; color: #c0003a; }
+    .badge-medium   { background: #fff3cd; color: #856404; }
+    .badge-low      { background: #d4edda; color: #155724; }
+    .badge-done     { background: #d4edda; color: #155724; }
+
+    /* ===========================
+       TODO LISTS
+    =========================== */
+    .todo-section {
+      margin-bottom: 32px;
+    }
+
+    .todo-group-title {
+      font-size: 13px;
+      font-weight: 700;
+      color: #1a1a2e;
+      background: #f0f0f8;
+      padding: 8px 12px;
+      border-radius: 4px;
+      margin: 16px 0 8px;
+    }
+
+    .todo-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      padding: 7px 0;
+      border-bottom: 1px solid #f0f0f4;
+    }
+
+    .todo-item:last-child { border-bottom: none; }
+
+    .todo-checkbox {
+      width: 16px;
+      height: 16px;
+      border: 2px solid #ccc;
+      border-radius: 3px;
+      flex-shrink: 0;
+      margin-top: 1px;
+    }
+
+    .todo-text {
+      flex: 1;
+      font-size: 12.5px;
+      color: #333;
+    }
+
+    .todo-text small {
+      display: block;
+      color: #888;
+      font-size: 11px;
+      margin-top: 2px;
+    }
+
+    /* ===========================
+       ARCHITECTURE DIAGRAMS (ASCII)
+    =========================== */
+    .arch-diagram {
+      background: #1a1a2e;
+      color: #a8dadc;
+      padding: 20px 24px;
+      border-radius: 6px;
+      font-family: 'Courier New', monospace;
+      font-size: 11px;
+      line-height: 1.6;
+      margin: 16px 0;
+      white-space: pre;
+      overflow-x: auto;
+    }
+
+    /* ===========================
+       LISTS
+    =========================== */
+    ul, ol {
+      padding-left: 20px;
+      margin-bottom: 12px;
+    }
+
+    li {
+      margin-bottom: 4px;
+      color: #333;
+      font-size: 12.5px;
+    }
+
+    /* ===========================
+       FOOTER
+    =========================== */
+    .footer {
+      text-align: center;
+      color: #aaa;
+      font-size: 11px;
+      margin-top: 60px;
+      padding-top: 20px;
+      border-top: 1px solid #e8e8f0;
+    }
+
+    /* ===========================
+       PRINT BUTTON (no print)
+    =========================== */
+    .print-btn {
+      position: fixed;
+      bottom: 30px;
+      right: 30px;
+      background: #e63946;
+      color: #fff;
+      border: none;
+      padding: 12px 24px;
+      border-radius: 6px;
+      font-size: 14px;
+      font-weight: 700;
+      cursor: pointer;
+      box-shadow: 0 4px 12px rgba(230,57,70,0.4);
+      z-index: 1000;
+    }
+
+    .print-btn:hover { background: #c0003a; }
+
+    /* ===========================
+       ROADMAP TIMELINE
+    =========================== */
+    .timeline {
+      position: relative;
+      padding-left: 24px;
+      margin: 16px 0;
+    }
+
+    .timeline::before {
+      content: '';
+      position: absolute;
+      left: 8px;
+      top: 0;
+      bottom: 0;
+      width: 2px;
+      background: #e63946;
+    }
+
+    .timeline-item {
+      position: relative;
+      margin-bottom: 20px;
+      padding-left: 20px;
+    }
+
+    .timeline-item::before {
+      content: '';
+      position: absolute;
+      left: -20px;
+      top: 5px;
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      background: #e63946;
+      border: 2px solid #fff;
+      box-shadow: 0 0 0 2px #e63946;
+    }
+
+    .timeline-week {
+      font-size: 11px;
+      font-weight: 700;
+      color: #e63946;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .timeline-title {
+      font-size: 13px;
+      font-weight: 700;
+      color: #1a1a2e;
+    }
+
+    .timeline-desc {
+      font-size: 12px;
+      color: #555;
+    }
+
+    /* ===========================
+       SECTION DIVIDER
+    =========================== */
+    .divider {
+      border: none;
+      border-top: 2px solid #f0f0f8;
+      margin: 32px 0;
+    }
+
+    .section-intro {
+      background: #f8f8fc;
+      border-radius: 6px;
+      padding: 14px 18px;
+      margin-bottom: 20px;
+      font-size: 13px;
+      color: #444;
+      line-height: 1.6;
+    }
+  </style>
+</head>
+<body>
+
+<button class="print-btn no-print" onclick="window.print()">Save as PDF</button>
+
+<div class="document">
+
+  <!-- ============================
+       COVER PAGE
+  ============================= -->
+  <div class="cover">
+    <div class="cover-logo">TIXORA</div>
+    <div class="cover-tagline">Online Ticketing Platform</div>
+    <div class="cover-title">MVP Architecture Plan &amp; Development Roadmap</div>
+    <div class="cover-subtitle">
+      A complete technical blueprint for building a production-ready ticketing platform
+      for events in the Philippines — from architecture to launch.
+    </div>
+    <div class="cover-meta">
+      <div class="cover-meta-item"><strong>Version</strong>1.0 — MVP</div>
+      <div class="cover-meta-item"><strong>Date</strong>May 14, 2026</div>
+      <div class="cover-meta-item"><strong>Target Launch</strong>Manila, ~8 weeks</div>
+      <div class="cover-meta-item"><strong>Status</strong>Planning</div>
+    </div>
+  </div>
+
+  <!-- ============================
+       TABLE OF CONTENTS
+  ============================= -->
+  <h3>Table of Contents</h3>
+  <table>
+    <tr><th>#</th><th>Section</th><th>Phase</th></tr>
+    <tr><td>1</td><td>What Are We Building?</td><td>Overview</td></tr>
+    <tr><td>2</td><td>System Architecture</td><td>Phase 1</td></tr>
+    <tr><td>3</td><td>Tech Stack &amp; Reasoning</td><td>Phase 1</td></tr>
+    <tr><td>4</td><td>Database Schema</td><td>Phase 1</td></tr>
+    <tr><td>5</td><td>API Architecture</td><td>Phase 1</td></tr>
+    <tr><td>6</td><td>Ticket Inventory Strategy</td><td>Phase 1</td></tr>
+    <tr><td>7</td><td>Security Architecture</td><td>Phase 1</td></tr>
+    <tr><td>8</td><td>Anti-Bot &amp; Anti-Scalping Strategy</td><td>Phase 1</td></tr>
+    <tr><td>9</td><td>Concurrency Handling</td><td>Phase 1</td></tr>
+    <tr><td>10</td><td>Project Setup &amp; Folder Structure</td><td>Phase 2</td></tr>
+    <tr><td>11</td><td>Environment Variables</td><td>Phase 2</td></tr>
+    <tr><td>12</td><td>CI/CD Pipeline</td><td>Phase 2</td></tr>
+    <tr><td>13</td><td>Key Feature Flows</td><td>Phase 3</td></tr>
+    <tr><td>14</td><td>Production Readiness</td><td>Phase 4</td></tr>
+    <tr><td>15</td><td>Development Roadmap (8 weeks)</td><td>All</td></tr>
+    <tr><td>16</td><td>Master Todo List — By Phase &amp; Priority</td><td>All</td></tr>
+  </table>
+
+  <!-- ============================
+       SECTION 1: WHAT ARE WE BUILDING
+  ============================= -->
+  <div class="page-break"></div>
+
+  <div class="phase-header">
+    <div class="phase-number">1</div>
+    <h2>WHAT ARE WE BUILDING?</h2>
+  </div>
+
+  <div class="section-intro">
+    Tixora is a modern online ticketing platform for events in the Philippines. It allows customers to browse events, buy tickets, receive QR codes, and attend events — while giving organizers tools to manage everything from ticket inventory to check-in at the door.
+  </div>
+
+  <h3>Two Sides of the Platform</h3>
+
+  <table>
+    <tr><th>Side</th><th>Who Uses It</th><th>What It Does</th></tr>
+    <tr><td><strong>Customer App</strong></td><td>Ticket buyers</td><td>Browse events, buy tickets, receive QR codes, view "My Tickets"</td></tr>
+    <tr><td><strong>Admin Dashboard</strong></td><td>Event organizers &amp; staff</td><td>Create events, manage inventory, scan QR codes at the door, view analytics</td></tr>
+  </table>
+
+  <h3>Core Problem We're Solving</h3>
+  <ul>
+    <li><strong>Overselling</strong> — Two people cannot buy the last ticket. The system prevents this at the database level.</li>
+    <li><strong>Scalpers &amp; bots</strong> — Automated programs cannot bulk-buy tickets. Rate limiting, CAPTCHA, and purchase limits stop them.</li>
+    <li><strong>Poor mobile experience</strong> — Most ticket buyers in PH are on mobile. The entire system is mobile-first.</li>
+    <li><strong>Slow, clunky checkout</strong> — A frictionless 5-step checkout with a clear countdown timer and simple payment flow.</li>
+  </ul>
+
+  <h3>What Tixora Is NOT (MVP Scope Cuts)</h3>
+  <table>
+    <tr><th>Feature</th><th>Status</th><th>Reason</th></tr>
+    <tr><td>Seat maps / reserved seating</td><td>Not in MVP</td><td>Complex, not needed for initial events</td></tr>
+    <tr><td>SMS OTP</td><td>Not in MVP</td><td>Email OTP is sufficient; SMS adds cost and carrier complexity</td></tr>
+    <tr><td>Full refund automation</td><td>Not in MVP</td><td>Manual process for MVP, automate in v2</td></tr>
+    <tr><td>Ticket transfer between users</td><td>Not in MVP</td><td>v2 feature</td></tr>
+    <tr><td>Waitlist</td><td>Not in MVP</td><td>v2 feature</td></tr>
+    <tr><td>Native mobile app</td><td>Not in MVP</td><td>PWA (mobile browser) covers this</td></tr>
+  </table>
+
+  <!-- ============================
+       SECTION 2: SYSTEM ARCHITECTURE
+  ============================= -->
+  <div class="page-break"></div>
+
+  <div class="phase-header">
+    <div class="phase-number">2</div>
+    <h2>PHASE 1 — ARCHITECTURE</h2>
+  </div>
+
+  <h3>2.1 Overall System Architecture</h3>
+
+  <div class="arch-diagram">┌──────────────────────────────────────────────────────────┐
+│                        CLIENTS                           │
+│   Mobile Browser   │   Desktop Browser   │   Admin SPA  │
+└────────┬─────────────────────┬─────────────────┬─────────┘
+         │                     │                 │
+         ▼                     ▼                 ▼
+┌──────────────────────────────────────────────────────────┐
+│                Next.js Frontend (Vercel)                  │
+│       SSR/SSG events · Client ticket flow · Admin UI     │
+└──────────────────────────┬───────────────────────────────┘
+                           │  HTTPS / REST API
+                           ▼
+┌──────────────────────────────────────────────────────────┐
+│              NestJS API Server (Railway)                  │
+│   Auth · Events · Orders · Reservations · QR · Admin    │
+└──────┬───────────────────┬──────────────────┬────────────┘
+       │                   │                  │
+       ▼                   ▼                  ▼
+┌────────────┐    ┌──────────────┐    ┌─────────────────┐
+│ PostgreSQL  │    │    Redis     │    │   Cloudinary    │
+│ (Supabase) │    │  (Upstash)   │    │  (event images) │
+│            │    │              │    └─────────────────┘
+│ Permanent  │    │ Reservations │
+│ data store │    │ Rate limits  │    ┌─────────────────┐
+│ Orders     │    │ OTP cache    │    │  Resend (Email) │
+│ Tickets    │    │ Sessions     │    │  Ticket confirm │
+└────────────┘    └──────────────┘    │  OTP delivery   │
+                                      └─────────────────┘
+              ┌───────────────────────────────────┐
+              │    Cloudflare (in front of ALL)   │
+              │    DDoS · WAF · Bot scoring       │
+              └───────────────────────────────────┘</div>
+
+  <div class="callout callout-info">
+    <strong>Why separate frontend and backend?</strong>
+    During a ticket drop, thousands of users hit the site at once. Having a separate API server means you can handle the traffic surge on the backend without affecting the frontend. Vercel's global CDN serves the frontend from edge nodes near users — the heavy load goes to the Railway backend.
+  </div>
+
+  <h3>2.2 Recommended Tech Stack &amp; Tradeoffs</h3>
+
+  <table>
+    <tr><th>Decision</th><th>Choice</th><th>Why</th><th>Tradeoff</th></tr>
+    <tr><td>Frontend</td><td>Next.js 14</td><td>SSR for fast page loads &amp; SEO, client routing for checkout</td><td>App Router learning curve</td></tr>
+    <tr><td>Backend</td><td>NestJS</td><td>Structured, scalable, built-in DI, guards, interceptors</td><td>More boilerplate than plain Express; worth it</td></tr>
+    <tr><td>Database</td><td>PostgreSQL (Supabase)</td><td>ACID transactions, foreign keys, constraint enforcement — critical for ticket sales</td><td>Not a NoSQL "flexible" store — but that's the point</td></tr>
+    <tr><td>ORM</td><td>Prisma</td><td>Type-safe queries, auto migrations, relation handling</td><td>Slightly slower than raw SQL on bulk ops; acceptable at MVP</td></tr>
+    <tr><td>Cache / Locks</td><td>Redis (Upstash)</td><td>Atomic operations, sub-millisecond reads — essential for inventory</td><td>Serverless Redis has cold-start on very first request</td></tr>
+    <tr><td>State management</td><td>Zustand</td><td>Minimal, no boilerplate, perfect for checkout state</td><td>Less powerful than Redux — but Redux is overkill here</td></tr>
+    <tr><td>Server state</td><td>TanStack Query</td><td>Caching, refetching, optimistic updates out of the box</td><td>None — correct tool for the job</td></tr>
+    <tr><td>Auth</td><td>Custom JWT (RS256)</td><td>Full control, no vendor lock-in, no monthly cost</td><td>Must implement refresh rotation correctly</td></tr>
+    <tr><td>Email</td><td>Resend</td><td>Reliable, simple API, free 3,000/month</td><td>Not SendGrid — avoids complexity</td></tr>
+    <tr><td>Payments</td><td>PayMongo (abstraction)</td><td>Supports GCash + Maya + cards natively in PH</td><td>Abstract layer adds a layer of indirection — worth it</td></tr>
+    <tr><td>Frontend hosting</td><td>Vercel</td><td>Zero-config Next.js, global CDN, automatic previews</td><td>Vendor lock-in — acceptable at MVP</td></tr>
+    <tr><td>API hosting</td><td>Railway</td><td>Simple Node.js + Postgres, good DX, affordable</td><td>Not AWS — migrate later when load demands it</td></tr>
+    <tr><td>Images</td><td>Cloudinary</td><td>Auto-format WebP/AVIF, responsive sizes, free tier</td><td>None at this scale</td></tr>
+    <tr><td>Security shield</td><td>Cloudflare (free)</td><td>DDoS protection, bot scoring, WAF, no cost</td><td>Adds one hop in latency (negligible)</td></tr>
+  </table>
+
+  <!-- ============================
+       SECTION 3: DATABASE SCHEMA
+  ============================= -->
+  <div class="page-break"></div>
+
+  <h3>2.3 Database Schema</h3>
+
+  <div class="section-intro">
+    All tables use UUIDs as primary keys. The schema enforces data integrity at the database level — not just application level. The <code>sold_quantity &lt;= total_quantity</code> constraint on ticket tiers is the last line of defense against overselling.
+  </div>
+
+  <h4>Core Tables</h4>
+
+  <table>
+    <tr><th>Table</th><th>Purpose</th><th>Key Fields</th></tr>
+    <tr><td><code>users</code></td><td>All registered users + admins</td><td>email, phone, password_hash, is_verified, is_admin</td></tr>
+    <tr><td><code>events</code></td><td>Events for sale</td><td>slug, title, venue, starts_at, status, max_per_user</td></tr>
+    <tr><td><code>ticket_tiers</code></td><td>Ticket types per event (GA, VIP, etc.)</td><td>price, total_quantity, sold_quantity, max_per_order, sale_starts_at</td></tr>
+    <tr><td><code>reservations</code></td><td>Temporary holds (10-min TTL)</td><td>user_id, tier_id, quantity, expires_at, status, idempotency_key</td></tr>
+    <tr><td><code>orders</code></td><td>Confirmed purchases</td><td>user_id, status, total, payment_method, payment_ref, ip_address</td></tr>
+    <tr><td><code>order_items</code></td><td>Line items per order</td><td>order_id, tier_id, quantity, unit_price</td></tr>
+    <tr><td><code>tickets</code></td><td>Individual issued tickets</td><td>qr_code (HMAC), status (valid/used/cancelled), checked_in_at</td></tr>
+    <tr><td><code>otp_codes</code></td><td>Email verification codes</td><td>user_id, code (hashed), type, expires_at, used</td></tr>
+    <tr><td><code>fraud_flags</code></td><td>Suspicious activity log</td><td>user_id, order_id, reason, ip_address, metadata (JSON)</td></tr>
+  </table>
+
+  <h4>Critical Database Constraints</h4>
+
+  <pre>-- Prevents overselling at the database level (last line of defense)
+CONSTRAINT sold_lte_total CHECK (sold_quantity &lt;= total_quantity)
+
+-- Enforced on ticket_tiers table
+-- Even if application code has a bug, the DB will reject the update
+
+-- Idempotency keys prevent double-submissions
+UNIQUE constraint on reservations.idempotency_key
+UNIQUE constraint on orders.idempotency_key
+UNIQUE constraint on tickets.qr_code
+
+-- Cascade deletes keep data clean
+ticket_tiers → ON DELETE CASCADE when event is deleted
+order_items  → ON DELETE CASCADE when order is deleted</pre>
+
+  <!-- ============================
+       SECTION 4: API ARCHITECTURE
+  ============================= -->
+  <h3>2.4 API Architecture</h3>
+  <p><strong>Base URL:</strong> <code>https://api.tixora.ph/v1</code></p>
+
+  <table>
+    <tr><th>Module</th><th>Endpoints</th><th>Auth Required</th></tr>
+    <tr>
+      <td><strong>Auth</strong></td>
+      <td>
+        POST /auth/register<br>
+        POST /auth/login<br>
+        POST /auth/logout<br>
+        POST /auth/refresh<br>
+        POST /auth/verify-email<br>
+        POST /auth/resend-otp<br>
+        GET /auth/me
+      </td>
+      <td>Partial</td>
+    </tr>
+    <tr>
+      <td><strong>Events (public)</strong></td>
+      <td>
+        GET /events (paginated)<br>
+        GET /events/:slug
+      </td>
+      <td>No</td>
+    </tr>
+    <tr>
+      <td><strong>Reservations</strong></td>
+      <td>
+        POST /reservations<br>
+        DELETE /reservations/:id<br>
+        GET /reservations/:id
+      </td>
+      <td>Yes</td>
+    </tr>
+    <tr>
+      <td><strong>Orders</strong></td>
+      <td>
+        POST /orders<br>
+        GET /orders/:id<br>
+        POST /orders/:id/payment-intent<br>
+        POST /orders/:id/confirm (webhook)
+      </td>
+      <td>Yes (webhook: sig)</td>
+    </tr>
+    <tr>
+      <td><strong>Tickets</strong></td>
+      <td>
+        GET /tickets (my tickets)<br>
+        GET /tickets/:id
+      </td>
+      <td>Yes</td>
+    </tr>
+    <tr>
+      <td><strong>Admin — Events</strong></td>
+      <td>GET/POST /admin/events, PATCH/DELETE /admin/events/:id</td>
+      <td>Admin only</td>
+    </tr>
+    <tr>
+      <td><strong>Admin — Tiers</strong></td>
+      <td>GET/POST /admin/events/:id/tiers, PATCH/DELETE /admin/tiers/:id</td>
+      <td>Admin only</td>
+    </tr>
+    <tr>
+      <td><strong>Admin — Orders</strong></td>
+      <td>GET /admin/orders, GET /admin/orders/:id, POST .../resend-ticket</td>
+      <td>Admin only</td>
+    </tr>
+    <tr>
+      <td><strong>Admin — Check-in</strong></td>
+      <td>POST /admin/checkin, GET /admin/events/:id/attendees</td>
+      <td>Admin only</td>
+    </tr>
+    <tr>
+      <td><strong>Admin — Analytics</strong></td>
+      <td>GET /admin/analytics/events/:id, GET /admin/fraud-flags</td>
+      <td>Admin only</td>
+    </tr>
+    <tr>
+      <td><strong>Health</strong></td>
+      <td>GET /v1/health (DB ping + Redis ping)</td>
+      <td>No</td>
+    </tr>
+  </table>
+
+  <!-- ============================
+       SECTION 5: TICKET INVENTORY
+  ============================= -->
+  <div class="page-break"></div>
+
+  <h3>2.5 Ticket Inventory Strategy</h3>
+
+  <div class="callout callout-critical">
+    <strong>This is the most critical system in the entire platform.</strong>
+    Overselling tickets destroys trust and creates legal liability. The dual-layer approach below makes overselling essentially impossible.
+  </div>
+
+  <h4>Phase 1 — Reservation (Redis — Fast Path)</h4>
+  <pre>When user clicks "Reserve":
+  1. Verify hCaptcha token
+  2. Check user's active reservation count &lt; 3
+  3. Check user has not hit max_per_user for this event
+  4. Redis: DECRBY ticket_tier:{id}:available by quantity
+     → If result &lt; 0: INCRBY back → return 409 "Sold Out"
+     → If result ≥ 0: proceed
+  5. Write reservation row to PostgreSQL (expires_at = NOW() + 10 min)
+  6. Return { reservation_id, expires_at, subtotal } to client
+  7. Client starts countdown timer</pre>
+
+  <h4>Phase 2 — Order Confirmation (PostgreSQL — Source of Truth)</h4>
+  <pre>When user completes payment:
+  BEGIN TRANSACTION;
+    -- Lock the reservation row (no other transaction can touch it)
+    SELECT * FROM reservations
+    WHERE id = $1 AND status = 'active' AND expires_at > NOW()
+    FOR UPDATE;
+
+    -- Deduct inventory with constraint enforcement
+    UPDATE ticket_tiers
+    SET sold_quantity = sold_quantity + $qty
+    WHERE id = $tier_id
+      AND (sold_quantity + $qty) &lt;= total_quantity;
+
+    -- If 0 rows affected → oversell attempt → ROLLBACK
+
+    INSERT INTO orders ...;
+    INSERT INTO order_items ...;
+    UPDATE reservations SET status = 'converted';
+  COMMIT;</pre>
+
+  <h4>Reservation Expiry (Cron Job)</h4>
+  <pre>Every 60 seconds:
+  SELECT * FROM reservations WHERE status = 'active' AND expires_at &lt; NOW();
+  For each expired reservation:
+    → INCRBY ticket_tier:{id}:available (restore to Redis)
+    → UPDATE reservation SET status = 'expired'</pre>
+
+  <!-- ============================
+       SECTION 6: SECURITY
+  ============================= -->
+  <h3>2.6 Security Architecture</h3>
+
+  <table>
+    <tr><th>Layer</th><th>What It Protects</th><th>How</th></tr>
+    <tr><td>Network</td><td>DDoS, bots</td><td>Cloudflare (free WAF + bot scoring + DDoS protection)</td></tr>
+    <tr><td>Rate Limiting</td><td>Brute force, spam</td><td>Redis sliding window — 100 req/15min global, 5/15min on auth, 3 reservations max per user</td></tr>
+    <tr><td>Authentication</td><td>Unauthorized access</td><td>JWT RS256 (15min access) + refresh tokens (7 days, HttpOnly Secure cookie, rotated)</td></tr>
+    <tr><td>OTP</td><td>Account takeover</td><td>6-digit, 5min TTL, single-use, stored hashed, verified via Redis</td></tr>
+    <tr><td>Passwords</td><td>Data breach exposure</td><td>bcrypt with cost factor 12</td></tr>
+    <tr><td>Business rules</td><td>Quantity abuse</td><td>max_per_user enforced at reservation + DB level</td></tr>
+    <tr><td>Idempotency</td><td>Double charges</td><td>UUID idempotency keys on reservations + orders — second request returns existing record</td></tr>
+    <tr><td>QR integrity</td><td>Fake tickets</td><td>HMAC-SHA256 signed token. Verified with timing-safe comparison at check-in</td></tr>
+    <tr><td>Payment webhooks</td><td>Fake payment confirmations</td><td>Verify provider signature before processing any webhook</td></tr>
+    <tr><td>Input validation</td><td>Injection attacks</td><td>class-validator DTOs on all endpoints. Prisma parameterizes all SQL — no injection possible</td></tr>
+    <tr><td>CORS</td><td>Unauthorized origins</td><td>Whitelist only tixora.ph and www.tixora.ph</td></tr>
+    <tr><td>HTTP Headers</td><td>Browser attacks</td><td>Helmet.js (XSS, HSTS, CSP, X-Frame-Options)</td></tr>
+  </table>
+
+  <h3>2.7 Anti-Bot &amp; Anti-Scalping Strategy</h3>
+
+  <table>
+    <tr><th>Protection</th><th>Plain English</th><th>MVP?</th></tr>
+    <tr><td>hCaptcha</td><td>"Prove you're human" on registration + checkout</td><td>✓ MVP</td></tr>
+    <tr><td>Rate limiting</td><td>Too many requests? Temporary block</td><td>✓ MVP</td></tr>
+    <tr><td>Purchase limits</td><td>Max 4 tickets per person per event (configurable)</td><td>✓ MVP</td></tr>
+    <tr><td>Reservation limits</td><td>Max 3 active checkouts per account</td><td>✓ MVP</td></tr>
+    <tr><td>IP monitoring</td><td>Log IP on all orders, flag same IP with 3+ accounts</td><td>✓ MVP</td></tr>
+    <tr><td>Duplicate detection</td><td>Same user + same tier within 30s → reject</td><td>✓ MVP</td></tr>
+    <tr><td>Device fingerprint</td><td>FingerprintJS detects same device across accounts</td><td>✓ MVP</td></tr>
+    <tr><td>Velocity checks</td><td>Flag rapid sequential purchases (&lt; 5s between orders)</td><td>✓ MVP</td></tr>
+    <tr><td>Cloudflare bot score</td><td>Free tier provides basic automated bot scoring</td><td>✓ MVP</td></tr>
+    <tr><td>Ticket resale detection</td><td>Pattern matching on emails, domain analysis</td><td>Later</td></tr>
+  </table>
+
+  <h3>2.8 Concurrency Handling</h3>
+
+  <table>
+    <tr><th>Scenario</th><th>What Happens</th></tr>
+    <tr><td>10,000 users click "Buy" at the same time</td><td>Redis DECRBY is atomic — only N succeed simultaneously</td></tr>
+    <tr><td>Two users race for the last ticket</td><td>One gets the atomic decrement; the other gets -1 and is immediately rejected with "Sold Out"</td></tr>
+    <tr><td>User takes 8 minutes to pay</td><td>Reservation TTL is 10 minutes — covers processing time</td></tr>
+    <tr><td>User abandons checkout</td><td>Cron job reclaims expired reservation after 10 minutes</td></tr>
+    <tr><td>Same form submitted twice</td><td>idempotency_key — second request returns the first order, no duplicate created</td></tr>
+    <tr><td>Payment webhook fires twice</td><td>Order status guard + idempotency on payment_ref — second call is a no-op</td></tr>
+    <tr><td>Database crash mid-transaction</td><td>PostgreSQL rolls back automatically — no partial writes</td></tr>
+  </table>
+
+  <!-- ============================
+       SECTION 7: PROJECT SETUP
+  ============================= -->
+  <div class="page-break"></div>
+
+  <div class="phase-header">
+    <div class="phase-number">3</div>
+    <h2>PHASE 2 — PROJECT SETUP</h2>
+  </div>
+
+  <h3>3.1 Monorepo Folder Structure (Turborepo)</h3>
+
+  <pre>tixora/
+├── apps/
+│   ├── web/                          ← Next.js 14 frontend (Vercel)
+│   │   ├── app/
+│   │   │   ├── (public)/             ← Event browsing, event detail
+│   │   │   ├── (auth)/               ← Login, register, OTP verify
+│   │   │   ├── (checkout)/           ← Ticket selection → payment
+│   │   │   ├── (account)/            ← My tickets, profile
+│   │   │   └── (admin)/              ← Admin dashboard
+│   │   ├── components/
+│   │   │   ├── ui/                   ← Primitives: button, input, modal
+│   │   │   ├── events/
+│   │   │   ├── checkout/
+│   │   │   ├── tickets/
+│   │   │   └── admin/
+│   │   ├── lib/
+│   │   │   ├── api.ts                ← Typed API client (wraps fetch)
+│   │   │   ├── auth.ts               ← Client auth helpers
+│   │   │   └── query-client.ts
+│   │   ├── hooks/                    ← useReservationTimer, useAuth, etc.
+│   │   └── store/                    ← Zustand stores (checkout, user)
+│   │
+│   └── api/                          ← NestJS backend (Railway)
+│       ├── src/
+│       │   ├── main.ts
+│       │   ├── app.module.ts
+│       │   ├── config/               ← Env validation (Joi / zod)
+│       │   ├── common/
+│       │   │   ├── guards/           ← JwtAuthGuard, AdminGuard
+│       │   │   ├── decorators/       ← @CurrentUser, @Public
+│       │   │   ├── filters/          ← Global exception filter
+│       │   │   ├── interceptors/     ← Logging, response transform
+│       │   │   └── pipes/            ← Validation pipe
+│       │   ├── auth/
+│       │   ├── users/
+│       │   ├── events/
+│       │   ├── ticket-tiers/
+│       │   ├── reservations/
+│       │   ├── orders/
+│       │   ├── tickets/
+│       │   ├── payments/
+│       │   │   ├── payments.service.ts
+│       │   │   ├── providers/
+│       │   │   │   ├── payment-provider.interface.ts  ← abstraction
+│       │   │   │   ├── paymongo.provider.ts
+│       │   │   │   └── stripe.provider.ts             ← scaffold only
+│       │   │   └── webhooks/
+│       │   └── admin/
+│       ├── prisma/
+│       │   ├── schema.prisma
+│       │   └── migrations/
+│       └── test/
+│
+├── packages/
+│   ├── types/                        ← Shared TypeScript types (both apps use this)
+│   │   └── src/
+│   │       ├── event.types.ts
+│   │       ├── order.types.ts
+│   │       ├── ticket.types.ts
+│   │       └── auth.types.ts
+│   └── utils/
+│       └── src/
+│           ├── qr.ts                 ← HMAC QR generation + verification
+│           └── currency.ts           ← PHP number formatting
+│
+├── .github/workflows/
+│   └── ci.yml
+├── turbo.json
+└── package.json                      ← Root workspace config</pre>
+
+  <h3>3.2 Key Environment Variables</h3>
+
+  <table>
+    <tr><th>Variable</th><th>Purpose</th><th>Where to Get It</th></tr>
+    <tr><td>DATABASE_URL</td><td>PostgreSQL connection string</td><td>Supabase dashboard</td></tr>
+    <tr><td>REDIS_URL</td><td>Redis connection string</td><td>Upstash dashboard</td></tr>
+    <tr><td>JWT_PRIVATE_KEY</td><td>Signs access tokens (RS256)</td><td>Generate: openssl genrsa -out private.pem 2048</td></tr>
+    <tr><td>JWT_PUBLIC_KEY</td><td>Verifies access tokens</td><td>Derived from private key</td></tr>
+    <tr><td>QR_HMAC_SECRET</td><td>Signs QR ticket tokens</td><td>Generate: 64-char random hex</td></tr>
+    <tr><td>RESEND_API_KEY</td><td>Sends transactional emails</td><td>resend.com dashboard</td></tr>
+    <tr><td>PAYMONGO_SECRET_KEY</td><td>Payment processing</td><td>PayMongo dashboard</td></tr>
+    <tr><td>PAYMONGO_WEBHOOK_SECRET</td><td>Verifies payment webhooks</td><td>PayMongo dashboard</td></tr>
+    <tr><td>HCAPTCHA_SECRET</td><td>Server-side CAPTCHA verify</td><td>hcaptcha.com dashboard</td></tr>
+    <tr><td>CLOUDINARY_URL</td><td>Image uploads + CDN</td><td>Cloudinary dashboard</td></tr>
+    <tr><td>FRONTEND_URL</td><td>CORS whitelist origin</td><td>Your domain</td></tr>
+  </table>
+
+  <!-- ============================
+       SECTION 8: KEY FLOWS
+  ============================= -->
+  <div class="page-break"></div>
+
+  <div class="phase-header">
+    <div class="phase-number">4</div>
+    <h2>PHASE 3 — KEY FEATURE FLOWS</h2>
+  </div>
+
+  <h3>4.1 Authentication Flow</h3>
+
+  <table>
+    <tr><th>Step</th><th>Action</th><th>Technical Detail</th></tr>
+    <tr><td>1</td><td>User registers</td><td>POST /auth/register — password hashed with bcrypt (cost=12)</td></tr>
+    <tr><td>2</td><td>OTP sent</td><td>6-digit code, 5min TTL, stored hashed in Redis + DB, sent via Resend</td></tr>
+    <tr><td>3</td><td>User verifies email</td><td>POST /auth/verify-email — compare OTP hash, mark user verified</td></tr>
+    <tr><td>4</td><td>Tokens issued</td><td>JWT access token (RS256, 15min) + refresh token (64-byte random hex, 7 days)</td></tr>
+    <tr><td>5</td><td>Refresh token stored</td><td>Hashed in Redis, sent as HttpOnly Secure SameSite=Strict cookie</td></tr>
+    <tr><td>6</td><td>Access token expires</td><td>POST /auth/refresh — validate cookie, rotate both tokens</td></tr>
+    <tr><td>7</td><td>Logout</td><td>Delete refresh token from Redis — all sessions invalidated</td></tr>
+  </table>
+
+  <h3>4.2 Ticket Purchase Flow (Full)</h3>
+
+  <table>
+    <tr><th>Step</th><th>Action</th><th>System Involved</th></tr>
+    <tr><td>1</td><td>User browses /events/:slug</td><td>Next.js SSR, PostgreSQL (cached 30s)</td></tr>
+    <tr><td>2</td><td>User selects tier + quantity</td><td>Client validation only</td></tr>
+    <tr><td>3</td><td>hCaptcha challenge</td><td>hCaptcha (proves human)</td></tr>
+    <tr><td>4</td><td>POST /reservations</td><td>Redis DECRBY, PostgreSQL INSERT, 10min TTL</td></tr>
+    <tr><td>5</td><td>Countdown timer starts</td><td>Client-side hook (useReservationTimer)</td></tr>
+    <tr><td>6</td><td>User fills billing info</td><td>Client form</td></tr>
+    <tr><td>7</td><td>POST /orders</td><td>PostgreSQL transaction (FOR UPDATE lock), order created</td></tr>
+    <tr><td>8</td><td>Payment initiated</td><td>PayMongo — user redirected to payment page</td></tr>
+    <tr><td>9</td><td>Payment webhook fires</td><td>POST /orders/:id/confirm — signature verified</td></tr>
+    <tr><td>10</td><td>Tickets generated</td><td>One ticket row per ticket, HMAC QR code assigned</td></tr>
+    <tr><td>11</td><td>Confirmation email sent</td><td>Resend — HTML email with QR codes</td></tr>
+    <tr><td>12</td><td>User sees success page</td><td>Next.js order confirmation page</td></tr>
+  </table>
+
+  <h3>4.3 QR Check-In Flow</h3>
+
+  <table>
+    <tr><th>Step</th><th>Action</th></tr>
+    <tr><td>1</td><td>Admin opens check-in page on phone/tablet (camera access requested)</td></tr>
+    <tr><td>2</td><td>Staff scans attendee's QR code</td></tr>
+    <tr><td>3</td><td>POST /admin/checkin { qr_token }</td></tr>
+    <tr><td>4</td><td>Server: verifyQRToken() — if signature invalid → 400 "Invalid QR"</td></tr>
+    <tr><td>5</td><td>Server: SELECT ticket FOR UPDATE</td></tr>
+    <tr><td>6</td><td>If status = 'used' → 409 "Already checked in" (prevents reuse)</td></tr>
+    <tr><td>7</td><td>If status = 'valid' → UPDATE status='used', checked_in_at=NOW()</td></tr>
+    <tr><td>8</td><td>Return { valid: true, attendee_name, tier_name } — green screen shown</td></tr>
+  </table>
+
+  <!-- ============================
+       SECTION 9: PRODUCTION READINESS
+  ============================= -->
+  <div class="page-break"></div>
+
+  <div class="phase-header">
+    <div class="phase-number">5</div>
+    <h2>PHASE 4 — PRODUCTION READINESS</h2>
+  </div>
+
+  <h3>5.1 Security Checklist</h3>
+
+  <table>
+    <tr><th>Item</th><th>Status</th></tr>
+    <tr><td>All inputs validated with class-validator DTOs</td><td>□ Todo</td></tr>
+    <tr><td>Prisma parameterizes all queries (SQL injection impossible)</td><td>□ Todo</td></tr>
+    <tr><td>CORS whitelist: tixora.ph only</td><td>□ Todo</td></tr>
+    <tr><td>Helmet.js security headers enabled on NestJS</td><td>□ Todo</td></tr>
+    <tr><td>Rate limiting on all auth + transaction endpoints</td><td>□ Todo</td></tr>
+    <tr><td>Refresh tokens rotated on every use</td><td>□ Todo</td></tr>
+    <tr><td>HTTPS enforced (Vercel + Railway both handle TLS)</td><td>□ Todo</td></tr>
+    <tr><td>Payment webhook signatures verified before processing</td><td>□ Todo</td></tr>
+    <tr><td>QR HMAC verified with timing-safe comparison</td><td>□ Todo</td></tr>
+    <tr><td>HttpOnly Secure SameSite=Strict cookies for refresh tokens</td><td>□ Todo</td></tr>
+    <tr><td>bcrypt cost=12 for passwords</td><td>□ Todo</td></tr>
+    <tr><td>OTPs hashed before storage</td><td>□ Todo</td></tr>
+    <tr><td>max_per_user enforced at DB and app level</td><td>□ Todo</td></tr>
+    <tr><td>Admin routes behind dedicated AdminGuard (not just role check)</td><td>□ Todo</td></tr>
+    <tr><td>Environment variables never logged</td><td>□ Todo</td></tr>
+    <tr><td>Cloudflare in front of API and frontend</td><td>□ Todo</td></tr>
+  </table>
+
+  <h3>5.2 Manila Event Launch Checklist</h3>
+
+  <table>
+    <tr><th>Item</th><th>Priority</th></tr>
+    <tr><td>End-to-end checkout test on PH mobile networks (Globe, Smart)</td><td><span class="badge badge-critical">Critical</span></td></tr>
+    <tr><td>PayMongo live credentials configured + webhook delivery tested</td><td><span class="badge badge-critical">Critical</span></td></tr>
+    <tr><td>Seed production event + tiers with correct quantities</td><td><span class="badge badge-critical">Critical</span></td></tr>
+    <tr><td>Verify Redis inventory counter matches PostgreSQL sold_quantity</td><td><span class="badge badge-critical">Critical</span></td></tr>
+    <tr><td>Admin check-in device setup + QR scanner tested</td><td><span class="badge badge-critical">Critical</span></td></tr>
+    <tr><td>Test QR on both printed and screen-displayed tickets</td><td><span class="badge badge-critical">Critical</span></td></tr>
+    <tr><td>Confirm Resend daily send limit covers expected volume</td><td><span class="badge badge-critical">Critical</span></td></tr>
+    <tr><td>Reservation cron job verified running in production</td><td><span class="badge badge-medium">Medium</span></td></tr>
+    <tr><td>Database backup confirmed enabled on Supabase</td><td><span class="badge badge-medium">Medium</span></td></tr>
+    <tr><td>Cloudflare "Under Attack Mode" ready to enable if needed</td><td><span class="badge badge-medium">Medium</span></td></tr>
+    <tr><td>Sentry error rate alert configured</td><td><span class="badge badge-medium">Medium</span></td></tr>
+    <tr><td>k6 load test: 1,000 concurrent users on /reservations</td><td><span class="badge badge-medium">Medium</span></td></tr>
+    <tr><td>Post-event analytics review plan</td><td><span class="badge badge-low">Low</span></td></tr>
+  </table>
+
+  <!-- ============================
+       SECTION 10: ROADMAP
+  ============================= -->
+  <div class="page-break"></div>
+
+  <h3>5.3 Development Roadmap — 8 Weeks to Manila Launch</h3>
+
+  <div class="timeline">
+    <div class="timeline-item avoid-break">
+      <div class="timeline-week">Week 1</div>
+      <div class="timeline-title">Foundation &amp; Authentication</div>
+      <div class="timeline-desc">Turborepo setup, DB schema, Prisma migrations, register/login/OTP/JWT, refresh token rotation</div>
+    </div>
+    <div class="timeline-item avoid-break">
+      <div class="timeline-week">Week 2</div>
+      <div class="timeline-title">Events &amp; Ticket Tiers</div>
+      <div class="timeline-desc">Event CRUD (admin), public event list, event detail page, ticket tier management</div>
+    </div>
+    <div class="timeline-item avoid-break">
+      <div class="timeline-week">Week 3</div>
+      <div class="timeline-title">Reservation &amp; Checkout Flow</div>
+      <div class="timeline-desc">Redis inventory layer, reservation creation, countdown timer, order creation with DB transaction</div>
+    </div>
+    <div class="timeline-item avoid-break">
+      <div class="timeline-week">Week 4</div>
+      <div class="timeline-title">Payments</div>
+      <div class="timeline-desc">PayMongo abstraction layer, GCash/Maya/card integration, webhook handler, payment confirmation</div>
+    </div>
+    <div class="timeline-item avoid-break">
+      <div class="timeline-week">Week 5</div>
+      <div class="timeline-title">QR Tickets &amp; Email</div>
+      <div class="timeline-desc">HMAC QR generation, confirmation email (Resend), My Tickets page, order success page</div>
+    </div>
+    <div class="timeline-item avoid-break">
+      <div class="timeline-week">Week 6</div>
+      <div class="timeline-title">Admin Dashboard</div>
+      <div class="timeline-desc">Order management, attendee list, QR scanner check-in page, resend ticket, basic analytics</div>
+    </div>
+    <div class="timeline-item avoid-break">
+      <div class="timeline-week">Week 7</div>
+      <div class="timeline-title">Security &amp; Anti-Bot</div>
+      <div class="timeline-desc">Rate limiting, hCaptcha, fraud flags, FingerprintJS, Cloudflare config, device/IP monitoring</div>
+    </div>
+    <div class="timeline-item avoid-break">
+      <div class="timeline-week">Week 8</div>
+      <div class="timeline-title">Performance, Testing &amp; Launch Prep</div>
+      <div class="timeline-desc">k6 load test, Sentry setup, edge caching, mobile network testing, PayMongo live config, go-live</div>
+    </div>
+  </div>
+
+  <!-- ============================
+       MASTER TODO LIST
+  ============================= -->
+  <div class="page-break"></div>
+
+  <div class="phase-header">
+    <div class="phase-number">6</div>
+    <h2>MASTER TODO LIST — ALL PHASES, ALL PRIORITIES</h2>
+  </div>
+
+  <div class="callout callout-info">
+    <strong>How to read this list</strong>
+    <span class="badge badge-critical">Critical</span> = blocks launch.
+    <span class="badge badge-medium">Medium</span> = important but not launch-blocking.
+    <span class="badge badge-low">Low</span> = nice to have / can be done post-launch or in v2.
+  </div>
+
+  <!-- ============ PHASE 1 TODOS ============ -->
+  <h3>Phase 1 — Architecture &amp; Design Decisions</h3>
+
+  <div class="todo-section">
+    <div class="todo-group-title">Critical</div>
+    <div class="todo-item avoid-break">
+      <div class="todo-checkbox"></div>
+      <div class="todo-text">Finalize database schema (all tables, indexes, constraints, cascade rules)
+        <small>Foundation for all development. Cannot start coding without this.</small>
+      </div>
+      <span class="badge badge-critical">Critical</span>
+    </div>
+    <div class="todo-item avoid-break">
+      <div class="todo-checkbox"></div>
+      <div class="todo-text">Define API contract (all endpoints, request/response shapes, status codes)
+        <small>Frontend and backend teams need this to work in parallel.</small>
+      </div>
+      <span class="badge badge-critical">Critical</span>
+    </div>
+    <div class="todo-item avoid-break">
+      <div class="todo-checkbox"></div>
+      <div class="todo-text">Design ticket inventory strategy (Redis dual-layer + PostgreSQL transaction)
+        <small>The most critical business logic in the platform.</small>
+      </div>
+      <span class="badge badge-critical">Critical</span>
+    </div>
+    <div class="todo-item avoid-break">
+      <div class="todo-checkbox"></div>
+      <div class="todo-text">Design authentication flow (JWT RS256 + refresh tokens + OTP)
+        <small>All other features depend on auth being correct.</small>
+      </div>
+      <span class="badge badge-critical">Critical</span>
+    </div>
+    <div class="todo-item avoid-break">
+      <div class="todo-checkbox"></div>
+      <div class="todo-text">Design QR ticket generation and HMAC verification approach
+        <small>Defines how tickets are secured against forgery.</small>
+      </div>
+      <span class="badge badge-critical">Critical</span>
+    </div>
+    <div class="todo-item avoid-break">
+      <div class="todo-checkbox"></div>
+      <div class="todo-text">Define payment abstraction layer interface (IPaymentProvider)</div>
+      <span class="badge badge-critical">Critical</span>
+    </div>
+    <div class="todo-item avoid-break">
+      <div class="todo-checkbox"></div>
+      <div class="todo-text">Define concurrency handling strategy (optimistic locking + FOR UPDATE)</div>
+      <span class="badge badge-critical">Critical</span>
+    </div>
+    <div class="todo-item avoid-break">
+      <div class="todo-checkbox"></div>
+      <div class="todo-text">Define security architecture layers (network → app → business → data)</div>
+      <span class="badge badge-critical">Critical</span>
+    </div>
+
+    <div class="todo-group-title">Medium</div>
+    <div class="todo-item avoid-break">
+      <div class="todo-checkbox"></div>
+      <div class="todo-text">Define anti-bot strategy (CAPTCHA + rate limits + fingerprinting)</div>
+      <span class="badge badge-medium">Medium</span>
+    </div>
+    <div class="todo-item avoid-break">
+      <div class="todo-checkbox"></div>
+      <div class="todo-text">Define fraud flag criteria and thresholds</div>
+      <span class="badge badge-medium">Medium</span>
+    </div>
+    <div class="todo-item avoid-break">
+      <div class="todo-checkbox"></div>
+      <div class="todo-text">Finalize environment variables structure (.env.example)</div>
+      <span class="badge badge-medium">Medium</span>
+    </div>
+    <div class="todo-item avoid-break">
+      <div class="todo-checkbox"></div>
+      <div class="todo-text">Choose and confirm hosting providers (Vercel, Railway, Supabase, Upstash)</div>
+      <span class="badge badge-medium">Medium</span>
+    </div>
+
+    <div class="todo-group-title">Low</div>
+    <div class="todo-item avoid-break">
+      <div class="todo-checkbox"></div>
+      <div class="todo-text">Write Architecture Decision Records (ADRs) for major decisions</div>
+      <span class="badge badge-low">Low</span>
+    </div>
+    <div class="todo-item avoid-break">
+      <div class="todo-checkbox"></div>
+      <div class="todo-text">Define naming conventions and coding standards</div>
+      <span class="badge badge-low">Low</span>
+    </div>
+  </div>
+
+  <!-- ============ PHASE 2 TODOS ============ -->
+  <div class="page-break"></div>
+  <h3>Phase 2 — Project Setup &amp; Infrastructure</h3>
+
+  <div class="todo-section">
+    <div class="todo-group-title">Critical</div>
+    <div class="todo-item avoid-break">
+      <div class="todo-checkbox"></div>
+      <div class="todo-text">Initialize Turborepo monorepo (apps/web, apps/api, packages/types, packages/utils)</div>
+      <span class="badge badge-critical">Critical</span>
+    </div>
+    <div class="todo-item avoid-break">
+      <div class="todo-checkbox"></div>
+      <div class="todo-text">Set up apps/web (Next.js 14, TypeScript, Tailwind, TanStack Query, Zustand)</div>
+      <span class="badge badge-critical">Critical</span>
+    </div>
+    <div class="todo-item avoid-break">
+      <div class="todo-checkbox"></div>
+      <div class="todo-text">Set up apps/api (NestJS, TypeScript, Prisma)</div>
+      <span class="badge badge-critical">Critical</span>
+    </div>
+    <div class="todo-item avoid-break">
+      <div class="todo-checkbox"></div>
+      <div class="todo-text">Set up packages/types (shared DTOs used by both frontend and backend)</div>
+      <span class="badge badge-critical">Critical</span>
+    </div>
+    <div class="todo-item avoid-break">
+      <div class="todo-checkbox"></div>
+      <div class="todo-text">Set up packages/utils (QR utilities, PHP currency formatting)</div>
+      <span class="badge badge-critical">Critical</span>
+    </div>
+    <div class="todo-item avoid-break">
+      <div class="todo-checkbox"></div>
+      <div class="todo-text">Create PostgreSQL database on Supabase (Singapore region)</div>
+      <span class="badge badge-critical">Critical</span>
+    </div>
+    <div class="todo-item avoid-break">
+      <div class="todo-checkbox"></div>
+      <div class="todo-text">Create Redis instance on Upstash</div>
+      <span class="badge badge-critical">Critical</span>
+    </div>
+    <div class="todo-item avoid-break">
+      <div class="todo-checkbox"></div>
+      <div class="todo-text">Write Prisma schema and run initial migration</div>
+      <span class="badge badge-critical">Critical</span>
+    </div>
+    <div class="todo-item avoid-break">
+      <div class="todo-checkbox"></div>
+      <div class="todo-text">Configure CORS on NestJS (whitelist tixora.ph only)</div>
+      <span class="badge badge-critical">Critical</span>
+    </div>
+    <div class="todo-item avoid-break">
+      <div class="todo-checkbox"></div>
+      <div class="todo-text">Configure Helmet.js security headers on NestJS</div>
+      <span class="badge badge-critical">Critical</span>
+    </div>
+    <div class="todo-item avoid-break">
+      <div class="todo-checkbox"></div>
+      <div class="todo-text">Set up global exception filter (consistent API error responses)</div>
+      <span class="badge badge-critical">Critical</span>
+    </div>
+    <div class="todo-item avoid-break">
+      <div class="todo-checkbox"></div>
+      <div class="todo-text">Set up global validation pipe (class-validator)</div>
+      <span class="badge badge-critical">Critical</span>
+    </div>
+
+    <div class="todo-group-title">Medium</div>
+    <div class="todo-item avoid-break">
+      <div class="todo-checkbox"></div>
+      <div class="todo-text">Set up GitHub Actions CI/CD pipeline (lint, typecheck, test, deploy)</div>
+      <span class="badge badge-medium">Medium</span>
+    </div>
+    <div class="todo-item avoid-break">
+      <div class="todo-checkbox"></div>
+      <div class="todo-text">Configure Vercel project (linked to apps/web)</div>
+      <span class="badge badge-medium">Medium</span>
+    </div>
+    <div class="todo-item avoid-break">
+      <div class="todo-checkbox"></div>
+      <div class="todo-text">Configure Railway project (linked to apps/api)</div>
+      <span class="badge badge-medium">Medium</span>
+    </div>
+    <div class="todo-item avoid-break">
+      <div class="todo-checkbox"></div>
+      <div class="todo-text">Set up Cloudflare proxying (DNS, free WAF, DDoS protection)</div>
+      <span class="badge badge-medium">Medium</span>
+    </div>
+    <div class="todo-item avoid-break">
+      <div class="todo-checkbox"></div>
+      <div class="todo-text">Create Resend account + verify sending domain (tixora.ph)</div>
+      <span class="badge badge-medium">Medium</span>
+    </div>
+    <div class="todo-item avoid-break">
+      <div class="todo-checkbox"></div>
+      <div class="todo-text">Create Cloudinary account (for event image uploads)</div>
+      <span class="badge badge-medium">Medium</span>
+    </div>
+    <div class="todo-item avoid-break">
+      <div class="todo-checkbox"></div>
+      <div class="todo-text">Create hCaptcha account (site key + secret key)</div>
+      <span class="badge badge-medium">Medium</span>
+    </div>
+    <div class="todo-item avoid-break">
+      <div class="todo-checkbox"></div>
+      <div class="todo-text">Set up Sentry projects (frontend + backend error tracking)</div>
+      <span class="badge badge-medium">Medium</span>
+    </div>
+    <div class="todo-item avoid-break">
+      <div class="todo-checkbox"></div>
+      <div class="todo-text">Configure pino structured JSON logging on NestJS API</div>
+      <span class="badge badge-medium">Medium</span>
+    </div>
+
+    <div class="todo-group-title">Low</div>
+    <div class="todo-item avoid-break">
+      <div class="todo-checkbox"></div>
+      <div class="todo-text">Set up Docker Compose for local development environment</div>
+      <span class="badge badge-low">Low</span>
+    </div>
+    <div class="todo-item avoid-break">
+      <div class="todo-checkbox"></div>
+      <div class="todo-text">Configure ESLint + Prettier (code formatting)</div>
+      <span class="badge badge-low">Low</span>
+    </div>
+    <div class="todo-item avoid-break">
+      <div class="todo-checkbox"></div>
+      <div class="todo-text">Set up Husky pre-commit hooks (lint + typecheck before commit)</div>
+      <span class="badge badge-low">Low</span>
+    </div>
+    <div class="todo-item avoid-break">
+      <div class="todo-checkbox"></div>
+      <div class="todo-text">Configure Turborepo pipeline (build order, caching)</div>
+      <span class="badge badge-low">Low</span>
+    </div>
+  </div>
+
+  <!-- ============ PHASE 3 TODOS ============ -->
+  <div class="page-break"></div>
+  <h3>Phase 3 — Feature Implementation</h3>
+
+  <!-- AUTH -->
+  <div class="todo-section">
+    <div class="todo-group-title">Authentication — Critical</div>
+    <div class="todo-item avoid-break">
+      <div class="todo-checkbox"></div>
+      <div class="todo-text">POST /auth/register endpoint (email, password, name, phone)</div>
+      <span class="badge badge-critical">Critical</span>
+    </div>
+    <div class="todo-item avoid-break">
+      <div class="todo-checkbox"></div>
+      <div class="todo-text">bcrypt password hashing (cost=12)</div>
+      <span class="badge badge-critical">Critical</span>
+    </div>
+    <div class="todo-item avoid-break">
+      <div class="todo-checkbox"></div>
+      <div class="todo-text">OTP generation + email send via Resend on registration</div>
+      <span class="badge badge-critical">Critical</span>
+    </div>
+    <div class="todo-item avoid-break">
+      <div class="todo-checkbox"></div>
+      <div class="todo-text">OTP storage (hashed in Redis with 5min TTL + otp_codes table)</div>
+      <span class="badge badge-critical">Critical</span>
+    </div>
+    <div class="todo-item avoid-break">
+      <div class="todo-checkbox"></div>
+      <div class="todo-text">POST /auth/verify-email endpoint (OTP comparison, mark user verified)</div>
+      <span class="badge badge-critical">Critical</span>
+    </div>
+    <div class="todo-item avoid-break">
+      <div class="todo-checkbox"></div>
+      <div class="todo-text">POST /auth/login endpoint (bcrypt compare, reject unverified users)</div>
+      <span class="badge badge-critical">Critical</span>
+    </div>
+    <div class="todo-item avoid-break">
+      <div class="todo-checkbox"></div>
+      <div class="todo-text">JWT RS256 access token issuance (15min TTL)</div>
+      <span class="badge badge-critical">Critical</span>
+    </div>
+    <div class="todo-item avoid-break">
+      <div class="todo-checkbox"></div>
+      <div class="todo-text">Refresh token generation + storage (hashed in Redis, HttpOnly cookie)</div>
+      <span class="badge badge-critical">Critical</span>
+    </div>
+    <div class="todo-item avoid-break">
+      <div class="todo-checkbox"></div>
+      <div class="todo-text">POST /auth/refresh endpoint (rotate both tokens)</div>
+      <span class="badge badge-critical">Critical</span>
+    </div>
+    <div class="todo-item avoid-break">
+      <div class="todo-checkbox"></div>
+      <div class="todo-text">POST /auth/logout endpoint (delete refresh token from Redis)</div>
+      <span class="badge badge-critical">Critical</span>
+    </div>
+    <div class="todo-item avoid-break">
+      <div class="todo-checkbox"></div>
+      <div class="todo-text">JwtAuthGuard (protect all authenticated routes)</div>
+      <span class="badge badge-critical">Critical</span>
+    </div>
+    <div class="todo-item avoid-break">
+      <div class="todo-checkbox"></div>
+      <div class="todo-text">AdminGuard (protect all admin routes)</div>
+      <span class="badge badge-critical">Critical</span>
+    </div>
+    <div class="todo-item avoid-break">
+      <div class="todo-checkbox"></div>
+      <div class="todo-text">@CurrentUser decorator (extract user from JWT on protected routes)</div>
+      <span class="badge badge-critical">Critical</span>
+    </div>
+
+    <div class="todo-group-title">Authentication — Medium</div>
+    <div class="todo-item avoid-break">
+      <div class="todo-checkbox"></div>
+      <div class="todo-text">GET /auth/me endpoint</div>
+      <span class="badge badge-medium">Medium</span>
+    </div>
+    <div class="todo-item avoid-break">
+      <div class="todo-checkbox"></div>
+      <div class="todo-text">POST /auth/resend-otp endpoint (rate limited)</div>
+      <span class="badge badge-medium">Medium</span>
+    </div>
+
+    <div class="todo-group-title">Authentication — Low</div>
+    <div class="todo-item avoid-break">
+      <div class="todo-checkbox"></div>
+      <div class="todo-text">Phone/SMS OTP verification (defer — email only for MVP)</div>
+      <span class="badge badge-low">Low</span>
+    </div>
+    <div class="todo-item avoid-break">
+      <div class="todo-checkbox"></div>
+      <div class="todo-text">Social login (Google OAuth) — v2</div>
+      <span class="badge badge-low">Low</span>
+    </div>
+  </div>
+
+  <!-- EVENTS -->
+  <div class="todo-section">
+    <div class="todo-group-title">Events &amp; Tiers — Critical</div>
+    <div class="todo-item avoid-break">
+      <div class="todo-checkbox"></div>
+      <div class="todo-text">POST /admin/events (create event with all fields)</div>
+      <span class="badge badge-critical">Critical</span>
+    </div>
+    <div class="todo-item avoid-break">
+      <div class="todo-checkbox"></div>
+      <div class="todo-text">PATCH /admin/events/:id (edit event)</div>
+      <span class="badge badge-critical">Critical</span>
+    </div>
+    <div class="todo-item avoid-break">
+      <div class="todo-checkbox"></div>
+      <div class="todo-text">DELETE /admin/events/:id (soft delete / cancel)</div>
+      <span class="badge badge-critical">Critical</span>
+    </div>
+    <div class="todo-item avoid-break">
+      <div class="todo-checkbox"></div>
+      <div class="todo-text">GET /events (public paginated event list)</div>
+      <span class="badge badge-critical">Critical</span>
+    </div>
+    <div class="todo-item avoid-break">
+      <div class="todo-checkbox"></div>
+      <div class="todo-text">GET /events/:slug (event detail + tiers)</div>
+      <span class="badge badge-critical">Critical</span>
+    </div>
+    <div class="todo-item avoid-break">
+      <div class="todo-checkbox"></div>
+      <div class="todo-text">Ticket tier CRUD (POST, PATCH, DELETE /admin/events/:id/tiers)</div>
+      <span class="badge badge-critical">Critical</span>
+    </div>
+    <div class="todo-item avoid-break">
+      <div class="todo-checkbox"></div>
+      <div class="todo-text">Event status management (draft → published → on_sale → sold_out → completed)</div>
+      <span class="badge badge-critical">Critical</span>
+    </div>
+
+    <div class="todo-group-title">Events &amp; Tiers — Medium</div>
+    <div class="todo-item avoid-break">
+      <div class="todo-checkbox"></div>
+      <div class="todo-text">Image upload to Cloudinary (event banner + thumbnail)</div>
+      <span class="badge badge-medium">Medium</span>
+    </div>
+    <div class="todo-item avoid-break">
+      <div class="todo-checkbox"></div>
+      <div class="todo-text">ISR / edge caching on event pages (30–60s revalidation)</div>
+      <span class="badge badge-medium">Medium</span>
+    </div>
+    <div class="todo-item avoid-break">
+      <div class="todo-checkbox"></div>
+      <div class="todo-text">Event search and filter (by date, city, status)</div>
+      <span class="badge badge-medium">Medium</span>
+    </div>
+
+    <div class="todo-group-title">Events &amp; Tiers — Low</div>
+    <div class="todo-item avoid-break">
+      <div class="todo-checkbox"></div>
+      <div class="todo-text">Event categories / tags</div>
+      <span class="badge badge-low">Low</span>
+    </div>
+    <div class="todo-item avoid-break">
+      <div class="todo-checkbox"></div>
+      <div class="todo-text">Featured events / homepage carousel</div>
+      <span class="badge badge-low">Low</span>
+    </div>
+  </div>
+
+  <!-- RESERVATIONS -->
+  <div class="todo-section">
+    <div class="todo-group-title">Reservations — Critical</div>
+    <div class="todo-item avoid-break">
+      <div class="todo-checkbox"></div>
+      <div class="todo-text">POST /reservations (hCaptcha verify + Redis DECRBY + DB write)</div>
+      <span class="badge badge-critical">Critical</span>
+    </div>
+    <div class="todo-item avoid-break">
+      <div class="todo-checkbox"></div>
+      <div class="todo-text">Redis DECRBY atomic inventory decrement (prevent oversell)</div>
+      <span class="badge badge-critical">Critical</span>
+    </div>
+    <div class="todo-item avoid-break">
+      <div class="todo-checkbox"></div>
+      <div class="todo-text">Reservation TTL = 10 minutes (expires_at field + Redis TTL)</div>
+      <span class="badge badge-critical">Critical</span>
+    </div>
+    <div class="todo-item avoid-break">
+      <div class="todo-checkbox"></div>
+      <div class="todo-text">max_per_user purchase history check at reservation creation</div>
+      <span class="badge badge-critical">Critical</span>
+    </div>
+    <div class="todo-item avoid-break">
+      <div class="todo-checkbox"></div>
+      <div class="todo-text">Active reservation count check (max 3 per user)</div>
+      <span class="badge badge-critical">Critical</span>
+    </div>
+    <div class="todo-item avoid-break">
+      <div class="todo-checkbox"></div>
+      <div class="todo-text">Idempotency key on reservations (prevent duplicate holds)</div>
+      <span class="badge badge-critical">Critical</span>
+    </div>
+    <div class="todo-item avoid-break">
+      <div class="todo-checkbox"></div>
+      <div class="todo-text">DELETE /reservations/:id (early release — restore Redis inventory)</div>
+      <span class="badge badge-critical">Critical</span>
+    </div>
+    <div class="todo-item avoid-break">
+      <div class="todo-checkbox"></div>
+      <div class="todo-text">GET /reservations/:id (status + seconds remaining)</div>
+      <span class="badge badge-critical">Critical</span>
+    </div>
+    <div class="todo-item avoid-break">
+      <div class="todo-checkbox"></div>
+      <div class="todo-text">Reservation expiry cron job (runs every 60s, restores expired inventory)</div>
+      <span class="badge badge-critical">Critical</span>
+    </div>
+
+    <div class="todo-group-title">Reservations — Medium</div>
+    <div class="todo-item avoid-break">
+      <div class="todo-checkbox"></div>
+      <div class="todo-text">Client-side countdown timer (useReservationTimer hook)</div>
+      <span class="badge badge-medium">Medium</span>
+    </div>
+    <div class="todo-item avoid-break">
+      <div class="todo-checkbox"></div>
+      <div class="todo-text">Timer sync with server (GET /reservations/:id every 30s)</div>
+      <span class="badge badge-medium">Medium</span>
+    </div>
+    <div class="todo-item avoid-break">
+      <div class="todo-checkbox"></div>
+      <div class="todo-text">Expiry modal (redirect + message when timer hits zero)</div>
+      <span class="badge badge-medium">Medium</span>
+    </div>
+  </div>
+
+  <!-- ORDERS -->
+  <div class="todo-section">
+    <div class="todo-group-title">Orders — Critical</div>
+    <div class="todo-item avoid-break">
+      <div class="todo-checkbox"></div>
+      <div class="todo-text">POST /orders (convert reservation → order, full DB transaction)</div>
+      <span class="badge badge-critical">Critical</span>
+    </div>
+    <div class="todo-item avoid-break">
+      <div class="todo-checkbox"></div>
+      <div class="todo-text">PostgreSQL FOR UPDATE lock on reservation row</div>
+      <span class="badge badge-critical">Critical</span>
+    </div>
+    <div class="todo-item avoid-break">
+      <div class="todo-checkbox"></div>
+      <div class="todo-text">sold_quantity UPDATE with constraint enforcement (no oversell)</div>
+      <span class="badge badge-critical">Critical</span>
+    </div>
+    <div class="todo-item avoid-break">
+      <div class="todo-checkbox"></div>
+      <div class="todo-text">Idempotency key on orders (prevent double-submit)</div>
+      <span class="badge badge-critical">Critical</span>
+    </div>
+    <div class="todo-item avoid-break">
+      <div class="todo-checkbox"></div>
+      <div class="todo-text">GET /orders/:id (order detail page)</div>
+      <span class="badge badge-critical">Critical</span>
+    </div>
+    <div class="todo-item avoid-break">
+      <div class="todo-checkbox"></div>
+      <div class="todo-text">POST /orders/:id/payment-intent (initiate via payment abstraction layer)</div>
+      <span class="badge badge-critical">Critical</span>
+    </div>
+    <div class="todo-item avoid-break">
+      <div class="todo-checkbox"></div>
+      <div class="todo-text">POST /orders/:id/confirm webhook handler (signature verified)</div>
+      <span class="badge badge-critical">Critical</span>
+    </div>
+    <div class="todo-item avoid-break">
+      <div class="todo-checkbox"></div>
+      <div class="todo-text">Ticket generation after payment confirmed (one ticket row per unit)</div>
+      <span class="badge badge-critical">Critical</span>
+    </div>
+
+    <div class="todo-group-title">Orders — Medium</div>
+    <div class="todo-item avoid-break">
+      <div class="todo-checkbox"></div>
+      <div class="todo-text">GET /orders (my orders history)</div>
+      <span class="badge badge-medium">Medium</span>
+    </div>
+    <div class="todo-item avoid-break">
+      <div class="todo-checkbox"></div>
+      <div class="todo-text">Duplicate transaction detection (same user + tier + event within 30s)</div>
+      <span class="badge badge-medium">Medium</span>
+    </div>
+    <div class="todo-item avoid-break">
+      <div class="todo-checkbox"></div>
+      <div class="todo-text">Order status management (pending → paid → cancelled/failed)</div>
+      <span class="badge badge-medium">Medium</span>
+    </div>
+
+    <div class="todo-group-title">Orders — Low</div>
+    <div class="todo-item avoid-break">
+      <div class="todo-checkbox"></div>
+      <div class="todo-text">Automated refund flow via PayMongo (defer to v2)</div>
+      <span class="badge badge-low">Low</span>
+    </div>
+    <div class="todo-item avoid-break">
+      <div class="todo-checkbox"></div>
+      <div class="todo-text">PDF receipt generation</div>
+      <span class="badge badge-low">Low</span>
+    </div>
+  </div>
+
+  <!-- TICKETS + QR -->
+  <div class="todo-section">
+    <div class="todo-group-title">Tickets &amp; QR — Critical</div>
+    <div class="todo-item avoid-break">
+      <div class="todo-checkbox"></div>
+      <div class="todo-text">HMAC-SHA256 QR token generation (packages/utils/qr.ts)</div>
+      <span class="badge badge-critical">Critical</span>
+    </div>
+    <div class="todo-item avoid-break">
+      <div class="todo-checkbox"></div>
+      <div class="todo-text">Timing-safe HMAC comparison on QR verification</div>
+      <span class="badge badge-critical">Critical</span>
+    </div>
+    <div class="todo-item avoid-break">
+      <div class="todo-checkbox"></div>
+      <div class="todo-text">GET /tickets (my tickets list)</div>
+      <span class="badge badge-critical">Critical</span>
+    </div>
+    <div class="todo-item avoid-break">
+      <div class="todo-checkbox"></div>
+      <div class="todo-text">GET /tickets/:id (single ticket + QR display)</div>
+      <span class="badge badge-critical">Critical</span>
+    </div>
+    <div class="todo-item avoid-break">
+      <div class="todo-checkbox"></div>
+      <div class="todo-text">Confirmation email with QR codes via Resend</div>
+      <span class="badge badge-critical">Critical</span>
+    </div>
+    <div class="todo-item avoid-break">
+      <div class="todo-checkbox"></div>
+      <div class="todo-text">QR code rendering client-side (qrcode npm package, canvas element)</div>
+      <span class="badge badge-critical">Critical</span>
+    </div>
+
+    <div class="todo-group-title">Tickets &amp; QR — Medium</div>
+    <div class="todo-item avoid-break">
+      <div class="todo-checkbox"></div>
+      <div class="todo-text">Ticket image download (save QR as PNG)</div>
+      <span class="badge badge-medium">Medium</span>
+    </div>
+
+    <div class="todo-group-title">Tickets &amp; QR — Low</div>
+    <div class="todo-item avoid-break">
+      <div class="todo-checkbox"></div>
+      <div class="todo-text">Apple Wallet / Google Wallet pass (.pkpass) — v2</div>
+      <span class="badge badge-low">Low</span>
+    </div>
+    <div class="todo-item avoid-break">
+      <div class="todo-checkbox"></div>
+      <div class="todo-text">Ticket transfer between users — v2</div>
+      <span class="badge badge-low">Low</span>
+    </div>
+  </div>
+
+  <!-- PAYMENTS -->
+  <div class="todo-section">
+    <div class="todo-group-title">Payments — Critical</div>
+    <div class="todo-item avoid-break">
+      <div class="todo-checkbox"></div>
+      <div class="todo-text">IPaymentProvider interface (abstraction layer definition)</div>
+      <span class="badge badge-critical">Critical</span>
+    </div>
+    <div class="todo-item avoid-break">
+      <div class="todo-checkbox"></div>
+      <div class="todo-text">PayMongo provider implementation (GCash, Maya, card)</div>
+      <span class="badge badge-critical">Critical</span>
+    </div>
+    <div class="todo-item avoid-break">
+      <div class="todo-checkbox"></div>
+      <div class="todo-text">PayMongo webhook endpoint + signature verification</div>
+      <span class="badge badge-critical">Critical</span>
+    </div>
+    <div class="todo-item avoid-break">
+      <div class="todo-checkbox"></div>
+      <div class="todo-text">Free ticket handling (zero-price orders bypass payment provider)</div>
+      <span class="badge badge-critical">Critical</span>
+    </div>
+
+    <div class="todo-group-title">Payments — Medium</div>
+    <div class="todo-item avoid-break">
+      <div class="todo-checkbox"></div>
+      <div class="todo-text">Stripe provider (scaffold only — no live integration yet)</div>
+      <span class="badge badge-medium">Medium</span>
+    </div>
+
+    <div class="todo-group-title">Payments — Low</div>
+    <div class="todo-item avoid-break">
+      <div class="todo-checkbox"></div>
+      <div class="todo-text">Refund via PayMongo API — v2</div>
+      <span class="badge badge-low">Low</span>
+    </div>
+  </div>
+
+  <!-- ADMIN -->
+  <div class="todo-section">
+    <div class="todo-group-title">Admin Dashboard — Critical</div>
+    <div class="todo-item avoid-break">
+      <div class="todo-checkbox"></div>
+      <div class="todo-text">Admin event management UI (list, create, edit, delete events)</div>
+      <span class="badge badge-critical">Critical</span>
+    </div>
+    <div class="todo-item avoid-break">
+      <div class="todo-checkbox"></div>
+      <div class="todo-text">Admin ticket tier management UI</div>
+      <span class="badge badge-critical">Critical</span>
+    </div>
+    <div class="todo-item avoid-break">
+      <div class="todo-checkbox"></div>
+      <div class="todo-text">Orders list + order detail view</div>
+      <span class="badge badge-critical">Critical</span>
+    </div>
+    <div class="todo-item avoid-break">
+      <div class="todo-checkbox"></div>
+      <div class="todo-text">Attendee list per event</div>
+      <span class="badge badge-critical">Critical</span>
+    </div>
+    <div class="todo-item avoid-break">
+      <div class="todo-checkbox"></div>
+      <div class="todo-text">QR scanner check-in page (camera access on mobile/tablet)</div>
+      <span class="badge badge-critical">Critical</span>
+    </div>
+    <div class="todo-item avoid-break">
+      <div class="todo-checkbox"></div>
+      <div class="todo-text">POST /admin/checkin endpoint (verify QR, mark ticket used)</div>
+      <span class="badge badge-critical">Critical</span>
+    </div>
+    <div class="todo-item avoid-break">
+      <div class="todo-checkbox"></div>
+      <div class="todo-text">Resend ticket confirmation (POST /admin/orders/:id/resend-ticket)</div>
+      <span class="badge badge-critical">Critical</span>
+    </div>
+
+    <div class="todo-group-title">Admin Dashboard — Medium</div>
+    <div class="todo-item avoid-break">
+      <div class="todo-checkbox"></div>
+      <div class="todo-text">Basic analytics dashboard (tickets sold, revenue, tier breakdown)</div>
+      <span class="badge badge-medium">Medium</span>
+    </div>
+    <div class="todo-item avoid-break">
+      <div class="todo-checkbox"></div>
+      <div class="todo-text">Fraud flags view (list suspicious orders for manual review)</div>
+      <span class="badge badge-medium">Medium</span>
+    </div>
+    <div class="todo-item avoid-break">
+      <div class="todo-checkbox"></div>
+      <div class="todo-text">Order search and filter</div>
+      <span class="badge badge-medium">Medium</span>
+    </div>
+
+    <div class="todo-group-title">Admin Dashboard — Low</div>
+    <div class="todo-item avoid-break">
+      <div class="todo-checkbox"></div>
+      <div class="todo-text">Export attendee list to CSV</div>
+      <span class="badge badge-low">Low</span>
+    </div>
+    <div class="todo-item avoid-break">
+      <div class="todo-checkbox"></div>
+      <div class="todo-text">Advanced analytics (conversion rates, drop-off analysis)</div>
+      <span class="badge badge-low">Low</span>
+    </div>
+    <div class="todo-item avoid-break">
+      <div class="todo-checkbox"></div>
+      <div class="todo-text">Admin audit log (who did what and when)</div>
+      <span class="badge badge-low">Low</span>
+    </div>
+  </div>
+
+  <!-- FRONTEND -->
+  <div class="todo-section">
+    <div class="todo-group-title">Frontend Pages &amp; UX — Critical</div>
+    <div class="todo-item avoid-break">
+      <div class="todo-checkbox"></div>
+      <div class="todo-text">Event browse page (/) — list of all events, mobile-first</div>
+      <span class="badge badge-critical">Critical</span>
+    </div>
+    <div class="todo-item avoid-break">
+      <div class="todo-checkbox"></div>
+      <div class="todo-text">Event detail page (/events/:slug) — info + tier selection</div>
+      <span class="badge badge-critical">Critical</span>
+    </div>
+    <div class="todo-item avoid-break">
+      <div class="todo-checkbox"></div>
+      <div class="todo-text">Ticket tier + quantity selection UI</div>
+      <span class="badge badge-critical">Critical</span>
+    </div>
+    <div class="todo-item avoid-break">
+      <div class="todo-checkbox"></div>
+      <div class="todo-text">Checkout flow (reservation → billing info → payment redirect)</div>
+      <span class="badge badge-critical">Critical</span>
+    </div>
+    <div class="todo-item avoid-break">
+      <div class="todo-checkbox"></div>
+      <div class="todo-text">Reservation countdown timer component</div>
+      <span class="badge badge-critical">Critical</span>
+    </div>
+    <div class="todo-item avoid-break">
+      <div class="todo-checkbox"></div>
+      <div class="todo-text">Login page (/auth/login)</div>
+      <span class="badge badge-critical">Critical</span>
+    </div>
+    <div class="todo-item avoid-break">
+      <div class="todo-checkbox"></div>
+      <div class="todo-text">Register page (/auth/register)</div>
+      <span class="badge badge-critical">Critical</span>
+    </div>
+    <div class="todo-item avoid-break">
+      <div class="todo-checkbox"></div>
+      <div class="todo-text">OTP email verification page (/auth/verify)</div>
+      <span class="badge badge-critical">Critical</span>
+    </div>
+    <div class="todo-item avoid-break">
+      <div class="todo-checkbox"></div>
+      <div class="todo-text">My Tickets page (/account/tickets) — list + QR display</div>
+      <span class="badge badge-critical">Critical</span>
+    </div>
+    <div class="todo-item avoid-break">
+      <div class="todo-checkbox"></div>
+      <div class="todo-text">Order confirmation page (/orders/:id) — success + tickets</div>
+      <span class="badge badge-critical">Critical</span>
+    </div>
+    <div class="todo-item avoid-break">
+      <div class="todo-checkbox"></div>
+      <div class="todo-text">Mobile-first responsive layout (all pages work on 375px screens)</div>
+      <span class="badge badge-critical">Critical</span>
+    </div>
+    <div class="todo-item avoid-break">
+      <div class="todo-checkbox"></div>
+      <div class="todo-text">Zustand store for checkout state (tier, quantity, reservation)</div>
+      <span class="badge badge-critical">Critical</span>
+    </div>
+    <div class="todo-item avoid-break">
+      <div class="todo-checkbox"></div>
+      <div class="todo-text">TanStack Query setup + typed API client (lib/api.ts)</div>
+      <span class="badge badge-critical">Critical</span>
+    </div>
+
+    <div class="todo-group-title">Frontend — Medium</div>
+    <div class="todo-item avoid-break">
+      <div class="todo-checkbox"></div>
+      <div class="todo-text">Error states + loading skeletons on all data-fetching pages</div>
+      <span class="badge badge-medium">Medium</span>
+    </div>
+    <div class="todo-item avoid-break">
+      <div class="todo-checkbox"></div>
+      <div class="todo-text">Toast notifications (purchase success, errors, session expiry)</div>
+      <span class="badge badge-medium">Medium</span>
+    </div>
+    <div class="todo-item avoid-break">
+      <div class="todo-checkbox"></div>
+      <div class="todo-text">404 and generic error pages</div>
+      <span class="badge badge-medium">Medium</span>
+    </div>
+    <div class="todo-item avoid-break">
+      <div class="todo-checkbox"></div>
+      <div class="todo-text">hCaptcha widget integration on registration + checkout forms</div>
+      <span class="badge badge-medium">Medium</span>
+    </div>
+    <div class="todo-item avoid-break">
+      <div class="todo-checkbox"></div>
+      <div class="todo-text">FingerprintJS device fingerprint collection on checkout</div>
+      <span class="badge badge-medium">Medium</span>
+    </div>
+
+    <div class="todo-group-title">Frontend — Low</div>
+    <div class="todo-item avoid-break">
+      <div class="todo-checkbox"></div>
+      <div class="todo-text">Dark mode support</div>
+      <span class="badge badge-low">Low</span>
+    </div>
+    <div class="todo-item avoid-break">
+      <div class="todo-checkbox"></div>
+      <div class="todo-text">Animations (minimal — page transitions only)</div>
+      <span class="badge badge-low">Low</span>
+    </div>
+    <div class="todo-item avoid-break">
+      <div class="todo-checkbox"></div>
+      <div class="todo-text">PWA manifest + offline support</div>
+      <span class="badge badge-low">Low</span>
+    </div>
+  </div>
+
+  <!-- ============ PHASE 4 TODOS ============ -->
+  <div class="page-break"></div>
+  <h3>Phase 4 — Production Readiness</h3>
+
+  <div class="todo-section">
+    <div class="todo-group-title">Security Hardening — Critical</div>
+    <div class="todo-item avoid-break">
+      <div class="todo-checkbox"></div>
+      <div class="todo-text">Redis sliding window rate limiting (global + per-endpoint overrides)</div>
+      <span class="badge badge-critical">Critical</span>
+    </div>
+    <div class="todo-item avoid-break">
+      <div class="todo-checkbox"></div>
+      <div class="todo-text">Auth rate limiting (5 attempts / 15min per IP, lockout)</div>
+      <span class="badge badge-critical">Critical</span>
+    </div>
+    <div class="todo-item avoid-break">
+      <div class="todo-checkbox"></div>
+      <div class="todo-text">Verify CORS whitelist is only tixora.ph (not wildcard)</div>
+      <span class="badge badge-critical">Critical</span>
+    </div>
+    <div class="todo-item avoid-break">
+      <div class="todo-checkbox"></div>
+      <div class="todo-text">Verify all endpoints have class-validator DTO validation</div>
+      <span class="badge badge-critical">Critical</span>
+    </div>
+    <div class="todo-item avoid-break">
+      <div class="todo-checkbox"></div>
+      <div class="todo-text">Verify Helmet.js headers are active (check response headers in prod)</div>
+      <span class="badge badge-critical">Critical</span>
+    </div>
+    <div class="todo-item avoid-break">
+      <div class="todo-checkbox"></div>
+      <div class="todo-text">Verify HTTPS enforced on both Vercel and Railway</div>
+      <span class="badge badge-critical">Critical</span>
+    </div>
+    <div class="todo-item avoid-break">
+      <div class="todo-checkbox"></div>
+      <div class="todo-text">Verify payment webhook signature check is in place</div>
+      <span class="badge badge-critical">Critical</span>
+    </div>
+    <div class="todo-item avoid-break">
+      <div class="todo-checkbox"></div>
+      <div class="todo-text">Verify QR check-in uses timing-safe comparison</div>
+      <span class="badge badge-critical">Critical</span>
+    </div>
+    <div class="todo-item avoid-break">
+      <div class="todo-checkbox"></div>
+      <div class="todo-text">Verify refresh tokens rotate on every use</div>
+      <span class="badge badge-critical">Critical</span>
+    </div>
+    <div class="todo-item avoid-break">
+      <div class="todo-checkbox"></div>
+      <div class="todo-text">Verify environment variables are never logged</div>
+      <span class="badge badge-critical">Critical</span>
+    </div>
+
+    <div class="todo-group-title">Security Hardening — Medium</div>
+    <div class="todo-item avoid-break">
+      <div class="todo-checkbox"></div>
+      <div class="todo-text">Fraud flag automation: velocity checks (orders &lt; 5s apart)</div>
+      <span class="badge badge-medium">Medium</span>
+    </div>
+    <div class="todo-item avoid-break">
+      <div class="todo-checkbox"></div>
+      <div class="todo-text">Fraud flag automation: same IP + 3+ accounts within 1hr</div>
+      <span class="badge badge-medium">Medium</span>
+    </div>
+    <div class="todo-item avoid-break">
+      <div class="todo-checkbox"></div>
+      <div class="todo-text">Fraud flag automation: user purchasing more than max_per_user</div>
+      <span class="badge badge-medium">Medium</span>
+    </div>
+    <div class="todo-item avoid-break">
+      <div class="todo-checkbox"></div>
+      <div class="todo-text">Cloudflare WAF rules (block known bad user agents, malicious IPs)</div>
+      <span class="badge badge-medium">Medium</span>
+    </div>
+
+    <div class="todo-group-title">Security Hardening — Low</div>
+    <div class="todo-item avoid-break">
+      <div class="todo-checkbox"></div>
+      <div class="todo-text">OWASP ZAP automated security scan on staging environment</div>
+      <span class="badge badge-low">Low</span>
+    </div>
+    <div class="todo-item avoid-break">
+      <div class="todo-checkbox"></div>
+      <div class="todo-text">Manual penetration test (before first large event)</div>
+      <span class="badge badge-low">Low</span>
+    </div>
+  </div>
+
+  <div class="todo-section">
+    <div class="todo-group-title">Performance — Critical</div>
+    <div class="todo-item avoid-break">
+      <div class="todo-checkbox"></div>
+      <div class="todo-text">Verify Supabase pgBouncer connection pooling is active</div>
+      <span class="badge badge-critical">Critical</span>
+    </div>
+    <div class="todo-item avoid-break">
+      <div class="todo-checkbox"></div>
+      <div class="todo-text">Verify Redis is used for all hot-path reads (inventory, rate limits)</div>
+      <span class="badge badge-critical">Critical</span>
+    </div>
+    <div class="todo-item avoid-break">
+      <div class="todo-checkbox"></div>
+      <div class="todo-text">ISR configured on event list and event detail pages</div>
+      <span class="badge badge-critical">Critical</span>
+    </div>
+
+    <div class="todo-group-title">Performance — Medium</div>
+    <div class="todo-item avoid-break">
+      <div class="todo-checkbox"></div>
+      <div class="todo-text">gzip compression middleware on NestJS API</div>
+      <span class="badge badge-medium">Medium</span>
+    </div>
+    <div class="todo-item avoid-break">
+      <div class="todo-checkbox"></div>
+      <div class="todo-text">Cloudinary auto-format (WebP/AVIF) enabled on event images</div>
+      <span class="badge badge-medium">Medium</span>
+    </div>
+    <div class="todo-item avoid-break">
+      <div class="todo-checkbox"></div>
+      <div class="todo-text">Next.js Image component with responsive sizes on all images</div>
+      <span class="badge badge-medium">Medium</span>
+    </div>
+
+    <div class="todo-group-title">Performance — Low</div>
+    <div class="todo-item avoid-break">
+      <div class="todo-checkbox"></div>
+      <div class="todo-text">Run EXPLAIN ANALYZE on slow queries and add missing indexes</div>
+      <span class="badge badge-low">Low</span>
+    </div>
+    <div class="todo-item avoid-break">
+      <div class="todo-checkbox"></div>
+      <div class="todo-text">Bundle size analysis on Next.js frontend</div>
+      <span class="badge badge-low">Low</span>
+    </div>
+  </div>
+
+  <div class="todo-section">
+    <div class="todo-group-title">Monitoring &amp; Observability — Critical</div>
+    <div class="todo-item avoid-break">
+      <div class="todo-checkbox"></div>
+      <div class="todo-text">Sentry error tracking active on frontend (Next.js)</div>
+      <span class="badge badge-critical">Critical</span>
+    </div>
+    <div class="todo-item avoid-break">
+      <div class="todo-checkbox"></div>
+      <div class="todo-text">Sentry error tracking active on backend (NestJS)</div>
+      <span class="badge badge-critical">Critical</span>
+    </div>
+    <div class="todo-item avoid-break">
+      <div class="todo-checkbox"></div>
+      <div class="todo-text">GET /v1/health endpoint (real DB ping + Redis ping, returns 503 on failure)</div>
+      <span class="badge badge-critical">Critical</span>
+    </div>
+    <div class="todo-item avoid-break">
+      <div class="todo-checkbox"></div>
+      <div class="todo-text">Structured JSON logs (pino) on all NestJS routes</div>
+      <span class="badge badge-critical">Critical</span>
+    </div>
+
+    <div class="todo-group-title">Monitoring — Medium</div>
+    <div class="todo-item avoid-break">
+      <div class="todo-checkbox"></div>
+      <div class="todo-text">Better Uptime (or similar) monitoring on /health — alert on downtime</div>
+      <span class="badge badge-medium">Medium</span>
+    </div>
+    <div class="todo-item avoid-break">
+      <div class="todo-checkbox"></div>
+      <div class="todo-text">Logtail (or similar) log aggregation from Railway</div>
+      <span class="badge badge-medium">Medium</span>
+    </div>
+    <div class="todo-item avoid-break">
+      <div class="todo-checkbox"></div>
+      <div class="todo-text">Sentry error rate alert (email/Slack notification on spike)</div>
+      <span class="badge badge-medium">Medium</span>
+    </div>
+
+    <div class="todo-group-title">Monitoring — Low</div>
+    <div class="todo-item avoid-break">
+      <div class="todo-checkbox"></div>
+      <div class="todo-text">Custom dashboards (Railway metrics / Vercel analytics)</div>
+      <span class="badge badge-low">Low</span>
+    </div>
+  </div>
+
+  <div class="todo-section">
+    <div class="todo-group-title">Load Testing — Medium</div>
+    <div class="todo-item avoid-break">
+      <div class="todo-checkbox"></div>
+      <div class="todo-text">Write k6 load test script (1,000 concurrent users on /reservations)</div>
+      <span class="badge badge-medium">Medium</span>
+    </div>
+    <div class="todo-item avoid-break">
+      <div class="todo-checkbox"></div>
+      <div class="todo-text">Verify Redis inventory remains consistent under load (no phantom inventory)</div>
+      <span class="badge badge-medium">Medium</span>
+    </div>
+    <div class="todo-item avoid-break">
+      <div class="todo-checkbox"></div>
+      <div class="todo-text">Database connection pool stress test (max connections under surge)</div>
+      <span class="badge badge-medium">Medium</span>
+    </div>
+
+    <div class="todo-group-title">Load Testing — Low</div>
+    <div class="todo-item avoid-break">
+      <div class="todo-checkbox"></div>
+      <div class="todo-text">Sustained load test (30-minute run simulating real event traffic pattern)</div>
+      <span class="badge badge-low">Low</span>
+    </div>
+  </div>
+
+  <div class="todo-section">
+    <div class="todo-group-title">Manila Launch Checklist — Critical</div>
+    <div class="todo-item avoid-break">
+      <div class="todo-checkbox"></div>
+      <div class="todo-text">Full end-to-end checkout test on PH mobile networks (Globe + Smart)</div>
+      <span class="badge badge-critical">Critical</span>
+    </div>
+    <div class="todo-item avoid-break">
+      <div class="todo-checkbox"></div>
+      <div class="todo-text">PayMongo LIVE mode credentials configured (not test mode)</div>
+      <span class="badge badge-critical">Critical</span>
+    </div>
+    <div class="todo-item avoid-break">
+      <div class="todo-checkbox"></div>
+      <div class="todo-text">PayMongo webhook delivery tested in live mode</div>
+      <span class="badge badge-critical">Critical</span>
+    </div>
+    <div class="todo-item avoid-break">
+      <div class="todo-checkbox"></div>
+      <div class="todo-text">Production event and tiers seeded with correct quantities</div>
+      <span class="badge badge-critical">Critical</span>
+    </div>
+    <div class="todo-item avoid-break">
+      <div class="todo-checkbox"></div>
+      <div class="todo-text">Redis inventory counter matches PostgreSQL total_quantity at t=0</div>
+      <span class="badge badge-critical">Critical</span>
+    </div>
+    <div class="todo-item avoid-break">
+      <div class="todo-checkbox"></div>
+      <div class="todo-text">Check-in devices set up and tested (tablet/phone with camera)</div>
+      <span class="badge badge-critical">Critical</span>
+    </div>
+    <div class="todo-item avoid-break">
+      <div class="todo-checkbox"></div>
+      <div class="todo-text">QR scan tested on printed tickets AND screen-displayed tickets</div>
+      <span class="badge badge-critical">Critical</span>
+    </div>
+    <div class="todo-item avoid-break">
+      <div class="todo-checkbox"></div>
+      <div class="todo-text">Confirm Resend daily limit covers expected order volume</div>
+      <span class="badge badge-critical">Critical</span>
+    </div>
+
+    <div class="todo-group-title">Manila Launch Checklist — Medium</div>
+    <div class="todo-item avoid-break">
+      <div class="todo-checkbox"></div>
+      <div class="todo-text">Reservation cron job verified running in production Railway instance</div>
+      <span class="badge badge-medium">Medium</span>
+    </div>
+    <div class="todo-item avoid-break">
+      <div class="todo-checkbox"></div>
+      <div class="todo-text">Supabase automatic database backups verified</div>
+      <span class="badge badge-medium">Medium</span>
+    </div>
+    <div class="todo-item avoid-break">
+      <div class="todo-checkbox"></div>
+      <div class="todo-text">Cloudflare "Under Attack Mode" ready to activate if needed</div>
+      <span class="badge badge-medium">Medium</span>
+    </div>
+    <div class="todo-item avoid-break">
+      <div class="todo-checkbox"></div>
+      <div class="todo-text">Sentry error rate alert configured and tested</div>
+      <span class="badge badge-medium">Medium</span>
+    </div>
+
+    <div class="todo-group-title">Manila Launch Checklist — Low</div>
+    <div class="todo-item avoid-break">
+      <div class="todo-checkbox"></div>
+      <div class="todo-text">Post-event analytics review (ticket sell-through rate, error rate)</div>
+      <span class="badge badge-low">Low</span>
+    </div>
+    <div class="todo-item avoid-break">
+      <div class="todo-checkbox"></div>
+      <div class="todo-text">Post-mortem document after first event</div>
+      <span class="badge badge-low">Low</span>
+    </div>
+  </div>
+
+  <!-- ============================
+       FOOTER
+  ============================= -->
+  <hr class="divider">
+  <div class="footer">
+    <p><strong>Tixora MVP Architecture Plan</strong> — Version 1.0</p>
+    <p>Prepared May 14, 2026 · Confidential · For internal planning only</p>
+    <p style="margin-top:8px; font-size:10px;">
+      To save as PDF: Click "Save as PDF" button (bottom right) or use browser Print → Save as PDF
+    </p>
+  </div>
+
+</div>
+</body>
+</html>

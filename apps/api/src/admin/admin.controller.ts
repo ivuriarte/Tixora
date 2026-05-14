@@ -1,0 +1,132 @@
+import {
+  Controller,
+  Post,
+  Get,
+  Put,
+  Patch,
+  Body,
+  Param,
+  Query,
+  UseGuards,
+} from '@nestjs/common';
+import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
+import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
+import { AdminGuard } from '../common/guards/admin.guard';
+import { CurrentUser } from '../common/decorators/current-user.decorator';
+import { JwtPayload } from '@tixora/types';
+import { AdminService } from './admin.service';
+import { CreateEventDto, UpdateEventDto } from '../events/dto/event.dto';
+import { CreateTierDto, UpdateTierDto } from '../ticket-tiers/dto/tier.dto';
+import { CheckinDto } from './dto/admin.dto';
+
+@ApiTags('admin')
+@Controller('admin')
+@UseGuards(JwtAuthGuard, AdminGuard)
+@ApiBearerAuth()
+export class AdminController {
+  constructor(private readonly adminService: AdminService) {}
+
+  // ── Events ───────────────────────────────────────────────────────────────
+
+  @Get('events')
+  @ApiOperation({ summary: 'List all events (admin)' })
+  listEvents(@Query('page') page?: string, @Query('limit') limit?: string) {
+    return this.adminService.listEvents(
+      page ? parseInt(page, 10) : 1,
+      limit ? Math.min(parseInt(limit, 10), 100) : 20,
+    );
+  }
+
+  @Post('events')
+  @ApiOperation({ summary: 'Create event' })
+  createEvent(@Body() dto: CreateEventDto, @CurrentUser() user: JwtPayload) {
+    return this.adminService.createEvent(dto, user.sub);
+  }
+
+  @Put('events/:id')
+  @ApiOperation({ summary: 'Update event' })
+  updateEvent(@Param('id') id: string, @Body() dto: UpdateEventDto) {
+    return this.adminService.updateEvent(id, dto);
+  }
+
+  // ── Tiers ────────────────────────────────────────────────────────────────
+
+  @Post('events/:eventId/tiers')
+  @ApiOperation({ summary: 'Create ticket tier for event' })
+  createTier(@Param('eventId') eventId: string, @Body() dto: CreateTierDto) {
+    return this.adminService.createTier(eventId, dto);
+  }
+
+  @Put('tiers/:tierId')
+  @ApiOperation({ summary: 'Update ticket tier' })
+  updateTier(@Param('tierId') tierId: string, @Body() dto: UpdateTierDto) {
+    return this.adminService.updateTier(tierId, dto);
+  }
+
+  // ── Orders ───────────────────────────────────────────────────────────────
+
+  @Get('orders')
+  @ApiOperation({ summary: 'List orders (optionally filter by event/status)' })
+  listOrders(
+    @Query('eventId') eventId?: string,
+    @Query('status') status?: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ) {
+    return this.adminService.listOrders(
+      eventId,
+      status,
+      page ? parseInt(page, 10) : 1,
+      limit ? Math.min(parseInt(limit, 10), 100) : 20,
+    );
+  }
+
+  // ── Check-in ─────────────────────────────────────────────────────────────
+
+  @Post('checkin')
+  @ApiOperation({ summary: 'Scan QR code and check in attendee' })
+  checkIn(@Body() dto: CheckinDto, @CurrentUser() user: JwtPayload) {
+    return this.adminService.checkIn(dto.qrToken, user.sub);
+  }
+
+  // ── Attendees ────────────────────────────────────────────────────────────
+
+  @Get('events/:eventId/attendees')
+  @ApiOperation({ summary: 'Get attendee list for event' })
+  getAttendees(
+    @Param('eventId') eventId: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ) {
+    return this.adminService.getAttendees(
+      eventId,
+      page ? parseInt(page, 10) : 1,
+      limit ? Math.min(parseInt(limit, 10), 100) : 50,
+    );
+  }
+
+  // ── Analytics ────────────────────────────────────────────────────────────
+
+  @Get('analytics/events/:eventId')
+  @ApiOperation({ summary: 'Get sales analytics for event' })
+  getEventAnalytics(@Param('eventId') eventId: string) {
+    return this.adminService.getEventAnalytics(eventId);
+  }
+
+  // ── Fraud Flags ──────────────────────────────────────────────────────────
+
+  @Get('fraud-flags')
+  @ApiOperation({ summary: 'List unresolved fraud flags' })
+  getFraudFlags(@Query('page') page?: string, @Query('limit') limit?: string) {
+    return this.adminService.getFraudFlags(
+      page ? parseInt(page, 10) : 1,
+      limit ? Math.min(parseInt(limit, 10), 100) : 20,
+    );
+  }
+
+  @Patch('fraud-flags/:id/resolve')
+  @ApiOperation({ summary: 'Mark fraud flag as resolved' })
+  resolveFraudFlag(@Param('id') id: string) {
+    return this.adminService.resolveFraudFlag(id);
+  }
+}
