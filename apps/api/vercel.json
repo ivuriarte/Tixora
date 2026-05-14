@@ -1,7 +1,11 @@
 {
-  "installCommand": "cd ../../ && npm ci",
-  "buildCommand": "npm run vercel-build",
+  "functions": {
+    "api/index.js": {
+      "memory": 1024,
+      "maxDuration": 30
+    }
+  },
   "rewrites": [
-    { "source": "/(.*)", "destination": "/api" }
+    { "source": "/(.*)", "destination": "/api/index" }
   ]
 }
