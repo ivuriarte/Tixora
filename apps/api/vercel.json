@@ -1,6 +1,6 @@
 {
-  "installCommand": "echo '=== CWD ===' && pwd && ls ../../package-lock.json 2>&1 && cd ../../ && npm ci",
-  "buildCommand": "npm run vercel-build",
+  "installCommand": "npm ci",
+  "buildCommand": "npx turbo build --filter=@tixora/api && node_modules/.bin/ncc build apps/api/dist/serverless.js -o apps/api/api --minify && cp apps/api/api/client/libquery_engine-rhel-openssl-1.0.x.so.node apps/api/api/ && cp apps/api/api/client/libquery_engine-rhel-openssl-3.0.x.so.node apps/api/api/",
   "rewrites": [
     { "source": "/(.*)", "destination": "/api" }
   ]
