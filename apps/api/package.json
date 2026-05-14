@@ -5,6 +5,7 @@
   "scripts": {
     "prebuild": "prisma generate",
     "build": "nest build",
+    "vercel-build": "cd ../.. && npx turbo build --filter=@tixora/api",
     "dev": "prisma generate && nest start --watch",
     "start": "node dist/main",
     "lint": "eslint \"src/**/*.ts\"",
