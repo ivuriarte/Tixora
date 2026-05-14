@@ -65,7 +65,15 @@
     "typescript": "^5.5.0"
   },
   "jest": {
-    "testPathIgnorePatterns": ["/node_modules/", "/.vercel/"],
-    "moduleNameMapper": { "^@tixora/(.*)$": "<rootDir>/../../packages/$1/src" }
+    "testPathIgnorePatterns": [
+      "/node_modules/",
+      "/.vercel/"
+    ],
+    "moduleNameMapper": {
+      "^@tixora/(.*)$": "<rootDir>/../../packages/$1/src"
+    }
+  },
+  "prisma": {
+    "seed": "ts-node --transpile-only prisma/seed.ts"
   }
 }

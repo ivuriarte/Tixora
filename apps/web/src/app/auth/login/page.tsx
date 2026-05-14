@@ -25,7 +25,7 @@ export default function LoginPage() {
       const { user, accessToken, refreshToken } = res.data.data;
       setAuth(user, accessToken, refreshToken);
       toast.success(`Welcome back, ${user.firstName}!`);
-      router.push('/');
+      router.push(user.isAdmin ? '/admin' : '/');
     } catch (err: any) {
       const msg = err?.response?.data?.message ?? 'Login failed';
       // If account not verified, redirect to verify page
@@ -53,7 +53,7 @@ export default function LoginPage() {
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
             <input
-              type="email"
+              type="text"
               required
               value={email}
               onChange={(e) => setEmail(e.target.value)}

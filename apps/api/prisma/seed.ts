@@ -5,15 +5,15 @@ const prisma = new PrismaClient();
 
 async function main() {
   // Upsert admin user
-  const passwordHash = await bcrypt.hash('Admin123!', 10);
+  const passwordHash = await bcrypt.hash('admin', 10);
   const admin = await prisma.user.upsert({
-    where: { email: 'admin@tixora.test' },
-    update: { isAdmin: true },
+    where: { email: 'admin' },
+    update: { isAdmin: true, passwordHash },
     create: {
-      email: 'admin@tixora.test',
+      email: 'admin',
       passwordHash,
-      firstName: 'Test',
-      lastName: 'Admin',
+      firstName: 'Admin',
+      lastName: '',
       isAdmin: true,
       isVerified: true,
     },
