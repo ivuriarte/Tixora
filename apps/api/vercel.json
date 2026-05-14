@@ -1,5 +1,5 @@
 {
-  "installCommand": "npm install",
+  "installCommand": "echo '=== CWD ===' && pwd && ls ../../package-lock.json 2>&1 && cd ../../ && npm ci",
   "buildCommand": "npm run vercel-build",
   "rewrites": [
     { "source": "/(.*)", "destination": "/api" }
