@@ -13,14 +13,16 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
     const url = this.config.get<string>('redis.url');
     if (!url) throw new Error('REDIS_URL is not configured');
 
+    const isTls = url.startsWith('rediss://');
     this.client = new Redis(url, {
       maxRetriesPerRequest: 3,
       enableReadyCheck: true,
       lazyConnect: false,
+      ...(isTls && { tls: { rejectUnauthorized: false } }),
     });
 
     this.client.on('connect', () => this.logger.log('Redis connected'));
-    this.client.on('error', (err) => this.logger.error('Redis error', err.message));
+    this.client.on('error', (err) => this.logger.error(`Redis error: ${err.message}`));
   }
 
   async onModuleDestroy() {

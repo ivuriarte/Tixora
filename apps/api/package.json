@@ -21,9 +21,9 @@
     "@nestjs/platform-express": "^10.4.0",
     "@nestjs/schedule": "^4.1.0",
     "@nestjs/swagger": "^7.4.0",
-    "@nestjs/throttler": "^6.2.0",
     "@nestjs/terminus": "^10.2.3",
-    "@prisma/client": "^5.20.0",
+    "@nestjs/throttler": "^6.2.0",
+    "@prisma/client": "^5.22.0",
     "@tixora/types": "*",
     "@tixora/utils": "*",
     "bcrypt": "^5.1.1",
@@ -43,6 +43,7 @@
     "reflect-metadata": "^0.2.2",
     "resend": "^4.0.0",
     "rxjs": "^7.8.1",
+    "stripe": "^22.1.1",
     "uuid": "^10.0.0"
   },
   "devDependencies": {

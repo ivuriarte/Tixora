@@ -38,3 +38,5 @@ coverage/
 
 # SSL keys (never commit)
 *.pem
+
+/generated/prisma

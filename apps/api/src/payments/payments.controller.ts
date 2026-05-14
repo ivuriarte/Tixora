@@ -23,7 +23,7 @@ export class PaymentsController {
 
   /**
    * PayMongo webhook endpoint.
-   * Requires raw body — configured in main.ts via rawBodyParser middleware.
+   * Requires raw body — configured in main.ts via rawBody: true.
    */
   @Public()
   @Post('webhook/paymongo')
