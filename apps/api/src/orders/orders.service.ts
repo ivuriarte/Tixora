@@ -6,6 +6,7 @@ import {
   Logger,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { Prisma } from '@prisma/client';
 import { RedisService } from '../redis/redis.service';
 import { CreateOrderDto } from './dto/order.dto';
 import { generateQrToken } from '@tixora/utils';
@@ -46,8 +47,7 @@ export class OrdersService {
     const total = subtotal + fees;
 
     // Run the critical section in a DB transaction with row-level lock
-    const order = await this.prisma.$transaction(async (tx) => {
-      // Lock the ticket tier row to prevent race conditions
+    const order = await this.prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       const tier = await tx.$queryRaw<Array<{ sold_quantity: number; total_quantity: number }>>`
         SELECT sold_quantity, total_quantity
         FROM ticket_tiers
@@ -132,7 +132,7 @@ export class OrdersService {
       total: Number(order.total),
       currency: order.currency,
       paymentMethod: order.paymentMethod,
-      items: order.items.map((item) => ({
+      items: order.items.map((item: (typeof order.items)[number]) => ({
         id: item.id,
         tierId: item.ticketTierId,
         tierName: item.ticketTier.name,
@@ -162,7 +162,7 @@ export class OrdersService {
     ]);
 
     return {
-      data: orders.map((o) => ({
+      data: orders.map((o: (typeof orders)[number]) => ({
         id: o.id,
         eventTitle: o.event.title,
         eventSlug: o.event.slug,
@@ -199,8 +199,7 @@ export class OrdersService {
 
     const qrSecret = this.config.get<string>('qr.hmacSecret') ?? '';
 
-    await this.prisma.$transaction(async (tx) => {
-      // Update order status
+    await this.prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       await tx.order.update({
         where: { id: orderId },
         data: { status: 'paid', paymentRef },

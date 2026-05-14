@@ -151,7 +151,7 @@ export class ReservationsService {
 
     if (expired.length === 0) return;
 
-    const ids = expired.map((r) => r.id);
+    const ids = expired.map((r: (typeof expired)[number]) => r.id);
     await this.prisma.reservation.updateMany({
       where: { id: { in: ids } },
       data: { status: 'expired' },

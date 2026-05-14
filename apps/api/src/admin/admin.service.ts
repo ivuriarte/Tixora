@@ -5,6 +5,7 @@ import {
   ConflictException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { Prisma } from '@prisma/client';
 import { EventsService } from '../events/events.service';
 import { TicketTiersService } from '../ticket-tiers/ticket-tiers.service';
 import { CreateEventDto, UpdateEventDto } from '../events/dto/event.dto';
@@ -47,7 +48,7 @@ export class AdminService {
     ]);
 
     return {
-      data: events.map((e) => ({
+      data: events.map((e: (typeof events)[number]) => ({
         id: e.id,
         slug: e.slug,
         title: e.title,
@@ -57,7 +58,7 @@ export class AdminService {
         status: e.status,
         ticketsSold: e._count.tickets,
         ordersCount: e._count.orders,
-        tiers: e.tiers.map((t) => ({
+        tiers: e.tiers.map((t: (typeof e.tiers)[number]) => ({
           name: t.name,
           totalQuantity: t.totalQuantity,
           soldQuantity: t.soldQuantity,
@@ -108,7 +109,7 @@ export class AdminService {
     ]);
 
     return {
-      data: orders.map((o) => ({
+      data: orders.map((o: (typeof orders)[number]) => ({
         id: o.id,
         userEmail: o.user.email,
         userName: `${o.user.firstName} ${o.user.lastName}`,
@@ -198,7 +199,7 @@ export class AdminService {
     ]);
 
     return {
-      data: tickets.map((t) => ({
+      data: tickets.map((t: (typeof tickets)[number]) => ({
         id: t.id,
         userEmail: t.user.email,
         userName: `${t.user.firstName} ${t.user.lastName}`,
@@ -255,7 +256,7 @@ export class AdminService {
       totalTicketsSold: validTickets,
       checkedInCount: checkedIn,
       checkInRate: validTickets > 0 ? Math.round((checkedIn / validTickets) * 100) : 0,
-      tierBreakdown: event.tiers.map((tier) => ({
+      tierBreakdown: event.tiers.map((tier: (typeof event.tiers)[number]) => ({
         tierId: tier.id,
         tierName: tier.name,
         totalQuantity: tier.totalQuantity,
@@ -285,7 +286,7 @@ export class AdminService {
     ]);
 
     return {
-      data: flags.map((f) => ({
+      data: flags.map((f: (typeof flags)[number]) => ({
         id: f.id,
         userId: f.userId,
         userEmail: f.user?.email,

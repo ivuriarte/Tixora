@@ -22,7 +22,7 @@ export class TicketsService {
     ]);
 
     return {
-      data: tickets.map((t) => ({
+      data: tickets.map((t: (typeof tickets)[number]) => ({
         id: t.id,
         orderId: t.orderId,
         eventId: t.eventId,

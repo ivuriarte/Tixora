@@ -38,7 +38,7 @@ export class EventsService {
       }),
     ]);
 
-    const data = events.map((e: (typeof events)[0]) => ({
+    const data = events.map((e) => ({
       id: e.id,
       slug: e.slug,
       title: e.title,
@@ -49,7 +49,7 @@ export class EventsService {
       status: e.status,
       lowestPrice: e.tiers[0] ? Number(e.tiers[0].price) : null,
       totalAvailable: e.tiers.reduce(
-        (sum: number, t: (typeof e.tiers)[0]) => sum + Math.max(0, t.totalQuantity - t.soldQuantity),
+        (sum: number, t) => sum + Math.max(0, t.totalQuantity - t.soldQuantity),
         0,
       ),
     }));

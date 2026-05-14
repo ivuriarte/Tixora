@@ -3,8 +3,9 @@
   "version": "0.0.1",
   "private": true,
   "scripts": {
+    "prebuild": "prisma generate",
     "build": "nest build",
-    "dev": "nest start --watch",
+    "dev": "prisma generate && nest start --watch",
     "start": "node dist/main",
     "lint": "eslint \"src/**/*.ts\"",
     "typecheck": "tsc --noEmit",
