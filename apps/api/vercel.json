@@ -1,7 +1,12 @@
 {
-  "installCommand": "cd ../../ && npm ci --workspaces false",
+  "installCommand": "cd ../../ && npm ci",
   "buildCommand": "npm run vercel-build",
   "rewrites": [
     { "source": "/(.*)", "destination": "/api" }
-  ]
+  ],
+  "build": {
+    "env": {
+      "NODE_VERSION": "22"
+    }
+  }
 }
