@@ -17,6 +17,9 @@ out/
 # Prisma
 apps/api/prisma/migrations/
 
+# Vercel ncc bundle output
+apps/api/api/
+
 # Logs
 *.log
 npm-debug.log*
