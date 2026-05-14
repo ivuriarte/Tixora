@@ -294,6 +294,32 @@
       margin-top: 1px;
     }
 
+    .todo-checkbox.checked {
+      background: #28a745;
+      border-color: #28a745;
+      position: relative;
+    }
+
+    .todo-checkbox.checked::after {
+      content: '✓';
+      position: absolute;
+      top: -3px;
+      left: 1px;
+      color: #fff;
+      font-size: 12px;
+      font-weight: 700;
+      line-height: 1;
+    }
+
+    .todo-item.done .todo-text {
+      color: #888;
+      text-decoration: line-through;
+    }
+
+    .todo-item.done .todo-text small {
+      color: #aaa;
+    }
+
     .todo-text {
       flex: 1;
       font-size: 12.5px;
@@ -468,7 +494,7 @@
       <div class="cover-meta-item"><strong>Version</strong>1.0 — MVP</div>
       <div class="cover-meta-item"><strong>Date</strong>May 14, 2026</div>
       <div class="cover-meta-item"><strong>Target Launch</strong>Manila, ~8 weeks</div>
-      <div class="cover-meta-item"><strong>Status</strong>Planning</div>
+      <div class="cover-meta-item"><strong>Status</strong>In Development</div>
     </div>
   </div>
 
@@ -1117,75 +1143,75 @@ order_items  → ON DELETE CASCADE when order is deleted</pre>
 
   <div class="todo-section">
     <div class="todo-group-title">Critical</div>
-    <div class="todo-item avoid-break">
-      <div class="todo-checkbox"></div>
+    <div class="todo-item avoid-break done">
+      <div class="todo-checkbox checked"></div>
       <div class="todo-text">Finalize database schema (all tables, indexes, constraints, cascade rules)
         <small>Foundation for all development. Cannot start coding without this.</small>
       </div>
       <span class="badge badge-critical">Critical</span>
     </div>
-    <div class="todo-item avoid-break">
-      <div class="todo-checkbox"></div>
+    <div class="todo-item avoid-break done">
+      <div class="todo-checkbox checked"></div>
       <div class="todo-text">Define API contract (all endpoints, request/response shapes, status codes)
         <small>Frontend and backend teams need this to work in parallel.</small>
       </div>
       <span class="badge badge-critical">Critical</span>
     </div>
-    <div class="todo-item avoid-break">
-      <div class="todo-checkbox"></div>
+    <div class="todo-item avoid-break done">
+      <div class="todo-checkbox checked"></div>
       <div class="todo-text">Design ticket inventory strategy (Redis dual-layer + PostgreSQL transaction)
         <small>The most critical business logic in the platform.</small>
       </div>
       <span class="badge badge-critical">Critical</span>
     </div>
-    <div class="todo-item avoid-break">
-      <div class="todo-checkbox"></div>
+    <div class="todo-item avoid-break done">
+      <div class="todo-checkbox checked"></div>
       <div class="todo-text">Design authentication flow (JWT RS256 + refresh tokens + OTP)
         <small>All other features depend on auth being correct.</small>
       </div>
       <span class="badge badge-critical">Critical</span>
     </div>
-    <div class="todo-item avoid-break">
-      <div class="todo-checkbox"></div>
+    <div class="todo-item avoid-break done">
+      <div class="todo-checkbox checked"></div>
       <div class="todo-text">Design QR ticket generation and HMAC verification approach
         <small>Defines how tickets are secured against forgery.</small>
       </div>
       <span class="badge badge-critical">Critical</span>
     </div>
-    <div class="todo-item avoid-break">
-      <div class="todo-checkbox"></div>
+    <div class="todo-item avoid-break done">
+      <div class="todo-checkbox checked"></div>
       <div class="todo-text">Define payment abstraction layer interface (IPaymentProvider)</div>
       <span class="badge badge-critical">Critical</span>
     </div>
-    <div class="todo-item avoid-break">
-      <div class="todo-checkbox"></div>
+    <div class="todo-item avoid-break done">
+      <div class="todo-checkbox checked"></div>
       <div class="todo-text">Define concurrency handling strategy (optimistic locking + FOR UPDATE)</div>
       <span class="badge badge-critical">Critical</span>
     </div>
-    <div class="todo-item avoid-break">
-      <div class="todo-checkbox"></div>
+    <div class="todo-item avoid-break done">
+      <div class="todo-checkbox checked"></div>
       <div class="todo-text">Define security architecture layers (network → app → business → data)</div>
       <span class="badge badge-critical">Critical</span>
     </div>
 
     <div class="todo-group-title">Medium</div>
-    <div class="todo-item avoid-break">
-      <div class="todo-checkbox"></div>
+    <div class="todo-item avoid-break done">
+      <div class="todo-checkbox checked"></div>
       <div class="todo-text">Define anti-bot strategy (CAPTCHA + rate limits + fingerprinting)</div>
       <span class="badge badge-medium">Medium</span>
     </div>
-    <div class="todo-item avoid-break">
-      <div class="todo-checkbox"></div>
+    <div class="todo-item avoid-break done">
+      <div class="todo-checkbox checked"></div>
       <div class="todo-text">Define fraud flag criteria and thresholds</div>
       <span class="badge badge-medium">Medium</span>
     </div>
-    <div class="todo-item avoid-break">
-      <div class="todo-checkbox"></div>
+    <div class="todo-item avoid-break done">
+      <div class="todo-checkbox checked"></div>
       <div class="todo-text">Finalize environment variables structure (.env.example)</div>
       <span class="badge badge-medium">Medium</span>
     </div>
-    <div class="todo-item avoid-break">
-      <div class="todo-checkbox"></div>
+    <div class="todo-item avoid-break done">
+      <div class="todo-checkbox checked"></div>
       <div class="todo-text">Choose and confirm hosting providers (Vercel, Railway, Supabase, Upstash)</div>
       <span class="badge badge-medium">Medium</span>
     </div>
@@ -1209,63 +1235,63 @@ order_items  → ON DELETE CASCADE when order is deleted</pre>
 
   <div class="todo-section">
     <div class="todo-group-title">Critical</div>
-    <div class="todo-item avoid-break">
-      <div class="todo-checkbox"></div>
+    <div class="todo-item avoid-break done">
+      <div class="todo-checkbox checked"></div>
       <div class="todo-text">Initialize Turborepo monorepo (apps/web, apps/api, packages/types, packages/utils)</div>
       <span class="badge badge-critical">Critical</span>
     </div>
-    <div class="todo-item avoid-break">
-      <div class="todo-checkbox"></div>
+    <div class="todo-item avoid-break done">
+      <div class="todo-checkbox checked"></div>
       <div class="todo-text">Set up apps/web (Next.js 14, TypeScript, Tailwind, TanStack Query, Zustand)</div>
       <span class="badge badge-critical">Critical</span>
     </div>
-    <div class="todo-item avoid-break">
-      <div class="todo-checkbox"></div>
+    <div class="todo-item avoid-break done">
+      <div class="todo-checkbox checked"></div>
       <div class="todo-text">Set up apps/api (NestJS, TypeScript, Prisma)</div>
       <span class="badge badge-critical">Critical</span>
     </div>
-    <div class="todo-item avoid-break">
-      <div class="todo-checkbox"></div>
+    <div class="todo-item avoid-break done">
+      <div class="todo-checkbox checked"></div>
       <div class="todo-text">Set up packages/types (shared DTOs used by both frontend and backend)</div>
       <span class="badge badge-critical">Critical</span>
     </div>
-    <div class="todo-item avoid-break">
-      <div class="todo-checkbox"></div>
+    <div class="todo-item avoid-break done">
+      <div class="todo-checkbox checked"></div>
       <div class="todo-text">Set up packages/utils (QR utilities, PHP currency formatting)</div>
       <span class="badge badge-critical">Critical</span>
     </div>
-    <div class="todo-item avoid-break">
-      <div class="todo-checkbox"></div>
+    <div class="todo-item avoid-break done">
+      <div class="todo-checkbox checked"></div>
       <div class="todo-text">Create PostgreSQL database on Supabase (Singapore region)</div>
       <span class="badge badge-critical">Critical</span>
     </div>
-    <div class="todo-item avoid-break">
-      <div class="todo-checkbox"></div>
+    <div class="todo-item avoid-break done">
+      <div class="todo-checkbox checked"></div>
       <div class="todo-text">Create Redis instance on Upstash</div>
       <span class="badge badge-critical">Critical</span>
     </div>
-    <div class="todo-item avoid-break">
-      <div class="todo-checkbox"></div>
+    <div class="todo-item avoid-break done">
+      <div class="todo-checkbox checked"></div>
       <div class="todo-text">Write Prisma schema and run initial migration</div>
       <span class="badge badge-critical">Critical</span>
     </div>
-    <div class="todo-item avoid-break">
-      <div class="todo-checkbox"></div>
+    <div class="todo-item avoid-break done">
+      <div class="todo-checkbox checked"></div>
       <div class="todo-text">Configure CORS on NestJS (whitelist tixora.ph only)</div>
       <span class="badge badge-critical">Critical</span>
     </div>
-    <div class="todo-item avoid-break">
-      <div class="todo-checkbox"></div>
+    <div class="todo-item avoid-break done">
+      <div class="todo-checkbox checked"></div>
       <div class="todo-text">Configure Helmet.js security headers on NestJS</div>
       <span class="badge badge-critical">Critical</span>
     </div>
-    <div class="todo-item avoid-break">
-      <div class="todo-checkbox"></div>
+    <div class="todo-item avoid-break done">
+      <div class="todo-checkbox checked"></div>
       <div class="todo-text">Set up global exception filter (consistent API error responses)</div>
       <span class="badge badge-critical">Critical</span>
     </div>
-    <div class="todo-item avoid-break">
-      <div class="todo-checkbox"></div>
+    <div class="todo-item avoid-break done">
+      <div class="todo-checkbox checked"></div>
       <div class="todo-text">Set up global validation pipe (class-validator)</div>
       <span class="badge badge-critical">Critical</span>
     </div>
@@ -1276,8 +1302,8 @@ order_items  → ON DELETE CASCADE when order is deleted</pre>
       <div class="todo-text">Set up GitHub Actions CI/CD pipeline (lint, typecheck, test, deploy)</div>
       <span class="badge badge-medium">Medium</span>
     </div>
-    <div class="todo-item avoid-break">
-      <div class="todo-checkbox"></div>
+    <div class="todo-item avoid-break done">
+      <div class="todo-checkbox checked"></div>
       <div class="todo-text">Configure Vercel project (linked to apps/web)</div>
       <span class="badge badge-medium">Medium</span>
     </div>
@@ -1291,18 +1317,18 @@ order_items  → ON DELETE CASCADE when order is deleted</pre>
       <div class="todo-text">Set up Cloudflare proxying (DNS, free WAF, DDoS protection)</div>
       <span class="badge badge-medium">Medium</span>
     </div>
-    <div class="todo-item avoid-break">
-      <div class="todo-checkbox"></div>
+    <div class="todo-item avoid-break done">
+      <div class="todo-checkbox checked"></div>
       <div class="todo-text">Create Resend account + verify sending domain (tixora.ph)</div>
       <span class="badge badge-medium">Medium</span>
     </div>
-    <div class="todo-item avoid-break">
-      <div class="todo-checkbox"></div>
+    <div class="todo-item avoid-break done">
+      <div class="todo-checkbox checked"></div>
       <div class="todo-text">Create Cloudinary account (for event image uploads)</div>
       <span class="badge badge-medium">Medium</span>
     </div>
-    <div class="todo-item avoid-break">
-      <div class="todo-checkbox"></div>
+    <div class="todo-item avoid-break done">
+      <div class="todo-checkbox checked"></div>
       <div class="todo-text">Create hCaptcha account (site key + secret key)</div>
       <span class="badge badge-medium">Medium</span>
     </div>
@@ -1333,8 +1359,8 @@ order_items  → ON DELETE CASCADE when order is deleted</pre>
       <div class="todo-text">Set up Husky pre-commit hooks (lint + typecheck before commit)</div>
       <span class="badge badge-low">Low</span>
     </div>
-    <div class="todo-item avoid-break">
-      <div class="todo-checkbox"></div>
+    <div class="todo-item avoid-break done">
+      <div class="todo-checkbox checked"></div>
       <div class="todo-text">Configure Turborepo pipeline (build order, caching)</div>
       <span class="badge badge-low">Low</span>
     </div>
@@ -1456,8 +1482,8 @@ order_items  → ON DELETE CASCADE when order is deleted</pre>
       <div class="todo-text">DELETE /admin/events/:id (soft delete / cancel)</div>
       <span class="badge badge-critical">Critical</span>
     </div>
-    <div class="todo-item avoid-break">
-      <div class="todo-checkbox"></div>
+    <div class="todo-item avoid-break done">
+      <div class="todo-checkbox checked"></div>
       <div class="todo-text">GET /events (public paginated event list)</div>
       <span class="badge badge-critical">Critical</span>
     </div>
@@ -1818,8 +1844,8 @@ order_items  → ON DELETE CASCADE when order is deleted</pre>
   <!-- FRONTEND -->
   <div class="todo-section">
     <div class="todo-group-title">Frontend Pages &amp; UX — Critical</div>
-    <div class="todo-item avoid-break">
-      <div class="todo-checkbox"></div>
+    <div class="todo-item avoid-break done">
+      <div class="todo-checkbox checked"></div>
       <div class="todo-text">Event browse page (/) — list of all events, mobile-first</div>
       <span class="badge badge-critical">Critical</span>
     </div>
@@ -2081,8 +2107,8 @@ order_items  → ON DELETE CASCADE when order is deleted</pre>
       <div class="todo-text">Sentry error tracking active on backend (NestJS)</div>
       <span class="badge badge-critical">Critical</span>
     </div>
-    <div class="todo-item avoid-break">
-      <div class="todo-checkbox"></div>
+    <div class="todo-item avoid-break done">
+      <div class="todo-checkbox checked"></div>
       <div class="todo-text">GET /v1/health endpoint (real DB ping + Redis ping, returns 503 on failure)</div>
       <span class="badge badge-critical">Critical</span>
     </div>
