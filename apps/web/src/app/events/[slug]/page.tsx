@@ -32,10 +32,14 @@ interface Event {
 
 async function getEvent(slug: string): Promise<Event | null> {
   const baseUrl = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001/api/v1';
-  const res = await fetch(`${baseUrl}/events/${slug}`, { next: { revalidate: 30 } });
-  if (!res.ok) return null;
-  const json = await res.json();
-  return json.data;
+  try {
+    const res = await fetch(`${baseUrl}/events/${slug}`, { next: { revalidate: 30 } });
+    if (!res.ok) return null;
+    const json = await res.json();
+    return json.data;
+  } catch {
+    return null;
+  }
 }
 
 export async function generateMetadata({ params }: { params: { slug: string } }) {

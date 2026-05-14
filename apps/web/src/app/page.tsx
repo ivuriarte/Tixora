@@ -17,10 +17,14 @@ interface EventSummary {
 
 async function getEvents(page = 1): Promise<{ data: EventSummary[]; meta: { total: number; totalPages: number } }> {
   const baseUrl = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001/api/v1';
-  const res = await fetch(`${baseUrl}/events?page=${page}&limit=12`, { next: { revalidate: 60 } });
-  if (!res.ok) return { data: [], meta: { total: 0, totalPages: 0 } };
-  const json = await res.json();
-  return json.data;
+  try {
+    const res = await fetch(`${baseUrl}/events?page=${page}&limit=12`, { next: { revalidate: 60 } });
+    if (!res.ok) return { data: [], meta: { total: 0, totalPages: 0 } };
+    const json = await res.json();
+    return json.data;
+  } catch {
+    return { data: [], meta: { total: 0, totalPages: 0 } };
+  }
 }
 
 export default async function HomePage({ searchParams }: { searchParams: { page?: string } }) {
