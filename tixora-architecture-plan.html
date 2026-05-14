@@ -1337,8 +1337,8 @@ order_items  → ON DELETE CASCADE when order is deleted</pre>
       <div class="todo-text">Set up Sentry projects (frontend + backend error tracking)</div>
       <span class="badge badge-medium">Medium</span>
     </div>
-    <div class="todo-item avoid-break">
-      <div class="todo-checkbox"></div>
+    <div class="todo-item avoid-break done">
+      <div class="todo-checkbox checked"></div>
       <div class="todo-text">Configure pino structured JSON logging on NestJS API</div>
       <span class="badge badge-medium">Medium</span>
     </div>
@@ -1349,8 +1349,8 @@ order_items  → ON DELETE CASCADE when order is deleted</pre>
       <div class="todo-text">Set up Docker Compose for local development environment</div>
       <span class="badge badge-low">Low</span>
     </div>
-    <div class="todo-item avoid-break">
-      <div class="todo-checkbox"></div>
+    <div class="todo-item avoid-break done">
+      <div class="todo-checkbox checked"></div>
       <div class="todo-text">Configure ESLint + Prettier (code formatting)</div>
       <span class="badge badge-low">Low</span>
     </div>
@@ -1440,13 +1440,13 @@ order_items  → ON DELETE CASCADE when order is deleted</pre>
     </div>
 
     <div class="todo-group-title">Authentication — Medium</div>
-    <div class="todo-item avoid-break">
-      <div class="todo-checkbox"></div>
+    <div class="todo-item avoid-break done">
+      <div class="todo-checkbox checked"></div>
       <div class="todo-text">GET /auth/me endpoint</div>
       <span class="badge badge-medium">Medium</span>
     </div>
-    <div class="todo-item avoid-break">
-      <div class="todo-checkbox"></div>
+    <div class="todo-item avoid-break done">
+      <div class="todo-checkbox checked"></div>
       <div class="todo-text">POST /auth/resend-otp endpoint (rate limited)</div>
       <span class="badge badge-medium">Medium</span>
     </div>
@@ -1467,13 +1467,13 @@ order_items  → ON DELETE CASCADE when order is deleted</pre>
   <!-- EVENTS -->
   <div class="todo-section">
     <div class="todo-group-title">Events &amp; Tiers — Critical</div>
-    <div class="todo-item avoid-break">
-      <div class="todo-checkbox"></div>
+    <div class="todo-item avoid-break done">
+      <div class="todo-checkbox checked"></div>
       <div class="todo-text">POST /admin/events (create event with all fields)</div>
       <span class="badge badge-critical">Critical</span>
     </div>
-    <div class="todo-item avoid-break">
-      <div class="todo-checkbox"></div>
+    <div class="todo-item avoid-break done">
+      <div class="todo-checkbox checked"></div>
       <div class="todo-text">PATCH /admin/events/:id (edit event)</div>
       <span class="badge badge-critical">Critical</span>
     </div>
@@ -1487,8 +1487,8 @@ order_items  → ON DELETE CASCADE when order is deleted</pre>
       <div class="todo-text">GET /events (public paginated event list)</div>
       <span class="badge badge-critical">Critical</span>
     </div>
-    <div class="todo-item avoid-break">
-      <div class="todo-checkbox"></div>
+    <div class="todo-item avoid-break done">
+      <div class="todo-checkbox checked"></div>
       <div class="todo-text">GET /events/:slug (event detail + tiers)</div>
       <span class="badge badge-critical">Critical</span>
     </div>
@@ -1497,20 +1497,20 @@ order_items  → ON DELETE CASCADE when order is deleted</pre>
       <div class="todo-text">Ticket tier CRUD (POST, PATCH, DELETE /admin/events/:id/tiers)</div>
       <span class="badge badge-critical">Critical</span>
     </div>
-    <div class="todo-item avoid-break">
-      <div class="todo-checkbox"></div>
+    <div class="todo-item avoid-break done">
+      <div class="todo-checkbox checked"></div>
       <div class="todo-text">Event status management (draft → published → on_sale → sold_out → completed)</div>
       <span class="badge badge-critical">Critical</span>
     </div>
 
     <div class="todo-group-title">Events &amp; Tiers — Medium</div>
-    <div class="todo-item avoid-break">
-      <div class="todo-checkbox"></div>
+    <div class="todo-item avoid-break done">
+      <div class="todo-checkbox checked"></div>
       <div class="todo-text">Image upload to Cloudinary (event banner + thumbnail)</div>
       <span class="badge badge-medium">Medium</span>
     </div>
-    <div class="todo-item avoid-break">
-      <div class="todo-checkbox"></div>
+    <div class="todo-item avoid-break done">
+      <div class="todo-checkbox checked"></div>
       <div class="todo-text">ISR / edge caching on event pages (30–60s revalidation)</div>
       <span class="badge badge-medium">Medium</span>
     </div>
@@ -1536,55 +1536,55 @@ order_items  → ON DELETE CASCADE when order is deleted</pre>
   <!-- RESERVATIONS -->
   <div class="todo-section">
     <div class="todo-group-title">Reservations — Critical</div>
-    <div class="todo-item avoid-break">
-      <div class="todo-checkbox"></div>
+    <div class="todo-item avoid-break done">
+      <div class="todo-checkbox checked"></div>
       <div class="todo-text">POST /reservations (hCaptcha verify + Redis DECRBY + DB write)</div>
       <span class="badge badge-critical">Critical</span>
     </div>
-    <div class="todo-item avoid-break">
-      <div class="todo-checkbox"></div>
+    <div class="todo-item avoid-break done">
+      <div class="todo-checkbox checked"></div>
       <div class="todo-text">Redis DECRBY atomic inventory decrement (prevent oversell)</div>
       <span class="badge badge-critical">Critical</span>
     </div>
-    <div class="todo-item avoid-break">
-      <div class="todo-checkbox"></div>
+    <div class="todo-item avoid-break done">
+      <div class="todo-checkbox checked"></div>
       <div class="todo-text">Reservation TTL = 10 minutes (expires_at field + Redis TTL)</div>
       <span class="badge badge-critical">Critical</span>
     </div>
-    <div class="todo-item avoid-break">
-      <div class="todo-checkbox"></div>
+    <div class="todo-item avoid-break done">
+      <div class="todo-checkbox checked"></div>
       <div class="todo-text">max_per_user purchase history check at reservation creation</div>
       <span class="badge badge-critical">Critical</span>
     </div>
-    <div class="todo-item avoid-break">
-      <div class="todo-checkbox"></div>
+    <div class="todo-item avoid-break done">
+      <div class="todo-checkbox checked"></div>
       <div class="todo-text">Active reservation count check (max 3 per user)</div>
       <span class="badge badge-critical">Critical</span>
     </div>
-    <div class="todo-item avoid-break">
-      <div class="todo-checkbox"></div>
+    <div class="todo-item avoid-break done">
+      <div class="todo-checkbox checked"></div>
       <div class="todo-text">Idempotency key on reservations (prevent duplicate holds)</div>
       <span class="badge badge-critical">Critical</span>
     </div>
-    <div class="todo-item avoid-break">
-      <div class="todo-checkbox"></div>
+    <div class="todo-item avoid-break done">
+      <div class="todo-checkbox checked"></div>
       <div class="todo-text">DELETE /reservations/:id (early release — restore Redis inventory)</div>
       <span class="badge badge-critical">Critical</span>
     </div>
-    <div class="todo-item avoid-break">
-      <div class="todo-checkbox"></div>
+    <div class="todo-item avoid-break done">
+      <div class="todo-checkbox checked"></div>
       <div class="todo-text">GET /reservations/:id (status + seconds remaining)</div>
       <span class="badge badge-critical">Critical</span>
     </div>
-    <div class="todo-item avoid-break">
-      <div class="todo-checkbox"></div>
+    <div class="todo-item avoid-break done">
+      <div class="todo-checkbox checked"></div>
       <div class="todo-text">Reservation expiry cron job (runs every 60s, restores expired inventory)</div>
       <span class="badge badge-critical">Critical</span>
     </div>
 
     <div class="todo-group-title">Reservations — Medium</div>
-    <div class="todo-item avoid-break">
-      <div class="todo-checkbox"></div>
+    <div class="todo-item avoid-break done">
+      <div class="todo-checkbox checked"></div>
       <div class="todo-text">Client-side countdown timer (useReservationTimer hook)</div>
       <span class="badge badge-medium">Medium</span>
     </div>
@@ -1593,8 +1593,8 @@ order_items  → ON DELETE CASCADE when order is deleted</pre>
       <div class="todo-text">Timer sync with server (GET /reservations/:id every 30s)</div>
       <span class="badge badge-medium">Medium</span>
     </div>
-    <div class="todo-item avoid-break">
-      <div class="todo-checkbox"></div>
+    <div class="todo-item avoid-break done">
+      <div class="todo-checkbox checked"></div>
       <div class="todo-text">Expiry modal (redirect + message when timer hits zero)</div>
       <span class="badge badge-medium">Medium</span>
     </div>
@@ -1603,50 +1603,50 @@ order_items  → ON DELETE CASCADE when order is deleted</pre>
   <!-- ORDERS -->
   <div class="todo-section">
     <div class="todo-group-title">Orders — Critical</div>
-    <div class="todo-item avoid-break">
-      <div class="todo-checkbox"></div>
+    <div class="todo-item avoid-break done">
+      <div class="todo-checkbox checked"></div>
       <div class="todo-text">POST /orders (convert reservation → order, full DB transaction)</div>
       <span class="badge badge-critical">Critical</span>
     </div>
-    <div class="todo-item avoid-break">
-      <div class="todo-checkbox"></div>
+    <div class="todo-item avoid-break done">
+      <div class="todo-checkbox checked"></div>
       <div class="todo-text">PostgreSQL FOR UPDATE lock on reservation row</div>
       <span class="badge badge-critical">Critical</span>
     </div>
-    <div class="todo-item avoid-break">
-      <div class="todo-checkbox"></div>
+    <div class="todo-item avoid-break done">
+      <div class="todo-checkbox checked"></div>
       <div class="todo-text">sold_quantity UPDATE with constraint enforcement (no oversell)</div>
       <span class="badge badge-critical">Critical</span>
     </div>
-    <div class="todo-item avoid-break">
-      <div class="todo-checkbox"></div>
+    <div class="todo-item avoid-break done">
+      <div class="todo-checkbox checked"></div>
       <div class="todo-text">Idempotency key on orders (prevent double-submit)</div>
       <span class="badge badge-critical">Critical</span>
     </div>
-    <div class="todo-item avoid-break">
-      <div class="todo-checkbox"></div>
+    <div class="todo-item avoid-break done">
+      <div class="todo-checkbox checked"></div>
       <div class="todo-text">GET /orders/:id (order detail page)</div>
       <span class="badge badge-critical">Critical</span>
     </div>
-    <div class="todo-item avoid-break">
-      <div class="todo-checkbox"></div>
+    <div class="todo-item avoid-break done">
+      <div class="todo-checkbox checked"></div>
       <div class="todo-text">POST /orders/:id/payment-intent (initiate via payment abstraction layer)</div>
       <span class="badge badge-critical">Critical</span>
     </div>
-    <div class="todo-item avoid-break">
-      <div class="todo-checkbox"></div>
+    <div class="todo-item avoid-break done">
+      <div class="todo-checkbox checked"></div>
       <div class="todo-text">POST /orders/:id/confirm webhook handler (signature verified)</div>
       <span class="badge badge-critical">Critical</span>
     </div>
-    <div class="todo-item avoid-break">
-      <div class="todo-checkbox"></div>
+    <div class="todo-item avoid-break done">
+      <div class="todo-checkbox checked"></div>
       <div class="todo-text">Ticket generation after payment confirmed (one ticket row per unit)</div>
       <span class="badge badge-critical">Critical</span>
     </div>
 
     <div class="todo-group-title">Orders — Medium</div>
-    <div class="todo-item avoid-break">
-      <div class="todo-checkbox"></div>
+    <div class="todo-item avoid-break done">
+      <div class="todo-checkbox checked"></div>
       <div class="todo-text">GET /orders (my orders history)</div>
       <span class="badge badge-medium">Medium</span>
     </div>
@@ -1655,8 +1655,8 @@ order_items  → ON DELETE CASCADE when order is deleted</pre>
       <div class="todo-text">Duplicate transaction detection (same user + tier + event within 30s)</div>
       <span class="badge badge-medium">Medium</span>
     </div>
-    <div class="todo-item avoid-break">
-      <div class="todo-checkbox"></div>
+    <div class="todo-item avoid-break done">
+      <div class="todo-checkbox checked"></div>
       <div class="todo-text">Order status management (pending → paid → cancelled/failed)</div>
       <span class="badge badge-medium">Medium</span>
     </div>
@@ -1677,23 +1677,23 @@ order_items  → ON DELETE CASCADE when order is deleted</pre>
   <!-- TICKETS + QR -->
   <div class="todo-section">
     <div class="todo-group-title">Tickets &amp; QR — Critical</div>
-    <div class="todo-item avoid-break">
-      <div class="todo-checkbox"></div>
+    <div class="todo-item avoid-break done">
+      <div class="todo-checkbox checked"></div>
       <div class="todo-text">HMAC-SHA256 QR token generation (packages/utils/qr.ts)</div>
       <span class="badge badge-critical">Critical</span>
     </div>
-    <div class="todo-item avoid-break">
-      <div class="todo-checkbox"></div>
+    <div class="todo-item avoid-break done">
+      <div class="todo-checkbox checked"></div>
       <div class="todo-text">Timing-safe HMAC comparison on QR verification</div>
       <span class="badge badge-critical">Critical</span>
     </div>
-    <div class="todo-item avoid-break">
-      <div class="todo-checkbox"></div>
+    <div class="todo-item avoid-break done">
+      <div class="todo-checkbox checked"></div>
       <div class="todo-text">GET /tickets (my tickets list)</div>
       <span class="badge badge-critical">Critical</span>
     </div>
-    <div class="todo-item avoid-break">
-      <div class="todo-checkbox"></div>
+    <div class="todo-item avoid-break done">
+      <div class="todo-checkbox checked"></div>
       <div class="todo-text">GET /tickets/:id (single ticket + QR display)</div>
       <span class="badge badge-critical">Critical</span>
     </div>
@@ -1702,8 +1702,8 @@ order_items  → ON DELETE CASCADE when order is deleted</pre>
       <div class="todo-text">Confirmation email with QR codes via Resend</div>
       <span class="badge badge-critical">Critical</span>
     </div>
-    <div class="todo-item avoid-break">
-      <div class="todo-checkbox"></div>
+    <div class="todo-item avoid-break done">
+      <div class="todo-checkbox checked"></div>
       <div class="todo-text">QR code rendering client-side (qrcode npm package, canvas element)</div>
       <span class="badge badge-critical">Critical</span>
     </div>
@@ -1731,18 +1731,18 @@ order_items  → ON DELETE CASCADE when order is deleted</pre>
   <!-- PAYMENTS -->
   <div class="todo-section">
     <div class="todo-group-title">Payments — Critical</div>
-    <div class="todo-item avoid-break">
-      <div class="todo-checkbox"></div>
+    <div class="todo-item avoid-break done">
+      <div class="todo-checkbox checked"></div>
       <div class="todo-text">IPaymentProvider interface (abstraction layer definition)</div>
       <span class="badge badge-critical">Critical</span>
     </div>
-    <div class="todo-item avoid-break">
-      <div class="todo-checkbox"></div>
+    <div class="todo-item avoid-break done">
+      <div class="todo-checkbox checked"></div>
       <div class="todo-text">PayMongo provider implementation (GCash, Maya, card)</div>
       <span class="badge badge-critical">Critical</span>
     </div>
-    <div class="todo-item avoid-break">
-      <div class="todo-checkbox"></div>
+    <div class="todo-item avoid-break done">
+      <div class="todo-checkbox checked"></div>
       <div class="todo-text">PayMongo webhook endpoint + signature verification</div>
       <span class="badge badge-critical">Critical</span>
     </div>
@@ -1785,18 +1785,18 @@ order_items  → ON DELETE CASCADE when order is deleted</pre>
       <div class="todo-text">Orders list + order detail view</div>
       <span class="badge badge-critical">Critical</span>
     </div>
-    <div class="todo-item avoid-break">
-      <div class="todo-checkbox"></div>
+    <div class="todo-item avoid-break done">
+      <div class="todo-checkbox checked"></div>
       <div class="todo-text">Attendee list per event</div>
       <span class="badge badge-critical">Critical</span>
     </div>
-    <div class="todo-item avoid-break">
-      <div class="todo-checkbox"></div>
+    <div class="todo-item avoid-break done">
+      <div class="todo-checkbox checked"></div>
       <div class="todo-text">QR scanner check-in page (camera access on mobile/tablet)</div>
       <span class="badge badge-critical">Critical</span>
     </div>
-    <div class="todo-item avoid-break">
-      <div class="todo-checkbox"></div>
+    <div class="todo-item avoid-break done">
+      <div class="todo-checkbox checked"></div>
       <div class="todo-text">POST /admin/checkin endpoint (verify QR, mark ticket used)</div>
       <span class="badge badge-critical">Critical</span>
     </div>
@@ -1807,18 +1807,18 @@ order_items  → ON DELETE CASCADE when order is deleted</pre>
     </div>
 
     <div class="todo-group-title">Admin Dashboard — Medium</div>
-    <div class="todo-item avoid-break">
-      <div class="todo-checkbox"></div>
+    <div class="todo-item avoid-break done">
+      <div class="todo-checkbox checked"></div>
       <div class="todo-text">Basic analytics dashboard (tickets sold, revenue, tier breakdown)</div>
       <span class="badge badge-medium">Medium</span>
     </div>
-    <div class="todo-item avoid-break">
-      <div class="todo-checkbox"></div>
+    <div class="todo-item avoid-break done">
+      <div class="todo-checkbox checked"></div>
       <div class="todo-text">Fraud flags view (list suspicious orders for manual review)</div>
       <span class="badge badge-medium">Medium</span>
     </div>
-    <div class="todo-item avoid-break">
-      <div class="todo-checkbox"></div>
+    <div class="todo-item avoid-break done">
+      <div class="todo-checkbox checked"></div>
       <div class="todo-text">Order search and filter</div>
       <span class="badge badge-medium">Medium</span>
     </div>
@@ -1849,63 +1849,63 @@ order_items  → ON DELETE CASCADE when order is deleted</pre>
       <div class="todo-text">Event browse page (/) — list of all events, mobile-first</div>
       <span class="badge badge-critical">Critical</span>
     </div>
-    <div class="todo-item avoid-break">
-      <div class="todo-checkbox"></div>
+    <div class="todo-item avoid-break done">
+      <div class="todo-checkbox checked"></div>
       <div class="todo-text">Event detail page (/events/:slug) — info + tier selection</div>
       <span class="badge badge-critical">Critical</span>
     </div>
-    <div class="todo-item avoid-break">
-      <div class="todo-checkbox"></div>
+    <div class="todo-item avoid-break done">
+      <div class="todo-checkbox checked"></div>
       <div class="todo-text">Ticket tier + quantity selection UI</div>
       <span class="badge badge-critical">Critical</span>
     </div>
-    <div class="todo-item avoid-break">
-      <div class="todo-checkbox"></div>
+    <div class="todo-item avoid-break done">
+      <div class="todo-checkbox checked"></div>
       <div class="todo-text">Checkout flow (reservation → billing info → payment redirect)</div>
       <span class="badge badge-critical">Critical</span>
     </div>
-    <div class="todo-item avoid-break">
-      <div class="todo-checkbox"></div>
+    <div class="todo-item avoid-break done">
+      <div class="todo-checkbox checked"></div>
       <div class="todo-text">Reservation countdown timer component</div>
       <span class="badge badge-critical">Critical</span>
     </div>
-    <div class="todo-item avoid-break">
-      <div class="todo-checkbox"></div>
+    <div class="todo-item avoid-break done">
+      <div class="todo-checkbox checked"></div>
       <div class="todo-text">Login page (/auth/login)</div>
       <span class="badge badge-critical">Critical</span>
     </div>
-    <div class="todo-item avoid-break">
-      <div class="todo-checkbox"></div>
+    <div class="todo-item avoid-break done">
+      <div class="todo-checkbox checked"></div>
       <div class="todo-text">Register page (/auth/register)</div>
       <span class="badge badge-critical">Critical</span>
     </div>
-    <div class="todo-item avoid-break">
-      <div class="todo-checkbox"></div>
+    <div class="todo-item avoid-break done">
+      <div class="todo-checkbox checked"></div>
       <div class="todo-text">OTP email verification page (/auth/verify)</div>
       <span class="badge badge-critical">Critical</span>
     </div>
-    <div class="todo-item avoid-break">
-      <div class="todo-checkbox"></div>
+    <div class="todo-item avoid-break done">
+      <div class="todo-checkbox checked"></div>
       <div class="todo-text">My Tickets page (/account/tickets) — list + QR display</div>
       <span class="badge badge-critical">Critical</span>
     </div>
-    <div class="todo-item avoid-break">
-      <div class="todo-checkbox"></div>
+    <div class="todo-item avoid-break done">
+      <div class="todo-checkbox checked"></div>
       <div class="todo-text">Order confirmation page (/orders/:id) — success + tickets</div>
       <span class="badge badge-critical">Critical</span>
     </div>
-    <div class="todo-item avoid-break">
-      <div class="todo-checkbox"></div>
+    <div class="todo-item avoid-break done">
+      <div class="todo-checkbox checked"></div>
       <div class="todo-text">Mobile-first responsive layout (all pages work on 375px screens)</div>
       <span class="badge badge-critical">Critical</span>
     </div>
-    <div class="todo-item avoid-break">
-      <div class="todo-checkbox"></div>
+    <div class="todo-item avoid-break done">
+      <div class="todo-checkbox checked"></div>
       <div class="todo-text">Zustand store for checkout state (tier, quantity, reservation)</div>
       <span class="badge badge-critical">Critical</span>
     </div>
-    <div class="todo-item avoid-break">
-      <div class="todo-checkbox"></div>
+    <div class="todo-item avoid-break done">
+      <div class="todo-checkbox checked"></div>
       <div class="todo-text">TanStack Query setup + typed API client (lib/api.ts)</div>
       <span class="badge badge-critical">Critical</span>
     </div>
@@ -1916,8 +1916,8 @@ order_items  → ON DELETE CASCADE when order is deleted</pre>
       <div class="todo-text">Error states + loading skeletons on all data-fetching pages</div>
       <span class="badge badge-medium">Medium</span>
     </div>
-    <div class="todo-item avoid-break">
-      <div class="todo-checkbox"></div>
+    <div class="todo-item avoid-break done">
+      <div class="todo-checkbox checked"></div>
       <div class="todo-text">Toast notifications (purchase success, errors, session expiry)</div>
       <span class="badge badge-medium">Medium</span>
     </div>
@@ -1926,8 +1926,8 @@ order_items  → ON DELETE CASCADE when order is deleted</pre>
       <div class="todo-text">404 and generic error pages</div>
       <span class="badge badge-medium">Medium</span>
     </div>
-    <div class="todo-item avoid-break">
-      <div class="todo-checkbox"></div>
+    <div class="todo-item avoid-break done">
+      <div class="todo-checkbox checked"></div>
       <div class="todo-text">hCaptcha widget integration on registration + checkout forms</div>
       <span class="badge badge-medium">Medium</span>
     </div>
@@ -2112,8 +2112,8 @@ order_items  → ON DELETE CASCADE when order is deleted</pre>
       <div class="todo-text">GET /v1/health endpoint (real DB ping + Redis ping, returns 503 on failure)</div>
       <span class="badge badge-critical">Critical</span>
     </div>
-    <div class="todo-item avoid-break">
-      <div class="todo-checkbox"></div>
+    <div class="todo-item avoid-break done">
+      <div class="todo-checkbox checked"></div>
       <div class="todo-text">Structured JSON logs (pino) on all NestJS routes</div>
       <span class="badge badge-critical">Critical</span>
     </div>
