@@ -1373,68 +1373,68 @@ order_items  → ON DELETE CASCADE when order is deleted</pre>
   <!-- AUTH -->
   <div class="todo-section">
     <div class="todo-group-title">Authentication — Critical</div>
-    <div class="todo-item avoid-break">
-      <div class="todo-checkbox"></div>
+    <div class="todo-item avoid-break done">
+      <div class="todo-checkbox checked"></div>
       <div class="todo-text">POST /auth/register endpoint (email, password, name, phone)</div>
       <span class="badge badge-critical">Critical</span>
     </div>
-    <div class="todo-item avoid-break">
-      <div class="todo-checkbox"></div>
+    <div class="todo-item avoid-break done">
+      <div class="todo-checkbox checked"></div>
       <div class="todo-text">bcrypt password hashing (cost=12)</div>
       <span class="badge badge-critical">Critical</span>
     </div>
-    <div class="todo-item avoid-break">
-      <div class="todo-checkbox"></div>
+    <div class="todo-item avoid-break done">
+      <div class="todo-checkbox checked"></div>
       <div class="todo-text">OTP generation + email send via Resend on registration</div>
       <span class="badge badge-critical">Critical</span>
     </div>
-    <div class="todo-item avoid-break">
-      <div class="todo-checkbox"></div>
+    <div class="todo-item avoid-break done">
+      <div class="todo-checkbox checked"></div>
       <div class="todo-text">OTP storage (hashed in Redis with 5min TTL + otp_codes table)</div>
       <span class="badge badge-critical">Critical</span>
     </div>
-    <div class="todo-item avoid-break">
-      <div class="todo-checkbox"></div>
+    <div class="todo-item avoid-break done">
+      <div class="todo-checkbox checked"></div>
       <div class="todo-text">POST /auth/verify-email endpoint (OTP comparison, mark user verified)</div>
       <span class="badge badge-critical">Critical</span>
     </div>
-    <div class="todo-item avoid-break">
-      <div class="todo-checkbox"></div>
+    <div class="todo-item avoid-break done">
+      <div class="todo-checkbox checked"></div>
       <div class="todo-text">POST /auth/login endpoint (bcrypt compare, reject unverified users)</div>
       <span class="badge badge-critical">Critical</span>
     </div>
-    <div class="todo-item avoid-break">
-      <div class="todo-checkbox"></div>
+    <div class="todo-item avoid-break done">
+      <div class="todo-checkbox checked"></div>
       <div class="todo-text">JWT RS256 access token issuance (15min TTL)</div>
       <span class="badge badge-critical">Critical</span>
     </div>
-    <div class="todo-item avoid-break">
-      <div class="todo-checkbox"></div>
+    <div class="todo-item avoid-break done">
+      <div class="todo-checkbox checked"></div>
       <div class="todo-text">Refresh token generation + storage (hashed in Redis, HttpOnly cookie)</div>
       <span class="badge badge-critical">Critical</span>
     </div>
-    <div class="todo-item avoid-break">
-      <div class="todo-checkbox"></div>
+    <div class="todo-item avoid-break done">
+      <div class="todo-checkbox checked"></div>
       <div class="todo-text">POST /auth/refresh endpoint (rotate both tokens)</div>
       <span class="badge badge-critical">Critical</span>
     </div>
-    <div class="todo-item avoid-break">
-      <div class="todo-checkbox"></div>
+    <div class="todo-item avoid-break done">
+      <div class="todo-checkbox checked"></div>
       <div class="todo-text">POST /auth/logout endpoint (delete refresh token from Redis)</div>
       <span class="badge badge-critical">Critical</span>
     </div>
-    <div class="todo-item avoid-break">
-      <div class="todo-checkbox"></div>
+    <div class="todo-item avoid-break done">
+      <div class="todo-checkbox checked"></div>
       <div class="todo-text">JwtAuthGuard (protect all authenticated routes)</div>
       <span class="badge badge-critical">Critical</span>
     </div>
-    <div class="todo-item avoid-break">
-      <div class="todo-checkbox"></div>
+    <div class="todo-item avoid-break done">
+      <div class="todo-checkbox checked"></div>
       <div class="todo-text">AdminGuard (protect all admin routes)</div>
       <span class="badge badge-critical">Critical</span>
     </div>
-    <div class="todo-item avoid-break">
-      <div class="todo-checkbox"></div>
+    <div class="todo-item avoid-break done">
+      <div class="todo-checkbox checked"></div>
       <div class="todo-text">@CurrentUser decorator (extract user from JWT on protected routes)</div>
       <span class="badge badge-critical">Critical</span>
     </div>
