@@ -1,5 +1,5 @@
 {
-  "installCommand": "cd ../../ && npm ci",
+  "installCommand": "cd ../../ && npm ci --include-workspace-root",
   "buildCommand": "npm run vercel-build",
   "rewrites": [
     { "source": "/(.*)", "destination": "/api" }
