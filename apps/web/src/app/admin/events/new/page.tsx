@@ -6,6 +6,7 @@ import Navbar from '@/components/Navbar';
 import api from '@/lib/api';
 import toast from 'react-hot-toast';
 import Button from '@/components/Button';
+import { SponsorListManager, FaqListManager, type SponsorItem, type FaqItem } from '@/components/ConferenceFields';
 
 // ── helpers ────────────────────────────────────────────────────────────────────
 
@@ -56,8 +57,8 @@ export default function AdminNewEventPage() {
 
   const [speakerName, setSpeakerName] = useState('');
   const [agendaJson, setAgendaJson] = useState('');
-  const [sponsorsJson, setSponsorsJson] = useState('');
-  const [faqsJson, setFaqsJson] = useState('');
+  const [sponsors, setSponsors] = useState<SponsorItem[]>([]);
+  const [faqs, setFaqs] = useState<FaqItem[]>([]);
   const [jsonErrors, setJsonErrors] = useState<Record<string, string>>({});
 
   const [tiers, setTiers] = useState<LocalTier[]>([]);
@@ -126,11 +127,9 @@ export default function AdminNewEventPage() {
         speakerName: speakerName.trim() || undefined,
       };
       const agendaResult = parseJsonSafe(agendaJson);
-      const sponsorsResult = parseJsonSafe(sponsorsJson);
-      const faqsResult = parseJsonSafe(faqsJson);
       if (agendaResult.ok && agendaResult.value) payload.agenda = agendaResult.value;
-      if (sponsorsResult.ok && sponsorsResult.value) payload.sponsors = sponsorsResult.value;
-      if (faqsResult.ok && faqsResult.value) payload.faqs = faqsResult.value;
+      if (sponsors.length > 0) payload.sponsors = sponsors.map((s) => ({ name: s.name, ...(s.logoUrl && { logoUrl: s.logoUrl }), ...(s.tier && { tier: s.tier }) }));
+      if (faqs.length > 0) payload.faqs = faqs;
 
       const { data: eventData } = await api.post<{ data: { id: string } }>('/admin/events', payload);
       const eventId = eventData.data.id;
@@ -256,23 +255,25 @@ export default function AdminNewEventPage() {
                 className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
             </div>
 
-            {([
-              { key: 'agenda', label: 'Agenda', placeholder: '[\n  { "time": "8:00 AM", "title": "Opening Remarks", "description": "Welcome session" }\n]', value: agendaJson, setter: setAgendaJson },
-              { key: 'sponsors', label: 'Sponsors', placeholder: '[\n  { "name": "Globe Business", "tier": "Gold" }\n]', value: sponsorsJson, setter: setSponsorsJson },
-              { key: 'faqs', label: 'FAQs', placeholder: '[\n  { "question": "What is included?", "answer": "Full day access with meals." }\n]', value: faqsJson, setter: setFaqsJson },
-            ] as const).map(({ key, label, placeholder, value, setter }) => (
-              <div key={key}>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  {label} <span className="text-gray-400 font-normal text-xs">— JSON array</span>
-                </label>
-                <textarea rows={4} spellCheck={false} placeholder={placeholder} value={value}
-                  onChange={(e) => { setter(e.target.value as any); if (jsonErrors[key]) setJsonErrors((e) => { const n = { ...e }; delete n[key]; return n; }); }}
-                  onBlur={(e) => { if (e.target.value.trim()) validateJson(e.target.value, key); }}
-                  className={`w-full border rounded-lg px-3 py-2 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-primary resize-y ${jsonErrors[key] ? 'border-red-400' : 'border-gray-300'}`}
-                />
-                {jsonErrors[key] && <p className="text-xs text-red-500 mt-1">{jsonErrors[key]}</p>}
-              </div>
-            ))}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Agenda <span className="text-gray-400 font-normal text-xs">— JSON array</span>
+              </label>
+              <textarea
+                rows={8}
+                spellCheck={false}
+                placeholder={'[\n  { "time": "8:00 AM", "title": "Opening Remarks", "description": "Welcome session" }\n]'}
+                value={agendaJson}
+                onChange={(e) => { setAgendaJson(e.target.value); if (jsonErrors['agenda']) setJsonErrors((prev) => { const n = { ...prev }; delete n['agenda']; return n; }); }}
+                onBlur={(e) => { if (e.target.value.trim()) validateJson(e.target.value, 'agenda'); }}
+                className={`w-full border rounded-lg px-3 py-2 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-primary resize-y ${jsonErrors['agenda'] ? 'border-red-400' : 'border-gray-300'}`}
+              />
+              {jsonErrors['agenda'] && <p className="text-xs text-red-500 mt-1">{jsonErrors['agenda']}</p>}
+            </div>
+
+            <SponsorListManager sponsors={sponsors} onChange={setSponsors} />
+
+            <FaqListManager faqs={faqs} onChange={setFaqs} />
           </section>
 
           {/* ── Ticket Tiers ───────────────────────────────────────────── */}

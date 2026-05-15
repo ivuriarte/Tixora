@@ -7,6 +7,7 @@ import api from '@/lib/api';
 import Navbar from '@/components/Navbar';
 import Link from 'next/link';
 import toast from 'react-hot-toast';
+import { SponsorListManager, FaqListManager, type SponsorItem, type FaqItem } from '@/components/ConferenceFields';
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -174,8 +175,8 @@ export default function AdminEventEditPage() {
   const [status, setStatus] = useState('');
   const [speakerName, setSpeakerName] = useState('');
   const [agendaJson, setAgendaJson] = useState('');
-  const [sponsorsJson, setSponsorsJson] = useState('');
-  const [faqsJson, setFaqsJson] = useState('');
+  const [sponsors, setSponsors] = useState<SponsorItem[]>([]);
+  const [faqs, setFaqs] = useState<FaqItem[]>([]);
   const [jsonErrors, setJsonErrors] = useState<Record<string, string>>({});
 
   // Populate form once event loads
@@ -200,8 +201,12 @@ export default function AdminEventEditPage() {
       setStatus(event.status ?? 'draft');
       setSpeakerName(event.speakerName ?? '');
       setAgendaJson(event.agenda ? JSON.stringify(event.agenda, null, 2) : '');
-      setSponsorsJson(event.sponsors ? JSON.stringify(event.sponsors, null, 2) : '');
-      setFaqsJson(event.faqs ? JSON.stringify(event.faqs, null, 2) : '');
+      setSponsors(
+        event.sponsors
+          ? event.sponsors.map((s) => ({ name: s.name, logoUrl: s.logoUrl ?? '', tier: s.tier ?? '' }))
+          : [],
+      );
+      setFaqs(event.faqs ? event.faqs.map((f) => ({ question: f.question, answer: f.answer })) : []);
     }
   }, [event]);
 
@@ -295,11 +300,11 @@ export default function AdminEventEditPage() {
       speakerName: speakerName.trim() || null,
     };
     const agendaResult = parseJsonSafe(agendaJson);
-    const sponsorsResult = parseJsonSafe(sponsorsJson);
-    const faqsResult = parseJsonSafe(faqsJson);
     if (agendaResult.ok) payload.agenda = agendaResult.value;
-    if (sponsorsResult.ok) payload.sponsors = sponsorsResult.value;
-    if (faqsResult.ok) payload.faqs = faqsResult.value;
+    payload.sponsors = sponsors.length > 0
+      ? sponsors.map((s) => ({ name: s.name, ...(s.logoUrl && { logoUrl: s.logoUrl }), ...(s.tier && { tier: s.tier }) }))
+      : null;
+    payload.faqs = faqs.length > 0 ? faqs : null;
     updateMutation.mutate(payload);
   }
 
@@ -457,24 +462,25 @@ export default function AdminEventEditPage() {
               value={speakerName} onChange={(e) => setSpeakerName(e.target.value)} />
           </div>
 
-          {([
-            { key: 'agenda', label: 'Agenda', placeholder: '[\n  { "time": "8:00 AM", "title": "Opening Remarks", "description": "Welcome session" }\n]', value: agendaJson, setter: setAgendaJson },
-            { key: 'sponsors', label: 'Sponsors', placeholder: '[\n  { "name": "Globe Business", "tier": "Gold" }\n]', value: sponsorsJson, setter: setSponsorsJson },
-            { key: 'faqs', label: 'FAQs', placeholder: '[\n  { "question": "What is included?", "answer": "Full day access with meals." }\n]', value: faqsJson, setter: setFaqsJson },
-          ] as const).map(({ key, label, placeholder, value, setter }) => (
-            <div key={key}>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                {label} <span className="text-gray-400 font-normal text-xs">— JSON array</span>
-              </label>
-              <textarea rows={key === 'agenda' ? 8 : 4} spellCheck={false} placeholder={placeholder}
-                value={value}
-                onChange={(e) => { setter(e.target.value as any); if (jsonErrors[key]) setJsonErrors((prev) => { const n = { ...prev }; delete n[key]; return n; }); }}
-                onBlur={(e) => { if (e.target.value.trim()) validateJson(e.target.value, key); }}
-                className={`w-full border rounded-xl px-3 py-2 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-primary resize-y ${jsonErrors[key] ? 'border-red-400' : 'border-gray-300'}`}
-              />
-              {jsonErrors[key] && <p className="text-xs text-red-500 mt-1">{jsonErrors[key]}</p>}
-            </div>
-          ))}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Agenda <span className="text-gray-400 font-normal text-xs">— JSON array</span>
+            </label>
+            <textarea
+              rows={8}
+              spellCheck={false}
+              placeholder={'[\n  { "time": "8:00 AM", "title": "Opening Remarks", "description": "Welcome session" }\n]'}
+              value={agendaJson}
+              onChange={(e) => { setAgendaJson(e.target.value); if (jsonErrors['agenda']) setJsonErrors((prev) => { const n = { ...prev }; delete n['agenda']; return n; }); }}
+              onBlur={(e) => { if (e.target.value.trim()) validateJson(e.target.value, 'agenda'); }}
+              className={`w-full border rounded-xl px-3 py-2 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-primary resize-y ${jsonErrors['agenda'] ? 'border-red-400' : 'border-gray-300'}`}
+            />
+            {jsonErrors['agenda'] && <p className="text-xs text-red-500 mt-1">{jsonErrors['agenda']}</p>}
+          </div>
+
+          <SponsorListManager sponsors={sponsors} onChange={setSponsors} />
+
+          <FaqListManager faqs={faqs} onChange={setFaqs} />
         </section>
 
         {/* ── Ticket Tiers ───────────────────────────────────────────── */}
