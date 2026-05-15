@@ -1,12 +1,12 @@
 'use client';
 
-import { useEffect } from 'react';
+import { Suspense, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuthStore } from '@/store/auth.store';
 import { setAccessToken, setRefreshToken } from '@/lib/auth';
 import api from '@/lib/api';
 
-export default function AuthCallbackPage() {
+function AuthCallbackInner() {
   const router = useRouter();
   const params = useSearchParams();
   const { setAuth } = useAuthStore();
@@ -43,5 +43,13 @@ export default function AuthCallbackPage() {
     <div className="min-h-screen flex items-center justify-center">
       <p className="text-gray-500 text-sm">Signing you in…</p>
     </div>
+  );
+}
+
+export default function AuthCallbackPage() {
+  return (
+    <Suspense>
+      <AuthCallbackInner />
+    </Suspense>
   );
 }
