@@ -30,6 +30,12 @@ export class CreateEventDto {
   @MaxLength(200)
   venue: string;
 
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  @MaxLength(300)
+  address?: string;
+
   @ApiProperty({ required: false, default: 'Manila' })
   @IsOptional()
   @IsString()
@@ -94,6 +100,11 @@ export class UpdateEventDto {
   @IsString()
   @MaxLength(200)
   venue?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(300)
+  address?: string;
 
   @IsOptional()
   @IsString()

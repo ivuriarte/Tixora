@@ -86,6 +86,7 @@ model Event {
   title        String
   description  String?
   venue        String
+  address      String?     @map("address")
   city         String      @default("Manila")
   startsAt     DateTime    @map("starts_at")
   endsAt       DateTime?   @map("ends_at")

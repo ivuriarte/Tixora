@@ -40,6 +40,12 @@ export class AdminController {
     );
   }
 
+  @Get('events/:id')
+  @ApiOperation({ summary: 'Get full event detail (admin)' })
+  getEvent(@Param('id') id: string) {
+    return this.adminService.getEvent(id);
+  }
+
   @Post('events')
   @ApiOperation({ summary: 'Create event' })
   createEvent(@Body() dto: CreateEventDto, @CurrentUser() user: JwtPayload) {

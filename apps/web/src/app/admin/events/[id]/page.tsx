@@ -8,13 +8,16 @@ import Navbar from '@/components/Navbar';
 import Link from 'next/link';
 import toast from 'react-hot-toast';
 
+// ── Types ──────────────────────────────────────────────────────────────────────
+
 interface Tier {
   id: string;
   name: string;
   description: string | null;
-  price: number;
+  price: number;       // centavos from API
   totalQuantity: number;
   soldQuantity: number;
+  maxPerOrder: number;
   isVisible: boolean;
   saleStartsAt: string | null;
   saleEndsAt: string | null;
@@ -24,21 +27,126 @@ interface EventDetail {
   id: string;
   slug: string;
   title: string;
-  description: string;
+  description: string | null;
   venue: string;
+  address: string | null;
   city: string;
   startsAt: string;
-  endsAt: string;
+  endsAt: string | null;
   maxPerUser: number;
   status: string;
-  speakerName?: string;
-  agenda?: Array<{ time: string; title: string; description?: string }>;
-  sponsors?: Array<{ name: string; logoUrl?: string; tier?: string }>;
-  faqs?: Array<{ question: string; answer: string }>;
+  speakerName?: string | null;
+  agenda?: Array<{ time: string; title: string; description?: string }> | null;
+  sponsors?: Array<{ name: string; logoUrl?: string; tier?: string }> | null;
+  faqs?: Array<{ question: string; answer: string }> | null;
   tiers: Tier[];
 }
 
+// ── Helpers ────────────────────────────────────────────────────────────────────
+
+function toDatetimeLocal(iso: string | null | undefined): string {
+  if (!iso) return '';
+  const d = new Date(iso);
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return (
+    `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}` +
+    `T${pad(d.getHours())}:${pad(d.getMinutes())}`
+  );
+}
+
+function parseJsonSafe(raw: string): { ok: true; value: unknown } | { ok: false } {
+  if (!raw.trim()) return { ok: true, value: null };
+  try { return { ok: true, value: JSON.parse(raw) }; } catch { return { ok: false }; }
+}
+
 const STATUS_OPTIONS = ['draft', 'published', 'on_sale', 'sold_out', 'cancelled', 'completed'];
+const REQ = <span className="text-red-500 ml-0.5">*</span>;
+
+// ── Tier inline edit form ──────────────────────────────────────────────────────
+
+function TierEditForm({
+  tier,
+  onSave,
+  onCancel,
+}: {
+  tier: Tier;
+  onSave: (id: string, data: Partial<Tier>) => void;
+  onCancel: () => void;
+}) {
+  const [name, setName] = useState(tier.name);
+  const [description, setDescription] = useState(tier.description ?? '');
+  const [priceStr, setPriceStr] = useState(String(tier.price / 100)); // pesos
+  const [totalQuantity, setTotalQuantity] = useState(String(tier.totalQuantity));
+  const [maxPerOrder, setMaxPerOrder] = useState(String(tier.maxPerOrder));
+  const [isVisible, setIsVisible] = useState(tier.isVisible);
+
+  const isValid = name.trim() && priceStr !== '' && !isNaN(parseFloat(priceStr)) && parseInt(totalQuantity, 10) > 0;
+
+  return (
+    <div className="border border-primary/30 rounded-xl p-4 space-y-3 bg-primary/5">
+      <p className="font-medium text-sm text-gray-900">Edit Tier</p>
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <label className="block text-xs font-medium text-gray-600 mb-1">Name <span className="text-red-500">*</span></label>
+          <input className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+            value={name} onChange={(e) => setName(e.target.value)} />
+        </div>
+        <div>
+          <label className="block text-xs font-medium text-gray-600 mb-1">Price (₱) <span className="text-red-500">*</span></label>
+          <input type="number" min={0} step="0.01"
+            className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+            value={priceStr}
+            onChange={(e) => setPriceStr(e.target.value)} />
+          <p className="text-xs text-gray-400 mt-0.5">Enter amount in pesos</p>
+        </div>
+        <div>
+          <label className="block text-xs font-medium text-gray-600 mb-1">Total Quantity <span className="text-red-500">*</span></label>
+          <input type="number" min={tier.soldQuantity || 1}
+            className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+            value={totalQuantity}
+            onChange={(e) => setTotalQuantity(e.target.value)} />
+        </div>
+        <div>
+          <label className="block text-xs font-medium text-gray-600 mb-1">Max Per Order</label>
+          <input type="number" min={1} max={20}
+            className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+            value={maxPerOrder}
+            onChange={(e) => setMaxPerOrder(e.target.value)} />
+        </div>
+      </div>
+      <div>
+        <label className="block text-xs font-medium text-gray-600 mb-1">Description (optional)</label>
+        <input className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+          value={description}
+          onChange={(e) => setDescription(e.target.value)} />
+      </div>
+      <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+        <input type="checkbox" checked={isVisible} onChange={(e) => setIsVisible(e.target.checked)} className="accent-primary" />
+        Visible on event page
+      </label>
+      <div className="flex gap-2">
+        <button type="button" disabled={!isValid}
+          onClick={() => onSave(tier.id, {
+            name: name.trim(),
+            description: description.trim() || null,
+            price: Math.round(parseFloat(priceStr) * 100),
+            totalQuantity: parseInt(totalQuantity, 10),
+            maxPerOrder: parseInt(maxPerOrder, 10),
+            isVisible,
+          })}
+          className="bg-primary text-white font-semibold px-4 py-1.5 rounded-lg text-sm hover:bg-primary-hover disabled:opacity-40">
+          Save Changes
+        </button>
+        <button type="button" onClick={onCancel}
+          className="border border-gray-300 text-gray-700 px-4 py-1.5 rounded-lg text-sm hover:bg-gray-50">
+          Cancel
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function AdminEventEditPage() {
   const { id } = useParams<{ id: string }>();
@@ -48,117 +156,155 @@ export default function AdminEventEditPage() {
   const { data: event, isLoading } = useQuery<EventDetail>({
     queryKey: ['admin-event', id],
     queryFn: () =>
-      api
-        .get<{ data: EventDetail }>(`/events/${id}/detail`)
-        .catch(() => api.get<{ data: EventDetail }>(`/admin/events/${id}`))
-        .then((r) => r.data.data),
+      api.get<{ data: EventDetail }>(`/admin/events/${id}`).then((r) => r.data.data),
     enabled: !!id,
   });
 
-  // Use admin events list to find the event if individual endpoint isn't available
-  const { data: eventsData } = useQuery<{ data: EventDetail[] }>({
-    queryKey: ['admin-events-list'],
-    queryFn: () =>
-      api.get<{ data: { data: EventDetail[] } }>('/admin/events?limit=100').then((r) => r.data.data),
-  });
+  // ── Edit event form ─────────────────────────────────────────────────────────
+  const [title, setTitle] = useState('');
+  const [description, setDescription] = useState('');
+  const [venue, setVenue] = useState('');
+  const [address, setAddress] = useState('');
+  const [city, setCity] = useState('');
+  const [startDate, setStartDate] = useState('');
+  const [startTime, setStartTime] = useState('');
+  const [endDate, setEndDate] = useState('');
+  const [endTime, setEndTime] = useState('');
+  const [maxPerUser, setMaxPerUser] = useState('');
+  const [status, setStatus] = useState('');
+  const [speakerName, setSpeakerName] = useState('');
+  const [agendaJson, setAgendaJson] = useState('');
+  const [sponsorsJson, setSponsorsJson] = useState('');
+  const [faqsJson, setFaqsJson] = useState('');
+  const [jsonErrors, setJsonErrors] = useState<Record<string, string>>({});
 
-  const resolvedEvent: EventDetail | undefined =
-    event ?? eventsData?.data?.find((e) => e.id === id);
+  // Populate form once event loads
+  const formInitialised = useRef(false);
+  useEffect(() => {
+    if (event && !formInitialised.current) {
+      formInitialised.current = true;
+      setTitle(event.title ?? '');
+      setDescription(event.description ?? '');
+      setVenue(event.venue ?? '');
+      setAddress(event.address ?? '');
+      setCity(event.city ?? '');
+      const startLocal = toDatetimeLocal(event.startsAt);
+      setStartDate(startLocal.slice(0, 10));
+      setStartTime(startLocal.slice(11, 16));
+      if (event.endsAt) {
+        const endLocal = toDatetimeLocal(event.endsAt);
+        setEndDate(endLocal.slice(0, 10));
+        setEndTime(endLocal.slice(11, 16));
+      }
+      setMaxPerUser(String(event.maxPerUser ?? ''));
+      setStatus(event.status ?? 'draft');
+      setSpeakerName(event.speakerName ?? '');
+      setAgendaJson(event.agenda ? JSON.stringify(event.agenda, null, 2) : '');
+      setSponsorsJson(event.sponsors ? JSON.stringify(event.sponsors, null, 2) : '');
+      setFaqsJson(event.faqs ? JSON.stringify(event.faqs, null, 2) : '');
+    }
+  }, [event]);
 
-  // ── Edit event form ────────────────────────────────────────────────────
-  const [form, setForm] = useState<Partial<EventDetail>>({});
-  const isSaved = Object.keys(form).length === 0;
+  // ── Derived ─────────────────────────────────────────────────────────────────
+  const startsAtISO = startDate && startTime ? new Date(`${startDate}T${startTime}`).toISOString() : undefined;
+  const endsAtISO = endDate && endTime ? new Date(`${endDate}T${endTime}`).toISOString() : undefined;
+  const endBeforeStart = !!startsAtISO && !!endsAtISO && new Date(endsAtISO) <= new Date(startsAtISO);
+  const hasJsonErrors = Object.keys(jsonErrors).length > 0;
+  const requiredFilled = title.trim() && description.trim() && venue.trim() && city.trim() && startsAtISO;
+  const canSave = requiredFilled && !hasJsonErrors && !endBeforeStart;
 
+  function validateJson(raw: string, key: string) {
+    const result = parseJsonSafe(raw);
+    if (!result.ok) {
+      setJsonErrors((e) => ({ ...e, [key]: 'Invalid JSON. Must be a valid JSON array.' }));
+    } else {
+      setJsonErrors((e) => { const n = { ...e }; delete n[key]; return n; });
+    }
+  }
+
+  // ── Mutations ────────────────────────────────────────────────────────────────
   const updateMutation = useMutation({
-    mutationFn: (data: Partial<EventDetail>) => api.put(`/admin/events/${id}`, data),
+    mutationFn: (data: Record<string, unknown>) => api.put(`/admin/events/${id}`, data),
     onSuccess: () => {
       toast.success('Event updated');
-      setForm({});
+      queryClient.invalidateQueries({ queryKey: ['admin-event', id] });
       queryClient.invalidateQueries({ queryKey: ['admin-events'] });
-      queryClient.invalidateQueries({ queryKey: ['admin-events-list'] });
     },
     onError: () => toast.error('Failed to update event'),
   });
 
   const cancelMutation = useMutation({
     mutationFn: () => api.delete(`/admin/events/${id}`),
-    onSuccess: () => {
-      toast.success('Event cancelled');
-      router.push('/admin');
-    },
+    onSuccess: () => { toast.success('Event cancelled'); router.push('/admin'); },
     onError: () => toast.error('Failed to cancel event'),
   });
 
-  // ── Tier management ────────────────────────────────────────────────────
-  const [newTier, setNewTier] = useState({
-    name: '',
-    description: '',
-    price: 0,
-    totalQuantity: 100,
-    maxPerOrder: 4,
-    isVisible: true,
-  });
+  // ── Tier management ──────────────────────────────────────────────────────────
+  const [editingTierId, setEditingTierId] = useState<string | null>(null);
   const [showAddTier, setShowAddTier] = useState(false);
+  const [newTierName, setNewTierName] = useState('');
+  const [newTierPrice, setNewTierPrice] = useState('');
+  const [newTierQty, setNewTierQty] = useState('');
+  const [newTierMaxOrder, setNewTierMaxOrder] = useState('4');
+  const [newTierDesc, setNewTierDesc] = useState('');
+  const [newTierVisible, setNewTierVisible] = useState(true);
 
   const addTierMutation = useMutation({
-    mutationFn: (data: typeof newTier) => api.post(`/admin/events/${id}/tiers`, data),
+    mutationFn: (data: object) => api.post(`/admin/events/${id}/tiers`, data),
     onSuccess: () => {
       toast.success('Tier added');
       setShowAddTier(false);
-      setNewTier({ name: '', description: '', price: 0, totalQuantity: 100, maxPerOrder: 4, isVisible: true });
-      queryClient.invalidateQueries({ queryKey: ['admin-events-list'] });
+      setNewTierName(''); setNewTierPrice(''); setNewTierQty(''); setNewTierMaxOrder('4'); setNewTierDesc(''); setNewTierVisible(true);
+      queryClient.invalidateQueries({ queryKey: ['admin-event', id] });
     },
     onError: () => toast.error('Failed to add tier'),
+  });
+
+  const updateTierMutation = useMutation({
+    mutationFn: ({ tierId, data }: { tierId: string; data: object }) =>
+      api.put(`/admin/tiers/${tierId}`, data),
+    onSuccess: () => {
+      toast.success('Tier updated');
+      setEditingTierId(null);
+      queryClient.invalidateQueries({ queryKey: ['admin-event', id] });
+    },
+    onError: () => toast.error('Failed to update tier'),
   });
 
   const deleteTierMutation = useMutation({
     mutationFn: (tierId: string) => api.delete(`/admin/tiers/${tierId}`),
     onSuccess: () => {
       toast.success('Tier deleted');
-      queryClient.invalidateQueries({ queryKey: ['admin-events-list'] });
+      queryClient.invalidateQueries({ queryKey: ['admin-event', id] });
     },
     onError: () => toast.error('Cannot delete a tier that has sold tickets'),
   });
 
-  const fieldVal = (field: keyof EventDetail) =>
-    (form[field] ?? resolvedEvent?.[field] ?? '') as string;
-
-  // Conference JSON helpers — edited as raw JSON strings in textareas
-  const [agendaJson, setAgendaJson] = useState('');
-  const [sponsorsJson, setSponsorsJson] = useState('');
-  const [faqsJson, setFaqsJson] = useState('');
-  const [jsonErrors, setJsonErrors] = useState<Record<string, string>>({});
-
-  // Initialise JSON fields once event loads (only once)
-  const jsonInitialised = useRef(false);
-  useEffect(() => {
-    if (resolvedEvent && !jsonInitialised.current) {
-      jsonInitialised.current = true;
-      setAgendaJson(resolvedEvent.agenda ? JSON.stringify(resolvedEvent.agenda, null, 2) : '');
-      setSponsorsJson(resolvedEvent.sponsors ? JSON.stringify(resolvedEvent.sponsors, null, 2) : '');
-      setFaqsJson(resolvedEvent.faqs ? JSON.stringify(resolvedEvent.faqs, null, 2) : '');
-    }
-  }, [resolvedEvent]);
-
-  function parseJsonField(
-    raw: string,
-    key: string,
-    setter: (v: unknown) => void,
-  ) {
-    if (!raw.trim()) {
-      setter(null);
-      setJsonErrors((e) => { const n = { ...e }; delete n[key]; return n; });
-      return;
-    }
-    try {
-      setter(JSON.parse(raw));
-      setJsonErrors((e) => { const n = { ...e }; delete n[key]; return n; });
-    } catch {
-      setJsonErrors((e) => ({ ...e, [key]: 'Invalid JSON' }));
-    }
+  function handleSave() {
+    if (!canSave) return;
+    const payload: Record<string, unknown> = {
+      title: title.trim(),
+      description: description.trim(),
+      venue: venue.trim(),
+      address: address.trim() || null,
+      city: city.trim(),
+      startsAt: startsAtISO,
+      endsAt: endsAtISO ?? null,
+      maxPerUser: parseInt(maxPerUser, 10) || undefined,
+      status,
+      speakerName: speakerName.trim() || null,
+    };
+    const agendaResult = parseJsonSafe(agendaJson);
+    const sponsorsResult = parseJsonSafe(sponsorsJson);
+    const faqsResult = parseJsonSafe(faqsJson);
+    if (agendaResult.ok) payload.agenda = agendaResult.value;
+    if (sponsorsResult.ok) payload.sponsors = sponsorsResult.value;
+    if (faqsResult.ok) payload.faqs = faqsResult.value;
+    updateMutation.mutate(payload);
   }
 
-  if (isLoading && !resolvedEvent) {
+  // ── Loading / not found ──────────────────────────────────────────────────────
+  if (isLoading) {
     return (
       <>
         <Navbar />
@@ -169,7 +315,7 @@ export default function AdminEventEditPage() {
     );
   }
 
-  if (!resolvedEvent) {
+  if (!event) {
     return (
       <>
         <Navbar />
@@ -185,83 +331,84 @@ export default function AdminEventEditPage() {
     <>
       <Navbar />
       <main className="max-w-3xl mx-auto px-4 py-10 space-y-8">
+
         {/* Header */}
         <div className="flex items-center gap-4">
           <Link href="/admin" className="text-gray-400 hover:text-gray-600 text-sm">← Admin</Link>
           <h1 className="text-2xl font-bold text-gray-900">Edit Event</h1>
         </div>
 
-        {/* Event edit form */}
+        {/* ── Event Details ─────────────────────────────────────────── */}
         <section className="bg-white shadow rounded-2xl p-6 space-y-4">
           <h2 className="font-semibold text-gray-900">Event Details</h2>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Title</label>
-            <input
-              className="w-full border border-gray-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-              value={fieldVal('title')}
-              onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))}
-            />
+            <label className="block text-sm font-medium text-gray-700 mb-1">Title{REQ}</label>
+            <input className="w-full border border-gray-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+              value={title} onChange={(e) => setTitle(e.target.value)} />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
-            <textarea
-              rows={3}
-              className="w-full border border-gray-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary resize-none"
-              value={fieldVal('description')}
-              onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
-            />
+            <label className="block text-sm font-medium text-gray-700 mb-1">Description{REQ}</label>
+            <textarea rows={3} className="w-full border border-gray-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary resize-none"
+              value={description} onChange={(e) => setDescription(e.target.value)} />
           </div>
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Venue</label>
-              <input
-                className="w-full border border-gray-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                value={fieldVal('venue')}
-                onChange={(e) => setForm((f) => ({ ...f, venue: e.target.value }))}
-              />
+              <label className="block text-sm font-medium text-gray-700 mb-1">Venue{REQ}</label>
+              <input className="w-full border border-gray-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                value={venue} onChange={(e) => setVenue(e.target.value)} />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">City</label>
-              <input
-                className="w-full border border-gray-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                value={fieldVal('city')}
-                onChange={(e) => setForm((f) => ({ ...f, city: e.target.value }))}
-              />
+              <label className="block text-sm font-medium text-gray-700 mb-1">City{REQ}</label>
+              <input className="w-full border border-gray-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                value={city} onChange={(e) => setCity(e.target.value)} />
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Starts At</label>
-              <input
-                type="datetime-local"
-                className="w-full border border-gray-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                value={fieldVal('startsAt').slice(0, 16)}
-                onChange={(e) => setForm((f) => ({ ...f, startsAt: new Date(e.target.value).toISOString() }))}
-              />
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Address</label>
+            <input className="w-full border border-gray-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+              placeholder="e.g. SM Lanang Premier, JP Laurel Ave, Davao City 8000"
+              value={address} onChange={(e) => setAddress(e.target.value)} />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Starts At{REQ}</label>
+            <div className="grid grid-cols-2 gap-3">
+              <input type="date" className="w-full border border-gray-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                value={startDate} onChange={(e) => setStartDate(e.target.value)} />
+              <input type="time" className="w-full border border-gray-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                value={startTime} onChange={(e) => setStartTime(e.target.value)} />
             </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Ends At</label>
-              <input
-                type="datetime-local"
-                className="w-full border border-gray-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                value={fieldVal('endsAt').slice(0, 16)}
-                onChange={(e) => setForm((f) => ({ ...f, endsAt: new Date(e.target.value).toISOString() }))}
-              />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Ends At <span className="text-gray-400 font-normal">(optional)</span>
+            </label>
+            <div className="grid grid-cols-2 gap-3">
+              <input type="date" className="w-full border border-gray-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                value={endDate} onChange={(e) => setEndDate(e.target.value)} />
+              <input type="time" className="w-full border border-gray-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                value={endTime} onChange={(e) => setEndTime(e.target.value)} />
             </div>
+            {endBeforeStart && (
+              <div className="mt-2 flex items-center gap-2 bg-red-50 border border-red-200 rounded-lg px-3 py-2 text-sm text-red-600">
+                <svg className="w-4 h-4 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                </svg>
+                End date/time must be after the start date/time.
+              </div>
+            )}
           </div>
 
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
-              <select
-                className="w-full border border-gray-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                value={(form.status ?? resolvedEvent.status) as string}
-                onChange={(e) => setForm((f) => ({ ...f, status: e.target.value }))}
-              >
+              <select className="w-full border border-gray-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                value={status} onChange={(e) => setStatus(e.target.value)}>
                 {STATUS_OPTIONS.map((s) => (
                   <option key={s} value={s}>{s.replace('_', ' ')}</option>
                 ))}
@@ -269,236 +416,182 @@ export default function AdminEventEditPage() {
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Max Per User</label>
-              <input
-                type="number"
-                min={1}
+              <input type="number" min={1}
                 className="w-full border border-gray-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                value={(form.maxPerUser ?? resolvedEvent.maxPerUser) as number}
-                onChange={(e) => setForm((f) => ({ ...f, maxPerUser: parseInt(e.target.value, 10) }))}
-              />
+                value={maxPerUser} onChange={(e) => setMaxPerUser(e.target.value)} />
             </div>
           </div>
 
-          <div className="flex justify-between items-center pt-2">
+          {/* Save / Cancel Event row */}
+          <div className="flex items-center justify-between pt-2">
             <button
-              disabled={isSaved || updateMutation.isPending || Object.keys(jsonErrors).length > 0}
-              onClick={() => {
-                // Merge conference JSON into the payload
-                const payload: Record<string, unknown> = { ...form };
-                try { if (agendaJson.trim()) payload.agenda = JSON.parse(agendaJson); } catch {}
-                try { if (sponsorsJson.trim()) payload.sponsors = JSON.parse(sponsorsJson); } catch {}
-                try { if (faqsJson.trim()) payload.faqs = JSON.parse(faqsJson); } catch {}
-                updateMutation.mutate(payload as Partial<EventDetail>);
-              }}
+              disabled={!canSave || updateMutation.isPending}
+              onClick={handleSave}
               className="bg-primary text-white font-semibold px-5 py-2 rounded-xl text-sm hover:bg-primary-hover disabled:opacity-40 transition-colors"
             >
               {updateMutation.isPending ? 'Saving…' : 'Save Changes'}
             </button>
-
+            {!canSave && (
+              <p className="text-xs text-gray-400">
+                {!requiredFilled ? 'Fill in required fields (*)' : endBeforeStart ? 'Fix end date/time' : hasJsonErrors ? 'Fix JSON errors' : ''}
+              </p>
+            )}
             <button
-              onClick={() => {
-                if (confirm('Cancel this event? This will mark it as cancelled.')) {
-                  cancelMutation.mutate();
-                }
-              }}
-              disabled={cancelMutation.isPending || resolvedEvent.status === 'cancelled'}
+              onClick={() => { if (confirm('Cancel this event? This will mark it as cancelled.')) cancelMutation.mutate(); }}
+              disabled={cancelMutation.isPending || event.status === 'cancelled'}
               className="text-red-600 hover:text-red-800 text-sm font-medium disabled:opacity-40"
             >
-              {resolvedEvent.status === 'cancelled' ? 'Already Cancelled' : 'Cancel Event'}
+              {event.status === 'cancelled' ? 'Already Cancelled' : 'Cancel Event'}
             </button>
           </div>
         </section>
 
-        {/* Conference Details */}
+        {/* ── Conference Details ──────────────────────────────────────── */}
         <section className="bg-white shadow rounded-2xl p-6 space-y-4">
-          <h2 className="font-semibold text-gray-900">Conference Details</h2>
+          <h2 className="font-semibold text-gray-900">Conference Details <span className="text-gray-400 text-sm font-normal">(optional)</span></h2>
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Speaker Name</label>
-            <input
-              className="w-full border border-gray-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-              placeholder="e.g. Francis Kong"
-              value={(form.speakerName ?? resolvedEvent.speakerName ?? '') as string}
-              onChange={(e) => setForm((f) => ({ ...f, speakerName: e.target.value || undefined }))}
-            />
+            <input className="w-full border border-gray-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+              placeholder="e.g. John Smith"
+              value={speakerName} onChange={(e) => setSpeakerName(e.target.value)} />
           </div>
 
-          {/* Agenda */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Agenda <span className="text-gray-400 font-normal">— JSON array of {'{'}time, title, description?{'}'}</span>
-            </label>
-            <textarea
-              rows={8}
-              spellCheck={false}
-              className={`w-full border rounded-xl px-3 py-2 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-primary resize-y ${jsonErrors.agenda ? 'border-red-400' : 'border-gray-300'}`}
-              placeholder={'[\n  { "time": "8:00 AM", "title": "Opening Remarks" }\n]'}
-              value={agendaJson}
-              onChange={(e) => {
-                setAgendaJson(e.target.value);
-                parseJsonField(e.target.value, 'agenda', (v) => setForm((f) => ({ ...f, agenda: v as EventDetail['agenda'] })));
-              }}
-            />
-            {jsonErrors.agenda && <p className="text-xs text-red-500 mt-1">{jsonErrors.agenda}</p>}
-          </div>
-
-          {/* Sponsors */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Sponsors <span className="text-gray-400 font-normal">— JSON array of {'{'}name, logoUrl?, tier?{'}'}</span>
-            </label>
-            <textarea
-              rows={4}
-              spellCheck={false}
-              className={`w-full border rounded-xl px-3 py-2 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-primary resize-y ${jsonErrors.sponsors ? 'border-red-400' : 'border-gray-300'}`}
-              placeholder={'[\n  { "name": "Globe Business", "tier": "Gold" }\n]'}
-              value={sponsorsJson}
-              onChange={(e) => {
-                setSponsorsJson(e.target.value);
-                parseJsonField(e.target.value, 'sponsors', (v) => setForm((f) => ({ ...f, sponsors: v as EventDetail['sponsors'] })));
-              }}
-            />
-            {jsonErrors.sponsors && <p className="text-xs text-red-500 mt-1">{jsonErrors.sponsors}</p>}
-          </div>
-
-          {/* FAQs */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              FAQs <span className="text-gray-400 font-normal">— JSON array of {'{'}question, answer{'}'}</span>
-            </label>
-            <textarea
-              rows={6}
-              spellCheck={false}
-              className={`w-full border rounded-xl px-3 py-2 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-primary resize-y ${jsonErrors.faqs ? 'border-red-400' : 'border-gray-300'}`}
-              placeholder={'[\n  { "question": "What\'s included?", "answer": "Full day access." }\n]'}
-              value={faqsJson}
-              onChange={(e) => {
-                setFaqsJson(e.target.value);
-                parseJsonField(e.target.value, 'faqs', (v) => setForm((f) => ({ ...f, faqs: v as EventDetail['faqs'] })));
-              }}
-            />
-            {jsonErrors.faqs && <p className="text-xs text-red-500 mt-1">{jsonErrors.faqs}</p>}
-          </div>
+          {([
+            { key: 'agenda', label: 'Agenda', placeholder: '[\n  { "time": "8:00 AM", "title": "Opening Remarks", "description": "Welcome session" }\n]', value: agendaJson, setter: setAgendaJson },
+            { key: 'sponsors', label: 'Sponsors', placeholder: '[\n  { "name": "Globe Business", "tier": "Gold" }\n]', value: sponsorsJson, setter: setSponsorsJson },
+            { key: 'faqs', label: 'FAQs', placeholder: '[\n  { "question": "What is included?", "answer": "Full day access with meals." }\n]', value: faqsJson, setter: setFaqsJson },
+          ] as const).map(({ key, label, placeholder, value, setter }) => (
+            <div key={key}>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                {label} <span className="text-gray-400 font-normal text-xs">— JSON array</span>
+              </label>
+              <textarea rows={key === 'agenda' ? 8 : 4} spellCheck={false} placeholder={placeholder}
+                value={value}
+                onChange={(e) => { setter(e.target.value as any); if (jsonErrors[key]) setJsonErrors((prev) => { const n = { ...prev }; delete n[key]; return n; }); }}
+                onBlur={(e) => { if (e.target.value.trim()) validateJson(e.target.value, key); }}
+                className={`w-full border rounded-xl px-3 py-2 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-primary resize-y ${jsonErrors[key] ? 'border-red-400' : 'border-gray-300'}`}
+              />
+              {jsonErrors[key] && <p className="text-xs text-red-500 mt-1">{jsonErrors[key]}</p>}
+            </div>
+          ))}
         </section>
 
-        {/* Ticket tiers */}
+        {/* ── Ticket Tiers ───────────────────────────────────────────── */}
         <section className="bg-white shadow rounded-2xl p-6 space-y-4">
           <div className="flex items-center justify-between">
             <h2 className="font-semibold text-gray-900">Ticket Tiers</h2>
-            <button
-              onClick={() => setShowAddTier((v) => !v)}
-              className="text-sm text-primary hover:underline"
-            >
-              {showAddTier ? 'Cancel' : '+ Add Tier'}
-            </button>
+            {!showAddTier && editingTierId === null && (
+              <button onClick={() => setShowAddTier((v) => !v)} className="text-sm text-primary hover:underline">
+                + Add Tier
+              </button>
+            )}
           </div>
 
-          {/* Existing tiers */}
-          {resolvedEvent.tiers?.length === 0 && !showAddTier && (
+          {event.tiers?.length === 0 && !showAddTier && (
             <p className="text-sm text-gray-400">No tiers yet. Add one above.</p>
           )}
 
           <div className="space-y-3">
-            {resolvedEvent.tiers?.map((tier) => (
-              <div key={tier.id} className="flex items-center justify-between border border-gray-100 rounded-xl p-3">
-                <div>
-                  <p className="font-medium text-gray-800 text-sm">{tier.name}</p>
-                  <p className="text-xs text-gray-500">
-                    ₱{(tier.price / 100).toLocaleString()} · {tier.soldQuantity}/{tier.totalQuantity} sold
-                  </p>
+            {event.tiers?.map((tier) =>
+              editingTierId === tier.id ? (
+                <TierEditForm
+                  key={tier.id}
+                  tier={tier}
+                  onSave={(tierId, data) => updateTierMutation.mutate({ tierId, data })}
+                  onCancel={() => setEditingTierId(null)}
+                />
+              ) : (
+                <div key={tier.id} className="flex items-center justify-between border border-gray-100 rounded-xl p-3">
+                  <div>
+                    <p className="font-medium text-gray-800 text-sm">{tier.name}</p>
+                    <p className="text-xs text-gray-500">
+                      ₱{(tier.price / 100).toLocaleString()} · {tier.soldQuantity}/{tier.totalQuantity} sold
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <span className={`text-xs px-2 py-0.5 rounded-full ${tier.isVisible ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
+                      {tier.isVisible ? 'visible' : 'hidden'}
+                    </span>
+                    <button onClick={() => setEditingTierId(tier.id)}
+                      className="text-primary hover:underline text-xs">Edit</button>
+                    <button
+                      onClick={() => { if (confirm(`Delete tier "${tier.name}"?`)) deleteTierMutation.mutate(tier.id); }}
+                      disabled={tier.soldQuantity > 0}
+                      className="text-red-500 hover:text-red-700 text-xs disabled:opacity-30 disabled:cursor-not-allowed"
+                      title={tier.soldQuantity > 0 ? 'Cannot delete a tier with sold tickets' : 'Delete tier'}
+                    >
+                      Delete
+                    </button>
+                  </div>
                 </div>
-                <div className="flex items-center gap-3">
-                  <span className={`text-xs px-2 py-0.5 rounded-full ${tier.isVisible ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
-                    {tier.isVisible ? 'visible' : 'hidden'}
-                  </span>
-                  <button
-                    onClick={() => {
-                      if (confirm(`Delete tier "${tier.name}"?`)) {
-                        deleteTierMutation.mutate(tier.id);
-                      }
-                    }}
-                    disabled={tier.soldQuantity > 0}
-                    className="text-red-500 hover:text-red-700 text-xs disabled:opacity-30 disabled:cursor-not-allowed"
-                    title={tier.soldQuantity > 0 ? 'Cannot delete a tier with sold tickets' : 'Delete tier'}
-                  >
-                    Delete
-                  </button>
-                </div>
-              </div>
-            ))}
+              )
+            )}
           </div>
 
-          {/* Add tier form */}
           {showAddTier && (
             <div className="border border-primary/30 rounded-xl p-4 space-y-3 bg-primary/5">
               <p className="font-medium text-sm text-gray-900">New Tier</p>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Name</label>
-                  <input
-                    className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Name <span className="text-red-500">*</span></label>
+                  <input className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
                     placeholder="e.g. General Admission"
-                    value={newTier.name}
-                    onChange={(e) => setNewTier((t) => ({ ...t, name: e.target.value }))}
-                  />
+                    value={newTierName} onChange={(e) => setNewTierName(e.target.value)} />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Price (centavos)</label>
-                  <input
-                    type="number"
-                    min={0}
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Price (₱) <span className="text-red-500">*</span></label>
+                  <input type="number" min={0} step="0.01"
                     className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
-                    placeholder="50000 = ₱500"
-                    value={newTier.price}
-                    onChange={(e) => setNewTier((t) => ({ ...t, price: parseInt(e.target.value, 10) || 0 }))}
-                  />
+                    placeholder="e.g. 500"
+                    value={newTierPrice} onChange={(e) => setNewTierPrice(e.target.value)} />
+                  <p className="text-xs text-gray-400 mt-0.5">Enter amount in pesos</p>
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Total Quantity</label>
-                  <input
-                    type="number"
-                    min={1}
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Total Quantity <span className="text-red-500">*</span></label>
+                  <input type="number" min={1}
                     className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
-                    value={newTier.totalQuantity}
-                    onChange={(e) => setNewTier((t) => ({ ...t, totalQuantity: parseInt(e.target.value, 10) || 1 }))}
-                  />
+                    placeholder="e.g. 100"
+                    value={newTierQty} onChange={(e) => setNewTierQty(e.target.value)} />
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-gray-600 mb-1">Max Per Order</label>
-                  <input
-                    type="number"
-                    min={1}
-                    max={10}
+                  <input type="number" min={1} max={20}
                     className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
-                    value={newTier.maxPerOrder}
-                    onChange={(e) => setNewTier((t) => ({ ...t, maxPerOrder: parseInt(e.target.value, 10) || 1 }))}
-                  />
+                    value={newTierMaxOrder} onChange={(e) => setNewTierMaxOrder(e.target.value)} />
                 </div>
               </div>
               <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1">Description (optional)</label>
-                <input
-                  className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
-                  value={newTier.description}
-                  onChange={(e) => setNewTier((t) => ({ ...t, description: e.target.value }))}
-                />
+                <input className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                  placeholder="e.g. Includes lunch and materials"
+                  value={newTierDesc} onChange={(e) => setNewTierDesc(e.target.value)} />
               </div>
               <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={newTier.isVisible}
-                  onChange={(e) => setNewTier((t) => ({ ...t, isVisible: e.target.checked }))}
-                  className="accent-primary"
-                />
+                <input type="checkbox" checked={newTierVisible}
+                  onChange={(e) => setNewTierVisible(e.target.checked)} className="accent-primary" />
                 Visible on event page
               </label>
-              <button
-                disabled={!newTier.name || addTierMutation.isPending}
-                onClick={() => addTierMutation.mutate(newTier)}
-                className="bg-primary text-white font-semibold px-4 py-2 rounded-xl text-sm hover:bg-primary-hover disabled:opacity-40"
-              >
-                {addTierMutation.isPending ? 'Adding…' : 'Add Tier'}
-              </button>
+              <div className="flex gap-2">
+                <button
+                  disabled={!newTierName || !newTierPrice || !newTierQty || addTierMutation.isPending}
+                  onClick={() => addTierMutation.mutate({
+                    name: newTierName.trim(),
+                    description: newTierDesc.trim() || undefined,
+                    price: Math.round(parseFloat(newTierPrice) * 100),
+                    totalQuantity: parseInt(newTierQty, 10),
+                    maxPerOrder: parseInt(newTierMaxOrder, 10),
+                    isVisible: newTierVisible,
+                  })}
+                  className="bg-primary text-white font-semibold px-4 py-2 rounded-xl text-sm hover:bg-primary-hover disabled:opacity-40"
+                >
+                  {addTierMutation.isPending ? 'Adding…' : 'Add Tier'}
+                </button>
+                <button onClick={() => setShowAddTier(false)}
+                  className="border border-gray-300 text-gray-700 px-4 py-2 rounded-xl text-sm hover:bg-gray-50">
+                  Cancel
+                </button>
+              </div>
             </div>
           )}
         </section>

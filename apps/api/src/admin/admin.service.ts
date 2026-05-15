@@ -37,6 +37,19 @@ export class AdminService {
     return this.eventsService.create(dto, adminId);
   }
 
+  async getEvent(id: string) {
+    const event = await this.prisma.event.findUnique({
+      where: { id },
+      include: {
+        tiers: {
+          orderBy: { sortOrder: 'asc' },
+        },
+      },
+    });
+    if (!event) throw new NotFoundException('Event not found');
+    return event;
+  }
+
   async updateEvent(id: string, dto: UpdateEventDto) {
     return this.eventsService.update(id, dto);
   }
