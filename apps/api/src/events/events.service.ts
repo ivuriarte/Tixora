@@ -3,7 +3,7 @@ import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { RedisService } from '../redis/redis.service';
 import { CreateEventDto, UpdateEventDto } from './dto/event.dto';
-import { uniqueSlug } from '@tixora/utils';
+import { uniqueSlug } from '@axon-tickets/utils';
 
 const TIER_INVENTORY_PREFIX = 'ticket_tier:';
 const INVENTORY_SUFFIX = ':available';

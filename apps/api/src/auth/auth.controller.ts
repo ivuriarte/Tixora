@@ -17,7 +17,7 @@ import { LoginDto, VerifyOtpDto, ResendOtpDto, RefreshTokenDto } from './dto/aut
 import { Public } from '../common/decorators/public.decorator';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
-import { JwtPayload } from '@tixora/types';
+import { JwtPayload } from '@axon-tickets/types';
 
 @ApiTags('auth')
 @Controller('auth')

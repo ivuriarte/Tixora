@@ -5,7 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import toast from 'react-hot-toast';
 import api from '@/lib/api';
 import { useCartStore } from '@/store/cart.store';
-import { formatPHP, calculateFee } from '@tixora/utils';
+import { formatPHP, calculateFee } from '@axon-tickets/utils';
 import Button from '@/components/Button';
 import Navbar from '@/components/Navbar';
 import CountdownTimer from '@/components/CountdownTimer';

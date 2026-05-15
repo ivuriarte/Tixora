@@ -9,9 +9,9 @@ import { PrismaService } from '../prisma/prisma.service';
 import { Prisma } from '@prisma/client';
 import { RedisService } from '../redis/redis.service';
 import { CreateOrderDto } from './dto/order.dto';
-import { generateQrToken } from '@tixora/utils';
+import { generateQrToken } from '@axon-tickets/utils';
 import { ConfigService } from '@nestjs/config';
-import { calculateFee } from '@tixora/utils';
+import { calculateFee } from '@axon-tickets/utils';
 import { Resend } from 'resend';
 
 @Injectable()
@@ -269,7 +269,7 @@ export class OrdersService {
     });
     if (!order) return;
 
-    const fromName = this.config.get<string>('resend.fromName') ?? 'Tixora';
+    const fromName = this.config.get<string>('resend.fromName') ?? 'Axon Tickets';
     const fromEmail = this.config.get<string>('resend.fromEmail') ?? '';
 
     const ticketRows = order.tickets
@@ -305,7 +305,7 @@ export class OrdersService {
             </thead>
             <tbody>${ticketRows}</tbody>
           </table>
-          <p style="margin-top:24px;color:#9ca3af;font-size:12px">Tixora · Online Ticketing Platform</p>
+          <p style="margin-top:24px;color:#9ca3af;font-size:12px">Axon Tickets · Online Ticketing Platform</p>
         </div>
       `,
     });

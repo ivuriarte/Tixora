@@ -1,11 +1,11 @@
 {
-  "name": "@tixora/api",
+  "name": "@axon-tickets/api",
   "version": "0.0.1",
   "private": true,
   "scripts": {
     "prebuild": "prisma generate",
     "build": "nest build",
-    "vercel-build": "cd ../.. && npx turbo build --filter=@tixora/api && node_modules/.bin/ncc build apps/api/dist/serverless.js -o apps/api/api --minify && cp apps/api/api/client/libquery_engine-rhel-openssl-1.0.x.so.node apps/api/api/ && cp apps/api/api/client/libquery_engine-rhel-openssl-3.0.x.so.node apps/api/api/",
+    "vercel-build": "cd ../.. && npx turbo build --filter=@axon-tickets/api && node_modules/.bin/ncc build apps/api/dist/serverless.js -o apps/api/api --minify && cp apps/api/api/client/libquery_engine-rhel-openssl-1.0.x.so.node apps/api/api/ && cp apps/api/api/client/libquery_engine-rhel-openssl-3.0.x.so.node apps/api/api/",
     "dev": "prisma generate && nest start --watch",
     "start": "node dist/main",
     "lint": "eslint \"src/**/*.ts\"",
@@ -25,8 +25,8 @@
     "@nestjs/terminus": "^10.2.3",
     "@nestjs/throttler": "^6.2.0",
     "@prisma/client": "^5.22.0",
-    "@tixora/types": "*",
-    "@tixora/utils": "*",
+    "@axon-tickets/types": "*",
+    "@axon-tickets/utils": "*",
     "bcryptjs": "^2.4.3",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.14.1",
@@ -70,7 +70,7 @@
       "/.vercel/"
     ],
     "moduleNameMapper": {
-      "^@tixora/(.*)$": "<rootDir>/../../packages/$1/src"
+      "^@axon-tickets/(.*)$": "<rootDir>/../../packages/$1/src"
     }
   },
   "prisma": {

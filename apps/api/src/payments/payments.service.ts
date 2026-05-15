@@ -24,7 +24,7 @@ export class PaymentsService {
       orderId,
       Number(order.total),
       order.currency,
-      `Tixora: ${order.event.title}`,
+      `Axon Tickets: ${order.event.title}`,
       { orderId, userId },
     );
 

@@ -6,7 +6,7 @@ import api from '@/lib/api';
 import Navbar from '@/components/Navbar';
 import Link from 'next/link';
 import toast from 'react-hot-toast';
-import { formatShortDate } from '@tixora/utils';
+import { formatShortDate } from '@axon-tickets/utils';
 
 interface OrderDetail {
   id: string;

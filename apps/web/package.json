@@ -1,5 +1,5 @@
 {
-  "name": "@tixora/web",
+  "name": "@axon-tickets/web",
   "version": "0.0.1",
   "private": true,
   "scripts": {
@@ -15,8 +15,8 @@
     "@hcaptcha/react-hcaptcha": "^1.11.0",
     "@tanstack/react-query": "^5.56.0",
     "@tanstack/react-query-devtools": "^5.56.0",
-    "@tixora/types": "*",
-    "@tixora/utils": "*",
+    "@axon-tickets/types": "*",
+    "@axon-tickets/utils": "*",
     "axios": "^1.7.7",
     "class-variance-authority": "^0.7.0",
     "clsx": "^2.1.1",

@@ -1,4 +1,4 @@
-// Prisma schema for Tixora Online Ticketing Platform
+// Prisma schema for Axon Tickets Online Ticketing Platform
 // Run: npx prisma migrate dev --name init
 
 generator client {

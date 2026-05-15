@@ -12,7 +12,7 @@ import {
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
-import { JwtPayload } from '@tixora/types';
+import { JwtPayload } from '@axon-tickets/types';
 import { ReservationsService } from './reservations.service';
 import { CreateReservationDto } from './dto/reservation.dto';
 

@@ -1,5 +1,5 @@
 {
-  "name": "@tixora/types",
+  "name": "@axon-tickets/types",
   "version": "0.0.1",
   "private": true,
   "main": "./dist/index.js",

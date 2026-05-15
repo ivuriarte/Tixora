@@ -15,7 +15,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { RedisService } from '../redis/redis.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto, VerifyOtpDto } from './dto/auth.dto';
-import { JwtPayload } from '@tixora/types';
+import { JwtPayload } from '@axon-tickets/types';
 
 const BCRYPT_COST = 12;
 const OTP_TTL_SECONDS = 300; // 5 minutes
@@ -190,13 +190,13 @@ export class AuthService {
       data: { userId, codeHash, type, expiresAt },
     });
 
-    const fromName = this.config.get<string>('resend.fromName') ?? 'Tixora';
+    const fromName = this.config.get<string>('resend.fromName') ?? 'Axon Tickets';
     const fromEmail = this.config.get<string>('resend.fromEmail') ?? '';
 
     const { error } = await this.resend.emails.send({
       from: `${fromName} <${fromEmail}>`,
       to: email,
-      subject: 'Your Tixora verification code',
+      subject: 'Your Axon Tickets verification code',
       html: `
         <div style="font-family:sans-serif;max-width:400px;margin:0 auto">
           <h2>Verify your email</h2>

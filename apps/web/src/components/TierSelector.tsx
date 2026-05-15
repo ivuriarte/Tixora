@@ -6,7 +6,7 @@ import toast from 'react-hot-toast';
 import api from '@/lib/api';
 import { useAuthStore } from '@/store/auth.store';
 import { useCartStore } from '@/store/cart.store';
-import { formatPHP } from '@tixora/utils';
+import { formatPHP } from '@axon-tickets/utils';
 import Button from '@/components/Button';
 
 interface Tier {

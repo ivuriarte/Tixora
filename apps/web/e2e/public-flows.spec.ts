@@ -6,7 +6,7 @@ test.describe('Homepage', () => {
     await expect(page.getByRole('heading', { name: /upcoming events/i })).toBeVisible();
     await expect(page.getByRole('navigation')).toBeVisible();
     // Navbar links
-    await expect(page.getByRole('link', { name: 'Tixora' })).toBeVisible();
+    await expect(page.getByRole('link', { name: 'Axon Tickets' })).toBeVisible();
     await expect(page.getByRole('link', { name: 'Log in' })).toBeVisible();
     await expect(page.getByRole('link', { name: 'Sign up' })).toBeVisible();
   });
@@ -59,9 +59,9 @@ test.describe('Auth — Register', () => {
 });
 
 test.describe('Navigation', () => {
-  test('Tixora logo navigates to homepage', async ({ page }) => {
+  test('Axon Tickets logo navigates to homepage', async ({ page }) => {
     await page.goto('/auth/login');
-    await page.getByRole('link', { name: 'Tixora' }).click();
+    await page.getByRole('link', { name: 'Axon Tickets' }).click();
     await expect(page).toHaveURL('/');
   });
 

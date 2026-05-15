@@ -36,7 +36,7 @@ import { UploadModule } from './upload/upload.module';
             ? { target: 'pino-pretty', options: { colorize: true } }
             : undefined,
         redact: ['req.headers.authorization', 'req.headers.cookie'],
-        customProps: () => ({ service: 'tixora-api' }),
+        customProps: () => ({ service: 'axon-tickets-api' }),
       },
     }),
 

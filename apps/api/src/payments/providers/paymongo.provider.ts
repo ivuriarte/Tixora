@@ -6,7 +6,7 @@ import {
   PaymentIntentResult,
   WebhookEvent,
 } from './payment-provider.interface';
-import { pesoToCentavos } from '@tixora/utils';
+import { pesoToCentavos } from '@axon-tickets/utils';
 
 interface PayMongoPaymentLink {
   data: {

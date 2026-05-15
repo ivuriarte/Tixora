@@ -21,7 +21,7 @@ export const validationSchema = Joi.object({
 
   RESEND_API_KEY: Joi.string().required(),
   RESEND_FROM_EMAIL: Joi.string().email().required(),
-  RESEND_FROM_NAME: Joi.string().default('Tixora'),
+  RESEND_FROM_NAME: Joi.string().default('Axon Tickets'),
 
   CLOUDINARY_CLOUD_NAME: Joi.string().required(),
   CLOUDINARY_API_KEY: Joi.string().required(),

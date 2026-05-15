@@ -1,5 +1,5 @@
 {
-  "buildCommand": "npx turbo build --filter=@tixora/web",
+  "buildCommand": "npx turbo build --filter=@axon-tickets/web",
   "outputDirectory": "apps/web/.next",
   "installCommand": "npm install",
   "framework": "nextjs"

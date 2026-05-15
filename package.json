@@ -1,5 +1,5 @@
 {
-  "name": "tixora",
+  "name": "axon-tickets",
   "private": true,
   "workspaces": [
     "apps/*",

@@ -3,7 +3,7 @@
  * Refresh token lives in localStorage (simpler; switch to HttpOnly cookie via BFF for production hardening).
  */
 
-const REFRESH_TOKEN_KEY = 'tixora_rt';
+const REFRESH_TOKEN_KEY = 'axon_tickets_rt';
 
 let _accessToken: string | null = null;
 

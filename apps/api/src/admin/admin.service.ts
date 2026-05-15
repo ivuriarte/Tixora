@@ -11,7 +11,7 @@ import { EventsService } from '../events/events.service';
 import { TicketTiersService } from '../ticket-tiers/ticket-tiers.service';
 import { CreateEventDto, UpdateEventDto } from '../events/dto/event.dto';
 import { CreateTierDto, UpdateTierDto } from '../ticket-tiers/dto/tier.dto';
-import { verifyQrToken } from '@tixora/utils';
+import { verifyQrToken } from '@axon-tickets/utils';
 import { ConfigService } from '@nestjs/config';
 import { Resend } from 'resend';
 
@@ -229,7 +229,7 @@ export class AdminService {
     event: { title: string; startsAt: string; venue: string },
     tickets: Array<{ id: string; tierName: string; qrCode: string }>,
   ) {
-    const fromName = this.config.get<string>('resend.fromName') ?? 'Tixora';
+    const fromName = this.config.get<string>('resend.fromName') ?? 'Axon Tickets';
     const fromEmail = this.config.get<string>('resend.fromEmail') ?? '';
 
     const ticketRows = tickets
@@ -265,7 +265,7 @@ export class AdminService {
             </thead>
             <tbody>${ticketRows}</tbody>
           </table>
-          <p style="margin-top:24px;color:#9ca3af;font-size:12px">Tixora · Online Ticketing Platform</p>
+          <p style="margin-top:24px;color:#9ca3af;font-size:12px">Axon Tickets · Online Ticketing Platform</p>
         </div>
       `,
     });

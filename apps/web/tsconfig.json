@@ -16,8 +16,8 @@
     "plugins": [{ "name": "next" }],
     "paths": {
       "@/*": ["./src/*"],
-      "@tixora/types": ["../../packages/types/src"],
-      "@tixora/utils": ["../../packages/utils/src"]
+      "@axon-tickets/types": ["../../packages/types/src"],
+      "@axon-tickets/utils": ["../../packages/utils/src"]
     }
   },
   "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],

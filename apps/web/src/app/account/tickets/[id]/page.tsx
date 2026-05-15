@@ -5,7 +5,7 @@ import { useParams } from 'next/navigation';
 import api from '@/lib/api';
 import Navbar from '@/components/Navbar';
 import { QRCodeSVG } from 'qrcode.react';
-import { formatManila } from '@tixora/utils';
+import { formatManila } from '@axon-tickets/utils';
 import Link from 'next/link';
 
 interface TicketDetail {

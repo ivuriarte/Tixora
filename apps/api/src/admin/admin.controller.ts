@@ -14,7 +14,7 @@ import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { AdminGuard } from '../common/guards/admin.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
-import { JwtPayload } from '@tixora/types';
+import { JwtPayload } from '@axon-tickets/types';
 import { AdminService } from './admin.service';
 import { CreateEventDto, UpdateEventDto } from '../events/dto/event.dto';
 import { CreateTierDto, UpdateTierDto } from '../ticket-tiers/dto/tier.dto';

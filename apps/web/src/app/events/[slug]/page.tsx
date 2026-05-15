@@ -1,7 +1,7 @@
 import Navbar from '@/components/Navbar';
 import { notFound } from 'next/navigation';
 import Image from 'next/image';
-import { formatManila } from '@tixora/utils';
+import { formatManila } from '@axon-tickets/utils';
 import TierSelector from '@/components/TierSelector';
 
 interface Tier {
@@ -46,7 +46,7 @@ export async function generateMetadata({ params }: { params: { slug: string } })
   const event = await getEvent(params.slug);
   if (!event) return {};
   return {
-    title: `${event.title} — Tixora`,
+    title: `${event.title} — Axon Tickets`,
     description: event.description?.slice(0, 150),
     openGraph: { title: event.title, images: event.imageUrl ? [event.imageUrl] : [] },
   };

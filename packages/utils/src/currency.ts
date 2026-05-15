@@ -26,7 +26,7 @@ export function pesoToCentavos(peso: number): number {
 }
 
 /**
- * Calculate Tixora service fee (5% of subtotal, min ₱15).
+ * Calculate Axon Tickets service fee (5% of subtotal, min ₱15).
  */
 export function calculateFee(subtotal: number): number {
   const fee = subtotal * 0.05;

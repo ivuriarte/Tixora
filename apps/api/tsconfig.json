@@ -18,8 +18,8 @@
     "forceConsistentCasingInFileNames": false,
     "noFallthroughCasesInSwitch": false,
     "paths": {
-      "@tixora/types": ["../../packages/types/dist/index"],
-      "@tixora/utils": ["../../packages/utils/dist/index"]
+      "@axon-tickets/types": ["../../packages/types/dist/index"],
+      "@axon-tickets/utils": ["../../packages/utils/dist/index"]
     }
   },
   "include": ["src/**/*"],

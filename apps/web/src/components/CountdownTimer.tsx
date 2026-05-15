@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { secondsUntil } from '@tixora/utils';
+import { secondsUntil } from '@axon-tickets/utils';
 
 interface Props {
   expiresAt: Date;

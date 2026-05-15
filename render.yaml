@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: tixora-api
+    name: axon-tickets-api
     runtime: node
     region: singapore
     plan: free

@@ -47,7 +47,7 @@ async function bootstrap() {
   // Swagger — dev only
   if (env !== 'production') {
     const swaggerConfig = new DocumentBuilder()
-      .setTitle('Tixora API')
+      .setTitle('Axon Tickets API')
       .setDescription('Online ticketing platform API')
       .setVersion('1.0')
       .addBearerAuth()

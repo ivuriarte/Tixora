@@ -8,7 +8,7 @@ export default defineConfig({
   workers: 1,
   reporter: [['list'], ['html', { open: 'never' }]],
   use: {
-    baseURL: process.env.BASE_URL ?? 'https://tixora-online-ticket-app.vercel.app',
+    baseURL: process.env.BASE_URL ?? 'https://axon-tickets-app.vercel.app',
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
   },

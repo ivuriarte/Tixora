@@ -53,7 +53,7 @@ function VerifyForm() {
       );
       const { user, accessToken, refreshToken } = res.data.data;
       setAuth(user, accessToken, refreshToken);
-      toast.success('Email verified! Welcome to Tixora 🎉');
+      toast.success('Email verified! Welcome to Axon Tickets 🎉');
       router.push('/');
     } catch (err: any) {
       toast.error(err?.response?.data?.message ?? 'Invalid or expired code');
@@ -81,7 +81,7 @@ function VerifyForm() {
     <div className="min-h-screen flex items-center justify-center px-4 py-12">
       <div className="w-full max-w-sm">
         <div className="text-center mb-8">
-          <Link href="/" className="text-2xl font-bold text-primary">Tixora</Link>
+          <Link href="/" className="text-2xl font-bold text-primary">Axon Tickets</Link>
           <h1 className="mt-4 text-2xl font-bold text-gray-900">Verify your email</h1>
           <p className="mt-1 text-sm text-gray-500">
             We sent a 6-digit code to <strong>{email}</strong>

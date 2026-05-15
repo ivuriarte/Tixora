@@ -27,7 +27,7 @@ export class UploadService {
     const result = await new Promise<UploadApiResponse>((resolve, reject) => {
       const stream = cloudinary.uploader.upload_stream(
         {
-          folder: 'tixora/events',
+          folder: 'axon-tickets/events',
           public_id: `event-${eventId}`,
           overwrite: true,
           transformation: [

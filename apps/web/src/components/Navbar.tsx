@@ -26,7 +26,7 @@ export default function Navbar() {
     <nav className="sticky top-0 z-50 bg-white border-b border-gray-200 shadow-sm">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
         <Link href="/" className="text-xl font-bold text-primary">
-          Tixora
+          Axon Tickets
         </Link>
 
         <div className="flex items-center gap-4">

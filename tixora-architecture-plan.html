@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Tixora — MVP Architecture Plan</title>
+  <title>Axon Tickets — MVP Architecture Plan</title>
   <style>
     /* ===========================
        RESET & BASE
@@ -483,7 +483,7 @@
        COVER PAGE
   ============================= -->
   <div class="cover">
-    <div class="cover-logo">TIXORA</div>
+    <div class="cover-logo">AXON TICKETS</div>
     <div class="cover-tagline">Online Ticketing Platform</div>
     <div class="cover-title">MVP Architecture Plan &amp; Development Roadmap</div>
     <div class="cover-subtitle">
@@ -533,7 +533,7 @@
   </div>
 
   <div class="section-intro">
-    Tixora is a modern online ticketing platform for events in the Philippines. It allows customers to browse events, buy tickets, receive QR codes, and attend events — while giving organizers tools to manage everything from ticket inventory to check-in at the door.
+    Axon Tickets is a modern online ticketing platform for events in the Philippines. It allows customers to browse events, buy tickets, receive QR codes, and attend events — while giving organizers tools to manage everything from ticket inventory to check-in at the door.
   </div>
 
   <h3>Two Sides of the Platform</h3>
@@ -552,7 +552,7 @@
     <li><strong>Slow, clunky checkout</strong> — A frictionless 5-step checkout with a clear countdown timer and simple payment flow.</li>
   </ul>
 
-  <h3>What Tixora Is NOT (MVP Scope Cuts)</h3>
+  <h3>What Axon Tickets Is NOT (MVP Scope Cuts)</h3>
   <table>
     <tr><th>Feature</th><th>Status</th><th>Reason</th></tr>
     <tr><td>Seat maps / reserved seating</td><td>Not in MVP</td><td>Complex, not needed for initial events</td></tr>
@@ -680,7 +680,7 @@ order_items  → ON DELETE CASCADE when order is deleted</pre>
        SECTION 4: API ARCHITECTURE
   ============================= -->
   <h3>2.4 API Architecture</h3>
-  <p><strong>Base URL:</strong> <code>https://api.tixora.ph/v1</code></p>
+  <p><strong>Base URL:</strong> <code>https://api.axontickets.ph/v1</code></p>
 
   <table>
     <tr><th>Module</th><th>Endpoints</th><th>Auth Required</th></tr>
@@ -833,7 +833,7 @@ order_items  → ON DELETE CASCADE when order is deleted</pre>
     <tr><td>QR integrity</td><td>Fake tickets</td><td>HMAC-SHA256 signed token. Verified with timing-safe comparison at check-in</td></tr>
     <tr><td>Payment webhooks</td><td>Fake payment confirmations</td><td>Verify provider signature before processing any webhook</td></tr>
     <tr><td>Input validation</td><td>Injection attacks</td><td>class-validator DTOs on all endpoints. Prisma parameterizes all SQL — no injection possible</td></tr>
-    <tr><td>CORS</td><td>Unauthorized origins</td><td>Whitelist only tixora.ph and www.tixora.ph</td></tr>
+    <tr><td>CORS</td><td>Unauthorized origins</td><td>Whitelist only axontickets.ph and www.axontickets.ph</td></tr>
     <tr><td>HTTP Headers</td><td>Browser attacks</td><td>Helmet.js (XSS, HSTS, CSP, X-Frame-Options)</td></tr>
   </table>
 
@@ -878,7 +878,7 @@ order_items  → ON DELETE CASCADE when order is deleted</pre>
 
   <h3>3.1 Monorepo Folder Structure (Turborepo)</h3>
 
-  <pre>tixora/
+  <pre>axon-tickets/
 ├── apps/
 │   ├── web/                          ← Next.js 14 frontend (Vercel)
 │   │   ├── app/
@@ -1036,7 +1036,7 @@ order_items  → ON DELETE CASCADE when order is deleted</pre>
     <tr><th>Item</th><th>Status</th></tr>
     <tr><td>All inputs validated with class-validator DTOs</td><td>□ Todo</td></tr>
     <tr><td>Prisma parameterizes all queries (SQL injection impossible)</td><td>□ Todo</td></tr>
-    <tr><td>CORS whitelist: tixora.ph only</td><td>□ Todo</td></tr>
+    <tr><td>CORS whitelist: axontickets.ph only</td><td>□ Todo</td></tr>
     <tr><td>Helmet.js security headers enabled on NestJS</td><td>□ Todo</td></tr>
     <tr><td>Rate limiting on all auth + transaction endpoints</td><td>□ Todo</td></tr>
     <tr><td>Refresh tokens rotated on every use</td><td>□ Todo</td></tr>
@@ -1277,7 +1277,7 @@ order_items  → ON DELETE CASCADE when order is deleted</pre>
     </div>
     <div class="todo-item avoid-break done">
       <div class="todo-checkbox checked"></div>
-      <div class="todo-text">Configure CORS on NestJS (whitelist tixora.ph only)</div>
+      <div class="todo-text">Configure CORS on NestJS (whitelist axontickets.ph only)</div>
       <span class="badge badge-critical">Critical</span>
     </div>
     <div class="todo-item avoid-break done">
@@ -1319,7 +1319,7 @@ order_items  → ON DELETE CASCADE when order is deleted</pre>
     </div>
     <div class="todo-item avoid-break done">
       <div class="todo-checkbox checked"></div>
-      <div class="todo-text">Create Resend account + verify sending domain (tixora.ph)</div>
+      <div class="todo-text">Create Resend account + verify sending domain (axontickets.ph)</div>
       <span class="badge badge-medium">Medium</span>
     </div>
     <div class="todo-item avoid-break done">
@@ -1973,7 +1973,7 @@ order_items  → ON DELETE CASCADE when order is deleted</pre>
     </div>
     <div class="todo-item avoid-break">
       <div class="todo-checkbox"></div>
-      <div class="todo-text">Verify CORS whitelist is only tixora.ph (not wildcard)</div>
+      <div class="todo-text">Verify CORS whitelist is only axontickets.ph (not wildcard)</div>
       <span class="badge badge-critical">Critical</span>
     </div>
     <div class="todo-item avoid-break">
@@ -2252,7 +2252,7 @@ order_items  → ON DELETE CASCADE when order is deleted</pre>
   ============================= -->
   <hr class="divider">
   <div class="footer">
-    <p><strong>Tixora MVP Architecture Plan</strong> — Version 1.0</p>
+    <p><strong>Axon Tickets MVP Architecture Plan</strong> — Version 1.0</p>
     <p>Prepared May 14, 2026 · Confidential · For internal planning only</p>
     <p style="margin-top:8px; font-size:10px;">
       To save as PDF: Click "Save as PDF" button (bottom right) or use browser Print → Save as PDF

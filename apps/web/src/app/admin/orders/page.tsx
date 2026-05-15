@@ -5,7 +5,7 @@ import { useQuery } from '@tanstack/react-query';
 import api from '@/lib/api';
 import Navbar from '@/components/Navbar';
 import Link from 'next/link';
-import { formatShortDate } from '@tixora/utils';
+import { formatShortDate } from '@axon-tickets/utils';
 
 interface Order {
   id: string;

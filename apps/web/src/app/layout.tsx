@@ -3,12 +3,12 @@ import './globals.css';
 import Providers from './providers';
 
 export const metadata: Metadata = {
-  title: 'Tixora — Online Ticketing Philippines',
+  title: 'Axon Tickets — Online Ticketing Philippines',
   description: 'Buy tickets to the best events in the Philippines. Fast, secure, mobile-first.',
   openGraph: {
-    title: 'Tixora',
+    title: 'Axon Tickets',
     description: 'Buy tickets to the best events in the Philippines.',
-    siteName: 'Tixora',
+    siteName: 'Axon Tickets',
   },
 };
 

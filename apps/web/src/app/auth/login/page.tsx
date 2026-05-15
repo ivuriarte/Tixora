@@ -44,7 +44,7 @@ export default function LoginPage() {
     <div className="min-h-screen flex items-center justify-center px-4 py-12">
       <div className="w-full max-w-sm">
         <div className="text-center mb-8">
-          <Link href="/" className="text-2xl font-bold text-primary">Tixora</Link>
+          <Link href="/" className="text-2xl font-bold text-primary">Axon Tickets</Link>
           <h1 className="mt-4 text-2xl font-bold text-gray-900">Welcome back</h1>
           <p className="mt-1 text-sm text-gray-500">Log in to your account</p>
         </div>

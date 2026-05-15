@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import Image from 'next/image';
-import { formatManila, formatShortDate } from '@tixora/utils';
+import { formatManila, formatShortDate } from '@axon-tickets/utils';
 
 interface Props {
   event: {

@@ -30,7 +30,7 @@ async function main() {
     create: {
       title: 'Test Concert Manila 2026',
       slug: 'test-concert-manila-2026',
-      description: 'A test event to verify the Tixora ticketing platform end-to-end.',
+      description: 'A test event to verify the Axon Tickets ticketing platform end-to-end.',
       venue: 'SM Mall of Asia Arena',
       city: 'Pasay',
       startsAt,
