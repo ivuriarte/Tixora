@@ -12,6 +12,8 @@ interface CheckinResult {
   tierName: string;
   eventTitle: string;
   checkedInAt: string;
+  orderStatus?: string;
+  paymentMethod?: string;
 }
 
 export default function AdminCheckinPage() {
@@ -84,6 +86,15 @@ export default function AdminCheckinPage() {
             <div className="text-sm text-gray-600 text-center space-y-0.5">
               <p>{result.tierName}</p>
               <p>{result.eventTitle}</p>
+              {result.orderStatus && (
+                <p className={`inline-block text-xs font-semibold px-2.5 py-1 rounded-full mt-1 ${
+                  result.orderStatus === 'paid' ? 'bg-green-100 text-green-700' :
+                  result.orderStatus === 'pending' ? 'bg-yellow-100 text-yellow-700' :
+                  'bg-gray-100 text-gray-500'
+                }`}>
+                  Payment: {result.orderStatus}{result.paymentMethod ? ` · ${result.paymentMethod}` : ''}
+                </p>
+              )}
             </div>
           </div>
         )}

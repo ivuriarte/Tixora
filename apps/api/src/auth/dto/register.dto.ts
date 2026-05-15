@@ -30,6 +30,25 @@ export class RegisterDto {
   @Matches(/^\+639\d{9}$/, { message: 'Phone must be in format +639XXXXXXXXX' })
   phone?: string;
 
+  // Conference registration fields (Francis Kong MVP)
+  @ApiProperty({ required: false, example: 'Acme Corp' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(150)
+  company?: string;
+
+  @ApiProperty({ required: false, example: 'General Manager' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  jobTitle?: string;
+
+  @ApiProperty({ required: false, example: 'Davao City' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  city?: string;
+
   @ApiProperty({ description: 'hCaptcha response token' })
   @IsString()
   captchaToken: string;

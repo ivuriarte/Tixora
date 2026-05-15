@@ -3,9 +3,10 @@ import { AdminService } from './admin.service';
 import { AdminController } from './admin.controller';
 import { EventsModule } from '../events/events.module';
 import { TicketTiersModule } from '../ticket-tiers/ticket-tiers.module';
+import { OrdersModule } from '../orders/orders.module';
 
 @Module({
-  imports: [EventsModule, TicketTiersModule],
+  imports: [EventsModule, TicketTiersModule, OrdersModule],
   controllers: [AdminController],
   providers: [AdminService],
 })

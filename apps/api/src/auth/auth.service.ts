@@ -51,6 +51,9 @@ export class AuthService {
         firstName: dto.firstName,
         lastName: dto.lastName,
         phone: dto.phone ?? null,
+        company: dto.company ?? null,
+        jobTitle: dto.jobTitle ?? null,
+        city: dto.city ?? null,
       },
     });
 

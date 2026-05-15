@@ -30,6 +30,11 @@ export default function Navbar() {
         </Link>
 
         <div className="flex items-center gap-4">
+          {process.env.NEXT_PUBLIC_ENABLE_MARKETPLACE !== 'false' && (
+            <Link href="/events" className="text-sm font-medium text-gray-500 hover:text-primary hidden sm:block">
+              Browse Events
+            </Link>
+          )}
           {isAuthenticated ? (
             <>
               <Link href="/account/tickets" className="text-sm font-medium text-gray-700 hover:text-primary">

@@ -59,35 +59,46 @@ model User {
   isVerified   Boolean  @default(false) @map("is_verified")
   isAdmin      Boolean  @default(false) @map("is_admin")
   fraudScore   Int      @default(0) @map("fraud_score")
+  // Conference registration fields (added for Francis Kong MVP)
+  company      String?  @map("company")
+  jobTitle     String?  @map("job_title")
+  city         String?  @map("city")
   createdAt    DateTime @default(now()) @map("created_at")
   updatedAt    DateTime @updatedAt @map("updated_at")
 
-  reservations Reservation[]
-  orders       Order[]
-  tickets      Ticket[]
-  otpCodes     OtpCode[]
-  fraudFlags   FraudFlag[]
-  events       Event[]         @relation("CreatedBy")
-  checkIns     Ticket[]        @relation("CheckedInBy")
+  reservations      Reservation[]
+  orders            Order[]
+  tickets           Ticket[]
+  otpCodes          OtpCode[]
+  fraudFlags        FraudFlag[]
+  events            Event[]   @relation("CreatedBy")
+  checkIns          Ticket[]  @relation("CheckedInBy")
+  confirmedOrders   Order[]   @relation("ConfirmedByAdmin")
 
   @@map("users")
 }
 
 model Event {
-  id          String      @id @default(uuid())
-  slug        String      @unique
-  title       String
-  description String?
-  venue       String
-  city        String      @default("Manila")
-  startsAt    DateTime    @map("starts_at")
-  endsAt      DateTime?   @map("ends_at")
-  imageUrl    String?     @map("image_url")
-  status      EventStatus @default(draft)
-  maxPerUser  Int         @default(4) @map("max_per_user")
-  createdById String      @map("created_by_id")
-  createdAt   DateTime    @default(now()) @map("created_at")
-  updatedAt   DateTime    @updatedAt @map("updated_at")
+  id           String      @id @default(uuid())
+  slug         String      @unique
+  title        String
+  description  String?
+  venue        String
+  city         String      @default("Manila")
+  startsAt     DateTime    @map("starts_at")
+  endsAt       DateTime?   @map("ends_at")
+  imageUrl     String?     @map("image_url")
+  status       EventStatus @default(draft)
+  maxPerUser   Int         @default(4) @map("max_per_user")
+  // Conference-specific fields (added for Francis Kong MVP)
+  speakerName  String?     @map("speaker_name")
+  agenda       Json?       // Array of { time: string, title: string, description?: string }
+  sponsors     Json?       // Array of { name: string, logoUrl?: string, tier?: string }
+  faqs         Json?       // Array of { question: string, answer: string }
+  platformFee  Decimal     @default(50) @db.Decimal(10, 2) @map("platform_fee")
+  createdById  String      @map("created_by_id")
+  createdAt    DateTime    @default(now()) @map("created_at")
+  updatedAt    DateTime    @updatedAt @map("updated_at")
 
   createdBy   User         @relation("CreatedBy", fields: [createdById], references: [id])
   tiers       TicketTier[]
@@ -160,19 +171,23 @@ model Order {
   currency        String      @default("PHP")
   paymentMethod   String?     @map("payment_method")
   paymentRef      String?     @map("payment_ref")
-  paymentLinkId   String?     @map("payment_link_id")
-  idempotencyKey  String      @unique @map("idempotency_key")
-  ipAddress       String?     @map("ip_address")
-  userAgent       String?     @map("user_agent")
-  createdAt       DateTime    @default(now()) @map("created_at")
-  updatedAt       DateTime    @updatedAt @map("updated_at")
+  paymentLinkId       String?     @map("payment_link_id")
+  idempotencyKey      String      @unique @map("idempotency_key")
+  ipAddress           String?     @map("ip_address")
+  userAgent           String?     @map("user_agent")
+  // Manual payment confirmation audit trail
+  confirmedByAdminId  String?     @map("confirmed_by_admin_id")
+  confirmedAt         DateTime?   @map("confirmed_at")
+  createdAt           DateTime    @default(now()) @map("created_at")
+  updatedAt           DateTime    @updatedAt @map("updated_at")
 
-  user        User        @relation(fields: [userId], references: [id])
-  reservation Reservation @relation(fields: [reservationId], references: [id])
-  event       Event       @relation(fields: [eventId], references: [id])
-  items       OrderItem[]
-  tickets     Ticket[]
-  fraudFlags  FraudFlag[]
+  user             User        @relation(fields: [userId], references: [id])
+  reservation      Reservation @relation(fields: [reservationId], references: [id])
+  event            Event       @relation(fields: [eventId], references: [id])
+  items            OrderItem[]
+  tickets          Ticket[]
+  fraudFlags       FraudFlag[]
+  confirmedByAdmin User?       @relation("ConfirmedByAdmin", fields: [confirmedByAdminId], references: [id])
 
   @@index([userId, status])
   @@index([status])

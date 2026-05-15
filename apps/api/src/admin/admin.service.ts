@@ -9,6 +9,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { Prisma } from '@prisma/client';
 import { EventsService } from '../events/events.service';
 import { TicketTiersService } from '../ticket-tiers/ticket-tiers.service';
+import { OrdersService } from '../orders/orders.service';
 import { CreateEventDto, UpdateEventDto } from '../events/dto/event.dto';
 import { CreateTierDto, UpdateTierDto } from '../ticket-tiers/dto/tier.dto';
 import { verifyQrToken } from '@axon-tickets/utils';
@@ -24,6 +25,7 @@ export class AdminService {
     private readonly prisma: PrismaService,
     private readonly eventsService: EventsService,
     private readonly tiersService: TicketTiersService,
+    private readonly ordersService: OrdersService,
     private readonly config: ConfigService,
   ) {
     this.resend = new Resend(this.config.get<string>('resend.apiKey'));
@@ -286,6 +288,7 @@ export class AdminService {
         user: { select: { firstName: true, lastName: true } },
         ticketTier: { select: { name: true } },
         event: { select: { title: true } },
+        order: { select: { status: true, paymentMethod: true } },
       },
     });
 
@@ -319,33 +322,60 @@ export class AdminService {
       tierName: ticket.ticketTier.name,
       eventTitle: ticket.event.title,
       checkedInAt: new Date().toISOString(),
+      orderStatus: ticket.order?.status ?? null,
+      paymentMethod: ticket.order?.paymentMethod ?? null,
     };
   }
 
   // ── Attendees ──────────────────────────────────────────────────────────
 
-  async getAttendees(eventId: string, page = 1, limit = 50) {
+  async getAttendees(eventId: string, page = 1, limit = 50, q?: string) {
     const skip = (page - 1) * limit;
+
+    const baseWhere = { eventId, status: { in: ['valid', 'used'] as Prisma.EnumTicketStatusFilter['in'] } };
+    const where = q
+      ? {
+          ...baseWhere,
+          user: {
+            OR: [
+              { firstName: { contains: q, mode: 'insensitive' as const } },
+              { lastName: { contains: q, mode: 'insensitive' as const } },
+              { email: { contains: q, mode: 'insensitive' as const } },
+              { company: { contains: q, mode: 'insensitive' as const } },
+            ],
+          },
+        }
+      : baseWhere;
+
     const [total, tickets] = await Promise.all([
-      this.prisma.ticket.count({ where: { eventId, status: { in: ['valid', 'used'] } } }),
+      this.prisma.ticket.count({ where }),
       this.prisma.ticket.findMany({
-        where: { eventId, status: { in: ['valid', 'used'] } },
+        where,
         skip,
         take: limit,
         orderBy: { createdAt: 'desc' },
         include: {
-          user: { select: { email: true, firstName: true, lastName: true } },
+          user: { select: { email: true, firstName: true, lastName: true, company: true, jobTitle: true, city: true, phone: true } },
           ticketTier: { select: { name: true } },
+          order: { select: { status: true, paymentMethod: true } },
         },
       }),
     ]);
 
+    type TicketRow = (typeof tickets)[number];
+
     return {
-      data: tickets.map((t: (typeof tickets)[number]) => ({
+      data: tickets.map((t: TicketRow) => ({
         id: t.id,
-        userEmail: t.user.email,
-        userName: `${t.user.firstName} ${t.user.lastName}`,
-        tierName: t.ticketTier.name,
+        userEmail: (t as any).user.email,
+        userName: `${(t as any).user.firstName} ${(t as any).user.lastName}`,
+        userCompany: (t as any).user.company ?? null,
+        userJobTitle: (t as any).user.jobTitle ?? null,
+        userCity: (t as any).user.city ?? null,
+        userPhone: (t as any).user.phone ?? null,
+        tierName: (t as any).ticketTier.name,
+        orderStatus: (t as any).order?.status ?? null,
+        paymentMethod: (t as any).order?.paymentMethod ?? null,
         status: t.status,
         checkedInAt: t.checkedInAt?.toISOString() ?? null,
       })),
@@ -455,5 +485,119 @@ export class AdminService {
       where: { id: flagId },
       data: { resolvedAt: new Date() },
     });
+  }
+
+  // ── Manual Payment Confirmation ────────────────────────────────────────
+
+  async manualConfirmPayment(orderId: string, adminId: string) {
+    const order = await this.prisma.order.findUnique({ where: { id: orderId } });
+    if (!order) throw new NotFoundException('Order not found');
+    if (order.status === 'paid') throw new BadRequestException('Order is already paid');
+
+    // Reuse the same confirmPayment logic (generates QR tickets + sends email)
+    await this.ordersService.confirmPayment(orderId, `manual:${adminId}`);
+
+    // Record audit trail
+    await this.prisma.order.update({
+      where: { id: orderId },
+      data: {
+        confirmedByAdminId: adminId,
+        confirmedAt: new Date(),
+      },
+    });
+
+    this.logger.log({ msg: 'Order manually confirmed by admin', orderId, adminId });
+    return { confirmed: true, orderId };
+  }
+
+  // ── CSV Exports ─────────────────────────────────────────────────────────
+
+  async exportOrders(eventId?: string): Promise<string> {
+    const orders = await this.prisma.order.findMany({
+      where: eventId ? { eventId } : {},
+      orderBy: { createdAt: 'desc' },
+      include: {
+        user: { select: { email: true, firstName: true, lastName: true, company: true, jobTitle: true, city: true } },
+        event: { select: { title: true } },
+        items: { include: { ticketTier: { select: { name: true } } } },
+      },
+    });
+
+    const header = 'Order ID,Event,Buyer Name,Email,Company,Job Title,City,Status,Tier,Qty,Total (PHP),Payment Method,Created At\n';
+    const rows = orders.map((o: (typeof orders)[number]) => {
+      const tierNames = o.items.map((i: (typeof o.items)[number]) => `${i.ticketTier.name} x${i.quantity}`).join(' | ');
+      return [
+        o.id,
+        `"${o.event.title}"`,
+        `"${o.user.firstName} ${o.user.lastName}"`,
+        o.user.email,
+        `"${o.user.company ?? ''}"`,
+        `"${o.user.jobTitle ?? ''}"`,
+        `"${o.user.city ?? ''}"`,
+        o.status,
+        `"${tierNames}"`,
+        o.items.reduce((sum: number, i: (typeof o.items)[number]) => sum + i.quantity, 0),
+        Number(o.total).toFixed(2),
+        o.paymentMethod ?? '',
+        o.createdAt.toISOString(),
+      ].join(',');
+    });
+
+    return header + rows.join('\n');
+  }
+
+  async exportAttendees(eventId: string): Promise<string> {
+    const tickets = await this.prisma.ticket.findMany({
+      where: { eventId, status: { in: ['valid', 'used'] } },
+      orderBy: { createdAt: 'asc' },
+      include: {
+        user: { select: { email: true, firstName: true, lastName: true, company: true, jobTitle: true, city: true, phone: true } },
+        ticketTier: { select: { name: true } },
+        order: { select: { status: true, paymentMethod: true } },
+      },
+    });
+
+    const header = 'Ticket ID,Name,Email,Phone,Company,Job Title,City,Tier,Payment Status,Payment Method,Checked In,Checked In At\n';
+    const rows = tickets.map((t: (typeof tickets)[number]) => [
+      t.id,
+      `"${t.user.firstName} ${t.user.lastName}"`,
+      t.user.email,
+      t.user.phone ?? '',
+      `"${t.user.company ?? ''}"`,
+      `"${t.user.jobTitle ?? ''}"`,
+      `"${t.user.city ?? ''}"`,
+      `"${t.ticketTier.name}"`,
+      t.order?.status ?? '',
+      t.order?.paymentMethod ?? '',
+      t.status === 'used' ? 'Yes' : 'No',
+      t.checkedInAt?.toISOString() ?? '',
+    ].join(','));
+
+    return header + rows.join('\n');
+  }
+
+  // ── Dashboard Stats ─────────────────────────────────────────────────────
+
+  async getDashboardStats(eventId?: string) {
+    const eventFilter = eventId ? { eventId } : {};
+
+    const [totalRegistrations, paidOrders, pendingOrders, checkedIn, revenueAgg] = await Promise.all([
+      this.prisma.ticket.count({ where: { ...eventFilter, status: { in: ['valid', 'used'] } } }),
+      this.prisma.order.count({ where: { ...eventFilter, status: 'paid' } }),
+      this.prisma.order.count({ where: { ...eventFilter, status: 'pending' } }),
+      this.prisma.ticket.count({ where: { ...eventFilter, status: 'used' } }),
+      this.prisma.order.aggregate({
+        where: { ...eventFilter, status: 'paid' },
+        _sum: { total: true },
+      }),
+    ]);
+
+    return {
+      totalRegistrations,
+      paidOrders,
+      pendingOrders,
+      checkedIn,
+      grossRevenue: Number(revenueAgg._sum.total ?? 0),
+    };
   }
 }

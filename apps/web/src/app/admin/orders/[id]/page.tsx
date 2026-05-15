@@ -1,7 +1,7 @@
 'use client';
 
 import { useParams } from 'next/navigation';
-import { useQuery, useMutation } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '@/lib/api';
 import Navbar from '@/components/Navbar';
 import Link from 'next/link';
@@ -55,6 +55,7 @@ const TICKET_STATUS_COLORS: Record<string, string> = {
 
 export default function AdminOrderDetailPage() {
   const { id } = useParams<{ id: string }>();
+  const queryClient = useQueryClient();
 
   const { data: order, isLoading } = useQuery<OrderDetail>({
     queryKey: ['admin-order', id],
@@ -67,6 +68,15 @@ export default function AdminOrderDetailPage() {
     mutationFn: () => api.post(`/admin/orders/${id}/resend-ticket`),
     onSuccess: () => toast.success('Ticket confirmation resent'),
     onError: () => toast.error('Failed to resend ticket'),
+  });
+
+  const confirmMutation = useMutation({
+    mutationFn: () => api.patch(`/admin/orders/${id}/confirm-payment`),
+    onSuccess: () => {
+      toast.success('Payment confirmed — tickets generated and email sent');
+      queryClient.invalidateQueries({ queryKey: ['admin-order', id] });
+    },
+    onError: (err: any) => toast.error(err?.response?.data?.message ?? 'Failed to confirm payment'),
   });
 
   const fmt = (centavos: number) =>
@@ -117,6 +127,18 @@ export default function AdminOrderDetailPage() {
               className="bg-primary text-white font-semibold px-5 py-2.5 rounded-xl text-sm hover:bg-primary-hover disabled:opacity-40 transition-colors"
             >
               {resendMutation.isPending ? 'Sending…' : 'Resend Ticket Email'}
+            </button>
+          )}
+          {order.status === 'pending' && (
+            <button
+              onClick={() => {
+                if (!confirm(`Manually confirm payment for order ${order.id}? This will generate QR tickets and send confirmation email.`)) return;
+                confirmMutation.mutate();
+              }}
+              disabled={confirmMutation.isPending}
+              className="bg-green-600 text-white font-semibold px-5 py-2.5 rounded-xl text-sm hover:bg-green-700 disabled:opacity-40 transition-colors"
+            >
+              {confirmMutation.isPending ? 'Confirming…' : '✓ Confirm Payment'}
             </button>
           )}
         </div>

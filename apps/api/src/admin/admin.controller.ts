@@ -9,7 +9,9 @@ import {
   Param,
   Query,
   UseGuards,
+  Res,
 } from '@nestjs/common';
+import { Response } from 'express';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { AdminGuard } from '../common/guards/admin.guard';
@@ -94,6 +96,18 @@ export class AdminController {
     );
   }
 
+  @Get('orders/export')
+  @ApiOperation({ summary: 'Export orders as CSV' })
+  async exportOrders(
+    @Query('eventId') eventId: string | undefined,
+    @Res() res: Response,
+  ) {
+    const csv = await this.adminService.exportOrders(eventId);
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', 'attachment; filename="orders.csv"');
+    res.send(csv);
+  }
+
   @Get('orders/:id')
   @ApiOperation({ summary: 'Get order detail (admin)' })
   getOrder(@Param('id') id: string) {
@@ -104,6 +118,12 @@ export class AdminController {
   @ApiOperation({ summary: 'Resend ticket confirmation email to buyer' })
   resendTicket(@Param('id') id: string) {
     return this.adminService.resendTicket(id);
+  }
+
+  @Patch('orders/:id/confirm-payment')
+  @ApiOperation({ summary: 'Manually confirm payment for an order (admin only)' })
+  manualConfirmPayment(@Param('id') id: string, @CurrentUser() user: JwtPayload) {
+    return this.adminService.manualConfirmPayment(id, user.sub);
   }
 
   // ── Check-in ─────────────────────────────────────────────────────────────
@@ -122,12 +142,26 @@ export class AdminController {
     @Param('eventId') eventId: string,
     @Query('page') page?: string,
     @Query('limit') limit?: string,
+    @Query('q') q?: string,
   ) {
     return this.adminService.getAttendees(
       eventId,
       page ? parseInt(page, 10) : 1,
       limit ? Math.min(parseInt(limit, 10), 100) : 50,
+      q,
     );
+  }
+
+  @Get('events/:eventId/attendees/export')
+  @ApiOperation({ summary: 'Export attendees as CSV' })
+  async exportAttendees(
+    @Param('eventId') eventId: string,
+    @Res() res: Response,
+  ) {
+    const csv = await this.adminService.exportAttendees(eventId);
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', `attachment; filename="attendees-${eventId}.csv"`);
+    res.send(csv);
   }
 
   // ── Analytics ────────────────────────────────────────────────────────────
@@ -136,6 +170,12 @@ export class AdminController {
   @ApiOperation({ summary: 'Get sales analytics for event' })
   getEventAnalytics(@Param('eventId') eventId: string) {
     return this.adminService.getEventAnalytics(eventId);
+  }
+
+  @Get('analytics/dashboard')
+  @ApiOperation({ summary: 'Get dashboard-level aggregate stats' })
+  getDashboardStats(@Query('eventId') eventId?: string) {
+    return this.adminService.getDashboardStats(eventId);
   }
 
   // ── Fraud Flags ──────────────────────────────────────────────────────────

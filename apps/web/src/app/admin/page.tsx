@@ -17,12 +17,30 @@ interface Event {
   ticketsSold: number;
 }
 
+interface DashboardStats {
+  totalRegistrations: number;
+  paidOrders: number;
+  pendingOrders: number;
+  checkedIn: number;
+  grossRevenue: number;
+}
+
 export default function AdminDashboardPage() {
   const { data, isLoading } = useQuery({
     queryKey: ['admin-events'],
     queryFn: () =>
       api.get<{ data: { data: Event[] } }>('/admin/events').then((r) => r.data.data.data),
   });
+
+  const { data: stats } = useQuery<DashboardStats>({
+    queryKey: ['admin-dashboard-stats'],
+    queryFn: () =>
+      api.get<{ data: DashboardStats }>('/admin/analytics/dashboard').then((r) => r.data.data),
+    refetchInterval: 60_000,
+  });
+
+  const fmtRevenue = (n: number) =>
+    `₱${(n / 100).toLocaleString('en-PH', { minimumFractionDigits: 2 })}`;
 
   return (
     <>
@@ -38,11 +56,30 @@ export default function AdminDashboardPage() {
           </Link>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
+        {/* Metrics cards */}
+        {stats && (
+          <div className="grid grid-cols-2 sm:grid-cols-5 gap-4 mb-8">
+            {[
+              { label: 'Registrations', value: stats.totalRegistrations, color: 'text-purple-700' },
+              { label: 'Paid Orders', value: stats.paidOrders, color: 'text-green-700' },
+              { label: 'Pending', value: stats.pendingOrders, color: 'text-yellow-700' },
+              { label: 'Checked In', value: stats.checkedIn, color: 'text-blue-700' },
+              { label: 'Gross Revenue', value: fmtRevenue(stats.grossRevenue), color: 'text-gray-900' },
+            ].map((m) => (
+              <div key={m.label} className="bg-white shadow rounded-2xl p-4 text-center">
+                <p className="text-xs text-gray-400 uppercase tracking-widest mb-1">{m.label}</p>
+                <p className={`text-2xl font-extrabold ${m.color}`}>{m.value}</p>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 mb-8">
           {[
             { href: '/admin/events', label: 'Manage Events' },
             { href: '/admin/checkin', label: 'Check-In Scanner' },
             { href: '/admin/orders', label: 'View Orders' },
+            { href: '/admin/attendees', label: 'Attendees' },
           ].map((card) => (
             <Link
               key={card.href}

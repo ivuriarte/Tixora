@@ -60,9 +60,19 @@ export default function AdminOrdersPage() {
       <Navbar />
       <main className="max-w-6xl mx-auto px-4 py-10">
         {/* Header */}
-        <div className="flex items-center gap-4 mb-8">
-          <Link href="/admin" className="text-gray-400 hover:text-gray-600 text-sm">← Admin</Link>
-          <h1 className="text-2xl font-bold text-gray-900">Orders</h1>
+        <div className="flex items-center justify-between mb-8">
+          <div className="flex items-center gap-4">
+            <Link href="/admin" className="text-gray-400 hover:text-gray-600 text-sm">← Admin</Link>
+            <h1 className="text-2xl font-bold text-gray-900">Orders</h1>
+          </div>
+          <a
+            href={`${process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001/api/v1'}/admin/orders/export${eventId ? `?eventId=${eventId}` : ''}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-sm font-semibold text-primary hover:underline border border-primary px-4 py-2 rounded-xl"
+          >
+            ↓ Export CSV
+          </a>
         </div>
 
         {/* Filters */}

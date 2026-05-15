@@ -7,11 +7,12 @@ import {
   Max,
   MinLength,
   MaxLength,
+  IsNumber,
 } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 
 export class CreateEventDto {
-  @ApiProperty({ example: 'Coldplay Manila 2025' })
+  @ApiProperty({ example: 'Francis Kong: Build to Lead' })
   @IsString()
   @MinLength(3)
   @MaxLength(120)
@@ -23,7 +24,7 @@ export class CreateEventDto {
   @MaxLength(5000)
   description?: string;
 
-  @ApiProperty({ example: 'SM Mall of Asia Arena' })
+  @ApiProperty({ example: 'SMX Convention Center Davao' })
   @IsString()
   @MinLength(3)
   @MaxLength(200)
@@ -35,7 +36,7 @@ export class CreateEventDto {
   @MaxLength(100)
   city?: string;
 
-  @ApiProperty({ example: '2025-10-15T20:00:00+08:00' })
+  @ApiProperty({ example: '2026-08-15T08:00:00+08:00' })
   @IsDateString()
   startsAt: string;
 
@@ -50,6 +51,31 @@ export class CreateEventDto {
   @Min(1)
   @Max(20)
   maxPerUser?: number;
+
+  // Conference-specific fields (Francis Kong MVP)
+  @ApiProperty({ required: false, example: 'Francis Kong' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  speakerName?: string;
+
+  @ApiProperty({ required: false, description: 'Array of { time, title, description? }' })
+  @IsOptional()
+  agenda?: Array<{ time: string; title: string; description?: string }>;
+
+  @ApiProperty({ required: false, description: 'Array of { name, logoUrl?, tier? }' })
+  @IsOptional()
+  sponsors?: Array<{ name: string; logoUrl?: string; tier?: string }>;
+
+  @ApiProperty({ required: false, description: 'Array of { question, answer }' })
+  @IsOptional()
+  faqs?: Array<{ question: string; answer: string }>;
+
+  @ApiProperty({ required: false, default: 50, description: 'Platform fee per ticket in PHP' })
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  platformFee?: number;
 }
 
 export class UpdateEventDto {
@@ -91,4 +117,27 @@ export class UpdateEventDto {
   @IsOptional()
   @IsString()
   status?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  speakerName?: string;
+
+  @IsOptional()
+  agenda?: Array<{ time: string; title: string; description?: string }>;
+
+  @IsOptional()
+  sponsors?: Array<{ name: string; logoUrl?: string; tier?: string }>;
+
+  @IsOptional()
+  faqs?: Array<{ question: string; answer: string }>;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  platformFee?: number;
+
+  @IsOptional()
+  @IsString()
+  imageUrl?: string;
 }
