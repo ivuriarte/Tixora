@@ -24,7 +24,8 @@ async function getEvents(page = 1): Promise<{ data: EventSummary[]; meta: { tota
     const res = await fetch(`${baseUrl}/events?page=${page}&limit=12`, { next: { revalidate: 60 } });
     if (!res.ok) return { data: [], meta: { total: 0, totalPages: 0 } };
     const json = await res.json();
-    return json;
+    // TransformInterceptor wraps: { success, data: { data: [...], meta } }
+    return json.data ?? json;
   } catch {
     return { data: [], meta: { total: 0, totalPages: 0 } };
   }

@@ -59,3 +59,162 @@ test.describe('Admin Dashboard', () => {
     await expect(heading).toBeVisible();
   });
 });
+
+// ── Admin Create Event — Form Fields (regression for recent changes) ─────────
+
+test.describe('Admin Create Event — Form Fields', () => {
+  test.skip(!ADMIN_EMAIL, 'Set TEST_ADMIN_EMAIL and TEST_ADMIN_PASSWORD to run admin tests');
+
+  test('form renders all required fields with asterisks', async ({ page }) => {
+    await loginAsAdmin(page);
+    await page.goto('/admin/events/new');
+
+    // Core required fields
+    await expect(page.getByLabel(/title\s*\*/i)).toBeVisible();
+    await expect(page.getByLabel(/venue\s*\*/i)).toBeVisible();
+    await expect(page.getByLabel(/city\s*\*/i)).toBeVisible();
+  });
+
+  test('form has date + time inputs as separate fields', async ({ page }) => {
+    await loginAsAdmin(page);
+    await page.goto('/admin/events/new');
+
+    // Separate date / time inputs (regression: was a single datetime-local)
+    const dateInputs = page.locator('input[type="date"]');
+    const timeInputs = page.locator('input[type="time"]');
+    await expect(dateInputs.first()).toBeVisible();
+    await expect(timeInputs.first()).toBeVisible();
+  });
+
+  test('form has address field', async ({ page }) => {
+    await loginAsAdmin(page);
+    await page.goto('/admin/events/new');
+    await expect(page.getByLabel(/address/i)).toBeVisible();
+  });
+
+  test('empty submit shows validation — does not navigate away', async ({ page }) => {
+    await loginAsAdmin(page);
+    await page.goto('/admin/events/new');
+    await page.getByRole('button', { name: /create event/i }).click();
+    // Page should stay on /new
+    await expect(page).toHaveURL(/events\/new/);
+  });
+
+  test('end-before-start shows banner warning', async ({ page }) => {
+    await loginAsAdmin(page);
+    await page.goto('/admin/events/new');
+
+    // Fill start date in the future, then set end before start
+    const dateInputs = page.locator('input[type="date"]');
+    const timeInputs = page.locator('input[type="time"]');
+
+    await dateInputs.nth(0).fill('2030-01-10'); // starts
+    await timeInputs.nth(0).fill('10:00');
+    await dateInputs.nth(1).fill('2030-01-09'); // ends BEFORE start
+    await timeInputs.nth(1).fill('10:00');
+
+    // Banner should appear
+    await expect(page.getByText(/end.*before.*start|end.*must be after/i)).toBeVisible();
+  });
+
+  test('Conference Details section renders sponsors manager', async ({ page }) => {
+    await loginAsAdmin(page);
+    await page.goto('/admin/events/new');
+
+    // Sponsors section
+    await expect(page.getByText(/sponsors/i).first()).toBeVisible();
+    await expect(page.getByRole('button', { name: /add sponsor/i })).toBeVisible();
+  });
+
+  test('Conference Details section renders FAQ manager', async ({ page }) => {
+    await loginAsAdmin(page);
+    await page.goto('/admin/events/new');
+
+    await expect(page.getByText(/faqs|frequently asked/i).first()).toBeVisible();
+    await expect(page.getByRole('button', { name: /add faq|add question/i })).toBeVisible();
+  });
+
+  test('can add and remove a sponsor entry', async ({ page }) => {
+    await loginAsAdmin(page);
+    await page.goto('/admin/events/new');
+
+    await page.getByRole('button', { name: /add sponsor/i }).click();
+
+    // Name field should appear
+    const nameInput = page.getByPlaceholder(/sponsor name/i).first();
+    await expect(nameInput).toBeVisible();
+    await nameInput.fill('ACME Corp');
+
+    // Remove the sponsor
+    await page.getByRole('button', { name: /remove|delete|×/i }).first().click();
+
+    // Name field should disappear
+    await expect(page.getByPlaceholder(/sponsor name/i)).not.toBeVisible();
+  });
+
+  test('can add and remove a FAQ entry', async ({ page }) => {
+    await loginAsAdmin(page);
+    await page.goto('/admin/events/new');
+
+    await page.getByRole('button', { name: /add faq|add question/i }).click();
+
+    const questionInput = page.getByPlaceholder(/question/i).first();
+    await expect(questionInput).toBeVisible();
+    await questionInput.fill('What time does it start?');
+
+    // Remove it
+    await page.getByRole('button', { name: /remove|delete|×/i }).first().click();
+    await expect(page.getByPlaceholder(/question/i)).not.toBeVisible();
+  });
+});
+
+// ── Admin Edit Event — Pre-population Regression ────────────────────────────
+
+test.describe('Admin Edit Event — Pre-population', () => {
+  test.skip(!ADMIN_EMAIL, 'Set TEST_ADMIN_EMAIL and TEST_ADMIN_PASSWORD to run admin tests');
+
+  test('navigating to an existing event populates the title field', async ({ page }) => {
+    await loginAsAdmin(page);
+    await page.goto('/admin');
+
+    // Find first Edit link in the event list
+    const editLink = page.getByRole('link', { name: /edit/i }).first();
+    const count = await editLink.count();
+    if (count === 0) return; // No events yet — skip
+
+    await editLink.click();
+    await page.waitForURL(/events\/[^/]+$/, { timeout: 8000 });
+
+    // Title must be pre-populated (not empty)
+    const titleInput = page.getByLabel(/title\s*\*/i).first();
+    await expect(titleInput).not.toHaveValue('');
+  });
+
+  test('edit form address field is rendered', async ({ page }) => {
+    await loginAsAdmin(page);
+    await page.goto('/admin');
+
+    const editLink = page.getByRole('link', { name: /edit/i }).first();
+    if ((await editLink.count()) === 0) return;
+
+    await editLink.click();
+    await page.waitForURL(/events\/[^/]+$/, { timeout: 8000 });
+
+    await expect(page.getByLabel(/address/i)).toBeVisible();
+  });
+
+  test('edit form has sponsors and FAQ managers', async ({ page }) => {
+    await loginAsAdmin(page);
+    await page.goto('/admin');
+
+    const editLink = page.getByRole('link', { name: /edit/i }).first();
+    if ((await editLink.count()) === 0) return;
+
+    await editLink.click();
+    await page.waitForURL(/events\/[^/]+$/, { timeout: 8000 });
+
+    await expect(page.getByRole('button', { name: /add sponsor/i })).toBeVisible();
+    await expect(page.getByRole('button', { name: /add faq|add question/i })).toBeVisible();
+  });
+});
+

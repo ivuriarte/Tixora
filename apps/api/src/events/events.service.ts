@@ -16,7 +16,9 @@ export class EventsService {
   ) {}
 
   async findAll(page = 1, limit = 20) {
-    const skip = (page - 1) * limit;
+    const safePage = Math.max(1, page);
+    const safeLimit = Math.min(Math.max(1, limit), 100);
+    const skip = (safePage - 1) * safeLimit;
     const where: Prisma.EventWhereInput = {
       status: { in: ['published', 'on_sale', 'sold_out'] },
     };
@@ -26,7 +28,7 @@ export class EventsService {
       this.prisma.event.findMany({
         where,
         skip,
-        take: limit,
+        take: safeLimit,
         orderBy: { startsAt: 'asc' },
         include: {
           tiers: {
@@ -58,11 +60,11 @@ export class EventsService {
       data,
       meta: {
         total,
-        page,
-        limit,
-        totalPages: Math.ceil(total / limit),
-        hasNextPage: page * limit < total,
-        hasPrevPage: page > 1,
+        page: safePage,
+        limit: safeLimit,
+        totalPages: Math.ceil(total / safeLimit),
+        hasNextPage: safePage * safeLimit < total,
+        hasPrevPage: safePage > 1,
       },
     };
   }
