@@ -190,6 +190,7 @@ model Order {
   confirmedByAdmin User?       @relation("ConfirmedByAdmin", fields: [confirmedByAdminId], references: [id])
 
   @@index([userId, status])
+  @@index([eventId])
   @@index([status])
   @@map("orders")
 }
@@ -249,6 +250,7 @@ model OtpCode {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, type, used])
+  @@index([expiresAt])
   @@map("otp_codes")
 }
 

@@ -79,35 +79,35 @@ export class EventsService {
     });
     if (!event) throw new NotFoundException('Event not found');
 
-    // Get live available counts from Redis
-    const tiersWithAvailable = await Promise.all(
-      event.tiers.map(async (tier) => {
-        const redisKey = `${TIER_INVENTORY_PREFIX}${tier.id}${INVENTORY_SUFFIX}`;
-        const cached = await this.redis.get(redisKey);
-        const availableQuantity =
-          cached !== null
-            ? parseInt(cached, 10)
-            : Math.max(0, tier.totalQuantity - tier.soldQuantity);
+    // Batch fetch all tier inventory counts in a single Redis MGET round-trip
+    const inventoryKeys = event.tiers.map((t) => `${TIER_INVENTORY_PREFIX}${t.id}${INVENTORY_SUFFIX}`);
+    const cachedValues = await this.redis.mget(inventoryKeys);
 
-        return {
-          id: tier.id,
-          eventId: tier.eventId,
-          name: tier.name,
-          description: tier.description,
-          price: Number(tier.price),
-          currency: tier.currency,
-          totalQuantity: tier.totalQuantity,
-          soldQuantity: tier.soldQuantity,
-          availableQuantity,
-          maxPerOrder: tier.maxPerOrder,
-          saleStartsAt: tier.saleStartsAt?.toISOString() ?? null,
-          saleEndsAt: tier.saleEndsAt?.toISOString() ?? null,
-          isVisible: tier.isVisible,
-          sortOrder: tier.sortOrder,
-          isSoldOut: availableQuantity <= 0,
-        };
-      }),
-    );
+    const tiersWithAvailable = event.tiers.map((tier, i) => {
+      const cached = cachedValues[i];
+      const availableQuantity =
+        cached !== null
+          ? parseInt(cached, 10)
+          : Math.max(0, tier.totalQuantity - tier.soldQuantity);
+
+      return {
+        id: tier.id,
+        eventId: tier.eventId,
+        name: tier.name,
+        description: tier.description,
+        price: Number(tier.price),
+        currency: tier.currency,
+        totalQuantity: tier.totalQuantity,
+        soldQuantity: tier.soldQuantity,
+        availableQuantity,
+        maxPerOrder: tier.maxPerOrder,
+        saleStartsAt: tier.saleStartsAt?.toISOString() ?? null,
+        saleEndsAt: tier.saleEndsAt?.toISOString() ?? null,
+        isVisible: tier.isVisible,
+        sortOrder: tier.sortOrder,
+        isSoldOut: availableQuantity <= 0,
+      };
+    });
 
     return {
       id: event.id,
@@ -121,6 +121,10 @@ export class EventsService {
       imageUrl: event.imageUrl,
       status: event.status,
       maxPerUser: event.maxPerUser,
+      speakerName: event.speakerName ?? null,
+      sponsors: event.sponsors ?? null,
+      agenda: event.agenda ?? null,
+      faqs: event.faqs ?? null,
       tiers: tiersWithAvailable,
       createdAt: event.createdAt.toISOString(),
     };

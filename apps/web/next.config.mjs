@@ -3,6 +3,8 @@ const nextConfig = {
   images: {
     remotePatterns: [
       { protocol: 'https', hostname: 'res.cloudinary.com' },
+      // Sponsor logos may come from any HTTPS host — allow all via wildcard
+      { protocol: 'https', hostname: '**' },
     ],
   },
   experimental: {

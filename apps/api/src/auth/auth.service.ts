@@ -5,10 +5,13 @@ import {
   BadRequestException,
   Logger,
   ForbiddenException,
+  HttpException,
+  HttpStatus,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcryptjs';
+import { randomInt } from 'crypto';
 import { v4 as uuidv4 } from 'uuid';
 import { Resend } from 'resend';
 import { PrismaService } from '../prisma/prisma.service';
@@ -21,6 +24,8 @@ const BCRYPT_COST = 12;
 const OTP_TTL_SECONDS = 300; // 5 minutes
 const OTP_DIGITS = 6;
 const MAX_ACTIVE_RESERVATIONS = 3;
+const OTP_MAX_ATTEMPTS = 5;
+const OTP_ATTEMPT_TTL = OTP_TTL_SECONDS + 60; // slightly longer than OTP TTL
 
 @Injectable()
 export class AuthService {
@@ -62,7 +67,11 @@ export class AuthService {
     return { userId: user.id, message: 'Check your email for a verification code.' };
   }
 
-  async login(dto: LoginDto): Promise<{ userId: string; isVerified: boolean; accessToken?: string; message?: string }> {
+  async login(dto: LoginDto): Promise<{
+    user: { id: string; email: string; firstName: string; lastName: string; isAdmin: boolean; isVerified: boolean };
+    accessToken: string;
+    refreshToken: string;
+  }> {
     const user = await this.prisma.user.findUnique({ where: { email: dto.email.toLowerCase() } });
     if (!user || !user.passwordHash) {
       throw new UnauthorizedException('Invalid email or password');
@@ -72,20 +81,43 @@ export class AuthService {
     if (!match) throw new UnauthorizedException('Invalid email or password');
 
     if (!user.isVerified) {
-      // Re-send OTP and return userId so frontend can show verify screen
-      await this.sendOtp(user.id, user.email, 'email_verify');
-      return { userId: user.id, isVerified: false, message: 'Please verify your email first.' };
+      // Throttle OTP resend within unverified login
+      const recentOtp = await this.prisma.otpCode.findFirst({
+        where: { userId: user.id, type: 'email_verify', used: false, createdAt: { gt: new Date(Date.now() - 60_000) } },
+      });
+      if (!recentOtp) await this.sendOtp(user.id, user.email, 'email_verify');
+      throw new HttpException(
+        { message: 'Please verify your email. A new code has been sent.', userId: user.id },
+        HttpStatus.FORBIDDEN,
+      );
     }
 
-    const accessToken = await this.generateAccessToken(user.id, user.email, user.isAdmin);
-    const refreshToken = await this.generateRefreshToken(user.id);
+    const [accessToken, refreshToken] = await Promise.all([
+      this.generateAccessToken(user.id, user.email, user.isAdmin),
+      this.generateRefreshToken(user.id),
+    ]);
 
-    return { userId: user.id, isVerified: true, accessToken };
+    return {
+      user: { id: user.id, email: user.email, firstName: user.firstName, lastName: user.lastName, isAdmin: user.isAdmin, isVerified: user.isVerified },
+      accessToken,
+      refreshToken,
+    };
   }
 
-  async verifyOtp(dto: VerifyOtpDto): Promise<{ accessToken: string; refreshToken: string }> {
+  async verifyOtp(dto: VerifyOtpDto): Promise<{
+    user: { id: string; email: string; firstName: string; lastName: string; isAdmin: boolean; isVerified: boolean };
+    accessToken: string;
+    refreshToken: string;
+  }> {
     const user = await this.prisma.user.findUnique({ where: { id: dto.userId } });
     if (!user) throw new BadRequestException('Invalid request');
+
+    // Brute-force protection: track failed attempts in Redis
+    const attemptsKey = `otp:attempts:${dto.userId}`;
+    const attempts = parseInt((await this.redis.get(attemptsKey)) ?? '0', 10);
+    if (attempts >= OTP_MAX_ATTEMPTS) {
+      throw new BadRequestException('Too many failed attempts. Request a new verification code.');
+    }
 
     const otpRecord = await this.prisma.otpCode.findFirst({
       where: {
@@ -100,7 +132,20 @@ export class AuthService {
     if (!otpRecord) throw new BadRequestException('OTP expired or invalid. Request a new one.');
 
     const match = await bcrypt.compare(dto.otp, otpRecord.codeHash);
-    if (!match) throw new BadRequestException('Incorrect verification code');
+    if (!match) {
+      // Increment failure counter
+      const newCount = attempts + 1;
+      await this.redis.set(attemptsKey, String(newCount), OTP_ATTEMPT_TTL);
+      if (newCount >= OTP_MAX_ATTEMPTS) {
+        // Invalidate the OTP so attacker cannot succeed even if throttle is bypassed
+        await this.prisma.otpCode.update({ where: { id: otpRecord.id }, data: { used: true } });
+        throw new BadRequestException('Too many failed attempts. Request a new verification code.');
+      }
+      throw new BadRequestException('Incorrect verification code');
+    }
+
+    // Clear attempt counter on success
+    await this.redis.del(attemptsKey);
 
     // Mark OTP as used and verify user atomically
     await this.prisma.$transaction([
@@ -108,10 +153,16 @@ export class AuthService {
       this.prisma.user.update({ where: { id: dto.userId }, data: { isVerified: true } }),
     ]);
 
-    const accessToken = await this.generateAccessToken(user.id, user.email, user.isAdmin);
-    const refreshToken = await this.generateRefreshToken(user.id);
+    const [accessToken, refreshToken] = await Promise.all([
+      this.generateAccessToken(user.id, user.email, user.isAdmin),
+      this.generateRefreshToken(user.id),
+    ]);
 
-    return { accessToken, refreshToken };
+    return {
+      user: { id: user.id, email: user.email, firstName: user.firstName, lastName: user.lastName, isAdmin: user.isAdmin, isVerified: true },
+      accessToken,
+      refreshToken,
+    };
   }
 
   async resendOtp(userId: string): Promise<{ message: string }> {
@@ -216,10 +267,8 @@ export class AuthService {
   }
 
   private generateOtpCode(): string {
-    const digits = Math.floor(Math.random() * 10 ** OTP_DIGITS)
-      .toString()
-      .padStart(OTP_DIGITS, '0');
-    return digits;
+    // crypto.randomInt is cryptographically secure — Math.random() is not
+    return randomInt(0, 10 ** OTP_DIGITS).toString().padStart(OTP_DIGITS, '0');
   }
 
   private async generateAccessToken(

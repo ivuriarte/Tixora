@@ -3,7 +3,7 @@ export default () => ({
   port: parseInt(process.env.PORT ?? '3001', 10),
   apiUrl: process.env.API_URL,
   webUrl: process.env.WEB_URL,
-  allowedOrigins: (process.env.ALLOWED_ORIGINS ?? '').split(',').map((o) => o.trim()),
+  allowedOrigins: (process.env.ALLOWED_ORIGINS ?? '').split(',').map((o) => o.trim()).filter(Boolean),
 
   database: {
     url: process.env.DATABASE_URL,

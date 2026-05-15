@@ -8,6 +8,7 @@ import * as express from 'express';
 import type { Express } from 'express';
 import type { IncomingMessage, ServerResponse } from 'http';
 import { AppModule } from './app.module';
+import { TransformInterceptor } from './common/interceptors/transform.interceptor';
 
 let cachedApp: Express | null = null;
 
@@ -38,6 +39,9 @@ async function buildApp(): Promise<Express> {
   });
 
   app.setGlobalPrefix('api/v1');
+
+  // Global response envelope: { success: true, data: ... }
+  app.useGlobalInterceptors(new TransformInterceptor());
 
   app.useGlobalPipes(
     new ValidationPipe({

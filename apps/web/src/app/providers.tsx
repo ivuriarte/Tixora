@@ -21,11 +21,14 @@ function AuthHydrator({ children }: { children: React.ReactNode }) {
     if (!refreshToken) return;
 
     api
-      .post<{ data: { accessToken: string; user: any } }>('/auth/refresh', { refreshToken })
+      .post<{ data: { accessToken: string; refreshToken: string } }>('/auth/refresh', { refreshToken })
       .then((res) => {
-        setAccessToken(res.data.data.accessToken);
+        const newAccessToken = res.data.data.accessToken;
+        const newRefreshToken = res.data.data.refreshToken;
+        setAccessToken(newAccessToken);
         api.get<{ data: any }>('/auth/me').then((me) => {
-          setAuth(me.data.data, res.data.data.accessToken, refreshToken);
+          // Use the NEW rotated refreshToken — storing the old one would break the next reload
+          setAuth(me.data.data, newAccessToken, newRefreshToken);
         });
       })
       .catch(() => logout());
