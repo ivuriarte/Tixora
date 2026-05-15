@@ -33,6 +33,10 @@ export const validationSchema = Joi.object({
 
   HCAPTCHA_SECRET: Joi.string().required(),
 
+  GOOGLE_CLIENT_ID: Joi.string().optional().allow(''),
+  GOOGLE_CLIENT_SECRET: Joi.string().optional().allow(''),
+  GOOGLE_CALLBACK_URL: Joi.string().uri().optional().allow(''),
+
   THROTTLE_TTL: Joi.number().default(60000),
   THROTTLE_LIMIT: Joi.number().default(60),
 });

@@ -56,6 +56,8 @@ model User {
   firstName    String   @map("first_name")
   lastName     String   @map("last_name")
   passwordHash String?  @map("password_hash")
+  googleId     String?  @unique @map("google_id")
+  avatarUrl    String?  @map("avatar_url")
   isVerified   Boolean  @default(false) @map("is_verified")
   isAdmin      Boolean  @default(false) @map("is_admin")
   fraudScore   Int      @default(0) @map("fraud_score")

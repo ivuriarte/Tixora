@@ -4,13 +4,15 @@ import {
   Get,
   Body,
   Req,
+  Res,
   HttpCode,
   HttpStatus,
   UseGuards,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
-import { Request } from 'express';
+import { AuthGuard } from '@nestjs/passport';
+import { Request, Response } from 'express';
 import { AuthService } from './auth.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto, VerifyOtpDto, ResendOtpDto, RefreshTokenDto } from './dto/auth.dto';
@@ -85,5 +87,40 @@ export class AuthController {
   @ApiOperation({ summary: 'Get current user' })
   async me(@CurrentUser() user: JwtPayload) {
     return this.authService.getMe(user.sub);
+  }
+
+  @Public()
+  @Get('google')
+  @UseGuards(AuthGuard('google'))
+  @ApiOperation({ summary: 'Initiate Google OAuth login' })
+  googleAuth() {
+    // Passport redirects to Google — no body needed
+  }
+
+  @Public()
+  @Get('google/callback')
+  @UseGuards(AuthGuard('google'))
+  @ApiOperation({ summary: 'Google OAuth callback' })
+  async googleCallback(@Req() req: Request, @Res() res: Response) {
+    const profile = req.user as {
+      googleId: string;
+      email: string;
+      firstName: string;
+      lastName: string;
+      avatarUrl: string | null;
+    };
+
+    const { user, accessToken, refreshToken } = await this.authService.loginWithGoogle(profile);
+    const webUrl = (req as any).app?.get?.('webUrl') as string | undefined;
+    const base = process.env.WEB_URL ?? webUrl ?? 'http://localhost:3000';
+
+    const params = new URLSearchParams({
+      accessToken,
+      refreshToken,
+      firstName: user.firstName,
+      isAdmin: String(user.isAdmin),
+    });
+
+    res.redirect(`${base}/auth/callback?${params.toString()}`);
   }
 }

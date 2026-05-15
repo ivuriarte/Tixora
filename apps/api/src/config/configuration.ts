@@ -46,6 +46,12 @@ export default () => ({
     secret: process.env.HCAPTCHA_SECRET ?? '',
   },
 
+  google: {
+    clientId: process.env.GOOGLE_CLIENT_ID ?? '',
+    clientSecret: process.env.GOOGLE_CLIENT_SECRET ?? '',
+    callbackUrl: process.env.GOOGLE_CALLBACK_URL ?? '',
+  },
+
   throttle: {
     ttl: parseInt(process.env.THROTTLE_TTL ?? '60000', 10),
     limit: parseInt(process.env.THROTTLE_LIMIT ?? '60', 10),
