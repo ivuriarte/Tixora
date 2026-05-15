@@ -91,10 +91,25 @@ export class AuthController {
 
   @Public()
   @Get('google')
-  @UseGuards(AuthGuard('google'))
   @ApiOperation({ summary: 'Initiate Google OAuth login' })
-  googleAuth() {
-    // Passport redirects to Google — no body needed
+  googleAuth(@Res() res: Response) {
+    const clientId = process.env.GOOGLE_CLIENT_ID;
+    if (!clientId) {
+      (res as any).status(503).json({ message: 'Google login is not configured yet.' });
+      return;
+    }
+    // Passport handles the redirect
+    (res as any).redirect(
+      `https://accounts.google.com/o/oauth2/v2/auth?` +
+      new URLSearchParams({
+        client_id: clientId,
+        redirect_uri: process.env.GOOGLE_CALLBACK_URL ?? '',
+        response_type: 'code',
+        scope: 'email profile',
+        access_type: 'offline',
+        prompt: 'select_account',
+      }).toString(),
+    );
   }
 
   @Public()
