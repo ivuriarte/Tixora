@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '@/lib/api';
@@ -31,6 +31,10 @@ interface EventDetail {
   endsAt: string;
   maxPerUser: number;
   status: string;
+  speakerName?: string;
+  agenda?: Array<{ time: string; title: string; description?: string }>;
+  sponsors?: Array<{ name: string; logoUrl?: string; tier?: string }>;
+  faqs?: Array<{ question: string; answer: string }>;
   tiers: Tier[];
 }
 
@@ -118,6 +122,41 @@ export default function AdminEventEditPage() {
 
   const fieldVal = (field: keyof EventDetail) =>
     (form[field] ?? resolvedEvent?.[field] ?? '') as string;
+
+  // Conference JSON helpers — edited as raw JSON strings in textareas
+  const [agendaJson, setAgendaJson] = useState('');
+  const [sponsorsJson, setSponsorsJson] = useState('');
+  const [faqsJson, setFaqsJson] = useState('');
+  const [jsonErrors, setJsonErrors] = useState<Record<string, string>>({});
+
+  // Initialise JSON fields once event loads (only once)
+  const jsonInitialised = useRef(false);
+  useEffect(() => {
+    if (resolvedEvent && !jsonInitialised.current) {
+      jsonInitialised.current = true;
+      setAgendaJson(resolvedEvent.agenda ? JSON.stringify(resolvedEvent.agenda, null, 2) : '');
+      setSponsorsJson(resolvedEvent.sponsors ? JSON.stringify(resolvedEvent.sponsors, null, 2) : '');
+      setFaqsJson(resolvedEvent.faqs ? JSON.stringify(resolvedEvent.faqs, null, 2) : '');
+    }
+  }, [resolvedEvent]);
+
+  function parseJsonField(
+    raw: string,
+    key: string,
+    setter: (v: unknown) => void,
+  ) {
+    if (!raw.trim()) {
+      setter(null);
+      setJsonErrors((e) => { const n = { ...e }; delete n[key]; return n; });
+      return;
+    }
+    try {
+      setter(JSON.parse(raw));
+      setJsonErrors((e) => { const n = { ...e }; delete n[key]; return n; });
+    } catch {
+      setJsonErrors((e) => ({ ...e, [key]: 'Invalid JSON' }));
+    }
+  }
 
   if (isLoading && !resolvedEvent) {
     return (
@@ -242,8 +281,15 @@ export default function AdminEventEditPage() {
 
           <div className="flex justify-between items-center pt-2">
             <button
-              disabled={isSaved || updateMutation.isPending}
-              onClick={() => updateMutation.mutate(form)}
+              disabled={isSaved || updateMutation.isPending || Object.keys(jsonErrors).length > 0}
+              onClick={() => {
+                // Merge conference JSON into the payload
+                const payload: Record<string, unknown> = { ...form };
+                try { if (agendaJson.trim()) payload.agenda = JSON.parse(agendaJson); } catch {}
+                try { if (sponsorsJson.trim()) payload.sponsors = JSON.parse(sponsorsJson); } catch {}
+                try { if (faqsJson.trim()) payload.faqs = JSON.parse(faqsJson); } catch {}
+                updateMutation.mutate(payload as Partial<EventDetail>);
+              }}
               className="bg-primary text-white font-semibold px-5 py-2 rounded-xl text-sm hover:bg-primary-hover disabled:opacity-40 transition-colors"
             >
               {updateMutation.isPending ? 'Saving…' : 'Save Changes'}
@@ -260,6 +306,78 @@ export default function AdminEventEditPage() {
             >
               {resolvedEvent.status === 'cancelled' ? 'Already Cancelled' : 'Cancel Event'}
             </button>
+          </div>
+        </section>
+
+        {/* Conference Details */}
+        <section className="bg-white shadow rounded-2xl p-6 space-y-4">
+          <h2 className="font-semibold text-gray-900">Conference Details</h2>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Speaker Name</label>
+            <input
+              className="w-full border border-gray-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+              placeholder="e.g. Francis Kong"
+              value={(form.speakerName ?? resolvedEvent.speakerName ?? '') as string}
+              onChange={(e) => setForm((f) => ({ ...f, speakerName: e.target.value || undefined }))}
+            />
+          </div>
+
+          {/* Agenda */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Agenda <span className="text-gray-400 font-normal">— JSON array of {'{'}time, title, description?{'}'}</span>
+            </label>
+            <textarea
+              rows={8}
+              spellCheck={false}
+              className={`w-full border rounded-xl px-3 py-2 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-primary resize-y ${jsonErrors.agenda ? 'border-red-400' : 'border-gray-300'}`}
+              placeholder={'[\n  { "time": "8:00 AM", "title": "Opening Remarks" }\n]'}
+              value={agendaJson}
+              onChange={(e) => {
+                setAgendaJson(e.target.value);
+                parseJsonField(e.target.value, 'agenda', (v) => setForm((f) => ({ ...f, agenda: v as EventDetail['agenda'] })));
+              }}
+            />
+            {jsonErrors.agenda && <p className="text-xs text-red-500 mt-1">{jsonErrors.agenda}</p>}
+          </div>
+
+          {/* Sponsors */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Sponsors <span className="text-gray-400 font-normal">— JSON array of {'{'}name, logoUrl?, tier?{'}'}</span>
+            </label>
+            <textarea
+              rows={4}
+              spellCheck={false}
+              className={`w-full border rounded-xl px-3 py-2 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-primary resize-y ${jsonErrors.sponsors ? 'border-red-400' : 'border-gray-300'}`}
+              placeholder={'[\n  { "name": "Globe Business", "tier": "Gold" }\n]'}
+              value={sponsorsJson}
+              onChange={(e) => {
+                setSponsorsJson(e.target.value);
+                parseJsonField(e.target.value, 'sponsors', (v) => setForm((f) => ({ ...f, sponsors: v as EventDetail['sponsors'] })));
+              }}
+            />
+            {jsonErrors.sponsors && <p className="text-xs text-red-500 mt-1">{jsonErrors.sponsors}</p>}
+          </div>
+
+          {/* FAQs */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              FAQs <span className="text-gray-400 font-normal">— JSON array of {'{'}question, answer{'}'}</span>
+            </label>
+            <textarea
+              rows={6}
+              spellCheck={false}
+              className={`w-full border rounded-xl px-3 py-2 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-primary resize-y ${jsonErrors.faqs ? 'border-red-400' : 'border-gray-300'}`}
+              placeholder={'[\n  { "question": "What\'s included?", "answer": "Full day access." }\n]'}
+              value={faqsJson}
+              onChange={(e) => {
+                setFaqsJson(e.target.value);
+                parseJsonField(e.target.value, 'faqs', (v) => setForm((f) => ({ ...f, faqs: v as EventDetail['faqs'] })));
+              }}
+            />
+            {jsonErrors.faqs && <p className="text-xs text-red-500 mt-1">{jsonErrors.faqs}</p>}
           </div>
         </section>
 
