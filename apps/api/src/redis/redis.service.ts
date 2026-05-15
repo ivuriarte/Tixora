@@ -88,4 +88,14 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
     if (keys.length === 0) return [];
     return this.client.mget(...keys);
   }
+
+  /** Execute multiple INCRBY commands in a single pipeline round-trip */
+  async pipelineIncrBy(entries: Array<{ key: string; value: number }>): Promise<void> {
+    if (entries.length === 0) return;
+    const pipeline = this.client.pipeline();
+    for (const { key, value } of entries) {
+      pipeline.incrby(key, value);
+    }
+    await pipeline.exec();
+  }
 }

@@ -108,9 +108,11 @@ export class AdminService {
 
   async listOrders(eventId?: string, status?: string, page = 1, limit = 20) {
     const skip = (page - 1) * limit;
+    const VALID_STATUSES = ['pending', 'paid', 'failed', 'refunded', 'cancelled'] as const;
+    const safeStatus = status && (VALID_STATUSES as readonly string[]).includes(status) ? status : undefined;
     const where = {
       ...(eventId ? { eventId } : {}),
-      ...(status ? { status: status as any } : {}),
+      ...(safeStatus ? { status: safeStatus as any } : {}),
     };
 
     const [total, orders] = await Promise.all([
@@ -512,6 +514,15 @@ export class AdminService {
 
   // ── CSV Exports ─────────────────────────────────────────────────────────
 
+  /**
+   * Sanitize a CSV cell value to prevent formula injection (OWASP CSV injection).
+   * Prefixes values that start with formula-triggering characters with a tab.
+   */
+  private escapeCsvCell(value: string): string {
+    if (/^[=+\-@\t\r]/.test(value)) return `\t${value}`;
+    return value;
+  }
+
   async exportOrders(eventId?: string): Promise<string> {
     const orders = await this.prisma.order.findMany({
       where: eventId ? { eventId } : {},
@@ -528,14 +539,14 @@ export class AdminService {
       const tierNames = o.items.map((i: (typeof o.items)[number]) => `${i.ticketTier.name} x${i.quantity}`).join(' | ');
       return [
         o.id,
-        `"${o.event.title}"`,
-        `"${o.user.firstName} ${o.user.lastName}"`,
-        o.user.email,
-        `"${o.user.company ?? ''}"`,
-        `"${o.user.jobTitle ?? ''}"`,
-        `"${o.user.city ?? ''}"`,
+        `"${this.escapeCsvCell(o.event.title)}"`,
+        `"${this.escapeCsvCell(`${o.user.firstName} ${o.user.lastName}`)}"`,
+        this.escapeCsvCell(o.user.email),
+        `"${this.escapeCsvCell(o.user.company ?? '')}"`,
+        `"${this.escapeCsvCell(o.user.jobTitle ?? '')}"`,
+        `"${this.escapeCsvCell(o.user.city ?? '')}"`,
         o.status,
-        `"${tierNames}"`,
+        `"${this.escapeCsvCell(tierNames)}"`,
         o.items.reduce((sum: number, i: (typeof o.items)[number]) => sum + i.quantity, 0),
         Number(o.total).toFixed(2),
         o.paymentMethod ?? '',
@@ -560,13 +571,13 @@ export class AdminService {
     const header = 'Ticket ID,Name,Email,Phone,Company,Job Title,City,Tier,Payment Status,Payment Method,Checked In,Checked In At\n';
     const rows = tickets.map((t: (typeof tickets)[number]) => [
       t.id,
-      `"${t.user.firstName} ${t.user.lastName}"`,
-      t.user.email,
-      t.user.phone ?? '',
-      `"${t.user.company ?? ''}"`,
-      `"${t.user.jobTitle ?? ''}"`,
-      `"${t.user.city ?? ''}"`,
-      `"${t.ticketTier.name}"`,
+      `"${this.escapeCsvCell(`${t.user.firstName} ${t.user.lastName}`)}"`,
+      this.escapeCsvCell(t.user.email),
+      this.escapeCsvCell(t.user.phone ?? ''),
+      `"${this.escapeCsvCell(t.user.company ?? '')}"`,
+      `"${this.escapeCsvCell(t.user.jobTitle ?? '')}"`,
+      `"${this.escapeCsvCell(t.user.city ?? '')}"`,
+      `"${this.escapeCsvCell(t.ticketTier.name)}"`,
       t.order?.status ?? '',
       t.order?.paymentMethod ?? '',
       t.status === 'used' ? 'Yes' : 'No',

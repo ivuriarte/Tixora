@@ -190,9 +190,19 @@ export class AuthService {
   async refreshTokens(
     refreshToken: string,
   ): Promise<{ accessToken: string; refreshToken: string }> {
-    const { sub: userId, jti } = this.jwt.verify<{ sub: string; jti: string }>(refreshToken, {
-      algorithms: ['RS256'],
-    });
+    let userId: string;
+    let jti: string;
+
+    try {
+      const decoded = this.jwt.verify<{ sub: string; jti: string }>(refreshToken, {
+        algorithms: ['RS256'],
+      });
+      userId = decoded.sub;
+      jti = decoded.jti;
+    } catch {
+      // JWT errors (expired, invalid signature, malformed) must surface as 401, not 500
+      throw new UnauthorizedException('Invalid or expired refresh token');
+    }
 
     const key = `refresh:${userId}:${jti}`;
     const stored = await this.redis.get(key);

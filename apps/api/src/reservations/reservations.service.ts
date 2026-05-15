@@ -157,14 +157,17 @@ export class ReservationsService {
       data: { status: 'expired' },
     });
 
-    // Restore Redis inventory for each tier
+    // Restore Redis inventory — batch all increments in a single pipeline round-trip
     const tierGroups = new Map<string, number>();
     for (const r of expired) {
       tierGroups.set(r.ticketTierId, (tierGroups.get(r.ticketTierId) ?? 0) + r.quantity);
     }
-    for (const [tierId, qty] of tierGroups) {
-      await this.redis.incrBy(INVENTORY_KEY(tierId), qty);
-    }
+    await this.redis.pipelineIncrBy(
+      Array.from(tierGroups.entries()).map(([tierId, qty]) => ({
+        key: INVENTORY_KEY(tierId),
+        value: qty,
+      })),
+    );
 
     this.logger.log(`Released ${expired.length} expired reservations`);
   }
