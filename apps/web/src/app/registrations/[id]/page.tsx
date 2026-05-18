@@ -1,9 +1,10 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { formatManila } from '@axon-tickets/utils';
 import api from '@/lib/api';
+import PaymentProofUpload from '@/components/PaymentProofUpload';
 import type { Registration, RegistrationStatus } from '@axon-tickets/types';
 
 const STATUS_LABELS: Record<RegistrationStatus, string> = {
@@ -30,16 +31,21 @@ export default function RegistrationDetailPage() {
   const [error, setError] = useState<string | null>(null);
   const [cancelling, setCancelling] = useState(false);
 
-  useEffect(() => {
-    api
-      .get(`/registrations/${id}`)
-      .then((res) => {
-        const body = res.data;
-        setReg(body?.data ?? body);
-      })
-      .catch(() => setError('Registration not found.'))
-      .finally(() => setLoading(false));
+  const fetchReg = useCallback(async () => {
+    try {
+      const res = await api.get(`/registrations/${id}`);
+      const body = res.data;
+      setReg(body?.data ?? body);
+    } catch {
+      setError('Registration not found.');
+    } finally {
+      setLoading(false);
+    }
   }, [id]);
+
+  useEffect(() => {
+    void fetchReg();
+  }, [fetchReg]);
 
   const handleCancel = async () => {
     if (!confirm('Cancel this registration? This cannot be undone.')) return;
@@ -194,6 +200,44 @@ export default function RegistrationDetailPage() {
           <div className="bg-red-50 border border-red-200 rounded-2xl p-5 text-sm text-red-700">
             <p className="font-semibold mb-1">Rejection Reason</p>
             <p>{reg.rejectionReason}</p>
+          </div>
+        )}
+
+        {/* Payment proof section */}
+        {(reg.status === 'pending_payment' || reg.status === 'rejected') && (
+          <div className="bg-white border border-gray-200 rounded-2xl p-5 space-y-4">
+            <h2 className="font-semibold text-gray-900">
+              {reg.status === 'rejected' ? 'Re-upload Payment Proof' : 'Upload Payment Proof'}
+            </h2>
+            <PaymentProofUpload registrationId={reg.id} onUploaded={fetchReg} />
+          </div>
+        )}
+
+        {reg.status === 'proof_submitted' && (
+          <div className="bg-blue-50 border border-blue-200 rounded-2xl p-5 space-y-3">
+            <div>
+              <p className="font-semibold text-gray-900">Awaiting verification</p>
+              <p className="text-sm text-gray-600 mt-0.5">
+                We&apos;ve received your proof. The organizer will review it shortly.
+              </p>
+            </div>
+            {reg.proofs?.[0]?.imageUrl && (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={reg.proofs[0].imageUrl}
+                alt="Submitted proof"
+                className="w-full max-h-72 object-contain rounded-lg border border-blue-200 bg-white"
+              />
+            )}
+          </div>
+        )}
+
+        {reg.status === 'verified' && (
+          <div className="bg-green-50 border border-green-200 rounded-2xl p-5 text-sm text-green-800">
+            <p className="font-semibold">Payment verified ✓</p>
+            <p className="text-green-700 mt-0.5">
+              Your tickets and QR code will be emailed shortly.
+            </p>
           </div>
         )}
 

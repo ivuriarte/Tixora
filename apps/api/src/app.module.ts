@@ -22,6 +22,7 @@ import { AdminModule } from './admin/admin.module';
 import { UploadModule } from './upload/upload.module';
 import { RegistrationsModule } from './registrations/registrations.module';
 import { PaymentProofsModule } from './payment-proofs/payment-proofs.module';
+import { SchedulerModule } from './scheduler/scheduler.module';
 
 @Module({
   imports: [
@@ -72,6 +73,7 @@ import { PaymentProofsModule } from './payment-proofs/payment-proofs.module';
     UploadModule,
     RegistrationsModule,
     PaymentProofsModule,
+    SchedulerModule,
   ],
 })
 export class AppModule {}

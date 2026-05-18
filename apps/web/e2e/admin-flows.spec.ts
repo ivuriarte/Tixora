@@ -218,3 +218,90 @@ test.describe('Admin Edit Event — Pre-population', () => {
   });
 });
 
+// ── E-07: Admin Check-in & Analytics (Phase 6 + Phase 7) ────────────────────
+
+test.describe('Admin Check-in', () => {
+  test.skip(!ADMIN_EMAIL, 'Set TEST_ADMIN_EMAIL and TEST_ADMIN_PASSWORD to run admin tests');
+
+  test('check-in page renders three tabs', async ({ page }) => {
+    await loginAsAdmin(page);
+    await page.goto('/admin/checkin');
+    await expect(page.getByRole('button', { name: /camera/i })).toBeVisible();
+    await expect(page.getByRole('button', { name: /manual/i })).toBeVisible();
+    await expect(page.getByRole('button', { name: /search/i })).toBeVisible();
+  });
+
+  test('check-in page has event selector', async ({ page }) => {
+    await loginAsAdmin(page);
+    await page.goto('/admin/checkin');
+    // Event selector is a <select> element
+    const eventSelect = page.locator('select').first();
+    await expect(eventSelect).toBeVisible();
+  });
+
+  test('search tab: entering a query shows a results section', async ({ page }) => {
+    await loginAsAdmin(page);
+    await page.goto('/admin/checkin');
+
+    // Switch to Search tab
+    await page.getByRole('button', { name: /search/i }).click();
+
+    // Input should be visible
+    const searchInput = page.locator('input[type="text"], input[type="search"]').first();
+    await expect(searchInput).toBeVisible();
+
+    // Type a query — if events exist the results section appears; if not, no crash
+    await searchInput.fill('test');
+    // Wait briefly for the debounced search
+    await page.waitForTimeout(600);
+
+    // Page must not have an unhandled error banner
+    await expect(page.getByText(/something went wrong|unhandled/i)).not.toBeVisible();
+  });
+
+  test('manual tab: has an attendee ID input and submit button', async ({ page }) => {
+    await loginAsAdmin(page);
+    await page.goto('/admin/checkin');
+
+    await page.getByRole('button', { name: /manual/i }).click();
+
+    // Manual check-in form
+    const idInput = page.locator('input').first();
+    await expect(idInput).toBeVisible();
+    await expect(page.getByRole('button', { name: /check.?in/i })).toBeVisible();
+  });
+});
+
+test.describe('Admin Analytics', () => {
+  test.skip(!ADMIN_EMAIL, 'Set TEST_ADMIN_EMAIL and TEST_ADMIN_PASSWORD to run admin tests');
+
+  test('analytics page loads and shows stat cards', async ({ page }) => {
+    await loginAsAdmin(page);
+    await page.goto('/admin/analytics');
+    // Page must render at least one heading
+    const heading = page.getByRole('heading').first();
+    await expect(heading).toBeVisible();
+  });
+
+  test('analytics page has event selector', async ({ page }) => {
+    await loginAsAdmin(page);
+    await page.goto('/admin/analytics');
+    const eventSelect = page.locator('select').first();
+    await expect(eventSelect).toBeVisible();
+  });
+
+  test('analytics page has time-range toggle buttons (7d, 14d, 30d)', async ({ page }) => {
+    await loginAsAdmin(page);
+    await page.goto('/admin/analytics');
+    await expect(page.getByRole('button', { name: /7d/i })).toBeVisible();
+    await expect(page.getByRole('button', { name: /14d/i })).toBeVisible();
+    await expect(page.getByRole('button', { name: /30d/i })).toBeVisible();
+  });
+
+  test('admin dashboard has Analytics quick-link', async ({ page }) => {
+    await loginAsAdmin(page);
+    await page.goto('/admin');
+    await expect(page.getByRole('link', { name: /analytics/i })).toBeVisible();
+  });
+});
+

@@ -39,6 +39,16 @@ Thumbs.db
 # Test coverage
 coverage/
 
+# Playwright test results
+apps/web/test-results/
+apps/web/playwright-report/
+
+# TypeScript build info
+*.tsbuildinfo
+
+# Vercel output
+.vercel/
+
 # SSL keys (never commit)
 *.pem
 

@@ -12,8 +12,9 @@ import { TicketTiersService } from '../ticket-tiers/ticket-tiers.service';
 import { OrdersService } from '../orders/orders.service';
 import { CreateEventDto, UpdateEventDto } from '../events/dto/event.dto';
 import { CreateTierDto, UpdateTierDto } from '../ticket-tiers/dto/tier.dto';
-import { verifyQrToken } from '@axon-tickets/utils';
+import { verifyQrToken, verifyAttendeeQrToken } from '@axon-tickets/utils';
 import { ConfigService } from '@nestjs/config';
+import { AuditService } from '../audit/audit.service';
 import { Resend } from 'resend';
 
 @Injectable()
@@ -27,6 +28,7 @@ export class AdminService {
     private readonly tiersService: TicketTiersService,
     private readonly ordersService: OrdersService,
     private readonly config: ConfigService,
+    private readonly audit: AuditService,
   ) {
     this.resend = new Resend(this.config.get<string>('resend.apiKey'));
   }
@@ -294,6 +296,72 @@ export class AdminService {
 
   async checkIn(qrToken: string, adminId: string) {
     const qrSecret = this.config.get<string>('qr.hmacSecret') ?? '';
+
+    // ── Path A: Attendee QR token (registration / manual-payment flow) ──────
+    const attendeePayload = verifyAttendeeQrToken(qrToken, qrSecret);
+    if (attendeePayload) {
+      const attendee = await this.prisma.attendee.findUnique({
+        where: { id: attendeePayload.attendeeId },
+        include: {
+          registration: {
+            select: {
+              id: true,
+              status: true,
+              tierName: true,
+              event: { select: { id: true, title: true } },
+            },
+          },
+        },
+      });
+
+      if (!attendee) throw new NotFoundException('Attendee not found');
+
+      // Token fields must match DB record
+      if (
+        attendee.registration.event.id !== attendeePayload.eventId ||
+        attendee.registrationId !== attendeePayload.registrationId
+      ) {
+        throw new BadRequestException('QR token mismatch');
+      }
+
+      if (attendee.registration.status !== 'verified') {
+        throw new BadRequestException(
+          `Registration is not verified (status: ${attendee.registration.status})`,
+        );
+      }
+
+      if (attendee.checkedInAt) {
+        throw new ConflictException(
+          `Already checked in at ${attendee.checkedInAt.toISOString()}`,
+        );
+      }
+
+      const now = new Date();
+      await this.prisma.attendee.update({
+        where: { id: attendee.id },
+        data: { checkedInAt: now, checkedInById: adminId, checkInMethod: 'scan' },
+      });
+
+      await this.audit.log({
+        action: 'CHECKIN_SCAN',
+        entityType: 'Attendee',
+        entityId: attendee.id,
+        registrationId: attendee.registrationId,
+        performedById: adminId,
+        metadata: { eventId: attendeePayload.eventId, checkInMethod: 'scan' },
+      });
+
+      return {
+        valid: true,
+        attendeeName: `${attendee.firstName} ${attendee.lastName}`,
+        tierName: attendee.registration.tierName ?? null,
+        eventTitle: attendee.registration.event.title,
+        checkedInAt: now.toISOString(),
+        checkInMethod: 'scan',
+      };
+    }
+
+    // ── Path B: Legacy Ticket QR token (PayMongo / online order flow) ───────
     const payload = verifyQrToken(qrToken, qrSecret);
     if (!payload) throw new BadRequestException('Invalid QR code');
 
@@ -317,18 +385,22 @@ export class AdminService {
       throw new BadRequestException(`Ticket is ${ticket.status}`);
     }
 
-    // Verify token fields match DB record (defence in depth)
     if (ticket.userId !== payload.userId || ticket.eventId !== payload.eventId) {
       throw new BadRequestException('QR token mismatch');
     }
 
+    const now = new Date();
     await this.prisma.ticket.update({
       where: { id: ticket.id },
-      data: {
-        status: 'used',
-        checkedInAt: new Date(),
-        checkedInById: adminId,
-      },
+      data: { status: 'used', checkedInAt: now, checkedInById: adminId },
+    });
+
+    await this.audit.log({
+      action: 'CHECKIN_SCAN',
+      entityType: 'Ticket',
+      entityId: ticket.id,
+      performedById: adminId,
+      metadata: { eventId: payload.eventId, checkInMethod: 'scan' },
     });
 
     return {
@@ -336,13 +408,122 @@ export class AdminService {
       attendeeName: `${ticket.user.firstName} ${ticket.user.lastName}`,
       tierName: ticket.ticketTier.name,
       eventTitle: ticket.event.title,
-      checkedInAt: new Date().toISOString(),
+      checkedInAt: now.toISOString(),
       orderStatus: ticket.order?.status ?? null,
       paymentMethod: ticket.order?.paymentMethod ?? null,
+      checkInMethod: 'scan',
     };
   }
 
   // ── Attendees ──────────────────────────────────────────────────────────
+
+  /**
+   * P6-06 — Search attendees by name or email within an event (for manual check-in).
+   */
+  async checkinSearch(eventId: string, q: string, page = 1, limit = 20) {
+    if (!eventId) throw new BadRequestException('eventId is required');
+    const safePage = Math.max(1, page);
+    const safeLimit = Math.min(limit, 50);
+    const skip = (safePage - 1) * safeLimit;
+
+    const where: Prisma.AttendeeWhereInput = {
+      registration: { eventId },
+    };
+
+    if (q?.trim()) {
+      const term = q.trim();
+      where.OR = [
+        { firstName: { contains: term, mode: 'insensitive' } },
+        { lastName: { contains: term, mode: 'insensitive' } },
+        { email: { contains: term, mode: 'insensitive' } },
+      ];
+    }
+
+    const [total, attendees] = await Promise.all([
+      this.prisma.attendee.count({ where }),
+      this.prisma.attendee.findMany({
+        where,
+        skip,
+        take: safeLimit,
+        orderBy: [{ isLead: 'desc' }, { createdAt: 'asc' }],
+        include: {
+          registration: {
+            select: { status: true, tierName: true, event: { select: { title: true } } },
+          },
+        },
+      }),
+    ]);
+
+    return {
+      data: attendees.map((a) => ({
+        id: a.id,
+        firstName: a.firstName,
+        lastName: a.lastName,
+        email: a.email,
+        tierName: a.registration.tierName ?? null,
+        eventTitle: a.registration.event.title,
+        registrationStatus: a.registration.status,
+        checkedInAt: a.checkedInAt?.toISOString() ?? null,
+        hasQr: !!a.qrToken,
+      })),
+      meta: { total, page: safePage, limit: safeLimit, totalPages: Math.ceil(total / safeLimit) },
+    };
+  }
+
+  /**
+   * P6-05 (manual path) — Check in an attendee by ID (manual lookup, no QR scan).
+   */
+  async checkinManual(attendeeId: string, adminId: string) {
+    const attendee = await this.prisma.attendee.findUnique({
+      where: { id: attendeeId },
+      include: {
+        registration: {
+          select: {
+            id: true,
+            status: true,
+            tierName: true,
+            event: { select: { title: true } },
+          },
+        },
+      },
+    });
+
+    if (!attendee) throw new NotFoundException('Attendee not found');
+    if (attendee.registration.status !== 'verified') {
+      throw new BadRequestException(
+        `Registration is not verified (status: ${attendee.registration.status})`,
+      );
+    }
+    if (attendee.checkedInAt) {
+      throw new ConflictException(
+        `Already checked in at ${attendee.checkedInAt.toISOString()}`,
+      );
+    }
+
+    const now = new Date();
+    await this.prisma.attendee.update({
+      where: { id: attendeeId },
+      data: { checkedInAt: now, checkedInById: adminId, checkInMethod: 'manual' },
+    });
+
+    await this.audit.log({
+      action: 'CHECKIN_MANUAL',
+      entityType: 'Attendee',
+      entityId: attendeeId,
+      registrationId: attendee.registrationId,
+      performedById: adminId,
+      metadata: { checkInMethod: 'manual' },
+    });
+
+    return {
+      valid: true,
+      attendeeName: `${attendee.firstName} ${attendee.lastName}`,
+      tierName: attendee.registration.tierName ?? null,
+      eventTitle: attendee.registration.event.title,
+      checkedInAt: now.toISOString(),
+      checkInMethod: 'manual',
+    };
+  }
 
   async getAttendees(eventId: string, page = 1, limit = 50, q?: string) {
     const skip = (page - 1) * limit;
@@ -408,41 +589,79 @@ export class AdminService {
   // ── Analytics ──────────────────────────────────────────────────────────
 
   async getEventAnalytics(eventId: string) {
-    const [event, ticketStats, revenueStats] = await Promise.all([
+    const [
+      event,
+      orderRevenueStats,
+      registrationRevenueStats,
+      checkedInTickets,
+      validTickets,
+      checkedInAttendees,
+      verifiedAttendees,
+      pendingRegistrations,
+    ] = await Promise.all([
       this.prisma.event.findUnique({
         where: { id: eventId },
         include: { tiers: true },
       }),
-      this.prisma.ticket.groupBy({
-        by: ['ticketTierId', 'status'],
-        where: { eventId },
-        _count: { id: true },
-      }),
+      // Legacy flow: Ticket/Order revenue
       this.prisma.order.aggregate({
         where: { eventId, status: 'paid' },
         _sum: { total: true, fees: true },
         _count: { id: true },
       }),
+      // Registration flow: manual-payment revenue
+      this.prisma.registration.aggregate({
+        where: { eventId, status: 'verified' },
+        _sum: { total: true, fees: true },
+        _count: { id: true },
+      }),
+      // Legacy flow: check-ins via Ticket
+      this.prisma.ticket.count({ where: { eventId, status: 'used' } }),
+      // Legacy flow: valid tickets sold
+      this.prisma.ticket.count({ where: { eventId, status: { in: ['valid', 'used'] } } }),
+      // Registration flow: check-ins via Attendee
+      this.prisma.attendee.count({
+        where: { registration: { eventId }, checkedInAt: { not: null } },
+      }),
+      // Registration flow: verified attendees (all attendees on verified registrations)
+      this.prisma.attendee.count({
+        where: { registration: { eventId, status: 'verified' } },
+      }),
+      // Registration flow: pending verification
+      this.prisma.registration.count({
+        where: { eventId, status: 'pending_payment' },
+      }),
     ]);
 
     if (!event) throw new NotFoundException('Event not found');
 
-    const checkedIn = await this.prisma.ticket.count({
-      where: { eventId, status: 'used' },
-    });
-    const validTickets = await this.prisma.ticket.count({
-      where: { eventId, status: { in: ['valid', 'used'] } },
-    });
+    const totalCheckedIn = checkedInTickets + checkedInAttendees;
+    const totalSold = validTickets + verifiedAttendees;
+    const totalRevenue =
+      Number(orderRevenueStats._sum.total ?? 0) +
+      Number(registrationRevenueStats._sum.total ?? 0);
+    const totalFees =
+      Number(orderRevenueStats._sum.fees ?? 0) +
+      Number(registrationRevenueStats._sum.fees ?? 0);
 
     return {
       eventId,
       eventTitle: event.title,
-      totalRevenue: Number(revenueStats._sum.total ?? 0),
-      totalFees: Number(revenueStats._sum.fees ?? 0),
-      paidOrders: revenueStats._count.id,
-      totalTicketsSold: validTickets,
-      checkedInCount: checkedIn,
-      checkInRate: validTickets > 0 ? Math.round((checkedIn / validTickets) * 100) : 0,
+      totalRevenue,
+      totalFees,
+      // Legacy (Ticket) flow
+      paidOrders: orderRevenueStats._count.id,
+      ticketsSold: validTickets,
+      ticketCheckins: checkedInTickets,
+      // Registration flow
+      verifiedRegistrations: registrationRevenueStats._count.id,
+      verifiedAttendees,
+      pendingRegistrations,
+      registrationCheckins: checkedInAttendees,
+      // Combined
+      totalSold,
+      totalCheckedIn,
+      checkInRate: totalSold > 0 ? Math.round((totalCheckedIn / totalSold) * 100) : 0,
       tierBreakdown: event.tiers.map((tier: (typeof event.tiers)[number]) => ({
         tierId: tier.id,
         tierName: tier.name,
@@ -450,6 +669,81 @@ export class AdminService {
         soldQuantity: tier.soldQuantity,
         available: Math.max(0, tier.totalQuantity - tier.soldQuantity),
         price: Number(tier.price),
+        fillRate: tier.totalQuantity > 0
+          ? Math.round((tier.soldQuantity / tier.totalQuantity) * 100)
+          : 0,
+      })),
+    };
+  }
+
+  /**
+   * P7 — Daily revenue + sales timeline for an event (last N days).
+   * Returns one row per calendar day in the requested range.
+   */
+  async getEventTimeline(eventId: string, days = 14) {
+    const event = await this.prisma.event.findUnique({ where: { id: eventId }, select: { id: true } });
+    if (!event) throw new NotFoundException('Event not found');
+
+    const safeDays = Math.min(Math.max(1, days), 90);
+    const since = new Date();
+    since.setDate(since.getDate() - safeDays + 1);
+    since.setHours(0, 0, 0, 0);
+
+    // Raw daily aggregations from both flows
+    const [orderRows, registrationRows] = await Promise.all([
+      this.prisma.$queryRaw<{ day: Date; revenue: bigint; count: bigint }[]>`
+        SELECT DATE_TRUNC('day', created_at) AS day,
+               SUM(total)::bigint AS revenue,
+               COUNT(*)::bigint AS count
+        FROM orders
+        WHERE event_id = ${eventId}
+          AND status = 'paid'
+          AND created_at >= ${since}
+        GROUP BY 1
+        ORDER BY 1
+      `,
+      this.prisma.$queryRaw<{ day: Date; revenue: bigint; count: bigint }[]>`
+        SELECT DATE_TRUNC('day', verified_at) AS day,
+               SUM(total)::bigint AS revenue,
+               COUNT(*)::bigint AS count
+        FROM registrations
+        WHERE event_id = ${eventId}
+          AND status = 'verified'
+          AND verified_at >= ${since}
+        GROUP BY 1
+        ORDER BY 1
+      `,
+    ]);
+
+    // Build a map keyed by ISO date string
+    const map = new Map<string, { revenue: number; orders: number; registrations: number }>();
+
+    for (let i = 0; i < safeDays; i++) {
+      const d = new Date(since);
+      d.setDate(since.getDate() + i);
+      map.set(d.toISOString().slice(0, 10), { revenue: 0, orders: 0, registrations: 0 });
+    }
+
+    for (const row of orderRows) {
+      const key = new Date(row.day).toISOString().slice(0, 10);
+      const entry = map.get(key);
+      if (entry) { entry.revenue += Number(row.revenue); entry.orders += Number(row.count); }
+    }
+    for (const row of registrationRows) {
+      const key = new Date(row.day).toISOString().slice(0, 10);
+      const entry = map.get(key);
+      if (entry) { entry.revenue += Number(row.revenue); entry.registrations += Number(row.count); }
+    }
+
+    return {
+      eventId,
+      days: safeDays,
+      series: Array.from(map.entries()).map(([date, v]) => ({
+        date,
+        revenue: v.revenue,
+        orders: v.orders,
+        registrations: v.registrations,
+        total: v.orders + v.registrations,
       })),
     };
   }
@@ -605,23 +899,54 @@ export class AdminService {
   async getDashboardStats(eventId?: string) {
     const eventFilter = eventId ? { eventId } : {};
 
-    const [totalRegistrations, paidOrders, pendingOrders, checkedIn, revenueAgg] = await Promise.all([
+    const [
+      totalTicketsSold,
+      paidOrders,
+      pendingOrders,
+      checkedInTickets,
+      orderRevenueAgg,
+      verifiedRegistrations,
+      pendingRegistrations,
+      checkedInAttendees,
+      registrationRevenueAgg,
+    ] = await Promise.all([
       this.prisma.ticket.count({ where: { ...eventFilter, status: { in: ['valid', 'used'] } } }),
       this.prisma.order.count({ where: { ...eventFilter, status: 'paid' } }),
       this.prisma.order.count({ where: { ...eventFilter, status: 'pending' } }),
       this.prisma.ticket.count({ where: { ...eventFilter, status: 'used' } }),
-      this.prisma.order.aggregate({
-        where: { ...eventFilter, status: 'paid' },
+      this.prisma.order.aggregate({ where: { ...eventFilter, status: 'paid' }, _sum: { total: true } }),
+      // Registration flow
+      this.prisma.registration.count({ where: { ...eventFilter, status: 'verified' } }),
+      this.prisma.registration.count({ where: { ...eventFilter, status: 'pending_payment' } }),
+      this.prisma.attendee.count({
+        where: eventId
+          ? { registration: { eventId }, checkedInAt: { not: null } }
+          : { checkedInAt: { not: null } },
+      }),
+      this.prisma.registration.aggregate({
+        where: { ...eventFilter, status: 'verified' },
         _sum: { total: true },
       }),
     ]);
 
+    const grossRevenue =
+      Number(orderRevenueAgg._sum.total ?? 0) +
+      Number(registrationRevenueAgg._sum.total ?? 0);
+
     return {
-      totalRegistrations,
+      // Legacy
+      totalTicketsSold,
       paidOrders,
       pendingOrders,
-      checkedIn,
-      grossRevenue: Number(revenueAgg._sum.total ?? 0),
+      checkedInTickets,
+      // Registration flow
+      verifiedRegistrations,
+      pendingRegistrations,
+      checkedInAttendees,
+      // Combined
+      totalRegistrations: totalTicketsSold + verifiedRegistrations,
+      totalCheckedIn: checkedInTickets + checkedInAttendees,
+      grossRevenue,
     };
   }
 }

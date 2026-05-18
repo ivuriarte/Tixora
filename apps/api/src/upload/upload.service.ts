@@ -57,4 +57,37 @@ export class UploadService {
     this.logger.log({ msg: 'Event image uploaded', eventId, imageUrl });
     return { imageUrl };
   }
+
+  async uploadPaymentProof(
+    registrationId: string,
+    buffer: Buffer,
+    _mimeType: string,
+  ): Promise<{ imageUrl: string; cloudinaryPublicId: string }> {
+    const result = await new Promise<UploadApiResponse>((resolve, reject) => {
+      const stream = cloudinary.uploader.upload_stream(
+        {
+          folder: 'axon-tickets/payment-proofs',
+          public_id: `proof-${registrationId}-${Date.now()}`,
+          overwrite: false,
+          resource_type: 'image',
+          transformation: [
+            { width: 1600, height: 1600, crop: 'limit' },
+            { quality: 'auto:good', fetch_format: 'auto' },
+          ],
+        },
+        (error, result) => {
+          if (error || !result) reject(error ?? new Error('Upload failed'));
+          else resolve(result);
+        },
+      );
+      stream.end(buffer);
+    });
+
+    this.logger.log({
+      msg: 'Payment proof uploaded',
+      registrationId,
+      publicId: result.public_id,
+    });
+    return { imageUrl: result.secure_url, cloudinaryPublicId: result.public_id };
+  }
 }

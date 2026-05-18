@@ -4,11 +4,16 @@ import {
   NotFoundException,
   BadRequestException,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { EmailService } from '../email/email.service';
 import { AuditService } from '../audit/audit.service';
-import { generateReferenceNumber, calculateFee } from '@axon-tickets/utils';
+import {
+  generateReferenceNumber,
+  calculateFee,
+  generateAttendeeQrToken,
+} from '@axon-tickets/utils';
 import { CreateRegistrationDto } from './dto/create-registration.dto';
 
 @Injectable()
@@ -19,6 +24,7 @@ export class RegistrationsService {
     private readonly prisma: PrismaService,
     private readonly emailService: EmailService,
     private readonly audit: AuditService,
+    private readonly config: ConfigService,
   ) {}
 
   async create(dto: CreateRegistrationDto, userId: string, ip?: string) {
@@ -108,6 +114,7 @@ export class RegistrationsService {
 
     const lead = registration.attendees.find((a) => a.isLead) ?? registration.attendees[0];
     if (lead && event.bankName && event.bankAccountNumber && event.bankAccountName) {
+      const webBase = this.config.get<string>('webUrl') ?? 'https://axon-tickets-app.vercel.app';
       await this.emailService.sendRegistrationConfirmation(
         lead.email,
         lead.firstName,
@@ -116,6 +123,7 @@ export class RegistrationsService {
         event.bankName,
         event.bankAccountNumber,
         event.bankAccountName,
+        `${webBase}/registrations/${registration.id}`,
       );
     }
 
@@ -217,7 +225,17 @@ export class RegistrationsService {
           },
         },
         attendees: { orderBy: [{ isLead: 'desc' }, { createdAt: 'asc' }] },
-        proofs: { select: { id: true, status: true, createdAt: true } },
+        proofs: {
+          select: {
+            id: true,
+            status: true,
+            imageUrl: true,
+            rejectionReason: true,
+            reviewedAt: true,
+            createdAt: true,
+          },
+          orderBy: { createdAt: 'desc' },
+        },
       },
     });
     if (!reg) throw new NotFoundException('Registration not found');
@@ -266,12 +284,21 @@ export class RegistrationsService {
         id: p.id,
         status: p.status,
         uploadedAt: p.createdAt.toISOString(),
+        imageUrl: p.imageUrl,
+        rejectionReason: p.rejectionReason,
+        reviewedAt: p.reviewedAt?.toISOString() ?? null,
       })),
     };
   }
 
   async cancel(id: string, userId: string) {
-    const reg = await this.prisma.registration.findFirst({ where: { id, userId } });
+    const reg = await this.prisma.registration.findFirst({
+      where: { id, userId },
+      include: {
+        attendees: { where: { isLead: true }, take: 1 },
+        event: { select: { title: true, slug: true } },
+      },
+    });
     if (!reg) throw new NotFoundException('Registration not found');
     if (!['pending_payment', 'proof_submitted'].includes(reg.status)) {
       throw new BadRequestException(
@@ -302,6 +329,24 @@ export class RegistrationsService {
       registrationId: id,
       performedById: userId,
     });
+
+    const lead = reg.attendees[0];
+    if (lead) {
+      const webBase =
+        this.config.get<string>('webUrl') ?? 'https://axon-tickets-app.vercel.app';
+      try {
+        await this.emailService.sendCancellationEmail(
+          lead.email,
+          lead.firstName,
+          reg.referenceNumber,
+          reg.event.title,
+          'You cancelled your registration.',
+          `${webBase}/events/${reg.event.slug}`,
+        );
+      } catch (e: unknown) {
+        this.logger.warn({ msg: 'Cancellation email failed', regId: id, err: (e as Error).message });
+      }
+    }
 
     return { message: 'Registration cancelled' };
   }
@@ -358,13 +403,316 @@ export class RegistrationsService {
       include: {
         event: { select: { title: true, slug: true, startsAt: true, venue: true } },
         attendees: { orderBy: [{ isLead: 'desc' }, { createdAt: 'asc' }] },
-        proofs: true,
+        proofs: { orderBy: { createdAt: 'desc' } },
         user: { select: { id: true, email: true, firstName: true, lastName: true } },
         verifiedBy: { select: { firstName: true, lastName: true } },
       },
     });
     if (!reg) throw new NotFoundException('Registration not found');
     return reg;
+  }
+
+  async approve(id: string, adminUserId: string, ip?: string) {
+    const reg = await this.prisma.registration.findUnique({
+      where: { id },
+      include: {
+        proofs: { orderBy: { createdAt: 'desc' }, take: 1 },
+        attendees: { orderBy: [{ isLead: 'desc' }, { createdAt: 'asc' }] },
+        event: {
+          select: { id: true, title: true, startsAt: true, venue: true },
+        },
+      },
+    });
+    if (!reg) throw new NotFoundException('Registration not found');
+    if (reg.status !== 'proof_submitted') {
+      throw new BadRequestException(
+        `Only proof_submitted registrations can be approved (current: ${reg.status})`,
+      );
+    }
+    const latestProof = reg.proofs[0];
+    if (!latestProof) {
+      throw new BadRequestException('No payment proof found on this registration');
+    }
+
+    const qrSecret = this.config.get<string>('qr.hmacSecret') ?? '';
+
+    // Generate QR tokens for any attendees missing one
+    const attendeeUpdates = reg.attendees.map((a) => {
+      const qrToken =
+        a.qrToken ??
+        generateAttendeeQrToken(
+          { attendeeId: a.id, registrationId: reg.id, eventId: reg.event.id },
+          qrSecret,
+        );
+      return { id: a.id, qrToken };
+    });
+
+    await this.prisma.$transaction([
+      this.prisma.registration.update({
+        where: { id },
+        data: {
+          status: 'verified',
+          verifiedById: adminUserId,
+          verifiedAt: new Date(),
+          rejectionReason: null,
+        },
+      }),
+      this.prisma.paymentProof.update({
+        where: { id: latestProof.id },
+        data: {
+          status: 'approved',
+          reviewedById: adminUserId,
+          reviewedAt: new Date(),
+          rejectionReason: null,
+        },
+      }),
+      ...attendeeUpdates.map((u) =>
+        this.prisma.attendee.update({
+          where: { id: u.id },
+          data: { qrToken: u.qrToken },
+        }),
+      ),
+    ]);
+
+    await this.audit.log({
+      action: 'REGISTRATION_APPROVED',
+      entityType: 'Registration',
+      entityId: id,
+      registrationId: id,
+      performedById: adminUserId,
+      ipAddress: ip,
+      metadata: { proofId: latestProof.id, attendeeCount: reg.attendees.length },
+    });
+
+    // Send QR delivery email to lead attendee.
+    // Awaited (not fire-and-forget) so Vercel Lambda does not terminate before flush.
+    try {
+      await this.sendQrEmail(reg.id);
+    } catch (e: unknown) {
+      const err = e as Error;
+      this.logger.warn({ msg: 'QR email failed', regId: reg.id, err: err.message });
+    }
+
+    this.logger.log({ msg: 'Registration approved', id, adminUserId });
+    return { message: 'Registration approved', id, status: 'verified' };
+  }
+
+  async reject(id: string, adminUserId: string, reason: string, ip?: string) {
+    const reg = await this.prisma.registration.findUnique({
+      where: { id },
+      include: {
+        proofs: { orderBy: { createdAt: 'desc' }, take: 1 },
+        attendees: { where: { isLead: true }, take: 1 },
+        event: { select: { title: true } },
+      },
+    });
+    if (!reg) throw new NotFoundException('Registration not found');
+    if (reg.status !== 'proof_submitted') {
+      throw new BadRequestException(
+        `Only proof_submitted registrations can be rejected (current: ${reg.status})`,
+      );
+    }
+    const latestProof = reg.proofs[0];
+
+    const ops: Prisma.PrismaPromise<unknown>[] = [
+      this.prisma.registration.update({
+        where: { id },
+        data: { status: 'rejected', rejectionReason: reason },
+      }),
+    ];
+    if (latestProof) {
+      ops.push(
+        this.prisma.paymentProof.update({
+          where: { id: latestProof.id },
+          data: {
+            status: 'rejected',
+            reviewedById: adminUserId,
+            reviewedAt: new Date(),
+            rejectionReason: reason,
+          },
+        }),
+      );
+    }
+    await this.prisma.$transaction(ops);
+
+    await this.audit.log({
+      action: 'REGISTRATION_REJECTED',
+      entityType: 'Registration',
+      entityId: id,
+      registrationId: id,
+      performedById: adminUserId,
+      ipAddress: ip,
+      metadata: { reason, proofId: latestProof?.id ?? null },
+    });
+
+    // Send rejection email (await for Lambda reliability)
+    const lead = reg.attendees[0];
+    if (lead) {
+      const webBase =
+        this.config.get<string>('web.baseUrl') ??
+        process.env.WEB_BASE_URL ??
+        'https://axon-tickets-app.vercel.app';
+      try {
+        await this.emailService.sendRejectionEmail(
+          lead.email,
+          lead.firstName,
+          reg.referenceNumber,
+          reg.event.title,
+          reason,
+          `${webBase}/registrations/${reg.id}`,
+        );
+      } catch (e: unknown) {
+        const err = e as Error;
+        this.logger.warn({ msg: 'Rejection email failed', regId: reg.id, err: err.message });
+      }
+    }
+
+    this.logger.log({ msg: 'Registration rejected', id, adminUserId });
+    return { message: 'Registration rejected', id, status: 'rejected' };
+  }
+
+  async bulkApprove(ids: string[], adminUserId: string, ip?: string) {
+    if (!ids.length) {
+      throw new BadRequestException('No registration ids provided');
+    }
+    if (ids.length > 20) {
+      throw new BadRequestException('Maximum 20 registrations per bulk action');
+    }
+    // Parallel with allSettled to avoid 30s Vercel timeout when serial-awaiting emails.
+    const settled = await Promise.allSettled(
+      ids.map((id) => this.approve(id, adminUserId, ip)),
+    );
+    const results = settled.map((s, i) => {
+      if (s.status === 'fulfilled') {
+        return { id: ids[i], ok: true };
+      }
+      const err = s.reason as Error;
+      return { id: ids[i], ok: false, error: err.message };
+    });
+    const successCount = results.filter((r) => r.ok).length;
+    return {
+      message: `Bulk approve completed: ${successCount}/${ids.length} succeeded`,
+      results,
+    };
+  }
+
+  async resend(id: string, adminUserId: string, ip?: string) {
+    const reg = await this.prisma.registration.findUnique({
+      where: { id },
+      select: { id: true, status: true },
+    });
+    if (!reg) throw new NotFoundException('Registration not found');
+    if (reg.status !== 'verified') {
+      throw new BadRequestException(
+        'Only verified registrations support resend',
+      );
+    }
+
+    await this.sendQrEmail(id);
+
+    await this.audit.log({
+      action: 'RESEND_QR',
+      entityType: 'Registration',
+      entityId: id,
+      registrationId: id,
+      performedById: adminUserId,
+      ipAddress: ip,
+    });
+
+    return { message: 'QR email resent' };
+  }
+
+  async listPendingVerifications(
+    eventId?: string,
+    status: string = 'proof_submitted',
+    page = 1,
+    limit = 50,
+  ) {
+    const safePage = Math.max(1, page);
+    const safeLimit = Math.min(limit, 100);
+    const skip = (safePage - 1) * safeLimit;
+
+    const where: Prisma.RegistrationWhereInput = {};
+    if (eventId) where.eventId = eventId;
+    if (status) where.status = status as Prisma.RegistrationWhereInput['status'];
+
+    const [total, items] = await Promise.all([
+      this.prisma.registration.count({ where }),
+      this.prisma.registration.findMany({
+        where,
+        skip,
+        take: safeLimit,
+        orderBy: { createdAt: 'desc' },
+        include: {
+          event: { select: { title: true, slug: true } },
+          attendees: { where: { isLead: true }, take: 1 },
+          proofs: { select: { id: true, status: true }, orderBy: { createdAt: 'desc' }, take: 1 },
+          user: { select: { email: true, firstName: true, lastName: true } },
+        },
+      }),
+    ]);
+
+    return {
+      data: items.map((r) => ({
+        id: r.id,
+        referenceNumber: r.referenceNumber,
+        status: r.status,
+        tierName: r.tierName,
+        attendeeCount: r.attendeeCount,
+        total: Number(r.total),
+        currency: r.currency,
+        eventTitle: r.event.title,
+        eventSlug: r.event.slug,
+        leadName: r.attendees[0]
+          ? `${r.attendees[0].firstName} ${r.attendees[0].lastName}`
+          : `${r.user.firstName} ${r.user.lastName}`,
+        leadEmail: r.attendees[0]?.email ?? r.user.email,
+        hasProof: r.proofs.length > 0,
+        proofStatus: r.proofs[0]?.status ?? null,
+        createdAt: r.createdAt.toISOString(),
+      })),
+      meta: {
+        total,
+        page: safePage,
+        limit: safeLimit,
+        totalPages: Math.ceil(total / safeLimit),
+      },
+    };
+  }
+
+  async pendingCount() {
+    const count = await this.prisma.registration.count({
+      where: { status: 'proof_submitted' },
+    });
+    return { count };
+  }
+
+  private async sendQrEmail(registrationId: string): Promise<void> {
+    const reg = await this.prisma.registration.findUnique({
+      where: { id: registrationId },
+      include: {
+        attendees: { orderBy: [{ isLead: 'desc' }, { createdAt: 'asc' }] },
+        event: { select: { title: true, startsAt: true, venue: true } },
+      },
+    });
+    if (!reg) return;
+    const lead = reg.attendees.find((a) => a.isLead) ?? reg.attendees[0];
+    if (!lead) return;
+
+    const eventDate = reg.event.startsAt.toISOString().slice(0, 10);
+    await this.emailService.sendQrCodeEmail(
+      lead.email,
+      lead.firstName,
+      reg.event.title,
+      eventDate,
+      reg.event.venue,
+      reg.attendees.map((a) => ({
+        firstName: a.firstName,
+        lastName: a.lastName,
+        email: a.email,
+        qrToken: a.qrToken,
+      })),
+    );
   }
 }
 

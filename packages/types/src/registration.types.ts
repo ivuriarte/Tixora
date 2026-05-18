@@ -22,7 +22,12 @@ export interface RegistrationProof {
   id: string;
   status: 'pending' | 'approved' | 'rejected';
   uploadedAt: string;
+  imageUrl?: string;
+  rejectionReason?: string | null;
+  reviewedAt?: string | null;
 }
+
+export type ProofStatus = 'pending' | 'approved' | 'rejected';
 
 export interface RegistrationEvent {
   title: string;

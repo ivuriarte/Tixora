@@ -9,9 +9,12 @@ import {
   Param,
   Query,
   UseGuards,
+  Req,
   Res,
+  DefaultValuePipe,
+  ParseIntPipe,
 } from '@nestjs/common';
-import { Response } from 'express';
+import type { Request, Response } from 'express';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { AdminGuard } from '../common/guards/admin.guard';
@@ -20,7 +23,7 @@ import { JwtPayload } from '@axon-tickets/types';
 import { AdminService } from './admin.service';
 import { CreateEventDto, UpdateEventDto } from '../events/dto/event.dto';
 import { CreateTierDto, UpdateTierDto } from '../ticket-tiers/dto/tier.dto';
-import { CheckinDto } from './dto/admin.dto';
+import { CheckinDto, RejectRegistrationDto, BulkApproveDto } from './dto/admin.dto';
 import { RegistrationsService } from '../registrations/registrations.service';
 
 @ApiTags('admin')
@@ -182,6 +185,15 @@ export class AdminController {
     return this.adminService.getEventAnalytics(eventId);
   }
 
+  @Get('analytics/events/:eventId/timeline')
+  @ApiOperation({ summary: 'Get daily revenue + sales timeline for an event' })
+  getEventTimeline(
+    @Param('eventId') eventId: string,
+    @Query('days', new DefaultValuePipe(14), ParseIntPipe) days: number,
+  ) {
+    return this.adminService.getEventTimeline(eventId, days);
+  }
+
   @Get('analytics/dashboard')
   @ApiOperation({ summary: 'Get dashboard-level aggregate stats' })
   getDashboardStats(@Query('eventId') eventId?: string) {
@@ -227,5 +239,92 @@ export class AdminController {
   @ApiOperation({ summary: 'Get registration detail (admin)' })
   getRegistration(@Param('id') id: string) {
     return this.registrationsService.findByIdAdmin(id);
+  }
+
+  @Patch('registrations/:id/approve')
+  @ApiOperation({ summary: 'Approve a registration (verifies payment proof)' })
+  approveRegistration(
+    @Param('id') id: string,
+    @CurrentUser() user: JwtPayload,
+    @Req() req: Request,
+  ) {
+    return this.registrationsService.approve(id, user.sub, req.ip);
+  }
+
+  @Patch('registrations/:id/reject')
+  @ApiOperation({ summary: 'Reject a registration with a reason' })
+  rejectRegistration(
+    @Param('id') id: string,
+    @Body() dto: RejectRegistrationDto,
+    @CurrentUser() user: JwtPayload,
+    @Req() req: Request,
+  ) {
+    return this.registrationsService.reject(id, user.sub, dto.reason, req.ip);
+  }
+
+  // ── Verifications Queue (cross-event) ─────────────────────────────────────
+
+  @Get('verifications')
+  @ApiOperation({ summary: 'List registrations pending verification (cross-event)' })
+  listVerifications(
+    @Query('eventId') eventId?: string,
+    @Query('status') status?: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ) {
+    return this.registrationsService.listPendingVerifications(
+      eventId,
+      status ?? 'proof_submitted',
+      page ? parseInt(page, 10) : 1,
+      limit ? Math.min(parseInt(limit, 10), 100) : 50,
+    );
+  }
+
+  @Get('verifications/count')
+  @ApiOperation({ summary: 'Count of pending verifications (for nav badge)' })
+  verificationsCount() {
+    return this.registrationsService.pendingCount();
+  }
+
+  @Post('verifications/bulk-approve')
+  @ApiOperation({ summary: 'Approve up to 20 registrations in one call' })
+  bulkApprove(
+    @Body() dto: BulkApproveDto,
+    @CurrentUser() user: JwtPayload,
+    @Req() req: Request,
+  ) {
+    return this.registrationsService.bulkApprove(dto.ids, user.sub, req.ip);
+  }
+
+  @Post('registrations/:id/resend')
+  @ApiOperation({ summary: 'Resend QR delivery email for a verified registration' })
+  resendRegistration(
+    @Param('id') id: string,
+    @CurrentUser() user: JwtPayload,
+    @Req() req: Request,
+  ) {
+    return this.registrationsService.resend(id, user.sub, req.ip);
+  }
+
+  // ── Check-in (P6-05, P6-06) ────────────────────────────────────────────────
+
+  @Get('checkin/search')
+  @ApiOperation({ summary: 'Search attendees by name/email for manual check-in' })
+  checkinSearch(
+    @Query('eventId') eventId: string,
+    @Query('q') q: string,
+    @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number,
+    @Query('limit', new DefaultValuePipe(20), ParseIntPipe) limit: number,
+  ) {
+    return this.adminService.checkinSearch(eventId, q, page, limit);
+  }
+
+  @Post('checkin/manual/:attendeeId')
+  @ApiOperation({ summary: 'Manually check in an attendee by ID (no QR scan)' })
+  checkinManual(
+    @Param('attendeeId') attendeeId: string,
+    @CurrentUser() user: JwtPayload,
+  ) {
+    return this.adminService.checkinManual(attendeeId, user.sub);
   }
 }

@@ -352,6 +352,8 @@ model Attendee {
   isLead         Boolean   @default(false) @map("is_lead")
   qrToken        String?   @unique @map("qr_token")
   checkedInAt    DateTime? @map("checked_in_at")
+  checkedInById  String?   @map("checked_in_by_id")
+  checkInMethod  String?   @map("check_in_method")
   createdAt      DateTime  @default(now()) @map("created_at")
 
   registration Registration @relation(fields: [registrationId], references: [id], onDelete: Cascade)

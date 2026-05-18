@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { useEffect, useState } from 'react';
 import { useAuthStore } from '@/store/auth.store';
 import api from '@/lib/api';
 import { useRouter } from 'next/navigation';
@@ -9,6 +10,28 @@ import toast from 'react-hot-toast';
 export default function Navbar() {
   const { user, isAuthenticated, logout } = useAuthStore();
   const router = useRouter();
+  const [pendingCount, setPendingCount] = useState<number>(0);
+
+  useEffect(() => {
+    if (!user?.isAdmin) return;
+    let cancelled = false;
+    const load = async () => {
+      try {
+        const res = await api.get('/admin/verifications/count');
+        const body = res.data as { count?: number; data?: { count?: number } };
+        const c = body?.data?.count ?? body?.count ?? 0;
+        if (!cancelled) setPendingCount(c);
+      } catch {
+        /* ignore */
+      }
+    };
+    void load();
+    const t = setInterval(load, 30000);
+    return () => {
+      cancelled = true;
+      clearInterval(t);
+    };
+  }, [user?.isAdmin]);
 
   async function handleLogout() {
     try {
@@ -44,8 +67,16 @@ export default function Navbar() {
                 My Registrations
               </Link>
               {user?.isAdmin && (
-                <Link href="/admin" className="text-sm font-medium text-gray-700 hover:text-primary">
+                <Link href="/admin" className="relative text-sm font-medium text-gray-700 hover:text-primary">
                   Admin
+                  {pendingCount > 0 && (
+                    <span
+                      className="absolute -top-2 -right-3 min-w-[18px] h-[18px] px-1 inline-flex items-center justify-center text-[10px] font-bold text-white bg-red-600 rounded-full"
+                      title={`${pendingCount} pending verification${pendingCount === 1 ? '' : 's'}`}
+                    >
+                      {pendingCount > 99 ? '99+' : pendingCount}
+                    </span>
+                  )}
                 </Link>
               )}
               <button
