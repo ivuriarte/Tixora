@@ -12,20 +12,18 @@ import { CreateOrderDto } from './dto/order.dto';
 import { generateQrToken } from '@axon-tickets/utils';
 import { ConfigService } from '@nestjs/config';
 import { calculateFee } from '@axon-tickets/utils';
-import { Resend } from 'resend';
+import { EmailService } from '../email/email.service';
 
 @Injectable()
 export class OrdersService {
   private readonly logger = new Logger(OrdersService.name);
-  private readonly resend: Resend;
 
   constructor(
     private readonly prisma: PrismaService,
     private readonly redis: RedisService,
     private readonly config: ConfigService,
-  ) {
-    this.resend = new Resend(this.config.get<string>('resend.apiKey'));
-  }
+    private readonly emailService: EmailService,
+  ) {}
 
   async create(dto: CreateOrderDto, userId: string, ip: string, userAgent: string) {
     // Idempotency check
@@ -269,9 +267,6 @@ export class OrdersService {
     });
     if (!order) return;
 
-    const fromName = this.config.get<string>('resend.fromName') ?? 'Axon Tickets';
-    const fromEmail = this.config.get<string>('resend.fromEmail') ?? '';
-
     const ticketRows = order.tickets
       .map(
         (t: (typeof order.tickets)[number]) =>
@@ -286,14 +281,13 @@ export class OrdersService {
       )
       .join('');
 
-    const { error } = await this.resend.emails.send({
-      from: `${fromName} <${fromEmail}>`,
-      to: order.user.email,
-      subject: `Your tickets for ${order.event.title}`,
-      html: `
+    await this.emailService.send(
+      order.user.email,
+      `Your tickets for ${order.event.title}`,
+      `
         <div style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:24px">
-          <h1 style="color:#7c3aed;margin-bottom:4px">You're going!</h1>
-          <h2 style="margin-top:0">${order.event.title}</h2>
+          <h1 style="color:#EA6C00;margin-bottom:4px">You're going!</h1>
+          <h2 style="margin-top:0;color:#1A3A5C">${order.event.title}</h2>
           <p style="color:#6b7280">${new Date(order.event.startsAt).toLocaleDateString('en-PH', { dateStyle: 'full' })} · ${order.event.venue}</p>
           <p>Hi ${order.user.firstName}, here are your tickets. Show the QR code at the door.</p>
           <table style="width:100%;border-collapse:collapse;margin-top:16px">
@@ -308,11 +302,7 @@ export class OrdersService {
           <p style="margin-top:24px;color:#9ca3af;font-size:12px">Axon Tickets · Online Ticketing Platform</p>
         </div>
       `,
-    });
-
-    if (error) {
-      this.logger.warn({ msg: 'Resend error sending ticket email', orderId, error: error.message });
-    }
+    );
   }
 
   async markFailed(orderId: string): Promise<void> {

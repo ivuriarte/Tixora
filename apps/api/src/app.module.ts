@@ -8,6 +8,8 @@ import { validationSchema } from './config/env.validation';
 import { PrismaModule } from './prisma/prisma.module';
 import { RedisModule } from './redis/redis.module';
 import { HealthModule } from './health/health.module';
+import { EmailModule } from './email/email.module';
+import { AuditModule } from './audit/audit.module';
 import { AuthModule } from './auth/auth.module';
 import { UsersModule } from './users/users.module';
 import { EventsModule } from './events/events.module';
@@ -18,6 +20,8 @@ import { TicketsModule } from './tickets/tickets.module';
 import { PaymentsModule } from './payments/payments.module';
 import { AdminModule } from './admin/admin.module';
 import { UploadModule } from './upload/upload.module';
+import { RegistrationsModule } from './registrations/registrations.module';
+import { PaymentProofsModule } from './payment-proofs/payment-proofs.module';
 
 @Module({
   imports: [
@@ -54,6 +58,8 @@ import { UploadModule } from './upload/upload.module';
     PrismaModule,
     RedisModule,
     HealthModule,
+    EmailModule,
+    AuditModule,
     AuthModule,
     UsersModule,
     EventsModule,
@@ -64,6 +70,8 @@ import { UploadModule } from './upload/upload.module';
     PaymentsModule,
     AdminModule,
     UploadModule,
+    RegistrationsModule,
+    PaymentProofsModule,
   ],
 })
 export class AppModule {}

@@ -49,6 +49,20 @@ enum OtpType {
   phone_verify
 }
 
+enum RegistrationStatus {
+  pending_payment
+  proof_submitted
+  verified
+  rejected
+  cancelled
+}
+
+enum ProofStatus {
+  pending
+  approved
+  rejected
+}
+
 model User {
   id           String   @id @default(uuid())
   email        String   @unique
@@ -68,14 +82,18 @@ model User {
   createdAt    DateTime @default(now()) @map("created_at")
   updatedAt    DateTime @updatedAt @map("updated_at")
 
-  reservations      Reservation[]
-  orders            Order[]
-  tickets           Ticket[]
-  otpCodes          OtpCode[]
-  fraudFlags        FraudFlag[]
-  events            Event[]   @relation("CreatedBy")
-  checkIns          Ticket[]  @relation("CheckedInBy")
-  confirmedOrders   Order[]   @relation("ConfirmedByAdmin")
+  reservations          Reservation[]
+  orders                Order[]
+  tickets               Ticket[]
+  otpCodes              OtpCode[]
+  fraudFlags            FraudFlag[]
+  events                Event[]         @relation("CreatedBy")
+  checkIns              Ticket[]        @relation("CheckedInBy")
+  confirmedOrders       Order[]         @relation("ConfirmedByAdmin")
+  registrations         Registration[]
+  verifiedRegistrations Registration[]  @relation("VerifiedBy")
+  reviewedProofs        PaymentProof[]  @relation("ReviewedBy")
+  auditLogs             AuditLog[]      @relation("AuditPerformedBy")
 
   @@map("users")
 }
@@ -98,16 +116,24 @@ model Event {
   agenda       Json?       // Array of { time: string, title: string, description?: string }
   sponsors     Json?       // Array of { name: string, logoUrl?: string, tier?: string }
   faqs         Json?       // Array of { question: string, answer: string }
-  platformFee  Decimal     @default(50) @db.Decimal(10, 2) @map("platform_fee")
-  createdById  String      @map("created_by_id")
-  createdAt    DateTime    @default(now()) @map("created_at")
-  updatedAt    DateTime    @updatedAt @map("updated_at")
+  platformFee         Decimal     @default(50) @db.Decimal(10, 2) @map("platform_fee")
+  // Manual payment configuration
+  allowManualPayment  Boolean     @default(true) @map("allow_manual_payment")
+  bankName            String?     @map("bank_name")
+  bankAccountNumber   String?     @map("bank_account_number")
+  bankAccountName     String?     @map("bank_account_name")
+  gcashNumber         String?     @map("gcash_number")
+  createdById         String      @map("created_by_id")
+  createdAt           DateTime    @default(now()) @map("created_at")
+  updatedAt           DateTime    @updatedAt @map("updated_at")
 
-  createdBy   User         @relation("CreatedBy", fields: [createdById], references: [id])
-  tiers       TicketTier[]
-  reservations Reservation[]
-  orders      Order[]
-  tickets     Ticket[]
+  createdBy     User           @relation("CreatedBy", fields: [createdById], references: [id])
+  tiers         TicketTier[]
+  reservations  Reservation[]
+  orders        Order[]
+  tickets       Ticket[]
+  registrations Registration[]
+  eventViews    EventView[]
 
   @@index([status, startsAt])
   @@index([slug])
@@ -273,4 +299,113 @@ model FraudFlag {
   @@index([userId])
   @@index([orderId])
   @@map("fraud_flags")
+}
+
+// ── Manual-payment registration flow ─────────────────────────────────────────
+
+model Registration {
+  id              String             @id @default(uuid())
+  referenceNumber String             @unique @map("reference_number")
+  userId          String             @map("user_id")
+  eventId         String             @map("event_id")
+  status          RegistrationStatus @default(pending_payment)
+  attendeeCount   Int                @map("attendee_count")
+  subtotal        Decimal            @db.Decimal(10, 2)
+  fees            Decimal            @db.Decimal(10, 2)
+  total           Decimal            @db.Decimal(10, 2)
+  currency        String             @default("PHP")
+  paymentMethod   String?            @map("payment_method")
+  notes           String?
+  rejectionReason String?            @map("rejection_reason")
+  verifiedById    String?            @map("verified_by_id")
+  verifiedAt      DateTime?          @map("verified_at")
+  createdAt       DateTime           @default(now()) @map("created_at")
+  updatedAt       DateTime           @updatedAt @map("updated_at")
+
+  user       User           @relation(fields: [userId], references: [id])
+  event      Event          @relation(fields: [eventId], references: [id])
+  attendees  Attendee[]
+  proofs     PaymentProof[]
+  verifiedBy User?          @relation("VerifiedBy", fields: [verifiedById], references: [id])
+  auditLogs  AuditLog[]
+
+  @@index([userId, status])
+  @@index([eventId, status])
+  @@index([referenceNumber])
+  @@map("registrations")
+}
+
+model Attendee {
+  id             String    @id @default(uuid())
+  registrationId String    @map("registration_id")
+  firstName      String    @map("first_name")
+  lastName       String    @map("last_name")
+  email          String
+  phone          String?
+  company        String?
+  jobTitle       String?   @map("job_title")
+  isLead         Boolean   @default(false) @map("is_lead")
+  qrToken        String?   @unique @map("qr_token")
+  checkedInAt    DateTime? @map("checked_in_at")
+  createdAt      DateTime  @default(now()) @map("created_at")
+
+  registration Registration @relation(fields: [registrationId], references: [id], onDelete: Cascade)
+
+  @@index([registrationId])
+  @@index([email])
+  @@map("attendees")
+}
+
+model PaymentProof {
+  id                 String      @id @default(uuid())
+  registrationId     String      @map("registration_id")
+  imageUrl           String      @map("image_url")
+  cloudinaryPublicId String      @map("cloudinary_public_id")
+  status             ProofStatus @default(pending)
+  reviewedById       String?     @map("reviewed_by_id")
+  reviewedAt         DateTime?   @map("reviewed_at")
+  rejectionReason    String?     @map("rejection_reason")
+  createdAt          DateTime    @default(now()) @map("created_at")
+
+  registration Registration @relation(fields: [registrationId], references: [id], onDelete: Cascade)
+  reviewedBy   User?         @relation("ReviewedBy", fields: [reviewedById], references: [id])
+
+  @@index([registrationId])
+  @@index([status])
+  @@map("payment_proofs")
+}
+
+model AuditLog {
+  id            String   @id @default(uuid())
+  action        String
+  entityType    String   @map("entity_type")
+  entityId      String   @map("entity_id")
+  registrationId String? @map("registration_id")
+  performedById  String? @map("performed_by_id")
+  metadata      Json?
+  ipAddress     String?  @map("ip_address")
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  registration Registration? @relation(fields: [registrationId], references: [id])
+  performedBy  User?          @relation("AuditPerformedBy", fields: [performedById], references: [id])
+
+  @@index([entityType, entityId])
+  @@index([registrationId])
+  @@index([performedById])
+  @@index([createdAt])
+  @@map("audit_logs")
+}
+
+model EventView {
+  id        String   @id @default(uuid())
+  eventId   String   @map("event_id")
+  sessionId String?  @map("session_id")
+  referrer  String?
+  createdAt DateTime @default(now()) @map("created_at")
+
+  event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@index([eventId])
+  @@index([createdAt])
+  @@map("event_views")
 }

@@ -13,9 +13,9 @@ import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcryptjs';
 import { randomInt } from 'crypto';
 import { v4 as uuidv4 } from 'uuid';
-import { Resend } from 'resend';
 import { PrismaService } from '../prisma/prisma.service';
 import { RedisService } from '../redis/redis.service';
+import { EmailService } from '../email/email.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto, VerifyOtpDto } from './dto/auth.dto';
 import { JwtPayload } from '@axon-tickets/types';
@@ -30,16 +30,14 @@ const OTP_ATTEMPT_TTL = OTP_TTL_SECONDS + 60; // slightly longer than OTP TTL
 @Injectable()
 export class AuthService {
   private readonly logger = new Logger(AuthService.name);
-  private readonly resend: Resend;
 
   constructor(
     private readonly prisma: PrismaService,
     private readonly redis: RedisService,
     private readonly jwt: JwtService,
     private readonly config: ConfigService,
-  ) {
-    this.resend = new Resend(this.config.get<string>('resend.apiKey'));
-  }
+    private readonly emailService: EmailService,
+  ) {}
 
   async register(dto: RegisterDto, ip: string): Promise<{ userId: string; message: string }> {
     await this.verifyCaptcha(dto.captchaToken, ip);
@@ -300,26 +298,7 @@ export class AuthService {
       data: { userId, codeHash, type, expiresAt },
     });
 
-    const fromName = this.config.get<string>('resend.fromName') ?? 'Axon Tickets';
-    const fromEmail = this.config.get<string>('resend.fromEmail') ?? '';
-
-    const { error } = await this.resend.emails.send({
-      from: `${fromName} <${fromEmail}>`,
-      to: email,
-      subject: 'Your Axon Tickets verification code',
-      html: `
-        <div style="font-family:sans-serif;max-width:400px;margin:0 auto">
-          <h2>Verify your email</h2>
-          <p>Your verification code is:</p>
-          <p style="font-size:36px;font-weight:bold;letter-spacing:8px;color:#7c3aed">${code}</p>
-          <p>This code expires in 5 minutes. Do not share it with anyone.</p>
-        </div>
-      `,
-    });
-
-    if (error) {
-      this.logger.warn({ msg: 'Failed to send OTP email', userId, error: error.message });
-    }
+    await this.emailService.sendOtpEmail(email, code);
   }
 
   private generateOtpCode(): string {
