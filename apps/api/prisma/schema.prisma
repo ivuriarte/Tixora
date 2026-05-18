@@ -161,6 +161,7 @@ model TicketTier {
   reservations Reservation[]
   orderItems   OrderItem[]
   tickets      Ticket[]
+  registrations Registration[]
 
   @@index([eventId])
   @@map("ticket_tiers")
@@ -308,6 +309,9 @@ model Registration {
   referenceNumber String             @unique @map("reference_number")
   userId          String             @map("user_id")
   eventId         String             @map("event_id")
+  tierId          String?            @map("tier_id")
+  tierName        String?            @map("tier_name")
+  unitPrice       Decimal?           @db.Decimal(10, 2) @map("unit_price")
   status          RegistrationStatus @default(pending_payment)
   attendeeCount   Int                @map("attendee_count")
   subtotal        Decimal            @db.Decimal(10, 2)
@@ -324,6 +328,7 @@ model Registration {
 
   user       User           @relation(fields: [userId], references: [id])
   event      Event          @relation(fields: [eventId], references: [id])
+  tier       TicketTier?    @relation(fields: [tierId], references: [id])
   attendees  Attendee[]
   proofs     PaymentProof[]
   verifiedBy User?          @relation("VerifiedBy", fields: [verifiedById], references: [id])

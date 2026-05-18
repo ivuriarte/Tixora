@@ -21,13 +21,17 @@ import { AdminService } from './admin.service';
 import { CreateEventDto, UpdateEventDto } from '../events/dto/event.dto';
 import { CreateTierDto, UpdateTierDto } from '../ticket-tiers/dto/tier.dto';
 import { CheckinDto } from './dto/admin.dto';
+import { RegistrationsService } from '../registrations/registrations.service';
 
 @ApiTags('admin')
 @Controller('admin')
 @UseGuards(JwtAuthGuard, AdminGuard)
 @ApiBearerAuth()
 export class AdminController {
-  constructor(private readonly adminService: AdminService) {}
+  constructor(
+    private readonly adminService: AdminService,
+    private readonly registrationsService: RegistrationsService,
+  ) {}
 
   // ── Events ───────────────────────────────────────────────────────────────
 
@@ -199,5 +203,29 @@ export class AdminController {
   @ApiOperation({ summary: 'Mark fraud flag as resolved' })
   resolveFraudFlag(@Param('id') id: string) {
     return this.adminService.resolveFraudFlag(id);
+  }
+
+  // ── Registrations ─────────────────────────────────────────────────────────
+
+  @Get('events/:eventId/registrations')
+  @ApiOperation({ summary: 'List registrations for an event' })
+  listRegistrations(
+    @Param('eventId') eventId: string,
+    @Query('status') status?: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ) {
+    return this.registrationsService.findByEvent(
+      eventId,
+      status,
+      page ? parseInt(page, 10) : 1,
+      limit ? Math.min(parseInt(limit, 10), 100) : 50,
+    );
+  }
+
+  @Get('registrations/:id')
+  @ApiOperation({ summary: 'Get registration detail (admin)' })
+  getRegistration(@Param('id') id: string) {
+    return this.registrationsService.findByIdAdmin(id);
   }
 }

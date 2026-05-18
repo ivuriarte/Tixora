@@ -127,6 +127,11 @@ export class EventsService {
       sponsors: event.sponsors ?? null,
       agenda: event.agenda ?? null,
       faqs: event.faqs ?? null,
+      allowManualPayment: event.allowManualPayment,
+      bankName: event.bankName ?? null,
+      bankAccountNumber: event.bankAccountNumber ?? null,
+      bankAccountName: event.bankAccountName ?? null,
+      gcashNumber: event.gcashNumber ?? null,
       tiers: tiersWithAvailable,
       createdAt: event.createdAt.toISOString(),
     };

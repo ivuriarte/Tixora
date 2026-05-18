@@ -1,9 +1,70 @@
-import { Controller } from '@nestjs/common';
+import {
+  Controller,
+  Post,
+  Get,
+  Patch,
+  Body,
+  Param,
+  Query,
+  Req,
+  UseGuards,
+  HttpCode,
+  HttpStatus,
+} from '@nestjs/common';
+import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
+import { Request } from 'express';
+import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
+import { CurrentUser } from '../common/decorators/current-user.decorator';
+import { JwtPayload } from '@axon-tickets/types';
 import { RegistrationsService } from './registrations.service';
+import { CreateRegistrationDto } from './dto/create-registration.dto';
 
+@ApiTags('registrations')
 @Controller('registrations')
+@UseGuards(JwtAuthGuard)
+@ApiBearerAuth()
 export class RegistrationsController {
   constructor(private readonly registrationsService: RegistrationsService) {}
 
-  // Phase 2: POST /registrations, GET /registrations/:id, DELETE /registrations/:id
+  @Post()
+  @ApiOperation({ summary: 'Create a new registration (manual-payment flow)' })
+  create(
+    @Body() dto: CreateRegistrationDto,
+    @CurrentUser() user: JwtPayload,
+    @Req() req: Request,
+  ) {
+    const ip =
+      (req.headers['x-forwarded-for'] as string | undefined)?.split(',')[0].trim() ??
+      req.ip ??
+      '';
+    return this.registrationsService.create(dto, user.sub, ip);
+  }
+
+  @Get('my')
+  @ApiOperation({ summary: 'List my registrations' })
+  findMine(
+    @CurrentUser() user: JwtPayload,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ) {
+    return this.registrationsService.findMine(
+      user.sub,
+      page ? parseInt(page, 10) : 1,
+      limit ? Math.min(parseInt(limit, 10), 50) : 20,
+    );
+  }
+
+  @Get(':id')
+  @ApiOperation({ summary: 'Get registration detail' })
+  findOne(@Param('id') id: string, @CurrentUser() user: JwtPayload) {
+    return this.registrationsService.findById(id, user.sub);
+  }
+
+  @Patch(':id/cancel')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Cancel a pending registration' })
+  cancel(@Param('id') id: string, @CurrentUser() user: JwtPayload) {
+    return this.registrationsService.cancel(id, user.sub);
+  }
 }
+

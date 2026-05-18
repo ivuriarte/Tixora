@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation';
 import Image from 'next/image';
 import { formatManila } from '@axon-tickets/utils';
 import TierSelector from '@/components/TierSelector';
+import RegistrationPanel from '@/components/RegistrationPanel';
 
 interface Tier {
   id: string;
@@ -37,6 +38,12 @@ interface Event {
   agenda?: AgendaItem[] | null;
   sponsors?: Sponsor[] | null;
   faqs?: Faq[] | null;
+  // Payment
+  allowManualPayment?: boolean;
+  bankName?: string | null;
+  bankAccountNumber?: string | null;
+  bankAccountName?: string | null;
+  gcashNumber?: string | null;
 }
 
 async function getEvent(slug: string): Promise<Event | null> {
@@ -126,8 +133,8 @@ export default async function EventPage({ params }: { params: { slug: string } }
                 <h2 className="text-lg font-semibold text-gray-900 mb-4">Program / Agenda</h2>
                 <div className="space-y-3">
                   {event.agenda.map((item, i) => (
-                    <div key={i} className="flex gap-4 p-4 bg-purple-50 rounded-xl">
-                      <div className="text-purple-700 font-bold text-sm whitespace-nowrap min-w-[80px]">{item.time}</div>
+                    <div key={i} className="flex gap-4 p-4 bg-orange-50 rounded-xl">
+                      <div className="text-primary font-bold text-sm whitespace-nowrap min-w-[80px]">{item.time}</div>
                       <div>
                         <p className="font-semibold text-gray-900">{item.title}</p>
                         {item.description && <p className="text-sm text-gray-500 mt-0.5">{item.description}</p>}
@@ -177,15 +184,25 @@ export default async function EventPage({ params }: { params: { slug: string } }
             )}
           </div>
 
-          {/* Right: Tier selector */}
+          {/* Right: Tier selector / Registration panel */}
           <div className="mt-8 lg:mt-0">
-            <TierSelector
-              eventId={event.id}
-              eventSlug={event.slug}
-              maxPerUser={event.maxPerUser}
-              tiers={event.tiers}
-              disabled={isSoldOut || isCancelled}
-            />
+            {event.allowManualPayment ? (
+              <RegistrationPanel
+                eventSlug={event.slug}
+                tiers={event.tiers}
+                bankName={event.bankName ?? null}
+                gcashNumber={event.gcashNumber ?? null}
+                disabled={isSoldOut || isCancelled}
+              />
+            ) : (
+              <TierSelector
+                eventId={event.id}
+                eventSlug={event.slug}
+                maxPerUser={event.maxPerUser}
+                tiers={event.tiers}
+                disabled={isSoldOut || isCancelled}
+              />
+            )}
           </div>
         </div>
       </main>

@@ -40,6 +40,9 @@ export default function Navbar() {
               <Link href="/account/tickets" className="text-sm font-medium text-gray-700 hover:text-primary">
                 My Tickets
               </Link>
+              <Link href="/registrations" className="text-sm font-medium text-gray-700 hover:text-primary">
+                My Registrations
+              </Link>
               {user?.isAdmin && (
                 <Link href="/admin" className="text-sm font-medium text-gray-700 hover:text-primary">
                   Admin
