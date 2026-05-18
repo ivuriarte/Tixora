@@ -1,0 +1,553 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PRD — Axon Tickets MVP</title>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif; font-size: 11pt; color: #1a1a1a; max-width: 960px; margin: 0 auto; padding: 40px; line-height: 1.6; }
+    .header-block { background: linear-gradient(135deg, #1A3A5C 0%, #2d5a8a 100%); color: white; padding: 40px 48px; margin: -40px -40px 40px; }
+    .header-block h1 { color: white; font-size: 26pt; margin: 0 0 8px; border-bottom: 3px solid #EA6C00; padding-bottom: 16px; }
+    .header-block .doc-meta { color: #a8c4e0; font-size: 10pt; margin-top: 16px; }
+    .header-block .doc-meta span { margin-right: 24px; }
+    h2 { font-size: 15pt; color: #1A3A5C; margin-top: 40px; border-left: 5px solid #EA6C00; padding-left: 14px; }
+    h3 { font-size: 12pt; color: #EA6C00; margin-top: 28px; margin-bottom: 8px; }
+    h4 { font-size: 11pt; color: #1A3A5C; font-weight: bold; margin-top: 16px; }
+    table { width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 10pt; }
+    th { background: #1A3A5C; color: white; padding: 10px 12px; text-align: left; font-weight: 600; }
+    td { padding: 8px 12px; border: 1px solid #dde3ec; vertical-align: top; }
+    tr:nth-child(even) td { background: #f7f9fc; }
+    ul, ol { margin: 8px 0 8px 24px; }
+    li { margin: 5px 0; }
+    .meta-box { background: #f0f4f8; border: 1px solid #cbd5e1; border-radius: 6px; padding: 16px 20px; margin: 20px 0; font-size: 10pt; }
+    .meta-box table { margin: 0; }
+    .meta-box td, .meta-box th { border: none; padding: 4px 8px; }
+    .info { background: #eff6ff; border-left: 4px solid #1A3A5C; padding: 12px 16px; margin: 16px 0; font-size: 10pt; border-radius: 0 4px 4px 0; }
+    .warning { background: #fff7ed; border-left: 4px solid #EA6C00; padding: 12px 16px; margin: 16px 0; font-size: 10pt; border-radius: 0 4px 4px 0; }
+    .toc { background: #f7f9fc; border: 1px solid #dde3ec; border-radius: 8px; padding: 24px 28px; margin: 32px 0; }
+    .toc h3 { margin-top: 0; color: #1A3A5C; font-size: 12pt; }
+    .toc ol { margin: 8px 0 0 0; column-count: 2; column-gap: 40px; }
+    .toc a { color: #1A3A5C; text-decoration: none; font-size: 10pt; }
+    .badge { display: inline-block; padding: 2px 10px; border-radius: 12px; font-size: 9pt; font-weight: 700; }
+    .badge-p0 { background: #dc2626; color: white; }
+    .badge-p1 { background: #EA6C00; color: white; }
+    .badge-p2 { background: #1A3A5C; color: white; }
+    .badge-p3 { background: #64748b; color: white; }
+    .persona-card { border: 1px solid #dde3ec; border-radius: 8px; padding: 20px 24px; margin: 16px 0; background: #fdfdfd; }
+    .persona-card h4 { margin: 0 0 8px; color: #1A3A5C; font-size: 12pt; }
+    .persona-card .tag { background: #EA6C00; color: white; font-size: 9pt; padding: 2px 10px; border-radius: 10px; margin-right: 8px; font-weight: 600; }
+    hr { border: none; border-top: 1px solid #dde3ec; margin: 32px 0; }
+    .status-badge { display: inline-block; padding: 3px 10px; border-radius: 12px; font-size: 9pt; font-weight: 600; }
+    .draft { background: #e2e8f0; color: #475569; }
+    .submitted { background: #fef3c7; color: #92400e; }
+    .pending { background: #dbeafe; color: #1e40af; }
+    .approved { background: #dcfce7; color: #166534; }
+    .rejected { background: #fee2e2; color: #991b1b; }
+  </style>
+</head>
+<body>
+
+<div class="header-block">
+  <h1>Axon Tickets — Product Requirements Document</h1>
+  <p style="color:#e2ecf7; font-size:12pt; margin: 8px 0 0;">MVP: Event Registration &amp; Attendance Platform</p>
+  <div class="doc-meta">
+    <span><strong>Document Version:</strong> 1.0</span>
+    <span><strong>Status:</strong> Approved for Development</span>
+    <span><strong>Date:</strong> May 19, 2026</span>
+    <span><strong>Owner:</strong> Product / CTO</span>
+  </div>
+</div>
+
+<div class="meta-box">
+  <table>
+    <tr><td style="width:140px; font-weight:600;">Product Name</td><td>Axon Tickets</td><td style="width:140px; font-weight:600;">Platform Type</td><td>Responsive Web Application</td></tr>
+    <tr><td style="font-weight:600;">MVP Version</td><td>1.0</td><td style="font-weight:600;">Target Launch</td><td>TBD (post Phase 8)</td></tr>
+    <tr><td style="font-weight:600;">Initial Capacity</td><td>300 users / event (buffer: 450)</td><td style="font-weight:600;">Tech Stack</td><td>Next.js 14 · NestJS · PostgreSQL · Vercel</td></tr>
+    <tr><td style="font-weight:600;">Primary Market</td><td>Philippine events (fun runs, talks, conferences, corporate)</td><td style="font-weight:600;">Payment Method</td><td>Manual (GCash QR / Bank QR) — MVP</td></tr>
+  </table>
+</div>
+
+<div class="toc">
+  <h3>Table of Contents</h3>
+  <ol>
+    <li><a href="#executive-summary">Executive Summary</a></li>
+    <li><a href="#problem">Problem Statement</a></li>
+    <li><a href="#vision">Product Vision &amp; Goals</a></li>
+    <li><a href="#personas">User Personas</a></li>
+    <li><a href="#scope">MVP Scope &amp; Out of Scope</a></li>
+    <li><a href="#auth">Authentication Model</a></li>
+    <li><a href="#registration">Registration Requirements</a></li>
+    <li><a href="#payment">Payment Requirements</a></li>
+    <li><a href="#organizer">Organizer Requirements</a></li>
+    <li><a href="#qr">QR &amp; Attendance Requirements</a></li>
+    <li><a href="#analytics">Analytics Requirements</a></li>
+    <li><a href="#ux">UX &amp; Design Requirements</a></li>
+    <li><a href="#nfr">Non-Functional Requirements</a></li>
+    <li><a href="#assumptions">Assumptions &amp; Constraints</a></li>
+    <li><a href="#glossary">Glossary</a></li>
+  </ol>
+</div>
+
+<h2 id="executive-summary">1. Executive Summary</h2>
+
+<p>Axon Tickets is a <strong>responsive web-based event registration and attendance platform</strong> designed for the Philippine market. The MVP focuses on operational excellence: smooth mobile-browser registration, manual payment verification via QR/bank transfer, individual QR code delivery per attendee, and event-day check-in. The platform serves multiple concurrent events and is designed to scale from small fun runs (100 participants) to professional conferences (500+ participants).</p>
+
+<p>The long-term vision is an event engagement and attendee intelligence platform with behavioral analytics, targeted marketing, and organizer intelligence. The MVP deliberately focuses on operational reliability first — the foundation must be trustworthy before marketing is layered on top.</p>
+
+<div class="info"><strong>Platform Scope Clarification:</strong> Axon Tickets is a responsive web application only. There is no native iOS or Android application in scope. Mobile experience is delivered via the same web application using responsive layouts, mobile-first CSS, and browser-native camera access for QR scanning.</div>
+
+<h2 id="problem">2. Problem Statement</h2>
+
+<h3>The Organizer's Problem</h3>
+<ul>
+  <li>Event organizers in the Philippines collect payments manually (GCash, bank transfer) but have no structured system to verify and track these payments.</li>
+  <li>Proof of payment arrives via chat (Messenger, Viber, email) — unstructured, hard to track, easy to lose.</li>
+  <li>Generating and distributing QR codes or tickets after payment verification is done manually and is highly error-prone.</li>
+  <li>Event-day check-in relies on printed lists, screenshots, or manual spreadsheet lookups — slow and frustrating.</li>
+  <li>Group/corporate registrations (where one person pays for multiple) require tracking individual attendees — current tools don't support this.</li>
+</ul>
+
+<h3>The Attendee's Problem</h3>
+<ul>
+  <li>No clear status visibility after registering — "Did they receive my payment? Am I on the list?"</li>
+  <li>Registration anxiety: attendees are unsure if their name is confirmed, especially for group entries.</li>
+  <li>QR code delivery is inconsistent — sometimes via chat, sometimes email, often late or missing.</li>
+  <li>Registration flows for Philippine events are not optimized for mobile browsers — desktop-first forms that are hard to use on a phone.</li>
+</ul>
+
+<h2 id="vision">3. Product Vision &amp; Goals</h2>
+
+<h3>MVP Vision Statement</h3>
+<p><em>"A responsive web-based event registration and attendance platform designed for smooth mobile browser registration, manual payment verification, QR-based attendance, and organizer operational efficiency."</em></p>
+
+<h3>Future Vision Statement</h3>
+<p><em>"An event engagement and attendee intelligence platform with behavioral data, targeted marketing, smart suggestions, curated email marketing, and organizer intelligence."</em></p>
+
+<h3>MVP Goals</h3>
+<table>
+  <thead><tr><th>Goal</th><th>Success Metric</th><th>Target</th></tr></thead>
+  <tbody>
+    <tr><td>Smooth mobile registration</td><td>Registration completion rate (form start → submission)</td><td>&gt; 85%</td></tr>
+    <tr><td>Organizer efficiency</td><td>Avg. time to verify a payment proof</td><td>&lt; 2 minutes</td></tr>
+    <tr><td>QR delivery reliability</td><td>% of approvals where QR email delivered within 5 minutes</td><td>&gt; 99%</td></tr>
+    <tr><td>Event-day speed</td><td>Avg. check-in time per attendee</td><td>&lt; 10 seconds</td></tr>
+    <tr><td>Attendee reassurance</td><td>% of attendees who return to check status after registration</td><td>Tracked (no target yet)</td></tr>
+    <tr><td>Platform reliability</td><td>Registration data loss incidents</td><td>0</td></tr>
+  </tbody>
+</table>
+
+<h2 id="personas">4. User Personas</h2>
+
+<div class="persona-card">
+  <h4><span class="tag">ATTENDEE</span> Maria — The Mobile Registrant</h4>
+  <p><strong>Background:</strong> 28-year-old professional, uses smartphone (Android) daily. Registers for fun runs, talks, and corporate events. Tech-comfortable but not technical.</p>
+  <p><strong>Behavior:</strong> Discovers events via social media or organizer invite. Registers on her phone during lunch break or commute. Pays via GCash immediately. Forgets to check email regularly.</p>
+  <p><strong>Needs:</strong> Fast mobile form, clear payment instructions, confidence that her name is on the list, QR code in her inbox before event day.</p>
+  <p><strong>Frustrations:</strong> Long forms on mobile, unclear payment status, not knowing if payment was received, forgetting where she saved the QR code.</p>
+  <p><strong>Goals:</strong> Register quickly, pay easily, arrive on event day without stress.</p>
+</div>
+
+<div class="persona-card">
+  <h4><span class="tag">ATTENDEE</span> Carlo — The Group Coordinator</h4>
+  <p><strong>Background:</strong> HR officer at a mid-size company. Coordinates team attendance for corporate events, fun runs, and talks. Registers 5–10 people at once.</p>
+  <p><strong>Behavior:</strong> Collects colleague info (names, emails, contact numbers) before registering. Pays one amount for the whole group. Expects each colleague to receive their own QR code.</p>
+  <p><strong>Needs:</strong> Group registration form, single payment, individual QR delivery to each email, confirmation that all names are registered.</p>
+  <p><strong>Frustrations:</strong> Having to register each person separately, unclear bundle pricing, no confirmation per attendee.</p>
+</div>
+
+<div class="persona-card">
+  <h4><span class="tag">ORGANIZER / ADMIN</span> Ana — The Event Organizer</h4>
+  <p><strong>Background:</strong> Event coordinator, manages 2–5 events per year. Uses desktop/laptop for planning, phone for event-day operations.</p>
+  <p><strong>Behavior:</strong> Creates events weeks in advance, reviews payment proofs daily during registration period, handles event-day check-in personally or delegates to a colleague.</p>
+  <p><strong>Needs:</strong> Clear pending verification queue, fast approve/reject with one click, bulk-friendly workflow, reliable QR email delivery, event-day QR scanner on mobile browser.</p>
+  <p><strong>Frustrations:</strong> Hunting for payment proof screenshots in chat, manually sending QR codes, spreadsheet-based attendee tracking, duplicate entries.</p>
+  <p><strong>Goals:</strong> Manage registrations with minimal repetitive work, have confidence in attendance data, deliver a professional experience to attendees.</p>
+</div>
+
+<h2 id="scope">5. MVP Scope &amp; Out of Scope</h2>
+
+<h3>In Scope — MVP</h3>
+<table>
+  <thead><tr><th>Area</th><th>MVP Scope</th></tr></thead>
+  <tbody>
+    <tr><td>Event management</td><td>Create, update, publish events. Multiple concurrent events. Conference-specific fields (speaker, agenda, FAQs, sponsors).</td></tr>
+    <tr><td>Ticket tier configuration</td><td>Early Bird, Solo, Group bundle tiers with date windows, pricing, and capacity per tier.</td></tr>
+    <tr><td>Attendee registration</td><td>Solo and group registration (max 10 per bundle, configurable per event). Required fields: first name, last name, email, contact number. Optional: gender, age, country, company, affiliation, city.</td></tr>
+    <tr><td>Authentication</td><td>Email + registration reference number (airline-style access). No mandatory account creation. Optional profile completion post-registration.</td></tr>
+    <tr><td>Manual payment</td><td>GCash QR or Bank-generated QR. Organizer uploads payment QR image per event. Attendee pays manually, uploads proof of payment (JPEG/PNG/PDF, max 5MB).</td></tr>
+    <tr><td>Organizer verification</td><td>Pending verification queue. Approve (triggers QR emails) or reject (with reason). Resend QR. Audit trail on all actions.</td></tr>
+    <tr><td>QR &amp; email delivery</td><td>1 QR per attendee. Each attendee receives QR at their own email. Styled HTML email with event details.</td></tr>
+    <tr><td>Attendance check-in</td><td>Browser-based camera QR scanner (mobile-first). Manual text fallback. Attendee name lookup. Duplicate scan prevention.</td></tr>
+    <tr><td>Analytics (basic)</td><td>Registrations by status and tier, capacity progress, revenue estimate, checked-in count. Admin-only.</td></tr>
+    <tr><td>Audit logging</td><td>Every organizer action (approve, reject, resend, event update) logged with admin ID and timestamp. MVP included.</td></tr>
+    <tr><td>Future-ready data foundation</td><td>Event view tracking, registration funnel logging (no UI — server-side only).</td></tr>
+  </tbody>
+</table>
+
+<h3>Out of Scope — Explicitly Excluded from MVP</h3>
+<table>
+  <thead><tr><th>Feature</th><th>Reason</th><th>Future Phase</th></tr></thead>
+  <tbody>
+    <tr><td>Online payment (GCash/Maya/card via PayMongo)</td><td>MVP uses manual proof upload. PayMongo code retained but hidden.</td><td>Post-MVP</td></tr>
+    <tr><td>AI/image detection for proof validation</td><td>R&amp;D only. Adds complexity without proven ROI at MVP scale.</td><td>Future R&amp;D</td></tr>
+    <tr><td>Ads and newsletter module</td><td>Future monetization feature.</td><td>Future</td></tr>
+    <tr><td>Behavioral marketing / targeted suggestions</td><td>Future engagement layer. Data foundation only in MVP.</td><td>Future</td></tr>
+    <tr><td>Native iOS / Android app</td><td>Not in scope. Responsive mobile web only.</td><td>Never (reassess)</td></tr>
+    <tr><td>Stripe / Clerk authentication</td><td>Not needed for MVP scale or payment model.</td><td>Future (if needed)</td></tr>
+    <tr><td>Multiple admin roles / team workspaces</td><td>Single admin account for MVP. Expandable architecture.</td><td>Future</td></tr>
+    <tr><td>Multi-language support</td><td>English only for MVP.</td><td>Future</td></tr>
+    <tr><td>Public attendee lookup ("Is my name on the list?")</td><td>Confirmation page + email provides sufficient reassurance. Full public lookup deferred.</td><td>Future</td></tr>
+  </tbody>
+</table>
+
+<h2 id="auth">6. Authentication Model</h2>
+
+<div class="info">
+  <strong>Design Decision:</strong> Axon Tickets follows the airline model (PAL / Cebu Pacific) for attendee access — no mandatory account creation. Attendees access their registration using their <strong>email address + registration reference number</strong>. This eliminates friction for mobile registrants and is appropriate for a 300–450 person event.
+</div>
+
+<h3>Attendee Authentication Flow</h3>
+<ol>
+  <li>Attendee submits registration → system creates record → sends <strong>confirmation email</strong> containing the registration reference number (e.g., AXN-20260619-0042).</li>
+  <li>To check registration status: attendee visits the platform → enters email + reference number → gains access to their registration page.</li>
+  <li>Session persists for 24 hours (inactivity-based timeout).</li>
+  <li>After accessing their registration, attendee may optionally <strong>complete their profile</strong> (password setup, additional details) to enable standard email/password login in future.</li>
+</ol>
+
+<h3>Organizer Authentication Flow</h3>
+<ol>
+  <li>Organizer uses standard email + password login.</li>
+  <li>JWT access token (15-min TTL) + refresh token (7-day TTL).</li>
+  <li>All admin routes protected by <code>JwtAuthGuard</code> + <code>AdminGuard</code>.</li>
+  <li>Brute-force protection via Redis (max 5 failed login attempts before lockout).</li>
+</ol>
+
+<h3>Profile Completion (Post-Registration)</h3>
+<ul>
+  <li>After accessing via email + reference, attendees see an optional "Complete your profile" prompt.</li>
+  <li>Optional fields: password (to enable future login), phone, company, affiliation, city, gender, age, country.</li>
+  <li>Not required to access QR code or check registration status.</li>
+</ul>
+
+<h2 id="registration">7. Registration Requirements</h2>
+
+<h3>Solo Registration</h3>
+<table>
+  <thead><tr><th>Field</th><th>Type</th><th>Required</th><th>Notes</th></tr></thead>
+  <tbody>
+    <tr><td>First Name</td><td>Text</td><td>Yes</td><td>Max 100 characters</td></tr>
+    <tr><td>Last Name</td><td>Text</td><td>Yes</td><td>Max 100 characters</td></tr>
+    <tr><td>Email</td><td>Email</td><td>Yes</td><td>QR and confirmation sent here. Normalized to lowercase.</td></tr>
+    <tr><td>Contact Number</td><td>Phone</td><td>Yes</td><td>Philippine format preferred (+639XXXXXXXXX)</td></tr>
+    <tr><td>Gender</td><td>Select</td><td>No</td><td>Male / Female / Prefer not to say</td></tr>
+    <tr><td>Age</td><td>Number</td><td>No</td><td>Integer, 1–120</td></tr>
+    <tr><td>Country</td><td>Select</td><td>No</td><td>Default: Philippines</td></tr>
+    <tr><td>Company / Organization</td><td>Text</td><td>No</td><td>Max 200 characters</td></tr>
+    <tr><td>Affiliation</td><td>Text</td><td>No</td><td>Max 200 characters</td></tr>
+    <tr><td>City</td><td>Text</td><td>No</td><td>Max 100 characters</td></tr>
+  </tbody>
+</table>
+
+<h3>Group Registration</h3>
+<ul>
+  <li>Lead registrant fills in their own details first (same fields as solo).</li>
+  <li>"Are you registering for others?" toggle reveals additional attendee rows.</li>
+  <li>Each additional attendee row: First Name, Last Name, Email, Contact Number (all required per row).</li>
+  <li>Maximum attendees per bundle: <strong>10 (default)</strong>. Configurable per event by admin (e.g., set to 5 for controlled events).</li>
+  <li>1 QR code generated per attendee upon approval.</li>
+  <li>Each attendee's QR is sent to their individual email address.</li>
+  <li>One payment proof covers the entire bundle.</li>
+  <li>Bundle pricing is set at the tier level (e.g., "Group of 5 — ₱1,500").</li>
+</ul>
+
+<h3>Duplicate Prevention</h3>
+<ul>
+  <li>Per-event, per-email duplicate check: one active registration per email address per event.</li>
+  <li>A registration is considered "active" if its status is not <code>cancelled</code>.</li>
+  <li>Duplicate attempt returns: <em>"This email address is already registered for this event. If this is unexpected, contact the organizer."</em></li>
+  <li>Group registration: each attendee email in the bundle is individually checked for duplicates.</li>
+</ul>
+
+<h3>Registration Reference Number</h3>
+<ul>
+  <li>Format: <code>AXN-YYYYMMDD-XXXX</code> (e.g., <code>AXN-20260619-0042</code>)</li>
+  <li>Auto-generated on registration creation.</li>
+  <li>Globally unique.</li>
+  <li>Included in all emails and on the confirmation page.</li>
+  <li>Used as one of two credentials for attendee access (email + reference).</li>
+</ul>
+
+<h3>Registration Status Lifecycle</h3>
+<table>
+  <thead><tr><th>Status</th><th>Description</th><th>Next States</th></tr></thead>
+  <tbody>
+    <tr><td><span class="status-badge draft">draft</span></td><td>Registration form submitted, no proof uploaded yet.</td><td>submitted, cancelled</td></tr>
+    <tr><td><span class="status-badge submitted">submitted</span></td><td>Proof of payment uploaded by attendee.</td><td>pending_verification, cancelled</td></tr>
+    <tr><td><span class="status-badge pending">pending_verification</span></td><td>Organizer has received the proof, review in progress.</td><td>approved, rejected</td></tr>
+    <tr><td><span class="status-badge approved">approved</span></td><td>Organizer approved. QR codes generated and emailed to all attendees.</td><td>— (terminal)</td></tr>
+    <tr><td><span class="status-badge rejected">rejected</span></td><td>Organizer rejected with reason. Attendee may re-upload proof.</td><td>submitted (on re-upload)</td></tr>
+    <tr><td style="color:#64748b;">cancelled</td><td>Registration cancelled. Triggered manually or by early bird expiry on draft registrations.</td><td>— (terminal)</td></tr>
+  </tbody>
+</table>
+
+<h3>Early Bird Auto-Cancellation</h3>
+<ul>
+  <li>A scheduled job runs daily (or at tier sale end time).</li>
+  <li>Any registration in <code>draft</code> status for an expired tier (past <code>saleEndsAt</code>) is automatically transitioned to <code>cancelled</code>.</li>
+  <li>Cancellation email is sent to the attendee: <em>"Your Early Bird registration has been cancelled as the registration window has closed. Please check if other ticket categories are available."</em></li>
+</ul>
+
+<h2 id="payment">8. Payment Requirements</h2>
+
+<h3>Payment Methods — MVP</h3>
+<ul>
+  <li>GCash QR code (image uploaded by organizer per event)</li>
+  <li>Bank-generated QR code (image uploaded by organizer per event)</li>
+  <li>Organizer may upload one or multiple payment QR images per event.</li>
+  <li>Payment instructions are displayed on the payment screen.</li>
+</ul>
+
+<h3>Organizer Payment Setup (per event)</h3>
+<ul>
+  <li>Admin uploads 1 or more payment QR images when creating/editing an event.</li>
+  <li>Each QR has a label (e.g., "GCash", "BPI Bank Transfer").</li>
+  <li>Optional: text instructions (e.g., account name, account number for manual transfer reference).</li>
+  <li>Attendees see the QR image and scan it in their banking app or GCash to pay.</li>
+</ul>
+
+<h3>Proof of Payment Upload</h3>
+<ul>
+  <li>Accepted file types: <code>image/jpeg</code>, <code>image/png</code>, <code>application/pdf</code></li>
+  <li>Maximum file size: <strong>5MB</strong></li>
+  <li>Validation: MIME type checked server-side against file magic bytes (not just extension)</li>
+  <li>Storage: Private Cloudinary folder — not publicly accessible</li>
+  <li>Access: Organizer accesses via time-limited signed URL (30-minute expiry)</li>
+  <li>Re-upload: Allowed after rejection. Re-upload replaces the previous proof record and transitions status back to <code>submitted</code>.</li>
+</ul>
+
+<h3>Payment Status Communication to Attendee</h3>
+<table>
+  <thead><tr><th>Event</th><th>Channel</th><th>Message</th></tr></thead>
+  <tbody>
+    <tr><td>Registration created</td><td>Email + Confirmation screen</td><td>Reference number, payment instructions link, next steps</td></tr>
+    <tr><td>Proof uploaded</td><td>Screen confirmation</td><td>"Your payment proof has been submitted. We'll notify you once verified."</td></tr>
+    <tr><td>Approved</td><td>Email</td><td>Approval notification + QR code(s) attached</td></tr>
+    <tr><td>Rejected</td><td>Email + Status page</td><td>Rejection reason + instructions to re-upload</td></tr>
+  </tbody>
+</table>
+
+<h2 id="organizer">9. Organizer Requirements</h2>
+
+<h3>Verification Queue</h3>
+<ul>
+  <li>Default view: registrations with status <code>submitted</code> or <code>pending_verification</code>, sorted by submission time (oldest first).</li>
+  <li>Tabs: Pending | Approved | Rejected | All</li>
+  <li>Each row shows: Reference number, attendee name, tier, registration type (solo/group), attendee count, submission time, thumbnail of proof.</li>
+  <li>Click row → opens detail page with full-size proof image and full attendee details.</li>
+</ul>
+
+<h3>Approve Action</h3>
+<ul>
+  <li>One-click approve on queue row or detail page.</li>
+  <li>Confirmation dialog: "Approve this registration and send QR codes to all attendees?"</li>
+  <li>On confirm: status → <code>approved</code>; QR tokens generated (1 per attendee); emails dispatched; audit log written.</li>
+</ul>
+
+<h3>Reject Action</h3>
+<ul>
+  <li>Click Reject → modal with reason selector.</li>
+  <li>Preset reasons: "Incorrect amount", "Blurry / unreadable image", "Wrong payment reference included", "Duplicate payment proof", "Payment appears cancelled / reversed", "Other".</li>
+  <li>If "Other": free-text field (max 300 characters).</li>
+  <li>On confirm: status → <code>rejected</code>; rejection email sent with reason; audit log written.</li>
+</ul>
+
+<h3>Bulk Approve</h3>
+<ul>
+  <li>Multi-select checkbox on queue (max 20 per bulk action).</li>
+  <li>Confirmation dialog lists all selected registrations before proceeding.</li>
+  <li>Each is individually approved (no partial failures — if one fails, it stays pending with error flag).</li>
+</ul>
+
+<h3>Admin Group Size Configuration</h3>
+<ul>
+  <li>When creating or editing an event, admin sets <code>maxGroupSize</code> (default: 10, minimum: 2, maximum: 50).</li>
+  <li>This limit is enforced on the registration form and API.</li>
+</ul>
+
+<h3>Resend QR</h3>
+<ul>
+  <li>Available on approved registration detail page.</li>
+  <li>Resends QR email(s) to all attendees in the registration.</li>
+  <li>Action logged in audit trail.</li>
+</ul>
+
+<h3>Audit Trail</h3>
+<ul>
+  <li>All organizer actions are logged: create event, update event, approve registration, reject registration, resend QR, check-in override, bulk approve.</li>
+  <li>Each log entry: admin user ID, action type, entity type (event/registration/attendee), entity ID, metadata (rejection reason, etc.), timestamp.</li>
+  <li>Audit log is <strong>MVP-included</strong> (not future state).</li>
+  <li>Admin can view audit log on a dedicated page filtered by action type or date range.</li>
+</ul>
+
+<h2 id="qr">10. QR &amp; Attendance Requirements</h2>
+
+<h3>QR Code Generation</h3>
+<ul>
+  <li>One QR code per attendee (per person in the bundle, not per registration).</li>
+  <li>QR payload: opaque random token (UUID v4 or HMAC-signed) — no PII embedded in QR.</li>
+  <li>Tokens are unique and non-sequential.</li>
+  <li>QR image rendered as PNG and embedded in email.</li>
+</ul>
+
+<h3>Email Delivery</h3>
+<ul>
+  <li>Each attendee receives their own individual email with their own QR code.</li>
+  <li>Email contains: attendee name, event title, event date/time, venue, Google Maps link, tier name, QR code image, registration reference.</li>
+  <li>Email is triggered automatically on organizer approval.</li>
+</ul>
+
+<h3>Check-in (Event Day)</h3>
+<ul>
+  <li>Primary: Browser camera QR scanner on <code>/admin/checkin</code> — optimized for mobile browser.</li>
+  <li>Secondary: Manual token paste/type (existing functionality retained).</li>
+  <li>Tertiary fallback: Search attendee by name or email.</li>
+  <li>Check-in result: attendee name, tier, check-in timestamp, success/already-checked-in/invalid state.</li>
+  <li>Duplicate check-in: returns "Already checked in at [time]" — does not re-check-in.</li>
+  <li>Only tickets from <code>approved</code> registrations can be checked in.</li>
+</ul>
+
+<h2 id="analytics">11. Analytics Requirements</h2>
+
+<table>
+  <thead><tr><th>Metric</th><th>Description</th><th>Available To</th></tr></thead>
+  <tbody>
+    <tr><td>Total Registrations</td><td>Count of all Registration records for an event</td><td>Admin</td></tr>
+    <tr><td>By Status</td><td>Draft / Submitted / Pending / Approved / Rejected / Cancelled counts</td><td>Admin</td></tr>
+    <tr><td>By Tier</td><td>Registration and attendee counts per ticket tier</td><td>Admin</td></tr>
+    <tr><td>Capacity Progress</td><td>Approved attendees / total event capacity (per tier and overall)</td><td>Admin + Public event page</td></tr>
+    <tr><td>Revenue Estimate</td><td>Sum of (approved registrations × tier price). Manual estimate — not actual received.</td><td>Admin</td></tr>
+    <tr><td>Checked-In Count</td><td>Attendees checked in / total approved attendees</td><td>Admin</td></tr>
+    <tr><td>Event Views</td><td>Count of event detail page loads (future behavioral foundation — stored, no UI yet)</td><td>Admin (future)</td></tr>
+  </tbody>
+</table>
+
+<h2 id="ux">12. UX &amp; Design Requirements</h2>
+
+<h3>Design Philosophy</h3>
+<ul>
+  <li><strong>Apple-inspired:</strong> Clean, purposeful, generous whitespace, rounded forms, no decorative clutter.</li>
+  <li><strong>Mobile-first:</strong> All attendee flows designed for 375px mobile viewport first, then expanded for desktop.</li>
+  <li><strong>Calm confidence:</strong> Professional without being intimidating. Welcoming without being playful.</li>
+  <li><strong>Always show next step:</strong> Every screen tells the user what to do next. No dead ends.</li>
+</ul>
+
+<h3>Color Palette</h3>
+<table>
+  <thead><tr><th>Role</th><th>Color</th><th>Hex</th><th>Usage</th></tr></thead>
+  <tbody>
+    <tr><td>Primary Action</td><td style="background:#EA6C00; color:white; text-align:center;">■</td><td>#EA6C00</td><td>CTA buttons, active states, icons</td></tr>
+    <tr><td>Primary Brand</td><td style="background:#1A3A5C; color:white; text-align:center;">■</td><td>#1A3A5C</td><td>Headers, nav, admin backgrounds</td></tr>
+    <tr><td>Accent</td><td style="background:#F0A500; color:white; text-align:center;">■</td><td>#F0A500</td><td>Highlights, badges, progress</td></tr>
+    <tr><td>Success</td><td style="background:#16a34a; color:white; text-align:center;">■</td><td>#16a34a</td><td>Approved status, check-in success</td></tr>
+    <tr><td>Warning</td><td style="background:#d97706; color:white; text-align:center;">■</td><td>#d97706</td><td>Pending status, early bird badge</td></tr>
+    <tr><td>Error</td><td style="background:#dc2626; color:white; text-align:center;">■</td><td>#dc2626</td><td>Rejected status, validation errors</td></tr>
+    <tr><td>Surface</td><td style="background:#f7f9fc; color:#1a1a1a; text-align:center;">■</td><td>#f7f9fc</td><td>Page backgrounds, card interiors</td></tr>
+  </tbody>
+</table>
+
+<h3>Typography</h3>
+<ul>
+  <li>Font: Inter (existing — retain)</li>
+  <li>Base size: 16px (1rem) on mobile, 15px on desktop</li>
+  <li>Line height: 1.6 for body text</li>
+  <li>Headings: Bold, dark navy (#1A3A5C)</li>
+</ul>
+
+<h3>UX Rules</h3>
+<ol>
+  <li>Submit buttons disabled until all required fields are valid.</li>
+  <li>Inline field-level error messages (not toast-only).</li>
+  <li>Every form submission triggers a clear confirmation state (not just a toast).</li>
+  <li>Never redirect attendee away from the app to complete registration (no PayMongo redirect in MVP).</li>
+  <li>Group registration rows must be collapsible on mobile (accordion pattern).</li>
+  <li>File upload shows progress indicator, then a clear success/failure state.</li>
+  <li>Organizer verification queue must be keyboard-navigable (Tab + Enter to approve/reject).</li>
+  <li>Check-in scanner must render full-screen on mobile with large result cards.</li>
+  <li>No pagination that requires multiple page loads for &lt; 450 records — use virtual scroll or single-page pagination.</li>
+</ol>
+
+<h2 id="nfr">13. Non-Functional Requirements</h2>
+
+<table>
+  <thead><tr><th>Category</th><th>Requirement</th><th>Target</th></tr></thead>
+  <tbody>
+    <tr><td>Performance</td><td>Event detail page LCP on 4G mobile</td><td>&lt; 1.5 seconds</td></tr>
+    <tr><td>Performance</td><td>Registration form submission API response</td><td>&lt; 2 seconds</td></tr>
+    <tr><td>Performance</td><td>QR scan to check-in result</td><td>&lt; 500ms</td></tr>
+    <tr><td>Performance</td><td>Admin verification queue load (20 items)</td><td>&lt; 300ms</td></tr>
+    <tr><td>Scalability</td><td>Concurrent registrations supported</td><td>450 per event</td></tr>
+    <tr><td>Reliability</td><td>Registration data loss on failed submission</td><td>Zero tolerance — DB transaction</td></tr>
+    <tr><td>Reliability</td><td>Proof upload confirmation</td><td>Must explicitly confirm success or failure</td></tr>
+    <tr><td>Reliability</td><td>QR email on failed Resend delivery</td><td>Admin can resend; failure logged</td></tr>
+    <tr><td>Security</td><td>Payment proof URLs accessible publicly</td><td>Never. Signed URLs only.</td></tr>
+    <tr><td>Security</td><td>Admin route access by non-admin user</td><td>Blocked at API and frontend</td></tr>
+    <tr><td>Accessibility</td><td>Color contrast ratio (body text)</td><td>WCAG AA minimum (4.5:1)</td></tr>
+    <tr><td>Accessibility</td><td>Touch target size</td><td>Minimum 44×44px</td></tr>
+    <tr><td>Accessibility</td><td>Keyboard navigation</td><td>All admin forms fully keyboard-navigable</td></tr>
+    <tr><td>Usability</td><td>Registration completion (mobile)</td><td>&lt; 3 minutes for solo registration</td></tr>
+    <tr><td>Maintainability</td><td>TypeScript coverage</td><td>100% (no <code>any</code> escapes in new code)</td></tr>
+    <tr><td>Maintainability</td><td>Module separation</td><td>New modules: Registrations, PaymentProofs, Audit</td></tr>
+    <tr><td>Observability</td><td>Structured JSON logs for registration, approval, email, check-in</td><td>All key actions logged with entity ID</td></tr>
+  </tbody>
+</table>
+
+<h2 id="assumptions">14. Assumptions &amp; Constraints</h2>
+
+<h3>Assumptions</h3>
+<ul>
+  <li>The initial events will use GCash QR or bank-generated QR as payment methods. No cash or other methods for MVP.</li>
+  <li>There is one admin account for MVP. Multi-admin support will be added in a future phase.</li>
+  <li>All events are in the Philippines (Philippine Peso, Asia/Manila timezone).</li>
+  <li>Attendees have access to a mobile browser with camera support for QR scanning.</li>
+  <li>Resend transactional email is configured with a verified custom domain before production launch.</li>
+  <li>Cloudinary is configured for both event images (existing) and payment proofs (private folder, new).</li>
+  <li>The platform hosts multiple concurrent events (not single-event only).</li>
+  <li>Registration design assets (logo, brand colors, event posters) will be provided before production launch.</li>
+  <li>Group registration maximum of 10 per bundle is sufficient for MVP. Admin can adjust per event.</li>
+  <li>Proof re-upload after rejection is allowed. Original proof is retained in audit trail but superseded.</li>
+</ul>
+
+<h3>Constraints</h3>
+<ul>
+  <li>Budget: MVP must use free or low-cost tiers of all third-party services (Vercel, Neon/Supabase, Cloudinary, Resend).</li>
+  <li>Team: Single development team — phases must be sequential and non-overlapping.</li>
+  <li>Timeline: TBD — no hard deadline set, but events begin in June 2026 (Early Bird window).</li>
+  <li>Deployment: Vercel (web + API) + Neon PostgreSQL (existing setup must be preserved).</li>
+  <li>No breaking changes to existing schema unless absolutely necessary — additive migrations preferred.</li>
+</ul>
+
+<h2 id="glossary">15. Glossary</h2>
+
+<table>
+  <thead><tr><th>Term</th><th>Definition</th></tr></thead>
+  <tbody>
+    <tr><td>Registration</td><td>The top-level record of an attendee or group signing up for an event. May contain 1 (solo) or multiple (group) attendees.</td></tr>
+    <tr><td>Attendee</td><td>An individual person in a registration. Has their own QR code and receives their own email.</td></tr>
+    <tr><td>Lead Registrant</td><td>The person who fills in and submits the registration form. In group registrations, this is the coordinator who uploads the proof of payment.</td></tr>
+    <tr><td>Proof of Payment</td><td>A screenshot or document uploaded by the attendee to prove they have paid.</td></tr>
+    <tr><td>QR Token</td><td>A cryptographically random, unique identifier assigned to each attendee upon approval. Encoded in a QR code and used for check-in.</td></tr>
+    <tr><td>Reference Number</td><td>A human-readable unique identifier for each registration (format: AXN-YYYYMMDD-XXXX). Used by attendees to access their registration.</td></tr>
+    <tr><td>Verification Queue</td><td>The organizer's admin view of all registrations with submitted proofs awaiting review.</td></tr>
+    <tr><td>Ticket Tier</td><td>A category of registration with a specific price and availability window (e.g., Early Bird, Solo, Group).</td></tr>
+    <tr><td>Bundle</td><td>A group registration where multiple attendees are covered under one payment.</td></tr>
+    <tr><td>Check-in</td><td>The act of scanning an attendee's QR code at the event venue to mark attendance.</td></tr>
+    <tr><td>CPD</td><td>Commit-Push-Deploy. The release action taken by the development team after all tests pass and the product owner approves.</td></tr>
+    <tr><td>Manual Payment</td><td>Payment made directly by the attendee (GCash / bank) outside the platform, verified by uploading proof.</td></tr>
+  </tbody>
+</table>
+
+<hr>
+<p style="font-size:9pt; color:#64748b; text-align:center;">Axon Tickets MVP — Product Requirements Document v1.0 · May 19, 2026 · Confidential</p>
+
+</body>
+</html>

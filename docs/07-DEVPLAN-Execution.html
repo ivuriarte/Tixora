@@ -1,0 +1,434 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Development Execution Plan — Axon Tickets MVP</title>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif; font-size: 10.5pt; color: #1a1a1a; max-width: 1000px; margin: 0 auto; padding: 40px; line-height: 1.6; }
+    .header-block { background: linear-gradient(135deg, #1A3A5C 0%, #2d5a8a 100%); color: white; padding: 40px 48px; margin: -40px -40px 40px; }
+    .header-block h1 { color: white; font-size: 24pt; margin: 0 0 8px; border-bottom: 3px solid #EA6C00; padding-bottom: 14px; }
+    .header-block .doc-meta { color: #a8c4e0; font-size: 10pt; margin-top: 14px; }
+    .header-block .doc-meta span { margin-right: 24px; }
+    h2 { font-size: 14pt; color: #1A3A5C; margin-top: 40px; border-left: 5px solid #EA6C00; padding-left: 14px; }
+    h3 { font-size: 11.5pt; color: #EA6C00; margin-top: 24px; margin-bottom: 8px; }
+    h4 { font-size: 10.5pt; color: #1A3A5C; font-weight: 700; margin-top: 16px; }
+    table { width: 100%; border-collapse: collapse; margin: 12px 0; font-size: 9.5pt; }
+    th { background: #1A3A5C; color: white; padding: 9px 11px; text-align: left; font-weight: 600; }
+    td { padding: 7px 11px; border: 1px solid #dde3ec; vertical-align: top; }
+    tr:nth-child(even) td { background: #f7f9fc; }
+    ul, ol { margin: 6px 0 6px 20px; }
+    li { margin: 4px 0; }
+    code { font-family: 'Courier New', monospace; font-size: 9.5pt; background: #f1f5f9; padding: 1px 5px; border-radius: 3px; }
+    .code-block { font-family: 'Courier New', monospace; font-size: 9pt; background: #1e293b; color: #e2e8f0; padding: 14px 18px; border-radius: 6px; margin: 10px 0; white-space: pre; overflow-x: auto; line-height: 1.6; }
+    .info { background: #eff6ff; border-left: 4px solid #1A3A5C; padding: 10px 14px; margin: 14px 0; font-size: 10pt; border-radius: 0 4px 4px 0; }
+    .warning { background: #fff7ed; border-left: 4px solid #EA6C00; padding: 10px 14px; margin: 14px 0; font-size: 10pt; border-radius: 0 4px 4px 0; }
+    .danger { background: #fee2e2; border-left: 4px solid #dc2626; padding: 10px 14px; margin: 14px 0; font-size: 10pt; border-radius: 0 4px 4px 0; }
+    .success { background: #dcfce7; border-left: 4px solid #16a34a; padding: 10px 14px; margin: 14px 0; font-size: 10pt; border-radius: 0 4px 4px 0; }
+    hr { border: none; border-top: 1px solid #dde3ec; margin: 28px 0; }
+    .toc { background: #f7f9fc; border: 1px solid #dde3ec; border-radius: 8px; padding: 20px 24px; margin: 24px 0; }
+    .toc h3 { margin: 0 0 10px; color: #1A3A5C; font-size: 11pt; }
+    .toc ol { margin: 0; padding-left: 20px; }
+    .toc li { margin: 4px 0; font-size: 10pt; }
+    .phase-header { background: linear-gradient(90deg, #1A3A5C 0%, #2d5a8a 100%); color: white; padding: 14px 20px; border-radius: 8px; margin: 28px 0 12px; }
+    .phase-header h3 { color: white; margin: 0; font-size: 12pt; }
+    .phase-header .phase-meta { color: #a8c4e0; font-size: 9.5pt; margin-top: 4px; }
+    .task-row td:first-child { font-family: 'Courier New', monospace; font-size: 9pt; white-space: nowrap; }
+    .p0 { color: #dc2626; font-weight: 700; }
+    .p1 { color: #EA6C00; font-weight: 700; }
+    .p2 { color: #1A3A5C; font-weight: 700; }
+    .gate-box { border: 2px dashed #EA6C00; border-radius: 8px; padding: 14px 18px; margin: 14px 0; background: #fff9f0; }
+    .gate-box h4 { color: #EA6C00; margin: 0 0 8px; }
+  </style>
+</head>
+<body>
+
+<div class="header-block">
+  <h1>Axon Tickets — Development Execution Plan</h1>
+  <p style="color:#e2ecf7; font-size:11pt; margin:8px 0 0;">8-Phase Build Sequence from Foundation Fixes to Production Deploy</p>
+  <div class="doc-meta">
+    <span><strong>Version:</strong> 1.0</span>
+    <span><strong>Status:</strong> Ready to Execute (awaiting CPD)</span>
+    <span><strong>Date:</strong> May 19, 2026</span>
+  </div>
+</div>
+
+<div class="toc">
+  <h3>Table of Contents</h3>
+  <ol>
+    <li>Development Principles</li>
+    <li>Standard Lifecycle (applies to every phase)</li>
+    <li>Phase 0 — Foundation Fixes (Pre-work)</li>
+    <li>Phase 1 — Data Foundation (Schema + Module Scaffold)</li>
+    <li>Phase 2 — Registration API + UI</li>
+    <li>Phase 3 — Proof Upload</li>
+    <li>Phase 4 — Organizer Verification</li>
+    <li>Phase 5 — QR Email Delivery</li>
+    <li>Phase 6 — Check-in (Camera + Manual)</li>
+    <li>Phase 7 — Analytics Extension</li>
+    <li>Phase 8 — Full Test Suite + Production Deploy</li>
+    <li>Dependencies &amp; Risk Register</li>
+  </ol>
+</div>
+
+<h2>1. Development Principles</h2>
+<ul>
+  <li><strong>Additive-only schema changes:</strong> Every Prisma migration adds fields or tables. No existing columns dropped or renamed.</li>
+  <li><strong>Feature flags before removal:</strong> PayMongo flow is hidden via <code>NEXT_PUBLIC_ENABLE_ONLINE_PAYMENT</code> flag — not deleted. Deletion deferred to post-MVP.</li>
+  <li><strong>Test-first on new modules:</strong> Write at least the happy-path unit test before or alongside new service methods.</li>
+  <li><strong>No deploy without CPD:</strong> The user must say "CPD" (Commit, Push, Deploy) to trigger any git commit, push, or Vercel deployment. Development work can proceed without CPD.</li>
+  <li><strong>Cybersecurity checkpoint before CPD:</strong> Run security test suite (S-01 to S-18) and fix all findings before calling a phase complete.</li>
+</ul>
+
+<h2>2. Standard Lifecycle</h2>
+<p>This lifecycle applies to <strong>every phase</strong>:</p>
+<ol>
+  <li><strong>DEVELOP</strong> — Implement changes per phase task list</li>
+  <li><strong>QA</strong> — Run unit + integration tests. Fix failures.</li>
+  <li><strong>PERFORMANCE CHECK</strong> — Verify no slow queries (no N+1). Spot check critical endpoints with &lt;200ms target.</li>
+  <li><strong>CYBERSECURITY AUDIT</strong> — Run applicable security tests from the test plan for this phase.</li>
+  <li><strong>FIX FINDINGS</strong> — Fix all security findings before proceeding.</li>
+  <li><strong>RE-TEST</strong> — Repeat until clean.</li>
+  <li><strong>INFORM USER</strong> — Report phase complete to user with summary.</li>
+  <li><strong>AWAIT CPD</strong> — User says "CPD" → then commit, push, deploy.</li>
+</ol>
+
+<div class="danger"><strong>HARD RULE:</strong> Never run <code>git commit</code>, <code>git push</code>, or trigger a Vercel deployment without explicit "CPD" from the user. Code can be written and tested locally without CPD.</div>
+
+<div class="phase-header">
+  <h3>Phase 0 — Foundation Fixes</h3>
+  <div class="phase-meta">Priority: P0 Critical · Pre-requisite for all phases · Estimated effort: 2–3 hours</div>
+</div>
+
+<h2>3. Phase 0 — Foundation Fixes</h2>
+<p>These changes fix existing bugs and prepare the codebase before any new feature work begins.</p>
+
+<h3>Phase 0 Tasks</h3>
+<table class="task-row">
+  <thead><tr><th>ID</th><th>File</th><th>Change</th><th>Priority</th></tr></thead>
+  <tbody>
+    <tr><td>P0-01</td><td><code>apps/web/tailwind.config.js</code></td><td>Replace primary blue (#1d4ed8) with #EA6C00 orange. Add secondary #1A3A5C, accent #F0A500, status tokens (success, warning, error, surface, border). Add text-muted.</td><td class="p0">P0</td></tr>
+    <tr><td>P0-02</td><td><code>apps/web/src/store/auth.store.ts</code></td><td>Add localStorage persistence for accessToken and refreshToken. Fix token loss on page refresh.</td><td class="p0">P0</td></tr>
+    <tr><td>P0-03</td><td><code>apps/web/src/app/admin/layout.tsx</code></td><td>Remove setTimeout(1500) auth hack. Replace with synchronous localStorage token check + loading spinner.</td><td class="p0">P0</td></tr>
+    <tr><td>P0-04</td><td><code>apps/web/src/app/checkout/[reservationId]/page.tsx</code></td><td>Add feature flag check: if NEXT_PUBLIC_ENABLE_ONLINE_PAYMENT !== 'true', redirect to /. Retain all code unchanged.</td><td class="p0">P0</td></tr>
+    <tr><td>P0-05</td><td><code>apps/web/next.config.mjs</code></td><td>Add NEXT_PUBLIC_ENABLE_ONLINE_PAYMENT to env configuration.</td><td class="p0">P0</td></tr>
+    <tr><td>P0-06</td><td>Vercel dashboard (web project)</td><td>Set NEXT_PUBLIC_ENABLE_ONLINE_PAYMENT=false in production environment variables. (Manual step — requires Vercel access.)</td><td class="p0">P0</td></tr>
+    <tr><td>P0-07</td><td>Security headers audit</td><td>Verify all 7 headers from Security Plan §11 are present. Add any missing via next.config.mjs headers() config.</td><td class="p0">P0</td></tr>
+  </tbody>
+</table>
+
+<div class="gate-box">
+  <h4>Phase 0 Gate (before CPD)</h4>
+  <ul>
+    <li>Tailwind colors updated. UI renders with orange primary, navy secondary.</li>
+    <li>Admin login persists across page refresh. Token visible in localStorage.</li>
+    <li>Admin layout does not flash/stutter. Loads correctly on hard refresh.</li>
+    <li>Checkout URL redirects to / (PayMongo hidden).</li>
+    <li>Security header test (S-13) passes.</li>
+    <li>All existing tests still pass (no regressions).</li>
+  </ul>
+</div>
+
+<div class="phase-header">
+  <h3>Phase 1 — Data Foundation</h3>
+  <div class="phase-meta">Priority: P0 Critical · Estimated effort: 3–4 hours</div>
+</div>
+
+<h2>4. Phase 1 — Data Foundation</h2>
+
+<h3>Phase 1 Tasks</h3>
+<table class="task-row">
+  <thead><tr><th>ID</th><th>Area</th><th>Change</th><th>Priority</th></tr></thead>
+  <tbody>
+    <tr><td>P1-01</td><td>Prisma schema</td><td>Add Registration, Attendee, PaymentProof, AuditLog, EventView models + new enums (RegistrationStatus, RegistrationType, ProofStatus) to apps/api/prisma/schema.prisma. Add extension fields to Event model.</td><td class="p0">P0</td></tr>
+    <tr><td>P1-02</td><td>Prisma migration</td><td>Run <code>prisma migrate dev --name mvp_registration_models</code>. Verify migration is additive only.</td><td class="p0">P0</td></tr>
+    <tr><td>P1-03</td><td>packages/utils</td><td>Add <code>reference.ts</code>: export <code>generateReferenceNumber(): string</code>. Format: AXN-YYYYMMDD-XXXX.</td><td class="p0">P0</td></tr>
+    <tr><td>P1-04</td><td>packages/types</td><td>Add <code>registration.types.ts</code>: TypeScript interfaces for Registration, Attendee, PaymentProof, RegistrationStatus enum, RegistrationType enum. Export from index.ts.</td><td class="p0">P0</td></tr>
+    <tr><td>P1-05</td><td>NestJS — Scaffold modules</td><td>Create empty module files (module + controller + service + dto folder) for: RegistrationsModule, PaymentProofsModule, AuditModule, EmailModule, SchedulerModule. Register all in AppModule.</td><td class="p0">P0</td></tr>
+    <tr><td>P1-06</td><td>AuditModule</td><td>Implement <code>AuditService.log(adminId, action, entityType, entityId, metadata?)</code>. Fire-and-forget (async, does not block main operation).</td><td class="p0">P0</td></tr>
+    <tr><td>P1-07</td><td>EmailModule</td><td>Extract existing email send code from OrdersService/AdminService into new EmailService. Implement: sendConfirmation(), sendQrDelivery(), sendRejection(), sendCancellation(), sendQrResend(). All existing calls updated to use EmailService.</td><td class="p0">P0</td></tr>
+    <tr><td>P1-08</td><td>Unit tests</td><td>Write unit tests U-01 to U-04 (reference number, QR token generation). All must pass.</td><td class="p0">P0</td></tr>
+  </tbody>
+</table>
+
+<div class="gate-box">
+  <h4>Phase 1 Gate</h4>
+  <ul>
+    <li>Migration runs clean on staging DB. All new tables visible in Neon console.</li>
+    <li>TypeScript compiles with 0 errors (<code>tsc --noEmit</code>).</li>
+    <li>generateReferenceNumber() unit tests U-01 and U-02 pass.</li>
+    <li>generateQrToken() tests U-03 and U-04 pass.</li>
+    <li>AuditService.log() integration test: write entry to DB, retrieve, verify fields.</li>
+    <li>All existing tests still pass.</li>
+  </ul>
+</div>
+
+<div class="phase-header">
+  <h3>Phase 2 — Registration API + UI</h3>
+  <div class="phase-meta">Priority: P0 Critical · Estimated effort: 6–8 hours</div>
+</div>
+
+<h2>5. Phase 2 — Registration API + UI</h2>
+
+<h3>Phase 2 Tasks — API</h3>
+<table class="task-row">
+  <thead><tr><th>ID</th><th>Area</th><th>Change</th></tr></thead>
+  <tbody>
+    <tr><td>P2-01</td><td>RegistrationsController</td><td>Implement POST /api/v1/registrations. Body: CreateRegistrationDto (event, tier, type, attendees[]). Returns: { registrationId, referenceNumber }.</td></tr>
+    <tr><td>P2-02</td><td>RegistrationsService</td><td>Implement createRegistration(): check tier capacity, check duplicate emails (all attendees in request + against DB), generate referenceNumber, create Registration + Attendee records in transaction. Trigger EmailService.sendConfirmation().</td></tr>
+    <tr><td>P2-03</td><td>RegistrationsController</td><td>Implement POST /api/v1/registrations/lookup. Body: { email, referenceNumber }. Returns: attendee session JWT. Rate limited 10/min/IP.</td></tr>
+    <tr><td>P2-04</td><td>AuthService (extension)</td><td>Add validateAttendeeSession(email, referenceNumber): Registration | null. Generates attendee JWT with scope: registrationId.</td></tr>
+    <tr><td>P2-05</td><td>RegistrationsController</td><td>Implement GET /api/v1/registrations/:id. Auth: attendee session OR admin JWT. Returns full registration with attendees list and status history.</td></tr>
+    <tr><td>P2-06</td><td>DTOs</td><td>CreateRegistrationDto: event validation, tier validation, type enum, attendees array (min 1, max 10), per-attendee required fields. class-validator decorators on all fields.</td></tr>
+    <tr><td>P2-07</td><td>Integration tests</td><td>Implement I-01 to I-13 (registration + lookup endpoint tests).</td></tr>
+  </tbody>
+</table>
+
+<h3>Phase 2 Tasks — Frontend</h3>
+<table class="task-row">
+  <thead><tr><th>ID</th><th>File</th><th>Change</th></tr></thead>
+  <tbody>
+    <tr><td>P2-08</td><td>apps/web/src/app/events/[slug]/register/page.tsx (NEW)</td><td>Registration form. Solo mode: single attendee fields. Group mode: add/remove attendee rows. Live price calculation. hCaptcha. Submit → POST /api/v1/registrations.</td></tr>
+    <tr><td>P2-09</td><td>apps/web/src/app/events/[slug]/register/confirm/[regId]/page.tsx (NEW)</td><td>Confirmation screen. Show reference number (copy button), event summary, attendee list, payment instructions text + QR image(s). CTA: "Upload Proof of Payment".</td></tr>
+    <tr><td>P2-10</td><td>apps/web/src/app/events/[slug]/page.tsx (extend)</td><td>Add "Register Now" button linking to /events/[slug]/register. Tier selector shows remaining capacity. "Sold Out" badge on full tiers.</td></tr>
+    <tr><td>P2-11</td><td>apps/web/src/store/registration.store.ts (NEW)</td><td>Zustand store: selectedTier, attendees[], type (SOLO/GROUP). Not persisted (session-only).</td></tr>
+    <tr><td>P2-12</td><td>apps/web/src/app/my-registration/page.tsx (NEW)</td><td>Lookup form: email + reference number fields. POST /api/v1/registrations/lookup → redirect to status page on success.</td></tr>
+    <tr><td>P2-13</td><td>apps/web/src/app/my-registration/[referenceNumber]/page.tsx (NEW)</td><td>Registration status page. Show status badge, event info, attendee list, proof history, re-upload CTA if REJECTED.</td></tr>
+    <tr><td>P2-14</td><td>apps/web/src/app/page.tsx (extend)</td><td>Add "Find My Registration" link to public nav.</td></tr>
+  </tbody>
+</table>
+
+<div class="gate-box">
+  <h4>Phase 2 Gate</h4>
+  <ul>
+    <li>Integration tests I-01 to I-13 all pass.</li>
+    <li>State machine tests U-05 to U-13 all pass.</li>
+    <li>Registration form renders, submits, and lands on confirmation screen with reference number.</li>
+    <li>Group attendee rows add/remove correctly. Price updates live.</li>
+    <li>Lookup form successfully retrieves registration on staging with test data.</li>
+    <li>Duplicate email returns 409 (tested in I-04).</li>
+    <li>Security tests S-04, S-05 pass (rate limiting on registration endpoints).</li>
+  </ul>
+</div>
+
+<div class="phase-header">
+  <h3>Phase 3 — Proof Upload</h3>
+  <div class="phase-meta">Priority: P0 Critical · Estimated effort: 4–5 hours</div>
+</div>
+
+<h2>6. Phase 3 — Proof Upload</h2>
+
+<h3>Phase 3 Tasks</h3>
+<table class="task-row">
+  <thead><tr><th>ID</th><th>Area</th><th>Change</th></tr></thead>
+  <tbody>
+    <tr><td>P3-01</td><td>UploadService (extend)</td><td>Add uploadPaymentProof(registrationId, buffer, mimeType): uploads to Cloudinary private folder axon-tickets/proofs/[registrationId]/. Returns { publicId, cloudinaryUrl }.</td></tr>
+    <tr><td>P3-02</td><td>UploadService (extend)</td><td>Add getSignedProofUrl(publicId, expirySeconds=1800): generates Cloudinary signed URL. Admin-only access.</td></tr>
+    <tr><td>P3-03</td><td>PaymentProofsService</td><td>Implement uploadProof(registrationId, file, attendeeSessionJWT): validate MIME magic bytes, check file size ≤5MB, upload to Cloudinary, create PaymentProof record, update Registration status DRAFT→SUBMITTED or REJECTED→SUBMITTED.</td></tr>
+    <tr><td>P3-04</td><td>PaymentProofsController</td><td>POST /api/v1/registrations/:id/proof. Auth: attendee session JWT. Multipart form-data. IDOR guard applied.</td></tr>
+    <tr><td>P3-05</td><td>OwnRegistrationGuard (NEW)</td><td>Custom NestJS guard: verify request.user.sub === params.id. Applied to all attendee session endpoints.</td></tr>
+    <tr><td>P3-06</td><td>apps/web — Payment screen</td><td>apps/web/src/app/events/[slug]/payment/[regId]/page.tsx (NEW): file drop zone, preview, submit button. POST /api/v1/registrations/:id/proof. Redirect to status page on success.</td></tr>
+    <tr><td>P3-07</td><td>Integration tests</td><td>Implement I-14 to I-21 (proof upload endpoint tests).</td></tr>
+    <tr><td>P3-08</td><td>Unit tests</td><td>Implement U-14 to U-20 (MIME magic byte validation tests).</td></tr>
+    <tr><td>P3-09</td><td>Security tests</td><td>Run S-01 (IDOR), S-02 (MIME bypass), S-03 (direct Cloudinary URL), S-14 (file too large), S-16 (upload rate limit).</td></tr>
+  </tbody>
+</table>
+
+<div class="gate-box">
+  <h4>Phase 3 Gate</h4>
+  <ul>
+    <li>MIME unit tests U-14 to U-20 all pass.</li>
+    <li>Integration tests I-14 to I-21 all pass.</li>
+    <li>Security tests S-01, S-02, S-03, S-14, S-15, S-16 all pass.</li>
+    <li>Cloudinary private folder: uploaded proof not accessible via direct URL (403).</li>
+    <li>Signed URL expires correctly after 30 minutes (manually verified).</li>
+    <li>Upload form works on mobile (drag+drop + browse file on iOS Safari).</li>
+  </ul>
+</div>
+
+<div class="phase-header">
+  <h3>Phase 4 — Organizer Verification</h3>
+  <div class="phase-meta">Priority: P0 Critical · Estimated effort: 5–6 hours</div>
+</div>
+
+<h2>7. Phase 4 — Organizer Verification</h2>
+
+<h3>Phase 4 Tasks</h3>
+<table class="task-row">
+  <thead><tr><th>ID</th><th>Area</th><th>Change</th></tr></thead>
+  <tbody>
+    <tr><td>P4-01</td><td>VerificationsService</td><td>Implement listVerifications(filters): paginated list of registrations by status/event/date.</td></tr>
+    <tr><td>P4-02</td><td>VerificationsService</td><td>Implement getVerificationDetail(id): registration + attendees + latest proof + signed proof URL.</td></tr>
+    <tr><td>P4-03</td><td>VerificationsService</td><td>Implement approve(id, adminId): validate current status is SUBMITTED/PENDING_VERIFICATION, set status APPROVED, generate QR tokens for all attendees, call EmailService.sendQrDelivery(), write AuditLog.</td></tr>
+    <tr><td>P4-04</td><td>VerificationsService</td><td>Implement reject(id, adminId, reason, note?): validate status, set REJECTED, call EmailService.sendRejection(), write AuditLog.</td></tr>
+    <tr><td>P4-05</td><td>VerificationsService</td><td>Implement bulkApprove(ids[], adminId): process up to 20 registrations. Each runs same logic as approve(). AuditLog entry per registration.</td></tr>
+    <tr><td>P4-06</td><td>VerificationsService</td><td>Implement resend(id, adminId): verify APPROVED status, re-send QR emails to all attendees, write AuditLog (RESEND_QR).</td></tr>
+    <tr><td>P4-07</td><td>VerificationsController</td><td>Wire all endpoints: GET /admin/verifications, GET /admin/verifications/:id, PATCH /approve, PATCH /reject, POST /bulk-approve, POST /resend. AdminGuard on all.</td></tr>
+    <tr><td>P4-08</td><td>Admin — Verification Queue UI</td><td>apps/web/src/app/admin/verifications/page.tsx (NEW): table with filters, status badges, pagination, bulk select, bulk approve button.</td></tr>
+    <tr><td>P4-09</td><td>Admin — Verification Detail UI</td><td>apps/web/src/app/admin/verifications/[id]/page.tsx (NEW): two-column layout, proof image preview (signed URL), approve/reject buttons, reject modal with reason dropdown.</td></tr>
+    <tr><td>P4-10</td><td>Admin sidebar</td><td>Add "Verification Queue" link to admin sidebar navigation. Show pending count badge.</td></tr>
+    <tr><td>P4-11</td><td>Integration tests</td><td>Implement I-22 to I-34.</td></tr>
+    <tr><td>P4-12</td><td>Security tests</td><td>Run S-06, S-07 (admin endpoint auth), S-10 (tampered JWT).</td></tr>
+  </tbody>
+</table>
+
+<div class="gate-box">
+  <h4>Phase 4 Gate</h4>
+  <ul>
+    <li>Integration tests I-22 to I-34 all pass.</li>
+    <li>Security tests S-06, S-07, S-10 pass.</li>
+    <li>Admin can approve a registration: status changes, QR tokens assigned, email triggered.</li>
+    <li>Admin can reject with reason: rejection email triggered, re-upload becomes available.</li>
+    <li>Bulk approve 5 registrations: all approved, 5 audit log entries created.</li>
+    <li>Audit log entries verified in DB for all actions in this phase.</li>
+    <li>Double-approve returns 422 (edge case EC-05 verified).</li>
+  </ul>
+</div>
+
+<div class="phase-header">
+  <h3>Phase 5 — QR Email Delivery</h3>
+  <div class="phase-meta">Priority: P0 Critical · Estimated effort: 3–4 hours</div>
+</div>
+
+<h2>8. Phase 5 — QR Email Delivery</h2>
+
+<h3>Phase 5 Tasks</h3>
+<table class="task-row">
+  <thead><tr><th>ID</th><th>Area</th><th>Change</th></tr></thead>
+  <tbody>
+    <tr><td>P5-01</td><td>QrService (new helper)</td><td>generateQrPng(token: string): Buffer — renders QR code as PNG using the qrcode npm package. Token is the Attendee.qrToken UUID v4.</td></tr>
+    <tr><td>P5-02</td><td>EmailService.sendQrDelivery()</td><td>Implement QR delivery email: per-attendee, includes rendered QR code as inline image (base64 CID attachment). Fields: attendee name, event name/date/venue, tier, organizer contact.</td></tr>
+    <tr><td>P5-03</td><td>EmailService.sendRejection()</td><td>Implement rejection email: lead registrant, event name, rejection reason (human-readable from preset keys), re-upload link.</td></tr>
+    <tr><td>P5-04</td><td>EmailService.sendCancellation()</td><td>Implement cancellation email: lead registrant, event name, cancellation reason, re-register link if tier still open.</td></tr>
+    <tr><td>P5-05</td><td>EmailService.sendConfirmation()</td><td>Finalize confirmation email (scaffolded in Phase 1): reference number, attendee names, event summary, payment instructions link, upload proof link.</td></tr>
+    <tr><td>P5-06</td><td>SchedulerService</td><td>Implement early bird auto-cancel cron: @Cron('0 * * * *') (hourly). Query DRAFT registrations where tier.saleEndsAt &lt; now. Set status CANCELLED. Trigger cancellation email. Write AuditLog.</td></tr>
+    <tr><td>P5-07</td><td>SchedulerService</td><td>Implement OTP cleanup cron: @Cron('0 2 * * *') (daily 2am). Delete expired OtpCode records.</td></tr>
+    <tr><td>P5-08</td><td>Email template testing</td><td>Send each email type to test inbox on staging. Verify: renders correctly in Gmail, Outlook, Apple Mail. QR code scans correctly from email.</td></tr>
+  </tbody>
+</table>
+
+<div class="gate-box">
+  <h4>Phase 5 Gate</h4>
+  <ul>
+    <li>QR code renders correctly in PNG from UUID v4 token.</li>
+    <li>QR delivery email: QR image visible inline, scans correctly with phone camera.</li>
+    <li>Rejection email: correct reason text, re-upload link functional.</li>
+    <li>Confirmation email: reference number formatted correctly, payment link works.</li>
+    <li>Auto-cancel cron: DRAFT registration with past tier.saleEndsAt is cancelled on next cron run.</li>
+    <li>All email templates verified across Gmail + mobile Safari mail app.</li>
+  </ul>
+</div>
+
+<div class="phase-header">
+  <h3>Phase 6 — Check-in (Camera + Manual)</h3>
+  <div class="phase-meta">Priority: P0 Critical · Estimated effort: 3–4 hours</div>
+</div>
+
+<h2>9. Phase 6 — Check-in</h2>
+
+<h3>Phase 6 Tasks</h3>
+<table class="task-row">
+  <thead><tr><th>ID</th><th>Area</th><th>Change</th></tr></thead>
+  <tbody>
+    <tr><td>P6-01</td><td>apps/web — install dependency</td><td>Add @zxing/browser to apps/web package.json.</td></tr>
+    <tr><td>P6-02</td><td>apps/web — CheckinPage</td><td>Extend apps/web/src/app/admin/checkin/page.tsx: integrate ZXing BrowserQRCodeReader. Camera viewfinder component. On scan → call POST /api/v1/admin/checkin. Display success/error/duplicate toast.</td></tr>
+    <tr><td>P6-03</td><td>apps/web — CheckinPage</td><td>Add manual search: input field + React Query call to GET /api/v1/admin/checkin/search?q=&eventId=. Results table with "Check In" button per row.</td></tr>
+    <tr><td>P6-04</td><td>apps/web — CheckinPage</td><td>Add event selector dropdown (only active events). Camera only starts after event is selected.</td></tr>
+    <tr><td>P6-05</td><td>AdminController (extend)</td><td>POST /api/v1/admin/checkin: check Attendee.qrToken first (new path), fallback to Ticket.qrCode (legacy path). On success: set Attendee.checkedInAt, checkedInBy, checkInMethod. Write AuditLog (CHECKIN_MANUAL or from scan).</td></tr>
+    <tr><td>P6-06</td><td>AdminController (new)</td><td>GET /api/v1/admin/checkin/search: search Attendee by firstName/lastName/email for a given eventId. Returns: id, name, tier, registrationStatus, checkedInAt.</td></tr>
+    <tr><td>P6-07</td><td>Unit tests</td><td>U-25 to U-28 (QR token verification).</td></tr>
+    <tr><td>P6-08</td><td>E2E test</td><td>Implement E-07 (manual check-in flow via Playwright).</td></tr>
+  </tbody>
+</table>
+
+<div class="gate-box">
+  <h4>Phase 6 Gate</h4>
+  <ul>
+    <li>Camera scanner loads on admin check-in page (works on Chrome mobile + Safari mobile).</li>
+    <li>Valid QR scan → "Checked in" toast. DB: Attendee.checkedInAt set.</li>
+    <li>Duplicate scan → "Already checked in at [time]" toast. No duplicate DB write.</li>
+    <li>Manual search: finds attendee by partial name or email.</li>
+    <li>QR token unit tests U-25 to U-28 pass.</li>
+    <li>E2E test E-07 passes.</li>
+    <li>Checkin audit log entries verified (CHECKIN_MANUAL method).</li>
+  </ul>
+</div>
+
+<div class="phase-header">
+  <h3>Phase 7 — Analytics Extension</h3>
+  <div class="phase-meta">Priority: P1 Important · Estimated effort: 2–3 hours</div>
+</div>
+
+<h2>10. Phase 7 — Analytics Extension</h2>
+
+<h3>Phase 7 Tasks</h3>
+<table class="task-row">
+  <thead><tr><th>ID</th><th>Area</th><th>Change</th></tr></thead>
+  <tbody>
+    <tr><td>P7-01</td><td>AdminService (extend)</td><td>Extend getDashboardStats(): add totalRegistrations, pendingVerification, approvedCount, rejectedCount. Alongside existing PayMongo order stats.</td></tr>
+    <tr><td>P7-02</td><td>AdminService (new)</td><td>Add getEventAnalytics(eventId): returns registrationsByStatus (count per status), registrationsByTier (count + revenue per tier), capacityProgress (approved / tier capacity), checkedInCount, totalRevenue (estimate from approved × tier price).</td></tr>
+    <tr><td>P7-03</td><td>AdminController (new)</td><td>GET /api/v1/admin/analytics/events/:id. AdminGuard applied.</td></tr>
+    <tr><td>P7-04</td><td>apps/web — Dashboard</td><td>Extend admin dashboard KPI cards to show: Total Registrations, Pending Verification, Approved, Est. Revenue.</td></tr>
+    <tr><td>P7-05</td><td>apps/web — Event detail (admin)</td><td>Add analytics section on /admin/events/[id]: progress bar (approved / capacity per tier), registrations by status chart, check-in count.</td></tr>
+    <tr><td>P7-06</td><td>apps/web — Audit log</td><td>Create /admin/audit/page.tsx: paginated table of audit log entries with date/action/admin filters.</td></tr>
+  </tbody>
+</table>
+
+<div class="phase-header">
+  <h3>Phase 8 — Full Test Suite + Production Deploy</h3>
+  <div class="phase-meta">Priority: P0 Critical · Estimated effort: 4–6 hours</div>
+</div>
+
+<h2>11. Phase 8 — Full Test Suite + Production Deploy</h2>
+
+<h3>Phase 8 Tasks</h3>
+<table class="task-row">
+  <thead><tr><th>ID</th><th>Area</th><th>Change</th></tr></thead>
+  <tbody>
+    <tr><td>P8-01</td><td>Unit tests</td><td>Complete all remaining unit tests from Test Plan §3. Achieve 90%+ coverage on new modules.</td></tr>
+    <tr><td>P8-02</td><td>Integration tests</td><td>Verify all 34 integration tests pass clean on staging DB.</td></tr>
+    <tr><td>P8-03</td><td>E2E tests</td><td>Run all 10 Playwright scenarios against staging. Fix any failures.</td></tr>
+    <tr><td>P8-04</td><td>Security tests</td><td>Run full security checklist S-01 to S-18. All must pass. Fix any findings.</td></tr>
+    <tr><td>P8-05</td><td>npm audit</td><td>Run npm audit --audit-level=high. Zero critical/high findings required.</td></tr>
+    <tr><td>P8-06</td><td>Performance check</td><td>Verify p95 latency on critical endpoints: POST /registrations &lt;500ms, POST /proof &lt;2s (Cloudinary upload), PATCH /approve &lt;1s, POST /checkin &lt;200ms.</td></tr>
+    <tr><td>P8-07</td><td>Staging smoke test</td><td>Manual walkthrough of full attendee journey on staging: register → upload proof → admin approves → receive QR email → check in. Verify entire flow end-to-end with real emails.</td></tr>
+    <tr><td>P8-08</td><td>Production DB migration</td><td>Run <code>prisma migrate deploy</code> against production Neon DB. Verify all new tables and columns present.</td></tr>
+    <tr><td>P8-09</td><td>Production env vars</td><td>Verify all required env vars from Architecture §14 are set in Vercel production projects.</td></tr>
+    <tr><td>P8-10</td><td>CPD → Production deploy</td><td>User calls CPD → commit all changes → push to main → Vercel auto-deploys web and API. Verify production smoke test.</td></tr>
+  </tbody>
+</table>
+
+<div class="success">
+  <strong>Production Ready Gate:</strong> All unit + integration tests pass. All 10 E2E scenarios pass. All 18 security tests pass. npm audit clean. Staging smoke test complete. All env vars verified. User says CPD.
+</div>
+
+<h2>12. Dependencies &amp; Risk Register</h2>
+
+<h3>External Dependencies</h3>
+<table>
+  <thead><tr><th>Dependency</th><th>Required For</th><th>Risk</th><th>Mitigation</th></tr></thead>
+  <tbody>
+    <tr><td>Neon DB staging branch</td><td>Phase 1+ integration tests</td><td>Low</td><td>Create branch before starting Phase 1.</td></tr>
+    <tr><td>Cloudinary private folder</td><td>Phase 3 (proof upload)</td><td>Low</td><td>Verify API key has private upload permissions before Phase 3.</td></tr>
+    <tr><td>Resend domain verification</td><td>Phase 5 (email delivery)</td><td>Medium</td><td>Domain DNS records must propagate (up to 48h). Start domain registration as soon as CPD is given for Phase 0. See Document 8 for full DNS setup.</td></tr>
+    <tr><td>@zxing/browser</td><td>Phase 6 (camera scanner)</td><td>Low</td><td>Verify HTTPS required (camera API requires secure context — already true on Vercel).</td></tr>
+    <tr><td>Vercel env var access</td><td>Phase 0 (flag) + Phase 8 (deploy)</td><td>Low</td><td>Requires Vercel project access. Manual step by user with Vercel credentials.</td></tr>
+  </tbody>
+</table>
+
+<h3>Risk Register</h3>
+<table>
+  <thead><tr><th>Risk</th><th>Impact</th><th>Probability</th><th>Mitigation</th></tr></thead>
+  <tbody>
+    <tr><td>Prisma migration fails on production DB (existing data incompatible)</td><td>High</td><td>Low (additive only)</td><td>Test migration on Neon staging branch first. Additive-only rule strictly enforced.</td></tr>
+    <tr><td>Cloudinary signed URL generation breaks (API secret mismatch)</td><td>High (proof access blocked)</td><td>Low</td><td>Test signed URL generation in Phase 3 on staging before Phase 4 admin UI build.</td></tr>
+    <tr><td>ZXing camera scanner not supported on some mobile browsers</td><td>Medium (check-in fallback)</td><td>Low–Medium</td><td>Manual lookup search always present as fallback. Test on iOS Safari + Chrome Android before Phase 6 CPD.</td></tr>
+    <tr><td>Resend email blocked by spam filters</td><td>Medium (attendees don't receive QR)</td><td>Medium</td><td>SPF, DKIM, DMARC configured (see Document 8). Test deliverability on staging before production.</td></tr>
+    <tr><td>hCaptcha blocks legitimate registrations on mobile</td><td>Medium (conversion loss)</td><td>Low</td><td>Use hCaptcha "easy" difficulty setting for mobile. Fall back to hCaptcha accessibility mode if issues reported.</td></tr>
+  </tbody>
+</table>
+
+<hr>
+<p style="font-size:9pt; color:#64748b; text-align:center;">Axon Tickets MVP — Development Execution Plan v1.0 · May 19, 2026 · Confidential</p>
+
+</body>
+</html>

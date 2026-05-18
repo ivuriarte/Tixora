@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Security Plan — Axon Tickets MVP</title>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif; font-size: 10.5pt; color: #1a1a1a; max-width: 1000px; margin: 0 auto; padding: 40px; line-height: 1.6; }
+    .header-block { background: linear-gradient(135deg, #1A3A5C 0%, #2d5a8a 100%); color: white; padding: 40px 48px; margin: -40px -40px 40px; }
+    .header-block h1 { color: white; font-size: 24pt; margin: 0 0 8px; border-bottom: 3px solid #EA6C00; padding-bottom: 14px; }
+    .header-block .doc-meta { color: #a8c4e0; font-size: 10pt; margin-top: 14px; }
+    .header-block .doc-meta span { margin-right: 24px; }
+    h2 { font-size: 14pt; color: #1A3A5C; margin-top: 40px; border-left: 5px solid #EA6C00; padding-left: 14px; }
+    h3 { font-size: 11.5pt; color: #EA6C00; margin-top: 24px; margin-bottom: 8px; }
+    h4 { font-size: 10.5pt; color: #1A3A5C; font-weight: 700; margin-top: 16px; }
+    table { width: 100%; border-collapse: collapse; margin: 12px 0; font-size: 9.5pt; }
+    th { background: #1A3A5C; color: white; padding: 9px 11px; text-align: left; font-weight: 600; }
+    td { padding: 7px 11px; border: 1px solid #dde3ec; vertical-align: top; }
+    tr:nth-child(even) td { background: #f7f9fc; }
+    ul, ol { margin: 6px 0 6px 20px; }
+    li { margin: 4px 0; }
+    code { font-family: 'Courier New', monospace; font-size: 9.5pt; background: #f1f5f9; padding: 1px 5px; border-radius: 3px; }
+    .info { background: #eff6ff; border-left: 4px solid #1A3A5C; padding: 10px 14px; margin: 14px 0; font-size: 10pt; border-radius: 0 4px 4px 0; }
+    .warning { background: #fff7ed; border-left: 4px solid #EA6C00; padding: 10px 14px; margin: 14px 0; font-size: 10pt; border-radius: 0 4px 4px 0; }
+    .danger { background: #fee2e2; border-left: 4px solid #dc2626; padding: 10px 14px; margin: 14px 0; font-size: 10pt; border-radius: 0 4px 4px 0; }
+    hr { border: none; border-top: 1px solid #dde3ec; margin: 28px 0; }
+    .toc { background: #f7f9fc; border: 1px solid #dde3ec; border-radius: 8px; padding: 20px 24px; margin: 24px 0; }
+    .toc h3 { margin: 0 0 10px; color: #1A3A5C; font-size: 11pt; }
+    .toc ol { margin: 0; padding-left: 20px; }
+    .toc li { margin: 4px 0; font-size: 10pt; }
+    .risk-critical { background: #fee2e2; color: #991b1b; font-weight: 700; padding: 2px 8px; border-radius: 4px; font-size: 9pt; }
+    .risk-high { background: #fef3c7; color: #92400e; font-weight: 700; padding: 2px 8px; border-radius: 4px; font-size: 9pt; }
+    .risk-medium { background: #dbeafe; color: #1e40af; font-weight: 700; padding: 2px 8px; border-radius: 4px; font-size: 9pt; }
+    .risk-low { background: #dcfce7; color: #166534; font-weight: 700; padding: 2px 8px; border-radius: 4px; font-size: 9pt; }
+    .status-yes { color: #16a34a; font-weight: 700; }
+    .status-no { color: #dc2626; font-weight: 700; }
+    .status-partial { color: #EA6C00; font-weight: 700; }
+  </style>
+</head>
+<body>
+
+<div class="header-block">
+  <h1>Axon Tickets — Security Plan</h1>
+  <p style="color:#e2ecf7; font-size:11pt; margin:8px 0 0;">Threat Model · OWASP Coverage · Auth Flows · Access Control · Data Privacy</p>
+  <div class="doc-meta">
+    <span><strong>Version:</strong> 1.0</span>
+    <span><strong>Status:</strong> Approved for Development</span>
+    <span><strong>Date:</strong> May 19, 2026</span>
+  </div>
+</div>
+
+<div class="toc">
+  <h3>Table of Contents</h3>
+  <ol>
+    <li>Security Philosophy</li>
+    <li>Threat Model (STRIDE)</li>
+    <li>OWASP Top 10 Coverage</li>
+    <li>Authentication Flows &amp; Controls</li>
+    <li>Authorization &amp; RBAC</li>
+    <li>File Upload Security</li>
+    <li>Payment Proof Privacy (Signed URLs)</li>
+    <li>IDOR Prevention</li>
+    <li>Input Validation &amp; Injection Prevention</li>
+    <li>Rate Limiting</li>
+    <li>Transport &amp; Infrastructure Security</li>
+    <li>PII Handling &amp; Data Privacy</li>
+    <li>Audit Trail</li>
+    <li>Dependency &amp; Supply Chain Security</li>
+    <li>Security Testing Checklist</li>
+  </ol>
+</div>
+
+<h2>1. Security Philosophy</h2>
+<ul>
+  <li><strong>Defense in depth:</strong> Multiple layers of controls — validation at API boundaries, authorization on every handler, signed URLs for private assets.</li>
+  <li><strong>Least privilege:</strong> Admin access is all-or-nothing at MVP (single admin). Attendee session tokens are scoped to a single registration.</li>
+  <li><strong>No security by obscurity:</strong> QR tokens are cryptographically random (UUID v4) — not sequential IDs. Proof URLs are server-signed — not guessable.</li>
+  <li><strong>Fail secure:</strong> Unknown tokens → deny. Invalid MIME → reject. Expired signatures → deny. Missing JWT → 401.</li>
+  <li><strong>Privacy by design:</strong> No PII in logs, QR payloads, or Cloudinary metadata. Email addresses normalized and stored — not echoed in public URLs.</li>
+</ul>
+
+<h2>2. Threat Model (STRIDE)</h2>
+<table>
+  <thead><tr><th>Category</th><th>Threat</th><th>Risk</th><th>Mitigation</th></tr></thead>
+  <tbody>
+    <tr><td>Spoofing</td><td>Attendee presents someone else's QR code</td><td><span class="risk-high">High</span></td><td>QR token is UUID v4 — opaque, non-guessable. Check-in marks as used (duplicate scan prevention).</td></tr>
+    <tr><td>Spoofing</td><td>Attacker brute-forces reference number + email combo</td><td><span class="risk-medium">Medium</span></td><td>Rate limit on /registrations/lookup (10/min/IP). Reference number is 4-char random suffix (10,000 combinations per date — not enough alone, but combined with email, reduces risk).</td></tr>
+    <tr><td>Spoofing</td><td>Unauthorized access to admin panel</td><td><span class="risk-critical">Critical</span></td><td>JWT + AdminGuard on every admin route. Brute-force lockout (5 fails → Redis block). No default credentials in production.</td></tr>
+    <tr><td>Tampering</td><td>Attendee edits registration status directly via API</td><td><span class="risk-critical">Critical</span></td><td>IDOR guard: registration session token scoped to one registration. Status transitions are server-enforced state machine — no client-supplied status field.</td></tr>
+    <tr><td>Tampering</td><td>Attacker uploads executable disguised as JPEG</td><td><span class="risk-high">High</span></td><td>MIME magic byte validation server-side. File rejected if magic bytes don't match JPEG/PNG/PDF signatures.</td></tr>
+    <tr><td>Repudiation</td><td>Organizer denies approving/rejecting a registration</td><td><span class="risk-medium">Medium</span></td><td>Audit log: every organizer action persisted with adminId + timestamp. Immutable (no delete).</td></tr>
+    <tr><td>Information Disclosure</td><td>Payment proof screenshots exposed publicly</td><td><span class="risk-critical">Critical</span></td><td>Cloudinary private type upload. No direct URLs. Only server-signed URLs (30-min expiry, admin only).</td></tr>
+    <tr><td>Information Disclosure</td><td>PII leaked in application logs</td><td><span class="risk-high">High</span></td><td>Logs contain entity IDs only. Email addresses, names, phone numbers are NOT logged.</td></tr>
+    <tr><td>Information Disclosure</td><td>Database credentials in code/repo</td><td><span class="risk-critical">Critical</span></td><td>All secrets via environment variables. .env in .gitignore. No secrets in committed code.</td></tr>
+    <tr><td>Denial of Service</td><td>Registration endpoint flooded</td><td><span class="risk-medium">Medium</span></td><td>@nestjs/throttler rate limiting. Vercel edge WAF. hCaptcha on public forms.</td></tr>
+    <tr><td>Denial of Service</td><td>Upload endpoint flooded with large files</td><td><span class="risk-medium">Medium</span></td><td>5MB limit enforced before Cloudinary upload. Body size limit in NestJS (10MB default, reduce to 6MB).</td></tr>
+    <tr><td>Elevation of Privilege</td><td>Attendee accesses admin endpoints</td><td><span class="risk-critical">Critical</span></td><td>AdminGuard checks <code>user.isAdmin === true</code> on every admin route. JwtAuthGuard applied first.</td></tr>
+    <tr><td>Elevation of Privilege</td><td>JWT token forged</td><td><span class="risk-critical">Critical</span></td><td>JWT signed with HS256 using CSPRNG-generated 64+ byte secret. Verified on every request.</td></tr>
+  </tbody>
+</table>
+
+<h2>3. OWASP Top 10 Coverage</h2>
+<table>
+  <thead><tr><th>#</th><th>OWASP Category</th><th>Status</th><th>Controls in Place</th></tr></thead>
+  <tbody>
+    <tr><td>A01</td><td>Broken Access Control</td><td><span class="status-yes">Covered</span></td><td>JwtAuthGuard + AdminGuard on all admin routes. Registration session JWT scoped to one registration. IDOR guard on proof upload (registrationId must match session).</td></tr>
+    <tr><td>A02</td><td>Cryptographic Failures</td><td><span class="status-yes">Covered</span></td><td>Passwords hashed with bcrypt (cost 12). JWT secrets min 64 bytes. QR tokens are UUID v4 (128-bit entropy). HTTPS enforced by Vercel. No sensitive data in GET parameters.</td></tr>
+    <tr><td>A03</td><td>Injection</td><td><span class="status-yes">Covered</span></td><td>Prisma ORM with parameterized queries (no raw SQL in new code). class-validator on all DTOs. Input length limits enforced.</td></tr>
+    <tr><td>A04</td><td>Insecure Design</td><td><span class="status-yes">Covered</span></td><td>Status machine enforced server-side (no client-controlled transitions). Proof access via signed URLs (not direct). Audit trail on all mutations.</td></tr>
+    <tr><td>A05</td><td>Security Misconfiguration</td><td><span class="status-partial">Partial</span></td><td>Security headers present (see §11). CORS configured for known origins. No directory listing on Vercel. TODO: CSP header review post-MVP.</td></tr>
+    <tr><td>A06</td><td>Vulnerable &amp; Outdated Components</td><td><span class="status-partial">Partial</span></td><td>npm audit run before each release. TODO: Dependabot / automated dependency updates configured for repo.</td></tr>
+    <tr><td>A07</td><td>Identification &amp; Authentication Failures</td><td><span class="status-yes">Covered</span></td><td>Brute-force protection via Redis (5 fails → lockout, 15-min sliding window). JWT expiry: access 15 min, refresh 7 days. OTP for email verification. hCaptcha on registration form.</td></tr>
+    <tr><td>A08</td><td>Software &amp; Data Integrity Failures</td><td><span class="status-yes">Covered</span></td><td>MIME magic byte validation for uploads. JSON schema validation on all API inputs. No eval(), no dynamic require(). Server-side QR generation only.</td></tr>
+    <tr><td>A09</td><td>Security Logging &amp; Monitoring Failures</td><td><span class="status-yes">Covered</span></td><td>Structured JSON logs (all key operations). Audit log for all admin mutations. Failed auth attempts logged. TODO: alert on anomalous patterns post-MVP.</td></tr>
+    <tr><td>A10</td><td>Server-Side Request Forgery (SSRF)</td><td><span class="status-yes">Covered</span></td><td>No user-supplied URLs are fetched server-side. venueMapUrl is display-only (rendered as anchor tag on frontend, not fetched by server).</td></tr>
+  </tbody>
+</table>
+
+<h2>4. Authentication Flows &amp; Controls</h2>
+
+<h3>Admin Authentication</h3>
+<table>
+  <thead><tr><th>Step</th><th>Control</th></tr></thead>
+  <tbody>
+    <tr><td>Login form</td><td>hCaptcha verification (prevents bot credential stuffing)</td></tr>
+    <tr><td>Password check</td><td>bcrypt compare (cost factor 12). Constant-time comparison.</td></tr>
+    <tr><td>Brute force</td><td>Redis counter: 5 failed attempts → 15-minute lockout per email. Counter resets on success.</td></tr>
+    <tr><td>Token issuance</td><td>Access token: JWT HS256, 15-min TTL. Refresh token: JWT HS256, 7-day TTL, stored in Redis for revocation.</td></tr>
+    <tr><td>Token storage</td><td>localStorage (web). Short TTL mitigates XSS risk. No httpOnly cookie used (Vercel serverless limitation).</td></tr>
+    <tr><td>Route protection</td><td>JwtAuthGuard validates signature + expiry. AdminGuard checks <code>user.isAdmin === true</code>. Applied on all /admin/* routes.</td></tr>
+    <tr><td>Logout</td><td>Refresh token revoked in Redis. localStorage cleared on client.</td></tr>
+    <tr><td>Google OAuth</td><td>State parameter validated. ID token verified via Google's JWKS. Scope limited to profile + email.</td></tr>
+  </tbody>
+</table>
+
+<h3>Attendee Authentication (Reference Session)</h3>
+<table>
+  <thead><tr><th>Step</th><th>Control</th></tr></thead>
+  <tbody>
+    <tr><td>Lookup form</td><td>Rate limited (10/min/IP). No account creation required.</td></tr>
+    <tr><td>Credential validation</td><td>Must supply both email AND reference number. Bcrypt-style: if email exists but reference doesn't match → same error as "not found" (no enumeration).</td></tr>
+    <tr><td>Session token</td><td>JWT HS256, 24-hour TTL. Payload: <code>{ sub: registrationId, type: "attendee_session" }</code>.</td></tr>
+    <tr><td>Scope</td><td>Session token only grants access to the specific registrationId in the payload — no other registrations.</td></tr>
+    <tr><td>IDOR guard</td><td>All attendee session routes verify: JWT <code>sub</code> == path parameter <code>registrationId</code>.</td></tr>
+  </tbody>
+</table>
+
+<h2>5. Authorization &amp; RBAC</h2>
+
+<h3>Access Control Matrix</h3>
+<table>
+  <thead><tr><th>Resource</th><th>Anonymous</th><th>Attendee Session</th><th>Admin JWT</th></tr></thead>
+  <tbody>
+    <tr><td>Public event list/detail</td><td>✓ Read</td><td>✓ Read</td><td>✓ Read</td></tr>
+    <tr><td>POST /registrations</td><td>✓ Create</td><td>— (already registered)</td><td>✓</td></tr>
+    <tr><td>POST /registrations/lookup</td><td>✓ (get session)</td><td>—</td><td>✓</td></tr>
+    <tr><td>GET /registrations/:id</td><td>✗</td><td>✓ Own only</td><td>✓ Any</td></tr>
+    <tr><td>POST /registrations/:id/proof</td><td>✗</td><td>✓ Own only</td><td>✓</td></tr>
+    <tr><td>GET /admin/verifications</td><td>✗</td><td>✗</td><td>✓</td></tr>
+    <tr><td>PATCH /admin/verifications/:id/approve</td><td>✗</td><td>✗</td><td>✓</td></tr>
+    <tr><td>GET /admin/analytics/*</td><td>✗</td><td>✗</td><td>✓</td></tr>
+    <tr><td>GET /admin/audit</td><td>✗</td><td>✗</td><td>✓</td></tr>
+    <tr><td>POST /admin/checkin</td><td>✗</td><td>✗</td><td>✓</td></tr>
+    <tr><td>Cloudinary proof URL (direct)</td><td>✗ 401</td><td>✗ 401</td><td>✗ 401 (private)</td></tr>
+    <tr><td>Signed proof URL (via API)</td><td>✗</td><td>✗</td><td>✓ (30-min expiry)</td></tr>
+  </tbody>
+</table>
+
+<div class="info"><strong>Future Multi-Admin Note:</strong> When multiple organizer accounts are added, the access model will need to be extended with an event-level ownership check: organizers can only access events they own. The AuditLog already stores adminId, which supports this future extension.</div>
+
+<h2>6. File Upload Security</h2>
+
+<h3>MIME Type Validation (Magic Bytes)</h3>
+<table>
+  <thead><tr><th>File Type</th><th>Magic Bytes (Hex)</th><th>Offset</th></tr></thead>
+  <tbody>
+    <tr><td>JPEG</td><td><code>FF D8 FF</code></td><td>Bytes 0–2</td></tr>
+    <tr><td>PNG</td><td><code>89 50 4E 47 0D 0A 1A 0A</code></td><td>Bytes 0–7</td></tr>
+    <tr><td>PDF</td><td><code>25 50 44 46</code> (%PDF)</td><td>Bytes 0–3</td></tr>
+  </tbody>
+</table>
+
+<h3>Upload Security Controls</h3>
+<ol>
+  <li><strong>Size check first:</strong> Content-Length header checked before reading body. Files over 5MB rejected with HTTP 413 before any processing.</li>
+  <li><strong>Magic byte check:</strong> Buffer read from the first 8 bytes. If not matching any approved signature → HTTP 400 "Invalid file type."</li>
+  <li><strong>Extension not trusted:</strong> A <code>.jpg</code> extension with a PDF magic byte header is still accepted as PDF and labelled correctly. A <code>.exe</code> with <code>MZ</code> header is always rejected.</li>
+  <li><strong>Cloudinary private upload:</strong> <code>type: 'private'</code> means no public URL is accessible. The Cloudinary CDN serves the file only via authenticated signed URLs.</li>
+  <li><strong>Upload rate limit:</strong> 5 proof uploads per registrationId per hour (Redis counter). Prevents storage abuse.</li>
+  <li><strong>Filename sanitization:</strong> Original filename not used in storage key. Cloudinary generates its own public_id. No filesystem access on the server.</li>
+</ol>
+
+<h3>What is NOT accepted</h3>
+<ul>
+  <li>HTML, XML, SVG (could contain script tags or XXE)</li>
+  <li>GIF (could contain script in metadata or pixel injection in historical exploits)</li>
+  <li>ZIP, RAR, or any archive (could contain path traversal payloads)</li>
+  <li>Any file where magic bytes don't match approved signatures</li>
+</ul>
+
+<h2>7. Payment Proof Privacy (Signed URLs)</h2>
+
+<h3>How Signed URLs Work</h3>
+<ol>
+  <li>Proof image is uploaded to Cloudinary with <code>type: 'private'</code>.</li>
+  <li>Only the <code>publicId</code> (e.g., <code>axon-tickets/proofs/reg_01/proof_01</code>) is stored in the database — NOT the full URL.</li>
+  <li>When an admin opens the verification detail page, the frontend calls <code>GET /api/v1/admin/verifications/:id/proof-url</code>.</li>
+  <li>The API verifies the admin JWT, then calls <code>cloudinary.utils.private_download_url(publicId, 'jpg', { expires_at: now + 1800 })</code>.</li>
+  <li>The signed URL (with HMAC signature in query params, expiry timestamp) is returned to the frontend.</li>
+  <li>The frontend renders the image using this URL directly. The URL expires after 30 minutes.</li>
+</ol>
+
+<div class="danger"><strong>Never:</strong> Return a raw Cloudinary URL for a proof image. Never store the full URL in the DB as a directly-accessible link. If the admin accidentally shares the signed URL, it expires in 30 minutes and becomes useless.</div>
+
+<h2>8. IDOR Prevention</h2>
+
+<h3>Registration-Level IDOR</h3>
+<ul>
+  <li>Attendee session JWT payload: <code>{ sub: registrationId }</code>.</li>
+  <li>Every endpoint that uses a <code>:registrationId</code> path parameter MUST verify: <code>request.user.sub === params.registrationId</code>.</li>
+  <li>This check is implemented as a Guard decorator (<code>@OwnRegistrationGuard()</code>) applied to all attendee-facing routes.</li>
+  <li>Example: if attendee A has token for registration X, they cannot access <code>GET /registrations/Y</code> even if they guess Y's ID.</li>
+</ul>
+
+<h3>Proof-Level IDOR</h3>
+<ul>
+  <li>Proof records are linked to a registrationId.</li>
+  <li>Admin can view any proof via the verification detail endpoint (admin JWT required).</li>
+  <li>Attendees cannot request signed proof URLs directly — that endpoint is admin-only.</li>
+</ul>
+
+<h3>Attendee-Level IDOR</h3>
+<ul>
+  <li>An attendee session can only access their own registration — not individual attendee records of other people in the same group.</li>
+  <li>Group attendee emails are sent to each individual — the lead cannot view the personal details of co-attendees via the API (only their own registration summary).</li>
+</ul>
+
+<h2>9. Input Validation &amp; Injection Prevention</h2>
+
+<h3>API Validation (NestJS)</h3>
+<ul>
+  <li>All request bodies validated via <code>class-validator</code> decorators on DTOs.</li>
+  <li><code>ValidationPipe</code> with <code>whitelist: true, forbidNonWhitelisted: true</code> — extra fields stripped and rejected.</li>
+  <li>String fields: max length enforced (e.g., firstName max 100, city max 100, rejectionNote max 300).</li>
+  <li>Email fields: <code>@IsEmail()</code> with normalization (lowercase, trim).</li>
+  <li>Integer fields: <code>@IsInt(), @Min(), @Max()</code> enforced.</li>
+  <li>Enum fields: <code>@IsEnum()</code> — only valid enum values accepted.</li>
+</ul>
+
+<h3>Database Query Safety</h3>
+<ul>
+  <li>All DB queries via Prisma ORM — parameterized queries only.</li>
+  <li>No raw SQL (<code>$queryRaw</code>) in any new module.</li>
+  <li>If <code>$queryRaw</code> is needed in future: use <code>Prisma.sql</code> tagged template literal, never string concatenation.</li>
+  <li>Search functionality uses Prisma <code>contains</code> with <code>mode: 'insensitive'</code> — safe for text search.</li>
+</ul>
+
+<h3>Frontend Input Safety</h3>
+<ul>
+  <li>All user-supplied text rendered via React (auto-escapes HTML entities).</li>
+  <li>No <code>dangerouslySetInnerHTML</code> in any new components.</li>
+  <li>URL parameters (slugs, registration IDs) validated on receipt at the API before use in queries.</li>
+</ul>
+
+<h2>10. Rate Limiting</h2>
+<table>
+  <thead><tr><th>Endpoint</th><th>Limit</th><th>Key</th><th>Lockout</th></tr></thead>
+  <tbody>
+    <tr><td>POST /auth/login</td><td>5 failures</td><td>Per email</td><td>15-minute block (Redis)</td></tr>
+    <tr><td>POST /registrations</td><td>10 requests/min</td><td>Per IP</td><td>HTTP 429 + Retry-After</td></tr>
+    <tr><td>POST /registrations/lookup</td><td>10 requests/min</td><td>Per IP</td><td>HTTP 429 + Retry-After</td></tr>
+    <tr><td>POST /registrations/:id/proof</td><td>5 uploads/hour</td><td>Per registrationId</td><td>HTTP 429</td></tr>
+    <tr><td>POST /auth/verify-otp</td><td>5 attempts</td><td>Per OTP token</td><td>OTP invalidated</td></tr>
+    <tr><td>All admin endpoints</td><td>200 requests/min</td><td>Per admin user ID</td><td>HTTP 429</td></tr>
+  </tbody>
+</table>
+
+<h2>11. Transport &amp; Infrastructure Security</h2>
+
+<h3>HTTP Security Headers</h3>
+<table>
+  <thead><tr><th>Header</th><th>Value</th><th>Purpose</th></tr></thead>
+  <tbody>
+    <tr><td><code>Strict-Transport-Security</code></td><td><code>max-age=31536000; includeSubDomains</code></td><td>Enforce HTTPS for 1 year</td></tr>
+    <tr><td><code>X-Content-Type-Options</code></td><td><code>nosniff</code></td><td>Prevent MIME sniffing</td></tr>
+    <tr><td><code>X-Frame-Options</code></td><td><code>DENY</code></td><td>Prevent clickjacking</td></tr>
+    <tr><td><code>Referrer-Policy</code></td><td><code>strict-origin-when-cross-origin</code></td><td>Limit referrer leakage</td></tr>
+    <tr><td><code>Permissions-Policy</code></td><td><code>camera=(self), microphone=(), geolocation=()</code></td><td>Restrict browser features (camera allowed for QR scanner)</td></tr>
+    <tr><td><code>Content-Security-Policy</code></td><td>Configured via next.config.mjs</td><td>Prevent XSS — allow scripts from self, Cloudinary images, Resend analytics</td></tr>
+    <tr><td><code>X-XSS-Protection</code></td><td><code>1; mode=block</code></td><td>Legacy XSS filter (modern browsers ignore — retained for older browser compatibility)</td></tr>
+  </tbody>
+</table>
+
+<h3>CORS Policy</h3>
+<ul>
+  <li>API CORS: <code>origin: [process.env.WEB_URL]</code> — production web domain only. No wildcard.</li>
+  <li>Credentials: <code>true</code> (required for cookie/auth header flows).</li>
+  <li>Allowed methods: GET, POST, PATCH, DELETE.</li>
+  <li>Preflight cache: 24 hours.</li>
+</ul>
+
+<h3>TLS</h3>
+<ul>
+  <li>TLS 1.2 minimum enforced by Vercel (TLS 1.3 preferred). Managed certificates via Vercel.</li>
+  <li>No self-signed certificates in any environment.</li>
+</ul>
+
+<h2>12. PII Handling &amp; Data Privacy</h2>
+
+<h3>What is PII in Axon Tickets</h3>
+<ul>
+  <li>First name, last name, email address, contact number — all collected during registration.</li>
+  <li>Optional: gender, age, country, company, affiliation, city.</li>
+  <li>Payment proof screenshot (financial image — potentially contains bank account numbers, reference codes).</li>
+</ul>
+
+<h3>PII Rules</h3>
+<table>
+  <thead><tr><th>Data</th><th>Storage</th><th>Access</th><th>Logging</th><th>Retention</th></tr></thead>
+  <tbody>
+    <tr><td>Name, email, phone</td><td>PostgreSQL (Neon) — encrypted at rest</td><td>Admin + own attendee session</td><td>Never in logs (entity ID only)</td><td>Until registration deleted by admin</td></tr>
+    <tr><td>Payment proof image</td><td>Cloudinary private folder</td><td>Admin via signed URL only</td><td>Never in logs</td><td>Until manually deleted by admin post-event</td></tr>
+    <tr><td>QR token</td><td>PostgreSQL Attendee.qrToken</td><td>Server-only (never exposed in API except via QR image)</td><td>Never logged</td><td>Until attendee record deleted</td></tr>
+    <tr><td>JWT tokens</td><td>localStorage (client) + Redis (refresh tokens)</td><td>Client holds access token; server holds refresh validation</td><td>Never logged (only token revocation events)</td><td>Access: 15min TTL. Refresh: 7-day TTL. Redis: cleared on logout.</td></tr>
+    <tr><td>Audit log entries</td><td>PostgreSQL AuditLog table</td><td>Admin only</td><td>Contains entity IDs, action types — no PII</td><td>1-year rolling (MVP: no auto-purge)</td></tr>
+  </tbody>
+</table>
+
+<h3>Data Minimization</h3>
+<ul>
+  <li>Email addresses collected at registration — used for confirmation, QR delivery, rejection notices. Not used for marketing (MVP has no marketing module).</li>
+  <li>Optional fields (gender, age, country, etc.) collected only if provided — never required.</li>
+  <li>EventView logs store anonymous sessionId only — no email, name, or IP address.</li>
+</ul>
+
+<h3>Philippine Data Privacy Act (DPA) 2012 — MVP Compliance</h3>
+<ul>
+  <li>Attendees provide consent at registration (registration form includes data collection notice).</li>
+  <li>Data used only for the stated purpose: event registration and attendance.</li>
+  <li>Data not shared with third parties beyond: Resend (email delivery — data processor), Cloudinary (image storage — data processor), Neon (database — data processor).</li>
+  <li>Attendee can request data deletion via organizer (no automated self-service deletion in MVP).</li>
+</ul>
+
+<h2>13. Audit Trail</h2>
+
+<h3>Covered Actions (MVP)</h3>
+<ul>
+  <li>CREATE_EVENT, UPDATE_EVENT, CANCEL_EVENT</li>
+  <li>CREATE_TIER, UPDATE_TIER, DELETE_TIER</li>
+  <li>APPROVE_REGISTRATION, REJECT_REGISTRATION, BULK_APPROVE</li>
+  <li>RESEND_QR, CHECKIN_MANUAL, CHECKIN_OVERRIDE</li>
+  <li>EXPORT_CSV</li>
+</ul>
+
+<h3>Audit Log Properties</h3>
+<ul>
+  <li>Each entry is immutable (no UPDATE, no DELETE on AuditLog table).</li>
+  <li>Contains: adminId, action, entityType, entityId, metadata (structured JSON), createdAt.</li>
+  <li>No PII in metadata — only IDs, reason codes, counts.</li>
+  <li>Retention: all records kept for MVP. Post-MVP: 1-year rolling delete recommended.</li>
+</ul>
+
+<h2>14. Dependency &amp; Supply Chain Security</h2>
+<ul>
+  <li>Run <code>npm audit</code> before every production deployment. Critical or high severity findings must be resolved before deploy.</li>
+  <li>Lock file (<code>package-lock.json</code>) committed to repo — prevents dependency version drift.</li>
+  <li>No <code>--force</code> installs that bypass peer dependency warnings without review.</li>
+  <li>New dependencies must be justified and reviewed before adding (principle of minimal dependencies).</li>
+  <li>Cloudinary SDK, Resend SDK, and Prisma are pinned to specific minor versions.</li>
+  <li>Post-MVP: Dependabot alerts configured on GitHub repository for automatic vulnerability notifications.</li>
+</ul>
+
+<h2>15. Security Testing Checklist</h2>
+<table>
+  <thead><tr><th>Test</th><th>Type</th><th>Phase</th></tr></thead>
+  <tbody>
+    <tr><td>Upload MIME bypass (rename .exe to .jpg, verify rejection)</td><td>Manual</td><td>Phase 3</td></tr>
+    <tr><td>Direct Cloudinary URL for private proof → expect 401</td><td>Manual</td><td>Phase 3</td></tr>
+    <tr><td>IDOR: attendee A accesses registration B via session token</td><td>Automated (Jest)</td><td>Phase 3</td></tr>
+    <tr><td>Admin endpoint without JWT → expect 401</td><td>Automated (Jest)</td><td>Phase 4</td></tr>
+    <tr><td>Non-admin JWT on /admin/* → expect 403</td><td>Automated (Jest)</td><td>Phase 4</td></tr>
+    <tr><td>Brute-force login: 6 attempts same email → expect 429</td><td>Automated (Jest)</td><td>Phase 0</td></tr>
+    <tr><td>Rate limit on /registrations: 11 requests/min from same IP → expect 429</td><td>Automated (Jest)</td><td>Phase 2</td></tr>
+    <tr><td>SQL injection via registration firstName field</td><td>Manual (sqlmap lite)</td><td>Phase 8</td></tr>
+    <tr><td>XSS via registration firstName field rendered in admin</td><td>Manual</td><td>Phase 8</td></tr>
+    <tr><td>Expired access token on protected route → expect 401</td><td>Automated (Jest)</td><td>Phase 0</td></tr>
+    <tr><td>File upload over 5MB → expect 413</td><td>Automated (Jest)</td><td>Phase 3</td></tr>
+    <tr><td>Approve registration in non-SUBMITTED status → expect 422</td><td>Automated (Jest)</td><td>Phase 4</td></tr>
+    <tr><td>Duplicate QR scan returns "already checked in" (not double check-in)</td><td>Automated (Jest)</td><td>Phase 6</td></tr>
+    <tr><td>Registration with duplicate email in same event → expect 409</td><td>Automated (Jest)</td><td>Phase 2</td></tr>
+    <tr><td>Signed proof URL expires after 30 minutes</td><td>Manual</td><td>Phase 3</td></tr>
+    <tr><td>Verify HTTP security headers present on all responses</td><td>Automated (curl / security-headers.com)</td><td>Phase 0</td></tr>
+    <tr><td>Verify no secrets in git history</td><td>git-secrets scan</td><td>Phase 0</td></tr>
+    <tr><td>npm audit — zero critical/high vulnerabilities</td><td>Automated CI step</td><td>Every phase</td></tr>
+  </tbody>
+</table>
+
+<hr>
+<p style="font-size:9pt; color:#64748b; text-align:center;">Axon Tickets MVP — Security Plan v1.0 · May 19, 2026 · Confidential</p>
+
+</body>
+</html>

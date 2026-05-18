@@ -10,6 +10,8 @@ import Button from '@/components/Button';
 import Navbar from '@/components/Navbar';
 import CountdownTimer from '@/components/CountdownTimer';
 
+const ONLINE_PAYMENT_ENABLED = process.env.NEXT_PUBLIC_ENABLE_ONLINE_PAYMENT === 'true';
+
 export default function CheckoutPage() {
   const params = useParams<{ reservationId: string }>();
   const router = useRouter();
@@ -18,12 +20,25 @@ export default function CheckoutPage() {
   const [loading, setLoading] = useState(false);
   const [order, setOrder] = useState<null | { id: string }>(null);
 
+  // Feature flag: online payment is disabled for MVP manual-proof flow.
+  // Set NEXT_PUBLIC_ENABLE_ONLINE_PAYMENT=true to re-enable.
+  useEffect(() => {
+    if (!ONLINE_PAYMENT_ENABLED) {
+      router.replace('/');
+    }
+  }, [router]);
+
   // Guard: ensure reservation matches
   useEffect(() => {
+    if (!ONLINE_PAYMENT_ENABLED) return;
     if (reservationId && reservationId !== params.reservationId) {
       router.replace('/');
     }
   }, [reservationId, params.reservationId, router]);
+
+  if (!ONLINE_PAYMENT_ENABLED) {
+    return null;
+  }
 
   const subtotal = (unitPrice ?? 0) * (quantity ?? 0);
   const fee = calculateFee(subtotal);

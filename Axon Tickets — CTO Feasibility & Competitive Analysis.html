@@ -1,0 +1,538 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Axon Tickets — CTO Feasibility & Competitive Analysis</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --navy:   #0f2044;
+      --blue:   #1d4ed8;
+      --sky:    #3b82f6;
+      --gold:   #f59e0b;
+      --teal:   #0d9488;
+      --muted:  #64748b;
+      --border: #e2e8f0;
+      --light:  #f8fafc;
+      --text:   #1e293b;
+    }
+
+    html { font-size: 10.5pt; }
+    body { font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; color: var(--text); background: #fff; line-height: 1.55; }
+
+    .page { width: 210mm; margin: 0 auto; padding: 13mm 15mm; }
+
+    /* Cover */
+    .cover-bar { background: var(--navy); color: white; padding: 14mm 15mm 10mm; margin: -13mm -15mm 0; }
+    .logo-row { display: flex; align-items: center; gap: 9px; margin-bottom: 32px; }
+    .logo-box { width: 32px; height: 32px; background: var(--gold); border-radius: 6px; display: flex; align-items: center; justify-content: center; font-weight: 900; font-size: 15px; color: var(--navy); }
+    .logo-name { font-weight: 700; font-size: 13pt; color: white; }
+    .cover-eyebrow { font-size: 8pt; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; color: var(--gold); margin-bottom: 10px; }
+    .cover-title { font-size: 26pt; font-weight: 800; line-height: 1.15; color: white; letter-spacing: -0.5px; margin-bottom: 10px; }
+    .cover-sub { font-size: 10pt; color: rgba(255,255,255,0.65); }
+    .cover-rule { height: 3px; background: linear-gradient(90deg, var(--gold), var(--teal)); margin: 0 -15mm; }
+    .cover-meta { display: flex; justify-content: space-between; padding-top: 20px; font-size: 8.5pt; }
+    .cover-meta-item { color: var(--muted); }
+    .cover-meta-item strong { display: block; color: var(--text); font-size: 9pt; margin-top: 2px; }
+
+    /* Page header */
+    .page-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid var(--navy); padding-bottom: 8px; margin-bottom: 22px; }
+    .ph-left { display: flex; align-items: center; gap: 7px; }
+    .ph-icon { width: 22px; height: 22px; background: var(--navy); border-radius: 4px; display: flex; align-items: center; justify-content: center; font-weight: 900; font-size: 9px; color: var(--gold); }
+    .ph-name { font-weight: 700; font-size: 9.5pt; color: var(--navy); }
+    .ph-right { font-size: 7.5pt; color: var(--muted); }
+
+    /* Section */
+    .section { margin-bottom: 22px; }
+    .sec-label { font-size: 7pt; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; color: var(--sky); margin-bottom: 4px; }
+    h2 { font-size: 16pt; font-weight: 800; color: var(--navy); margin-bottom: 12px; letter-spacing: -0.3px; }
+    h3 { font-size: 10pt; font-weight: 700; color: var(--navy); margin: 14px 0 6px; }
+    p { font-size: 9pt; color: var(--text); margin-bottom: 8px; line-height: 1.6; }
+
+    /* Tables */
+    table { width: 100%; border-collapse: collapse; font-size: 8.5pt; margin-bottom: 12px; }
+    thead tr { background: var(--navy); color: white; }
+    thead th { padding: 7px 10px; text-align: left; font-weight: 600; font-size: 8pt; }
+    tbody tr:nth-child(even) { background: var(--light); }
+    tbody td { padding: 7px 10px; border-bottom: 1px solid var(--border); vertical-align: top; }
+    .hl-col { background: #eff6ff !important; font-weight: 600; color: var(--blue); }
+
+    .check   { color: #15803d; font-weight: 700; }
+    .cross   { color: #ef4444; font-weight: 700; }
+    .partial { color: #d97706; font-weight: 700; }
+
+    /* Stat cards */
+    .cards { display: grid; gap: 10px; margin-bottom: 12px; }
+    .cards-3 { grid-template-columns: repeat(3, 1fr); }
+    .cards-4 { grid-template-columns: repeat(4, 1fr); }
+    .card { background: var(--light); border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px; }
+    .card-a { border-left: 3px solid var(--blue); }
+    .card-g { border-left: 3px solid var(--gold); }
+    .card-t { border-left: 3px solid var(--teal); }
+    .card-label { font-size: 7.5pt; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 4px; }
+    .card-val { font-size: 15pt; font-weight: 800; color: var(--navy); line-height: 1; }
+    .card-val-sm { font-size: 10pt; font-weight: 700; color: var(--navy); }
+    .card-sub { font-size: 7.5pt; color: var(--muted); margin-top: 3px; }
+
+    /* Info / highlight */
+    .box { border-radius: 7px; padding: 11px 14px; margin: 10px 0; }
+    .box p { margin: 0; font-size: 8.5pt; }
+    .box-gold { background: #fffbeb; border: 1px solid #fbbf24; border-left: 3px solid var(--gold); }
+    .box-blue { background: #eff6ff; border: 1px solid #93c5fd; border-left: 3px solid var(--blue); }
+
+    /* Roadmap */
+    .roadmap { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin: 10px 0; }
+    .rp { border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+    .rp-head { padding: 8px 12px; font-weight: 700; font-size: 8.5pt; color: white; }
+    .rp-h1 { background: var(--navy); } .rp-h2 { background: var(--blue); } .rp-h3 { background: var(--sky); }
+    .rp-body { padding: 10px 12px; }
+    .rp-item { display: flex; align-items: flex-start; gap: 6px; font-size: 8pt; padding: 3px 0; }
+    .dot { width: 6px; height: 6px; min-width: 6px; border-radius: 50%; margin-top: 4px; }
+    .d-done { background: var(--teal); } .d-wip { background: var(--gold); } .d-plan { background: var(--border); }
+
+    /* Risk */
+    .risk-high { color: #dc2626; font-weight: 700; }
+    .risk-mid  { color: #d97706; font-weight: 700; }
+    .risk-low  { color: #15803d; font-weight: 700; }
+
+    /* Footer */
+    .footer { margin-top: 24px; padding-top: 10px; border-top: 1px solid var(--border); display: flex; justify-content: space-between; font-size: 7.5pt; color: var(--muted); }
+
+    /* Page break */
+    .pb { page-break-after: always; break-after: page; }
+
+    @media print {
+      html { font-size: 10pt; }
+      .page { padding: 11mm 13mm; }
+      .pb { page-break-after: always; break-after: page; }
+    }
+    @page { size: A4; margin: 0; }
+  </style>
+</head>
+<body>
+
+<!-- COVER -->
+<div class="page">
+  <div class="cover-bar">
+    <div class="logo-row">
+      <div class="logo-box">A</div>
+      <span class="logo-name">Axon Tickets</span>
+    </div>
+    <div class="cover-eyebrow">CTO Briefing Document — Confidential</div>
+    <div class="cover-title">Feasibility Study &amp;<br>Competitive Analysis</div>
+    <div class="cover-sub">Technical and strategic assessment of the Axon Tickets platform</div>
+  </div>
+  <div class="cover-rule"></div>
+  <div class="cover-meta">
+    <div class="cover-meta-item">Platform <strong>Axon Tickets</strong></div>
+    <div class="cover-meta-item">Status <strong style="color:var(--gold);">Ongoing Development</strong></div>
+    <div class="cover-meta-item">Target Launch Event <strong>July 2026 — Francis Kong, Davao</strong></div>
+    <div class="cover-meta-item" style="text-align:right;">Date <strong>May 2026</strong></div>
+  </div>
+</div>
+
+<div class="pb"></div>
+
+<!-- PAGE 2 — TECHNICAL OVERVIEW -->
+<div class="page">
+  <div class="page-header">
+    <div class="ph-left"><div class="ph-icon">A</div><span class="ph-name">Axon Tickets</span></div>
+    <span class="ph-right">CTO Feasibility Study &amp; Competitive Analysis · Confidential</span>
+  </div>
+
+  <div class="section">
+    <div class="sec-label">Section 01</div>
+    <h2>Platform Overview</h2>
+    <p>Axon Tickets is a Philippine-first online ticketing platform purpose-built for conferences and professional events. The platform is currently in active development and is targeting its first live event in July 2026.</p>
+
+    <div class="cards cards-3">
+      <div class="card card-g">
+        <div class="card-label">Status</div>
+        <div class="card-val-sm">Ongoing Development</div>
+        <div class="card-sub">Platform being built and tested</div>
+      </div>
+      <div class="card card-t">
+        <div class="card-label">Target Launch Event</div>
+        <div class="card-val-sm">July 2026</div>
+        <div class="card-sub">Francis Kong · Davao</div>
+      </div>
+      <div class="card card-a">
+        <div class="card-label">Monthly Running Cost</div>
+        <div class="card-val-sm">₱0 → ₱4,060/mo</div>
+        <div class="card-sub">Development → Launch</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="sec-label">Section 02</div>
+    <h2>Technology Stack</h2>
+
+    <table>
+      <thead>
+        <tr><th>Layer</th><th>Technology</th><th>Rationale</th></tr>
+      </thead>
+      <tbody>
+        <tr><td><strong>Buyer Website</strong></td><td>Next.js 14 · React 18 · Tailwind CSS · Zustand</td><td>The event pages and checkout experience that buyers see — fast-loading, mobile-friendly, and designed for users across the Philippines</td></tr>
+        <tr><td><strong>Platform Engine</strong></td><td>NestJS 10 · Node.js 20 · Prisma ORM v5</td><td>The system that runs all platform logic — processes ticket purchases, manages user accounts, enforces business rules, and connects all services together</td></tr>
+        <tr><td><strong>Database</strong></td><td>PostgreSQL via Supabase</td><td>Where all platform data lives — events, orders, attendee records, user accounts. Cloud-hosted with automatic daily backups and the ability to restore data to any point in time</td></tr>
+        <tr><td><strong>Login &amp; Account Security</strong></td><td>JWT RS256 · Email OTP · Google OAuth · hCaptcha</td><td>Buyers can log in via their Google account or a one-time email code. All sessions are encrypted, and automated bot sign-ups are blocked at registration</td></tr>
+        <tr><td><strong>Online Payments</strong></td><td>PayMongo (primary) · Stripe (secondary)</td><td>Accepts GCash, Maya, InstaPay, and credit/debit cards through PayMongo — a BSP-regulated Philippine gateway. Stripe serves as a fallback for international cards. <em>If payment integration is not yet live at launch, an interim option — manual bank transfer or GCash QR with admin-confirmed orders — can be used until full integration is ready.</em></td></tr>
+        <tr><td><strong>Seat Reservation</strong></td><td>Upstash Redis</td><td>Temporarily holds a buyer's chosen seat while they complete payment — preventing two people from accidentally purchasing the same ticket at the same time</td></tr>
+        <tr><td><strong>Event Images</strong></td><td>Cloudinary</td><td>Stores and delivers event cover photos and speaker images quickly to all visitors, regardless of their location or internet speed</td></tr>
+        <tr><td><strong>Cloud Hosting</strong></td><td>Vercel</td><td>The platform runs entirely in the cloud — no physical servers to manage. It scales automatically when ticket demand spikes and costs nothing extra during quiet periods</td></tr>
+        <tr><td><strong>Email Delivery</strong></td><td>Resend</td><td>Sends login verification codes, purchased ticket QR codes, and order confirmation receipts directly to buyers' inboxes</td></tr>
+        <tr><td><strong>Code Organisation</strong></td><td>Turborepo (Monorepo)</td><td>The buyer website and platform engine are managed together in one organised codebase — keeping development consistent, reducing duplication, and making it easier to onboard new team members</td></tr>
+      </tbody>
+    </table>
+
+    <div class="box box-blue">
+      <p><strong>How the platform is hosted:</strong> The platform runs entirely in the cloud with no physical servers to manage or rent. It automatically powers up when buyers visit and scales to handle high demand — such as a surge when ticket sales open — then scales back down, keeping costs minimal during quiet periods.</p>
+    </div>
+  </div>
+
+  <div class="footer">
+    <span>Axon Tickets — CTO Feasibility Study &amp; Competitive Analysis</span>
+    <span>Confidential · May 2026 · Page 2</span>
+  </div>
+</div>
+
+<div class="pb"></div>
+
+<!-- PAGE 3 — COMPETITIVE ANALYSIS -->
+<div class="page">
+  <div class="page-header">
+    <div class="ph-left"><div class="ph-icon">A</div><span class="ph-name">Axon Tickets</span></div>
+    <span class="ph-right">CTO Feasibility Study &amp; Competitive Analysis · Confidential</span>
+  </div>
+
+  <div class="section">
+    <div class="sec-label">Section 03</div>
+    <h2>Competitive Analysis</h2>
+
+    <table>
+      <thead>
+        <tr>
+          <th style="width:22%;">Capability</th>
+          <th style="width:15%; background:#1d4ed8;">Axon Tickets</th>
+          <th>KTX.ph</th>
+          <th>Eventbrite</th>
+          <th>TicketNet</th>
+          <th>SM Tickets</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>Conference Tools</strong><br><small style="color:var(--muted);">Built-in pages for speaker profiles, event schedule, FAQs, and sponsor logos — designed for business conferences, not concerts</small></td>
+          <td class="hl-col"><span class="check">✔ Built-in</span></td>
+          <td><span class="cross">✘ Not available</span></td>
+          <td><span class="partial">▲ Basic only</span></td>
+          <td><span class="cross">✘ Not available</span></td>
+          <td><span class="cross">✘ Not available</span></td>
+        </tr>
+        <tr>
+          <td><strong>Philippine Payment Methods</strong><br><small style="color:var(--muted);">GCash, Maya, InstaPay, and bank transfers — the ways most Filipinos actually pay online</small></td>
+          <td class="hl-col"><span class="check">✔ Yes (PayMongo)</span></td>
+          <td><span class="check">✔ Yes</span></td>
+          <td><span class="cross">✘ Credit cards only</span></td>
+          <td><span class="partial">▲ Limited options</span></td>
+          <td><span class="partial">▲ SM Pay only</span></td>
+        </tr>
+        <tr>
+          <td><strong>QR Code Check-in</strong><br><small style="color:var(--muted);">Staff scan attendee tickets at the door using any phone browser — no dedicated scanner, extra device, or downloaded app needed</small></td>
+          <td class="hl-col"><span class="check">✔ Any phone, no app</span></td>
+          <td><span class="partial">▲ Requires 3rd-party tool</span></td>
+          <td><span class="partial">▲ Separate app required</span></td>
+          <td><span class="cross">✘ Paper list / manual</span></td>
+          <td><span class="cross">✘ Paper list / manual</span></td>
+        </tr>
+        <tr>
+          <td><strong>Multiple Ticket Tiers</strong><br><small style="color:var(--muted);">Sell different price levels in one event — e.g. Early Bird, Regular, VIP</small></td>
+          <td class="hl-col"><span class="check">✔ Yes</span></td>
+          <td><span class="check">✔ Yes</span></td>
+          <td><span class="check">✔ Yes</span></td>
+          <td><span class="partial">▲ Limited</span></td>
+          <td><span class="partial">▲ Limited</span></td>
+        </tr>
+        <tr>
+          <td><strong>Organiser Can Self-Publish</strong><br><small style="color:var(--muted);">Create and launch your own event without waiting for approval or going through a middleman</small></td>
+          <td class="hl-col"><span class="check">✔ Yes</span></td>
+          <td><span class="cross">✘ Platform selects events</span></td>
+          <td><span class="check">✔ Yes</span></td>
+          <td><span class="cross">✘ Venue-dependent</span></td>
+          <td><span class="cross">✘ SM venues only</span></td>
+        </tr>
+        <tr>
+          <td><strong>Connects to Other Tools</strong><br><small style="color:var(--muted);">Can link with CRM systems, mailing lists, or reporting tools via a standard open interface</small></td>
+          <td class="hl-col"><span class="check">✔ Yes</span></td>
+          <td><span class="cross">✘ Closed system</span></td>
+          <td><span class="partial">▲ Limited</span></td>
+          <td><span class="cross">✘ Closed system</span></td>
+          <td><span class="cross">✘ Closed system</span></td>
+        </tr>
+        <tr>
+          <td><strong>Double-Booking Protection</strong><br><small style="color:var(--muted);">A seat is automatically locked while a buyer checks out — prevents two people from purchasing the same ticket simultaneously</small></td>
+          <td class="hl-col"><span class="check">✔ Automatic</span></td>
+          <td><span class="partial">▲ Unclear</span></td>
+          <td><span class="check">✔ Yes</span></td>
+          <td><span class="cross">✘ Not protected</span></td>
+          <td><span class="cross">✘ Not protected</span></td>
+        </tr>
+        <tr>
+          <td><strong>Platform Fee per Ticket Sold</strong><br><small style="color:var(--muted);">How much the platform charges the organiser for each ticket sold — lower is better for organisers</small></td>
+          <td class="hl-col">Flat ₱50/ticket</td>
+          <td>% of ticket price</td>
+          <td>% + extra booking fee</td>
+          <td>High % + venue cut</td>
+          <td>High % of ticket price</td>
+        </tr>
+        <tr>
+          <td><strong>Mindanao &amp; Visayas Focus</strong><br><small style="color:var(--muted);">Actively serving organisers in Davao, Cebu, and surrounding regions — not a Metro Manila-first platform</small></td>
+          <td class="hl-col"><span class="check">✔ Primary focus</span></td>
+          <td><span class="partial">▲ Metro Manila-centric</span></td>
+          <td><span class="partial">▲ No local focus</span></td>
+          <td><span class="cross">✘ NCR only</span></td>
+          <td><span class="cross">✘ SM malls only</span></td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="box box-gold">
+      <p><strong>Our Competitive Edge:</strong> Axon Tickets is the only platform in the Philippines that combines a full conference toolkit — speaker lineup, event schedule, FAQs, and sponsor recognition — with local payment methods (GCash, Maya, InstaPay) and a built-in attendee check-in system, all in one product. Competitors either serve concert-style events, require international credit cards, or need separate add-on tools to match what Axon Tickets does out of the box. This combination is our defensible market position.</p>
+    </div>
+  </div>
+
+  <div class="footer">
+    <span>Axon Tickets — CTO Feasibility Study &amp; Competitive Analysis</span>
+    <span>Confidential · May 2026 · Page 3</span>
+  </div>
+</div>
+
+<div class="pb"></div>
+
+<!-- PAGE 4 — INFRASTRUCTURE COST + FEASIBILITY -->
+<div class="page">
+  <div class="page-header">
+    <div class="ph-left"><div class="ph-icon">A</div><span class="ph-name">Axon Tickets</span></div>
+    <span class="ph-right">CTO Feasibility Study &amp; Competitive Analysis · Confidential</span>
+  </div>
+
+  <div class="section">
+    <div class="sec-label">Section 04</div>
+    <h2>Infrastructure Cost Model</h2>
+
+    <table>
+      <thead>
+        <tr><th>Service</th><th>What It Does (Plain English)</th><th>Now (Building)</th><th>At Launch (July 2026)</th><th>Growth (2+ events/mo)</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>Vercel</strong></td>
+          <td>Hosts the website and platform in the cloud. Handles all web traffic from buyers and organisers automatically.</td>
+          <td>Free</td><td>₱1,160/mo</td><td>₱1,160/mo</td>
+        </tr>
+        <tr>
+          <td><strong>Supabase</strong></td>
+          <td>Stores all platform data — events, ticket orders, attendee records, and user accounts. Includes automatic daily backups.</td>
+          <td>Free</td><td>₱1,450/mo</td><td>₱1,450/mo</td>
+        </tr>
+        <tr>
+          <td><strong>Resend</strong></td>
+          <td>Delivers transactional emails — login verification codes, purchased ticket QR codes, and order receipts — directly to buyers.</td>
+          <td>Free</td><td>₱1,160/mo</td><td>₱1,160/mo</td>
+        </tr>
+        <tr>
+          <td><strong>Upstash Redis</strong></td>
+          <td>Temporarily holds a buyer's seat during checkout to prevent double-booking. Resets automatically once payment is confirmed or abandoned.</td>
+          <td>Free</td><td>₱290/mo</td><td>₱580/mo</td>
+        </tr>
+        <tr>
+          <td><strong>Cloudinary</strong></td>
+          <td>Stores and delivers event cover photos and speaker images quickly to all visitors, regardless of their location or device.</td>
+          <td>Free</td><td>Free</td><td>₱0–₱1,160/mo</td>
+        </tr>
+        <tr>
+          <td><strong>PayMongo</strong></td>
+          <td>Processes online payments — GCash, Maya, InstaPay, and credit/debit cards. BSP-regulated and widely trusted in the Philippines. No fixed monthly fee.</td>
+          <td>Free</td><td colspan="2">3.5% + ₱15 per transaction (no monthly subscription)</td>
+        </tr>
+        <tr style="background:#f0f9ff; font-weight:700;">
+          <td colspan="2"><strong>Total Monthly Fixed Cost</strong></td>
+          <td><strong style="color:#15803d;">₱0</strong></td>
+          <td><strong>~₱4,060/mo</strong></td>
+          <td><strong>~₱4,350–₱5,510/mo</strong></td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="box box-blue">
+      <p><strong>Cost efficiency:</strong> Running costs are ₱0 during development. At launch, total fixed monthly costs are approximately ₱4,060 — less than what most events spend on a single sponsor banner. A single event with modest attendance is more than enough to cover the platform’s entire monthly operating cost, making this financially self-sustaining from day one.</p>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="sec-label">Section 05</div>
+    <h2>Feasibility Assessment</h2>
+
+    <table>
+      <thead>
+        <tr><th style="width:26%;">Dimension</th><th style="width:14%; text-align:center;">Rating</th><th>Notes</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>Can We Build It?</strong></td>
+          <td style="text-align:center;" class="risk-low">High</td>
+          <td>The platform works. The three core journeys a buyer takes — discovering an event, purchasing a ticket, and being scanned in at the door — have all been built and tested. No fundamental blockers remain.</td>
+        </tr>
+        <tr>
+          <td><strong>Can We Afford to Run It?</strong></td>
+          <td style="text-align:center;" class="risk-low">High</td>
+          <td>Running costs are ₱0 while we build. At launch, total fixed monthly costs are approximately ₱4,060 — far below the revenue expected from even a single small event. The platform effectively pays for itself after the first event.</td>
+        </tr>
+        <tr>
+          <td><strong>Can It Handle a Large Crowd?</strong></td>
+          <td style="text-align:center;" class="risk-mid">Medium</td>
+          <td>The platform is built to handle sudden surges in visitors — such as when a popular event goes on sale and many buyers arrive at once. One planned database upgrade (₱1,450/mo) is needed before handling very large events to ensure nothing slows down.</td>
+        </tr>
+        <tr>
+          <td><strong>Is Buyer Data Safe?</strong></td>
+          <td style="text-align:center;" class="risk-low">Satisfactory</td>
+          <td>A formal security review was completed using internationally recognised standards. All login sessions are encrypted, access requests are rate-limited to block abuse attempts, and no sensitive information is stored in the codebase. Buyer data is protected.</td>
+        </tr>
+        <tr>
+          <td><strong>Can We Launch by July 2026?</strong></td>
+          <td style="text-align:center;" class="risk-mid">Medium</td>
+          <td>2–3 features are still in development: automatic email ticket delivery, buyer profile collection at checkout, and attendee list export. These are achievable within the timeline. No new features should be added before July — focus is critical.</td>
+        </tr>
+        <tr>
+          <td><strong>Code Quality &amp; Maintainability</strong></td>
+          <td style="text-align:center;" class="risk-low">Low</td>
+          <td>The codebase is consistently structured, uses automated checks to catch errors early, and is documented for readability. A second developer could be onboarded quickly without needing to rebuild or relearn the system from scratch.</td>
+        </tr>
+        <tr>
+          <td><strong>Are We Locked Into Any Vendor?</strong></td>
+          <td style="text-align:center;" class="risk-low">Low</td>
+          <td>Every tool and service used can be replaced with an alternative if needed. The database, hosting provider, payment gateway, and email service are all standard, widely-used solutions — we are not locked into any proprietary system.</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="footer">
+    <span>Axon Tickets — CTO Feasibility Study &amp; Competitive Analysis</span>
+    <span>Confidential · May 2026 · Page 4</span>
+  </div>
+</div>
+
+<div class="pb"></div>
+
+<!-- PAGE 5 — ROADMAP + RISKS -->
+<div class="page">
+  <div class="page-header">
+    <div class="ph-left"><div class="ph-icon">A</div><span class="ph-name">Axon Tickets</span></div>
+    <span class="ph-right">CTO Feasibility Study &amp; Competitive Analysis · Confidential</span>
+  </div>
+
+  <div class="section">
+    <div class="sec-label">Section 06</div>
+    <h2>Technical Roadmap</h2>
+
+    <div class="roadmap">
+      <div class="rp">
+        <div class="rp-head rp-h1">Phase 1 — Launch Ready<br><span style="font-weight:400; font-size:7.5pt; opacity:.8;">Now → July 2026</span></div>
+        <div class="rp-body">
+          <div class="rp-item"><div class="dot d-wip"></div>Create &amp; manage events with multiple ticket price tiers</div>
+          <div class="rp-item"><div class="dot d-wip"></div>Online checkout — pay via GCash, Maya, or card</div>
+          <div class="rp-item"><div class="dot d-wip"></div>Unique QR code ticket delivered to each buyer after purchase</div>
+          <div class="rp-item"><div class="dot d-wip"></div>Door check-in — scan QR codes at the entrance using any phone</div>
+          <div class="rp-item"><div class="dot d-wip"></div>Admin panel to manage events and monitor ticket sales</div>
+          <div class="rp-item"><div class="dot d-wip"></div>Buyer accounts — log in with email or Google</div>
+          <div class="rp-item"><div class="dot d-wip"></div>Conference page — speakers, event schedule, sponsors, FAQs</div>
+          <div class="rp-item"><div class="dot d-wip"></div>Automatic email delivery of tickets after purchase</div>
+          <div class="rp-item"><div class="dot d-wip"></div>Capture buyer details at checkout (e.g. job title, company)</div>
+          <div class="rp-item"><div class="dot d-wip"></div>Download full attendee list as a spreadsheet</div>
+        </div>
+      </div>
+      <div class="rp">
+        <div class="rp-head rp-h2">Phase 2 — Growth<br><span style="font-weight:400; font-size:7.5pt; opacity:.8;">Oct 2026 → Mar 2027</span></div>
+        <div class="rp-body">
+          <div class="rp-item"><div class="dot d-plan"></div>Any organiser can self-publish events without contacting us</div>
+          <div class="rp-item"><div class="dot d-plan"></div>Discount codes and group registration pricing</div>
+          <div class="rp-item"><div class="dot d-plan"></div>Buyer refund and cancellation request management</div>
+          <div class="rp-item"><div class="dot d-plan"></div>Waitlist — notify buyers when sold-out tickets open up again</div>
+          <div class="rp-item"><div class="dot d-plan"></div>Sales dashboard — revenue, attendance, ticket tier breakdown</div>
+          <div class="rp-item"><div class="dot d-plan"></div>Team accounts — co-organisers sharing access to one event</div>
+          <div class="rp-item"><div class="dot d-plan"></div>Push real-time updates to external tools (CRM, Slack, etc.)</div>
+        </div>
+      </div>
+      <div class="rp">
+        <div class="rp-head rp-h3">Phase 3 — Scale<br><span style="font-weight:400; font-size:7.5pt; opacity:.8;">Apr 2027 onwards</span></div>
+        <div class="rp-body">
+          <div class="rp-item"><div class="dot d-plan"></div>License the platform to other organisations under their own brand</div>
+          <div class="rp-item"><div class="dot d-plan"></div>Let buyers pay for premium tickets in installments</div>
+          <div class="rp-item"><div class="dot d-plan"></div>Native mobile app for buyers and event staff (iOS + Android)</div>
+          <div class="rp-item"><div class="dot d-plan"></div>Support online and hybrid (in-person + livestream) events</div>
+          <div class="rp-item"><div class="dot d-plan"></div>Sponsor portal with lead capture and engagement reports</div>
+          <div class="rp-item"><div class="dot d-plan"></div>Expand reach to all major Philippine cities</div>
+        </div>
+      </div>
+    </div>
+
+    <div style="display:flex; gap:14px; font-size:7.5pt; color:var(--muted); margin-top:6px;">
+      <span><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--gold);margin-right:4px;"></span>In Progress — currently being developed</span>
+      <span><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--border);margin-right:4px;"></span>Planned — next phases after launch</span>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="sec-label">Section 07</div>
+    <h2>Key Risks &amp; Mitigations</h2>
+
+    <table>
+      <thead>
+        <tr><th>Risk &amp; Why It Exists</th><th style="width:16%; text-align:center;">Severity</th><th>How We Are Addressing It</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>Slow response during a ticket rush</strong><br><small style="color:var(--muted);">When a popular event goes on sale, many buyers may try to purchase at the exact same second. Cloud functions need a brief moment to start up under heavy simultaneous load, which can cause short delays during peak traffic.</small></td>
+          <td style="text-align:center;" class="risk-mid">Medium</td>
+          <td>Seat reservation locks are applied immediately, so no double-booking can occur even during a rush. At current event sizes, any delay is imperceptible to buyers. This will be reviewed before any event with 1,000+ simultaneous visitors.</td>
+        </tr>
+        <tr>
+          <td><strong>Payment gateway goes down during a sale</strong><br><small style="color:var(--muted);">Like any online service, PayMongo can occasionally have outages. If this happens during an active ticket sale window, buyers will be unable to complete purchases — leading to missed revenue and frustrated attendees.</small></td>
+          <td style="text-align:center;" class="risk-mid">Medium</td>
+          <td>Stripe (a global payment processor) is integrated as a backup. A manual fallback is also documented — directing buyers to bank transfer or GCash QR with admin order confirmation for emergencies.</td>
+        </tr>
+        <tr>
+          <td><strong>Database free-tier limits before launch</strong><br><small style="color:var(--muted);">The current free database plan has limits on how many buyers can interact with it simultaneously. If many people try to check out at the same time, this cap could cause slowdowns or errors during peak moments.</small></td>
+          <td style="text-align:center;" class="risk-low">Low</td>
+          <td>Upgrade to the paid database plan (₱1,450/mo) at least two weeks before the first event. This removes connection limits and ensures stable performance during peak ticket demand.</td>
+        </tr>
+        <tr>
+          <td><strong>July 2026 deadline — 3 features still in development</strong><br><small style="color:var(--muted);">Automatic email ticket delivery, buyer profile collection at checkout, and attendee list export are still being built. If any of these are not ready in time, organiser and buyer experience at the first event will be impacted.</small></td>
+          <td style="text-align:center;" class="risk-mid">Medium</td>
+          <td>All three features are scoped and in active development. No new feature requests should be added before July. An interim workaround — admin manually forwards tickets — exists for the first event if needed.</td>
+        </tr>
+        <tr>
+          <td><strong>Single developer dependency</strong><br><small style="color:var(--muted);">The platform is currently being built and maintained by one person. Any unexpected absence, illness, or overload could slow progress — especially critical as the July launch date approaches.</small></td>
+          <td style="text-align:center;" class="risk-mid">Medium</td>
+          <td>The codebase is structured and documented for team readability. A second developer can be brought in and productive quickly. All key decisions and deployment procedures are documented in the project repository.</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="box box-gold" style="margin-top:16px;">
+      <p><strong>CTO Recommendation:</strong> The platform is ready to launch. It is technically sound, financially efficient, and addresses a clear gap in the local market that no competitor currently fills. The only critical risk is time — three features must be completed before July 2026. Development effort should be fully focused on those deliverables. No new features should be introduced before the first event. <strong>July 2026 is the go / no-go milestone.</strong></p>
+    </div>
+  </div>
+
+  <div class="footer">
+    <span>Axon Tickets — CTO Feasibility Study &amp; Competitive Analysis</span>
+    <span>Confidential · May 2026 · Page 5</span>
+  </div>
+</div>
+
+</body>
+</html>

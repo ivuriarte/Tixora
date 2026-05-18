@@ -10,7 +10,7 @@ import { getRefreshToken, setAccessToken } from '@/lib/auth';
 import api from '@/lib/api';
 
 function AuthHydrator({ children }: { children: React.ReactNode }) {
-  const { setAuth, logout } = useAuthStore();
+  const { setAuth, logout, setHydrating } = useAuthStore();
   const attempted = useRef(false);
 
   useEffect(() => {
@@ -20,19 +20,22 @@ function AuthHydrator({ children }: { children: React.ReactNode }) {
     const refreshToken = getRefreshToken();
     if (!refreshToken) return;
 
+    setHydrating(true);
+
     api
       .post<{ data: { accessToken: string; refreshToken: string } }>('/auth/refresh', { refreshToken })
       .then((res) => {
         const newAccessToken = res.data.data.accessToken;
         const newRefreshToken = res.data.data.refreshToken;
         setAccessToken(newAccessToken);
-        api.get<{ data: any }>('/auth/me').then((me) => {
+        return api.get<{ data: any }>('/auth/me').then((me) => {
           // Use the NEW rotated refreshToken — storing the old one would break the next reload
           setAuth(me.data.data, newAccessToken, newRefreshToken);
         });
       })
-      .catch(() => logout());
-  }, [setAuth, logout]);
+      .catch(() => logout())
+      .finally(() => setHydrating(false));
+  }, [setAuth, logout, setHydrating]);
 
   return <>{children}</>;
 }

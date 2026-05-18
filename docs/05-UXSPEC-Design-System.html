@@ -1,0 +1,521 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>UI/UX Specification — Axon Tickets MVP</title>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif; font-size: 10.5pt; color: #1a1a1a; max-width: 1000px; margin: 0 auto; padding: 40px; line-height: 1.6; }
+    .header-block { background: linear-gradient(135deg, #1A3A5C 0%, #2d5a8a 100%); color: white; padding: 40px 48px; margin: -40px -40px 40px; }
+    .header-block h1 { color: white; font-size: 24pt; margin: 0 0 8px; border-bottom: 3px solid #EA6C00; padding-bottom: 14px; }
+    .header-block .doc-meta { color: #a8c4e0; font-size: 10pt; margin-top: 14px; }
+    .header-block .doc-meta span { margin-right: 24px; }
+    h2 { font-size: 14pt; color: #1A3A5C; margin-top: 40px; border-left: 5px solid #EA6C00; padding-left: 14px; }
+    h3 { font-size: 11.5pt; color: #EA6C00; margin-top: 24px; margin-bottom: 8px; }
+    h4 { font-size: 10.5pt; color: #1A3A5C; font-weight: 700; margin-top: 16px; }
+    table { width: 100%; border-collapse: collapse; margin: 12px 0; font-size: 9.5pt; }
+    th { background: #1A3A5C; color: white; padding: 9px 11px; text-align: left; font-weight: 600; }
+    td { padding: 7px 11px; border: 1px solid #dde3ec; vertical-align: top; }
+    tr:nth-child(even) td { background: #f7f9fc; }
+    ul, ol { margin: 6px 0 6px 20px; }
+    li { margin: 4px 0; }
+    code { font-family: 'Courier New', monospace; font-size: 9.5pt; background: #f1f5f9; padding: 1px 5px; border-radius: 3px; }
+    .info { background: #eff6ff; border-left: 4px solid #1A3A5C; padding: 10px 14px; margin: 14px 0; font-size: 10pt; border-radius: 0 4px 4px 0; }
+    .warning { background: #fff7ed; border-left: 4px solid #EA6C00; padding: 10px 14px; margin: 14px 0; font-size: 10pt; border-radius: 0 4px 4px 0; }
+    hr { border: none; border-top: 1px solid #dde3ec; margin: 28px 0; }
+    .toc { background: #f7f9fc; border: 1px solid #dde3ec; border-radius: 8px; padding: 20px 24px; margin: 24px 0; }
+    .toc h3 { margin: 0 0 10px; color: #1A3A5C; font-size: 11pt; }
+    .toc ol { margin: 0; padding-left: 20px; }
+    .toc li { margin: 4px 0; font-size: 10pt; }
+    .swatch { display: inline-block; width: 28px; height: 18px; border-radius: 4px; vertical-align: middle; margin-right: 8px; border: 1px solid rgba(0,0,0,0.15); }
+    .flow-box { background: #f7f9fc; border: 1px solid #dde3ec; border-radius: 8px; padding: 16px 20px; margin: 14px 0; font-family: 'Courier New', monospace; font-size: 9pt; white-space: pre; line-height: 1.8; overflow-x: auto; }
+    .copy-block { background: #1e293b; color: #e2e8f0; font-family: 'Courier New', monospace; font-size: 9.5pt; padding: 12px 16px; border-radius: 6px; margin: 6px 0; border-left: 3px solid #EA6C00; }
+    .screen-card { border: 1px solid #dde3ec; border-radius: 8px; padding: 16px 20px; margin: 14px 0; background: #fff; }
+    .screen-card h4 { margin: 0 0 10px; border-bottom: 1px solid #f1f5f9; padding-bottom: 8px; }
+  </style>
+</head>
+<body>
+
+<div class="header-block">
+  <h1>Axon Tickets — UI/UX Specification</h1>
+  <p style="color:#e2ecf7; font-size:11pt; margin:8px 0 0;">Design System · User Flows · Screen Specs · Microcopy · Accessibility</p>
+  <div class="doc-meta">
+    <span><strong>Version:</strong> 1.0</span>
+    <span><strong>Status:</strong> Approved for Development</span>
+    <span><strong>Date:</strong> May 19, 2026</span>
+  </div>
+</div>
+
+<div class="toc">
+  <h3>Table of Contents</h3>
+  <ol>
+    <li>Design System — Colors</li>
+    <li>Design System — Typography</li>
+    <li>Design System — Spacing &amp; Layout</li>
+    <li>Core Component Specifications</li>
+    <li>User Flows</li>
+    <li>Screen Specifications — Attendee Side</li>
+    <li>Screen Specifications — Admin Side</li>
+    <li>Microcopy Library</li>
+    <li>Responsive Behavior</li>
+    <li>Accessibility Standards</li>
+  </ol>
+</div>
+
+<h2>1. Design System — Colors</h2>
+
+<h3>Brand Palette</h3>
+<table>
+  <thead><tr><th>Token</th><th>Swatch</th><th>Hex</th><th>RGB</th><th>Usage</th></tr></thead>
+  <tbody>
+    <tr><td><code>primary</code></td><td><span class="swatch" style="background:#EA6C00;"></span></td><td>#EA6C00</td><td>rgb(234, 108, 0)</td><td>Primary CTAs, active states, highlights, links</td></tr>
+    <tr><td><code>primary-hover</code></td><td><span class="swatch" style="background:#C85A00;"></span></td><td>#C85A00</td><td>rgb(200, 90, 0)</td><td>Button hover state (10% darker)</td></tr>
+    <tr><td><code>secondary</code></td><td><span class="swatch" style="background:#1A3A5C;"></span></td><td>#1A3A5C</td><td>rgb(26, 58, 92)</td><td>Nav, sidebar, headers, dark backgrounds</td></tr>
+    <tr><td><code>accent</code></td><td><span class="swatch" style="background:#F0A500;"></span></td><td>#F0A500</td><td>rgb(240, 165, 0)</td><td>Tier highlights, featured badge, accent decorations</td></tr>
+    <tr><td><code>success</code></td><td><span class="swatch" style="background:#16a34a;"></span></td><td>#16a34a</td><td>rgb(22, 163, 74)</td><td>Approved status, check-in success, confirmed states</td></tr>
+    <tr><td><code>warning</code></td><td><span class="swatch" style="background:#d97706;"></span></td><td>#d97706</td><td>rgb(217, 119, 6)</td><td>Pending verification, draft states, caution messages</td></tr>
+    <tr><td><code>error</code></td><td><span class="swatch" style="background:#dc2626;"></span></td><td>#dc2626</td><td>rgb(220, 38, 38)</td><td>Rejected status, form errors, destructive actions</td></tr>
+    <tr><td><code>surface</code></td><td><span class="swatch" style="background:#f7f9fc;"></span></td><td>#f7f9fc</td><td>rgb(247, 249, 252)</td><td>Page background, card backgrounds</td></tr>
+    <tr><td><code>border</code></td><td><span class="swatch" style="background:#dde3ec;"></span></td><td>#dde3ec</td><td>rgb(221, 227, 236)</td><td>Card borders, dividers, input borders</td></tr>
+    <tr><td><code>text-primary</code></td><td><span class="swatch" style="background:#1a1a1a;"></span></td><td>#1a1a1a</td><td>rgb(26, 26, 26)</td><td>Body text, headings</td></tr>
+    <tr><td><code>text-muted</code></td><td><span class="swatch" style="background:#64748b;"></span></td><td>#64748b</td><td>rgb(100, 116, 139)</td><td>Labels, helper text, timestamps</td></tr>
+    <tr><td><code>white</code></td><td><span class="swatch" style="background:#ffffff; border-color:#dde3ec;"></span></td><td>#ffffff</td><td>rgb(255,255,255)</td><td>Button text on primary, card backgrounds</td></tr>
+  </tbody>
+</table>
+
+<h3>Status Colors for Registration Pipeline</h3>
+<table>
+  <thead><tr><th>Status</th><th>Background</th><th>Text Color</th><th>Border</th></tr></thead>
+  <tbody>
+    <tr><td>DRAFT</td><td>#f1f5f9</td><td>#475569</td><td>#cbd5e1</td></tr>
+    <tr><td>SUBMITTED</td><td>#eff6ff</td><td>#1e40af</td><td>#bfdbfe</td></tr>
+    <tr><td>PENDING_VERIFICATION</td><td>#fef3c7</td><td>#92400e</td><td>#fde68a</td></tr>
+    <tr><td>APPROVED</td><td>#dcfce7</td><td>#166534</td><td>#86efac</td></tr>
+    <tr><td>REJECTED</td><td>#fee2e2</td><td>#991b1b</td><td>#fca5a5</td></tr>
+    <tr><td>CANCELLED</td><td>#f1f5f9</td><td>#64748b</td><td>#e2e8f0</td></tr>
+  </tbody>
+</table>
+
+<h3>Tailwind Config Updates Required</h3>
+<p>In <code>apps/web/tailwind.config.js</code>, extend the theme:</p>
+<ul>
+  <li>Replace <code>primary: '#1d4ed8'</code> → <code>primary: '#EA6C00'</code></li>
+  <li>Replace <code>accent: '#f59e0b'</code> → <code>secondary: '#1A3A5C'</code>, <code>accent: '#F0A500'</code></li>
+  <li>Add status tokens: <code>success, warning, error, surface, border</code></li>
+</ul>
+
+<h2>2. Design System — Typography</h2>
+<table>
+  <thead><tr><th>Scale</th><th>Element</th><th>Size</th><th>Weight</th><th>Line Height</th></tr></thead>
+  <tbody>
+    <tr><td>Display</td><td>Event title (hero)</td><td>28px / 32px</td><td>700</td><td>1.25</td></tr>
+    <tr><td>H1</td><td>Page headers</td><td>22px / 26px</td><td>700</td><td>1.3</td></tr>
+    <tr><td>H2</td><td>Section headers</td><td>18px</td><td>600</td><td>1.35</td></tr>
+    <tr><td>H3</td><td>Card headers, sub-sections</td><td>15px</td><td>600</td><td>1.4</td></tr>
+    <tr><td>Body</td><td>Default text</td><td>15px (desktop) / 16px (mobile)</td><td>400</td><td>1.6</td></tr>
+    <tr><td>Small</td><td>Labels, helper text, timestamps</td><td>13px</td><td>400</td><td>1.5</td></tr>
+    <tr><td>Micro</td><td>Badge text, status pills</td><td>11px</td><td>600 (uppercase)</td><td>1.2</td></tr>
+    <tr><td>Button</td><td>All button labels</td><td>14px</td><td>600</td><td>1.4</td></tr>
+  </tbody>
+</table>
+
+<ul>
+  <li><strong>Font family:</strong> Inter (Google Fonts). Fallback: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial.</li>
+  <li>Inter loaded via <code>next/font/google</code> with <code>display: 'swap'</code>.</li>
+  <li>Font weights used: 400, 500, 600, 700.</li>
+</ul>
+
+<h2>3. Design System — Spacing &amp; Layout</h2>
+<ul>
+  <li><strong>Base unit:</strong> 4px. All spacing is multiples of 4.</li>
+  <li><strong>Container max-width:</strong> 1200px (events list), 800px (registration forms), 1100px (admin dashboard)</li>
+  <li><strong>Card border-radius:</strong> 8px (standard), 12px (featured/hero cards)</li>
+  <li><strong>Input border-radius:</strong> 6px</li>
+  <li><strong>Button border-radius:</strong> 6px</li>
+  <li><strong>Shadow (card):</strong> <code>0 1px 4px rgba(0,0,0,0.08)</code></li>
+  <li><strong>Shadow (modal):</strong> <code>0 8px 32px rgba(0,0,0,0.18)</code></li>
+</ul>
+
+<h3>Grid System</h3>
+<ul>
+  <li>Mobile: single column (full width), 16px horizontal padding</li>
+  <li>Tablet (768px+): 2-column grid where applicable, 24px gutter</li>
+  <li>Desktop (1024px+): 3-column for event cards, side-by-side for form + summary panel</li>
+</ul>
+
+<h2>4. Core Component Specifications</h2>
+
+<h3>Buttons</h3>
+<table>
+  <thead><tr><th>Variant</th><th>Background</th><th>Text</th><th>Border</th><th>Use Case</th></tr></thead>
+  <tbody>
+    <tr><td>Primary</td><td>#EA6C00</td><td>white</td><td>none</td><td>Main CTA: Register, Upload, Confirm</td></tr>
+    <tr><td>Primary hover</td><td>#C85A00</td><td>white</td><td>none</td><td>Hover state</td></tr>
+    <tr><td>Secondary</td><td>white</td><td>#1A3A5C</td><td>1px solid #1A3A5C</td><td>Cancel, Back, View</td></tr>
+    <tr><td>Destructive</td><td>white</td><td>#dc2626</td><td>1px solid #dc2626</td><td>Reject, Cancel Registration</td></tr>
+    <tr><td>Ghost</td><td>transparent</td><td>#EA6C00</td><td>none</td><td>Inline actions, links styled as buttons</td></tr>
+    <tr><td>Disabled</td><td>#e2e8f0</td><td>#94a3b8</td><td>none</td><td>Loading states, validation not yet passed</td></tr>
+  </tbody>
+</table>
+<ul>
+  <li>Minimum height: 40px. Padding: 10px 20px.</li>
+  <li>Loading state: spinner replaces icon/text, button disabled. Spinner color: white on primary, #EA6C00 on secondary.</li>
+  <li>Focus ring: <code>outline: 2px solid #EA6C00; outline-offset: 2px</code> (WCAG AA)</li>
+</ul>
+
+<h3>Form Inputs</h3>
+<ul>
+  <li>Height: 40px. Padding: 8px 12px.</li>
+  <li>Border: 1px solid #dde3ec. Radius: 6px.</li>
+  <li>Focus: border-color #EA6C00, box-shadow <code>0 0 0 3px rgba(234,108,0,0.15)</code></li>
+  <li>Error state: border-color #dc2626. Error message below in #dc2626, 12px, appears only after first submit attempt or on blur.</li>
+  <li>Helper text: below field, #64748b, 12px.</li>
+  <li>Required indicator: asterisk (*) in #dc2626 after label text.</li>
+</ul>
+
+<h3>Status Badges</h3>
+<ul>
+  <li>Pill shape: border-radius 100px. Padding: 3px 10px. Font: 11px uppercase, weight 600.</li>
+  <li>Colors per registration status from §1.</li>
+  <li>Always text + small circle dot (left of text, 6px diameter, same color as text).</li>
+</ul>
+
+<h3>Cards</h3>
+<ul>
+  <li>Background: white. Border: 1px solid #dde3ec. Radius: 8px. Shadow: 0 1px 4px rgba(0,0,0,0.08).</li>
+  <li>Padding: 20px (mobile), 24px (desktop).</li>
+  <li>Hover: slight shadow increase for clickable cards.</li>
+  <li>Event card: image (16:9 ratio, object-cover), tier badge overlay, title, date/time, venue.</li>
+</ul>
+
+<h3>Navigation</h3>
+<ul>
+  <li><strong>Public nav:</strong> White background, logo left, "Find My Registration" link right, sticky on scroll.</li>
+  <li><strong>Admin nav:</strong> Left sidebar, #1A3A5C background, white text. Active item: left border #EA6C00 + slightly lighter background. Items: Dashboard, Events, Verification Queue, Orders (legacy), Attendees, Check-in, Audit Log.</li>
+  <li><strong>Mobile nav:</strong> Bottom tab bar for attendee flows (Home, My Registration). Admin: hamburger → slide-in drawer.</li>
+</ul>
+
+<h2>5. User Flows</h2>
+
+<h3>Flow 1 — Solo Registration</h3>
+<div class="flow-box">
+Home (/) → Event Detail (/events/[slug]) → Click "Register Now"
+→ Registration Form (/events/[slug]/register)
+  [Enter: first/last name, email, contact, optional fields]
+  [Select tier → shows price + remaining capacity]
+  [hCaptcha verification]
+  [Click "Continue"]
+→ Confirmation Screen (/events/[slug]/register/confirm/[regId])
+  [Shows: reference number, summary, payment instructions, payment QR image]
+  [Click "Upload Payment Proof"]
+→ Payment Screen (/events/[slug]/payment/[regId])
+  [Drag/drop or browse: JPEG, PNG, or PDF, max 5MB]
+  [Click "Submit Proof"]
+→ Status Page (/my-registration/[referenceNumber])
+  [Status: SUBMITTED — "Payment proof received. We'll email you once verified."]
+  [Attendee waits for organizer email]
+→ Email received: QR delivery (if approved) or rejection notice (if rejected)</div>
+
+<h3>Flow 2 — Group Registration</h3>
+<div class="flow-box">
+Event Detail → Click "Register as Group"
+→ Registration Form (GROUP mode)
+  [Lead attendee fields at top]
+  [+ Add Attendee button → appears up to maxGroupSize times]
+  [Each attendee row: first name, last name, email, contact]
+  [Total price = tier price × attendee count — shown live]
+  [hCaptcha]
+  [Click "Continue"]
+→ Confirmation Screen
+  [Shows: reference number, full attendee list, payment total]
+→ Payment Screen (same as solo — single proof upload covers the group)
+→ Status Page (same experience)</div>
+
+<h3>Flow 3 — Find My Registration</h3>
+<div class="flow-box">
+Nav: "Find My Registration"
+→ Lookup Page (/my-registration)
+  [Enter: email address + reference number (e.g., AXN-20260619-0042)]
+  [Click "Find Registration"]
+→ Status Page (/my-registration/[referenceNumber])
+  [Shows current status, attendee list, event summary]
+  [If REJECTED: re-upload proof button]
+  [If APPROVED: "Your QR code has been sent to [email]"]</div>
+
+<h3>Flow 4 — Organizer Verification</h3>
+<div class="flow-box">
+Admin: Verification Queue (/admin/verifications)
+  [Filter by: event, status. Sort by: date submitted]
+  [Table row: reference, attendee name(s), tier, amount, date, status badge]
+  [Click row → detail page]
+→ Verification Detail (/admin/verifications/[id])
+  [Left: registration info — attendee list, tier, reference number]
+  [Right: proof image preview (signed URL, loaded inline)]
+  [Below image: "Approve" (green) and "Reject" (red) buttons]
+  [Reject → modal: select reason (preset list) + optional note → Confirm]
+→ Approve → status changes to APPROVED → QR emails sent
+→ Reject → status changes to REJECTED → rejection email sent → attendee can re-upload</div>
+
+<h3>Flow 5 — QR Check-in (Camera)</h3>
+<div class="flow-box">
+Admin: Check-in (/admin/checkin)
+  [Large camera viewfinder area — ZXing auto-scans]
+  [On scan: API call → success toast (name + tier) OR error toast]
+  → Success: "[Name] — [Tier] — ✓ Checked in"
+  → Already scanned: "Already checked in at [time]"
+  → Invalid token: "QR code not recognized"
+  [Manual lookup: search box below scanner → search by name/email → click row to check in]</div>
+
+<h2>6. Screen Specifications — Attendee Side</h2>
+
+<div class="screen-card">
+  <h4>Home Page (/)</h4>
+  <ul>
+    <li>Hero section: platform logo + tagline. Subtle background using #1A3A5C gradient.</li>
+    <li>Event cards grid: 3-col desktop, 2-col tablet, 1-col mobile.</li>
+    <li>Card shows: event image, event name, date, venue, "Register Now" button, capacity badge ("45 spots left").</li>
+    <li>Filters: date range, city (if multiple events).</li>
+    <li>Empty state: "No upcoming events. Check back soon."</li>
+  </ul>
+</div>
+
+<div class="screen-card">
+  <h4>Event Detail Page (/events/[slug])</h4>
+  <ul>
+    <li>Full-width event banner image (top). Event title + date + venue below.</li>
+    <li>Left column (2/3 width): description, speaker/program section, venue map iframe (Google Maps embed or link).</li>
+    <li>Right column (1/3 width): Sticky registration panel. Tier selection (price + remaining slots). "Register Now" CTA.</li>
+    <li>If event is full: disabled button "Registration Closed".</li>
+    <li>If tier is full: tier shows "Sold Out" badge, cannot be selected.</li>
+  </ul>
+</div>
+
+<div class="screen-card">
+  <h4>Registration Form (/events/[slug]/register)</h4>
+  <ul>
+    <li>Step indicator at top: 1. Fill Form → 2. Payment → 3. Done.</li>
+    <li>Section 1: "Lead Attendee" — required fields with asterisks.</li>
+    <li>Section 2 (group only): "Additional Attendees" — card per attendee with fields + Remove button. "Add Attendee" button below.</li>
+    <li>Section 3: Order Summary (read-only: tier name, count, price per, total). Fixed to bottom on mobile.</li>
+    <li>hCaptcha widget above submit button.</li>
+    <li>Submit button: "Continue to Payment →".</li>
+    <li>Back button: returns to event detail.</li>
+  </ul>
+</div>
+
+<div class="screen-card">
+  <h4>Confirmation Screen (/events/[slug]/register/confirm/[regId])</h4>
+  <ul>
+    <li>Green checkmark icon + "Registration Submitted!" heading.</li>
+    <li>Reference number prominently displayed in large monospace font, with copy-to-clipboard button.</li>
+    <li>Summary box: event name, tier, attendee count, total amount.</li>
+    <li>Payment instructions panel: organizer's text instructions + QR code image(s) below.</li>
+    <li>CTA: "Upload Proof of Payment →" (primary button).</li>
+    <li>Note: "Save your reference number. You'll need it to check your registration status."</li>
+    <li>Email note: "A confirmation email has been sent to [email]."</li>
+  </ul>
+</div>
+
+<div class="screen-card">
+  <h4>Payment Upload Screen (/events/[slug]/payment/[regId])</h4>
+  <ul>
+    <li>Step indicator: Step 2 active.</li>
+    <li>Upload zone: large dashed border box. "Drag and drop your proof here, or click to browse".</li>
+    <li>File format note: "Accepted: JPG, PNG, PDF. Max 5MB."</li>
+    <li>Preview: shows thumbnail (image) or PDF icon after file selected.</li>
+    <li>Remove file: × button on preview.</li>
+    <li>Submit button: "Submit Proof of Payment".</li>
+    <li>Loading state: spinner + "Uploading...".</li>
+    <li>On success: redirect to status page with SUBMITTED status.</li>
+  </ul>
+</div>
+
+<div class="screen-card">
+  <h4>Registration Status Page (/my-registration/[referenceNumber])</h4>
+  <ul>
+    <li>Top: status badge (large, prominent) + status description text.</li>
+    <li>Event summary card: event name, date, venue.</li>
+    <li>Attendee list: table (name, email, status per attendee if group).</li>
+    <li>Proof history: list of previous proof uploads with timestamp and status.</li>
+    <li>If REJECTED: rejection reason shown + "Re-upload Proof" button (primary).</li>
+    <li>If APPROVED: "Your QR tickets have been sent to [email]. Check your inbox."</li>
+    <li>If DRAFT: "Upload your proof of payment to complete registration." + Upload button.</li>
+  </ul>
+</div>
+
+<h2>7. Screen Specifications — Admin Side</h2>
+
+<div class="screen-card">
+  <h4>Admin Login (/auth/login)</h4>
+  <ul>
+    <li>Centered card on #1A3A5C background. Logo + "Axon Tickets Admin" heading.</li>
+    <li>Email + password fields. hCaptcha. "Sign In" button.</li>
+    <li>Google OAuth button: "Continue with Google".</li>
+    <li>Error: "Invalid email or password." (generic — no enumeration).</li>
+    <li>Lockout: "Too many attempts. Try again in 15 minutes."</li>
+  </ul>
+</div>
+
+<div class="screen-card">
+  <h4>Admin Dashboard (/admin)</h4>
+  <ul>
+    <li>KPI cards (top row): Total Registrations, Pending Verification, Approved, Revenue (estimated from tier prices × approved count).</li>
+    <li>Verification Queue widget: top 5 most recent SUBMITTED registrations, with "View All" link.</li>
+    <li>Events table: upcoming events with registration progress bar (approved / capacity).</li>
+    <li>Recent audit log entries: last 10 actions.</li>
+  </ul>
+</div>
+
+<div class="screen-card">
+  <h4>Verification Queue (/admin/verifications)</h4>
+  <ul>
+    <li>Top filters: Event dropdown, Status filter (All / Submitted / Pending / Approved / Rejected), Date range picker.</li>
+    <li>Table columns: Reference Number, Attendee(s), Event + Tier, Amount, Submitted Date, Status.</li>
+    <li>Row click: open detail page.</li>
+    <li>Bulk select: checkboxes on rows + "Bulk Approve" button (activated when items selected).</li>
+    <li>Pagination: 20 per page.</li>
+  </ul>
+</div>
+
+<div class="screen-card">
+  <h4>Verification Detail (/admin/verifications/[id])</h4>
+  <ul>
+    <li>Two-column layout: left (registration info), right (proof image).</li>
+    <li>Left: reference number, event, tier, attendee list (table), amount, submission timestamp, status history.</li>
+    <li>Right: proof image rendered (from signed URL). If PDF: PDF icon + "View PDF" link (opens in new tab).</li>
+    <li>Action buttons at bottom: "Approve" (primary green) + "Reject" (outlined red) + "Resend QR" (ghost, shown only for APPROVED).</li>
+    <li>Reject → modal: rejection reason dropdown + optional note (max 300 chars).</li>
+  </ul>
+</div>
+
+<div class="screen-card">
+  <h4>Check-in Page (/admin/checkin)</h4>
+  <ul>
+    <li>Event selector: dropdown (only active events).</li>
+    <li>Camera viewfinder: large box (min 300px tall on mobile). Auto-scans using ZXing.</li>
+    <li>Result area: full-width toast below scanner. Green for success, red for error, orange for duplicate.</li>
+    <li>Stats: "Checked in: X / Y" counter updates in real time.</li>
+    <li>Manual section (below camera): search bar "Search by name or email". Results list with name, tier, status. Click "Check In" on a row.</li>
+    <li>Camera toggle: button to switch to rear/front camera.</li>
+  </ul>
+</div>
+
+<h2>8. Microcopy Library</h2>
+
+<h3>Registration Success</h3>
+<div class="copy-block">You're registered!
+Reference Number: AXN-20260619-0042
+
+We've sent a confirmation to [email].
+Upload your proof of payment below to complete your registration.
+Your QR tickets will be emailed to you once payment is verified by the organizer.</div>
+
+<h3>Status Messages</h3>
+<table>
+  <thead><tr><th>Status</th><th>Heading</th><th>Body Copy</th></tr></thead>
+  <tbody>
+    <tr><td>DRAFT</td><td>Complete Your Registration</td><td>Upload your proof of payment to move forward. Your spot is temporarily held.</td></tr>
+    <tr><td>SUBMITTED</td><td>Proof Received — Pending Verification</td><td>We've received your payment proof. The organizer will review it and email your QR code to [email] once verified. This usually takes 1–2 business days.</td></tr>
+    <tr><td>PENDING_VERIFICATION</td><td>Under Review</td><td>The organizer is currently reviewing your payment proof. You'll receive an email at [email] once a decision is made.</td></tr>
+    <tr><td>APPROVED</td><td>Payment Verified ✓</td><td>Your registration is confirmed! Your QR ticket(s) have been sent to [email]. Please check your inbox (and spam folder).</td></tr>
+    <tr><td>REJECTED</td><td>Proof Not Accepted</td><td>The organizer could not verify your payment proof. Reason: [reason]. Please re-upload a valid proof to continue. If you believe this is an error, contact the organizer.</td></tr>
+    <tr><td>CANCELLED</td><td>Registration Cancelled</td><td>Your registration (AXN-XXXX-XXXX) has been cancelled. If you believe this was a mistake, please contact the organizer.</td></tr>
+  </tbody>
+</table>
+
+<h3>Check-in Results</h3>
+<table>
+  <thead><tr><th>Scenario</th><th>Copy</th></tr></thead>
+  <tbody>
+    <tr><td>Successful check-in</td><td>[First Name] [Last Name] — [Tier Name] ✓ Checked in</td></tr>
+    <tr><td>Already checked in</td><td>Already checked in at [time]. Attendee: [name].</td></tr>
+    <tr><td>QR not recognized</td><td>QR code not recognized. Use manual lookup below.</td></tr>
+    <tr><td>Registration not approved</td><td>Registration not approved. Status: [status]. Cannot check in.</td></tr>
+  </tbody>
+</table>
+
+<h3>Form Validation Messages</h3>
+<table>
+  <thead><tr><th>Field / Scenario</th><th>Error Copy</th></tr></thead>
+  <tbody>
+    <tr><td>Required field empty</td><td>"[Field name] is required."</td></tr>
+    <tr><td>Invalid email format</td><td>"Please enter a valid email address."</td></tr>
+    <tr><td>Contact number format</td><td>"Please enter a valid Philippine mobile number (e.g., 09XX XXX XXXX)."</td></tr>
+    <tr><td>Duplicate email (same event)</td><td>"This email address is already registered for this event."</td></tr>
+    <tr><td>Tier at capacity</td><td>"Sorry, [tier name] registrations are now full. Please choose another tier or check back later."</td></tr>
+    <tr><td>Group max size exceeded</td><td>"The maximum group size for this event is [maxGroupSize] attendees."</td></tr>
+    <tr><td>Upload wrong file type</td><td>"Invalid file type. Please upload a JPG, PNG, or PDF."</td></tr>
+    <tr><td>Upload too large</td><td>"File is too large. Maximum size is 5MB."</td></tr>
+    <tr><td>Upload failed (network)</td><td>"Upload failed. Please check your connection and try again."</td></tr>
+    <tr><td>hCaptcha not completed</td><td>"Please complete the security check before continuing."</td></tr>
+    <tr><td>Reference not found</td><td>"We couldn't find a registration with that email and reference number. Please check your details."</td></tr>
+    <tr><td>Rate limited</td><td>"Too many attempts. Please wait a moment and try again."</td></tr>
+  </tbody>
+</table>
+
+<h3>Admin Rejection Reason Presets</h3>
+<table>
+  <thead><tr><th>Reason Key</th><th>Label shown to admin</th><th>Message sent to attendee</th></tr></thead>
+  <tbody>
+    <tr><td>blurry</td><td>Image is blurry or unreadable</td><td>The proof of payment is blurry or unreadable. Please re-upload a clearer photo.</td></tr>
+    <tr><td>amount_mismatch</td><td>Amount does not match</td><td>The payment amount on the proof does not match the required registration fee.</td></tr>
+    <tr><td>wrong_account</td><td>Payment sent to wrong account</td><td>The payment appears to have been sent to an incorrect account number. Please verify the correct payment details and re-submit.</td></tr>
+    <tr><td>partial_payment</td><td>Partial payment only</td><td>Only partial payment was received. Full payment is required to complete your registration.</td></tr>
+    <tr><td>expired</td><td>Payment expired / outdated screenshot</td><td>The payment screenshot appears to be from a previous date. Please submit a current proof of payment.</td></tr>
+    <tr><td>not_proof</td><td>Not a valid proof of payment</td><td>The uploaded file does not appear to be a valid proof of payment. Please upload a screenshot or photo of your GCash/bank transaction.</td></tr>
+    <tr><td>other</td><td>Other (add note below)</td><td>[Custom note from admin]</td></tr>
+  </tbody>
+</table>
+
+<h2>9. Responsive Behavior</h2>
+
+<h3>Breakpoints</h3>
+<table>
+  <thead><tr><th>Name</th><th>Min Width</th><th>Target</th></tr></thead>
+  <tbody>
+    <tr><td>xs</td><td>375px</td><td>Small mobile (iPhone SE, budget Android)</td></tr>
+    <tr><td>sm</td><td>480px</td><td>Standard mobile</td></tr>
+    <tr><td>md</td><td>768px</td><td>Tablet, large mobile</td></tr>
+    <tr><td>lg</td><td>1024px</td><td>Desktop, laptop</td></tr>
+    <tr><td>xl</td><td>1280px</td><td>Large desktop</td></tr>
+  </tbody>
+</table>
+
+<h3>Mobile-First Rules</h3>
+<ul>
+  <li>All layouts start as full-width single column on mobile, expand at md and lg.</li>
+  <li>Registration form: single column on mobile. On md: name fields split 50/50.</li>
+  <li>Admin sidebar: hidden on mobile, accessed via hamburger. On lg: always visible.</li>
+  <li>Verification detail: stacked on mobile (proof above, info below). Side-by-side on lg.</li>
+  <li>Event cards: 1-col mobile, 2-col md, 3-col lg.</li>
+  <li>All tables: horizontally scrollable on mobile with sticky first column.</li>
+  <li>Modals: full-screen slide-up on mobile, centered overlay on desktop (max-width 480px).</li>
+  <li>Camera scanner: full-width on mobile (most common use case for on-site check-in).</li>
+  <li>Minimum tap target: 44×44px (WCAG 2.5.5).</li>
+</ul>
+
+<h2>10. Accessibility Standards</h2>
+
+<h3>Target: WCAG 2.1 Level AA</h3>
+<table>
+  <thead><tr><th>Criterion</th><th>Requirement</th><th>Implementation</th></tr></thead>
+  <tbody>
+    <tr><td>Color contrast (text)</td><td>4.5:1 minimum for body text</td><td>#1a1a1a on white = 17.1:1 ✓. White on #EA6C00 = 3.4:1 (buttons use 14px+ bold — meets large text 3:1 minimum). White on #1A3A5C = 12:1 ✓.</td></tr>
+    <tr><td>Keyboard navigation</td><td>All interactive elements keyboard-accessible</td><td>Tab order follows visual reading order. Modal traps focus while open. No focus traps elsewhere.</td></tr>
+    <tr><td>Focus indicators</td><td>Visible focus ring on all interactive elements</td><td>2px solid #EA6C00 outline with 2px offset (defined in globals.css)</td></tr>
+    <tr><td>Form labels</td><td>All form fields have visible associated labels</td><td><code>&lt;label htmlFor=&gt;</code> on all inputs. No placeholder-only labelling.</td></tr>
+    <tr><td>Error messages</td><td>Errors announced to screen readers</td><td><code>role="alert"</code> on error containers. <code>aria-describedby</code> linking field to error message.</td></tr>
+    <tr><td>Images</td><td>All informational images have alt text</td><td>Event images: descriptive alt. Payment QR images: "Payment QR code for [event name]". Status icons: alt="[status]".</td></tr>
+    <tr><td>Loading states</td><td>Announced to screen readers</td><td><code>aria-busy="true"</code> on loading containers. Spinner has <code>role="status" aria-label="Loading..."</code>.</td></tr>
+    <tr><td>Modals</td><td>Accessible modal pattern</td><td><code>role="dialog" aria-modal="true" aria-labelledby</code>. Focus moves to modal on open. ESC closes. Focus returns to trigger on close.</td></tr>
+    <tr><td>Camera scanner</td><td>Alternative for users who cannot use camera</td><td>Manual lookup search bar is always visible below the camera view. Camera use is optional.</td></tr>
+    <tr><td>Touch target size</td><td>44×44px minimum</td><td>All buttons, links, and interactive elements meet minimum tap target size.</td></tr>
+  </tbody>
+</table>
+
+<div class="info"><strong>Testing:</strong> Accessibility compliance to be verified with axe-core automated scan (integrated into Playwright E2E tests) + manual keyboard navigation audit before production release.</div>
+
+<hr>
+<p style="font-size:9pt; color:#64748b; text-align:center;">Axon Tickets MVP — UI/UX Specification v1.0 · May 19, 2026 · Confidential</p>
+
+</body>
+</html>

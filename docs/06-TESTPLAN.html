@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Test Plan — Axon Tickets MVP</title>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif; font-size: 10.5pt; color: #1a1a1a; max-width: 1000px; margin: 0 auto; padding: 40px; line-height: 1.6; }
+    .header-block { background: linear-gradient(135deg, #1A3A5C 0%, #2d5a8a 100%); color: white; padding: 40px 48px; margin: -40px -40px 40px; }
+    .header-block h1 { color: white; font-size: 24pt; margin: 0 0 8px; border-bottom: 3px solid #EA6C00; padding-bottom: 14px; }
+    .header-block .doc-meta { color: #a8c4e0; font-size: 10pt; margin-top: 14px; }
+    .header-block .doc-meta span { margin-right: 24px; }
+    h2 { font-size: 14pt; color: #1A3A5C; margin-top: 40px; border-left: 5px solid #EA6C00; padding-left: 14px; }
+    h3 { font-size: 11.5pt; color: #EA6C00; margin-top: 24px; margin-bottom: 8px; }
+    h4 { font-size: 10.5pt; color: #1A3A5C; font-weight: 700; margin-top: 16px; }
+    table { width: 100%; border-collapse: collapse; margin: 12px 0; font-size: 9.5pt; }
+    th { background: #1A3A5C; color: white; padding: 9px 11px; text-align: left; font-weight: 600; }
+    td { padding: 7px 11px; border: 1px solid #dde3ec; vertical-align: top; }
+    tr:nth-child(even) td { background: #f7f9fc; }
+    ul, ol { margin: 6px 0 6px 20px; }
+    li { margin: 4px 0; }
+    code { font-family: 'Courier New', monospace; font-size: 9.5pt; background: #f1f5f9; padding: 1px 5px; border-radius: 3px; }
+    .info { background: #eff6ff; border-left: 4px solid #1A3A5C; padding: 10px 14px; margin: 14px 0; font-size: 10pt; border-radius: 0 4px 4px 0; }
+    .warning { background: #fff7ed; border-left: 4px solid #EA6C00; padding: 10px 14px; margin: 14px 0; font-size: 10pt; border-radius: 0 4px 4px 0; }
+    hr { border: none; border-top: 1px solid #dde3ec; margin: 28px 0; }
+    .toc { background: #f7f9fc; border: 1px solid #dde3ec; border-radius: 8px; padding: 20px 24px; margin: 24px 0; }
+    .toc h3 { margin: 0 0 10px; color: #1A3A5C; font-size: 11pt; }
+    .toc ol { margin: 0; padding-left: 20px; }
+    .toc li { margin: 4px 0; font-size: 10pt; }
+    .pass { color: #16a34a; font-weight: 700; }
+    .fail { color: #dc2626; font-weight: 700; }
+    .test-id { font-family: 'Courier New', monospace; font-size: 9pt; background: #f1f5f9; padding: 1px 6px; border-radius: 3px; }
+    .badge-unit { background: #dbeafe; color: #1e40af; font-size: 8.5pt; font-weight: 600; padding: 2px 8px; border-radius: 10px; }
+    .badge-int { background: #fef3c7; color: #92400e; font-size: 8.5pt; font-weight: 600; padding: 2px 8px; border-radius: 10px; }
+    .badge-e2e { background: #dcfce7; color: #166534; font-size: 8.5pt; font-weight: 600; padding: 2px 8px; border-radius: 10px; }
+    .badge-sec { background: #fee2e2; color: #991b1b; font-size: 8.5pt; font-weight: 600; padding: 2px 8px; border-radius: 10px; }
+    .badge-uat { background: #f3e8ff; color: #6b21a8; font-size: 8.5pt; font-weight: 600; padding: 2px 8px; border-radius: 10px; }
+  </style>
+</head>
+<body>
+
+<div class="header-block">
+  <h1>Axon Tickets — Test Plan</h1>
+  <p style="color:#e2ecf7; font-size:11pt; margin:8px 0 0;">Unit · Integration · E2E · Security · UAT · Edge Cases</p>
+  <div class="doc-meta">
+    <span><strong>Version:</strong> 1.0</span>
+    <span><strong>Status:</strong> Approved for Development</span>
+    <span><strong>Date:</strong> May 19, 2026</span>
+  </div>
+</div>
+
+<div class="toc">
+  <h3>Table of Contents</h3>
+  <ol>
+    <li>Test Strategy Overview</li>
+    <li>Test Types &amp; Tools</li>
+    <li>Unit Tests</li>
+    <li>Integration Tests</li>
+    <li>End-to-End (E2E) Tests</li>
+    <li>Security Tests</li>
+    <li>UAT Scenarios</li>
+    <li>Edge Cases</li>
+    <li>Test Coverage Goals</li>
+    <li>CI/CD Integration</li>
+  </ol>
+</div>
+
+<h2>1. Test Strategy Overview</h2>
+<p>The Axon Tickets test strategy follows the <strong>testing pyramid</strong>: many fast unit tests at the base, integration tests in the middle, and fewer but critical E2E tests at the top. Security tests run as a separate dedicated phase before any production deployment.</p>
+
+<table>
+  <thead><tr><th>Layer</th><th>Tool</th><th>Count Target (MVP)</th><th>Speed</th><th>When Run</th></tr></thead>
+  <tbody>
+    <tr><td>Unit</td><td>Jest (API), Vitest (Web utils)</td><td>40–50 tests</td><td>Fast (&lt;2s total)</td><td>Every commit (CI)</td></tr>
+    <tr><td>Integration</td><td>Jest + supertest + test DB</td><td>30–40 tests</td><td>Medium (10–30s)</td><td>Every PR + pre-deploy</td></tr>
+    <tr><td>E2E</td><td>Playwright</td><td>10–12 scenarios</td><td>Slow (2–5 min)</td><td>Pre-deploy + manual QA</td></tr>
+    <tr><td>Security</td><td>Jest + manual + curl scripts</td><td>18+ checks</td><td>Medium</td><td>After Phase 3, 4, 6 + pre-production</td></tr>
+    <tr><td>UAT</td><td>Manual (organizer + tester)</td><td>5 scenarios</td><td>Manual</td><td>Final QA before launch</td></tr>
+  </tbody>
+</table>
+
+<h3>Test Environments</h3>
+<ul>
+  <li><strong>Unit:</strong> In-memory, no external services. All DB and services mocked.</li>
+  <li><strong>Integration:</strong> Dedicated test PostgreSQL database (Neon branch). Redis test instance. Resend in dry-run mode (log-only, no actual emails sent). Cloudinary — mocked service layer.</li>
+  <li><strong>E2E:</strong> Staging environment (Vercel preview deploy) connected to staging DB and staging Cloudinary folder.</li>
+  <li><strong>UAT:</strong> Staging environment. Real emails sent to test accounts.</li>
+</ul>
+
+<h2>2. Test Types &amp; Tools</h2>
+<table>
+  <thead><tr><th>Tool</th><th>Purpose</th><th>Location</th></tr></thead>
+  <tbody>
+    <tr><td>Jest</td><td>API unit + integration tests</td><td><code>apps/api/src/**/*.spec.ts</code></td></tr>
+    <tr><td>supertest</td><td>HTTP endpoint testing (integration)</td><td>Used within Jest tests</td></tr>
+    <tr><td>Vitest</td><td>Shared utility tests (packages/utils)</td><td><code>packages/utils/src/**/*.test.ts</code></td></tr>
+    <tr><td>Playwright</td><td>E2E browser automation</td><td><code>apps/web/e2e/**/*.spec.ts</code></td></tr>
+    <tr><td>@playwright/test</td><td>Test runner for E2E</td><td>playwright.config.ts</td></tr>
+    <tr><td>axe-core + @axe-core/playwright</td><td>Automated accessibility checks in E2E</td><td>Injected in key Playwright tests</td></tr>
+    <tr><td>curl / custom scripts</td><td>Manual security tests (headers, rate limits)</td><td>Manual, pre-production</td></tr>
+  </tbody>
+</table>
+
+<h2>3. Unit Tests</h2>
+
+<h3>3.1 Registration Utilities</h3>
+<table>
+  <thead><tr><th>Test ID</th><th>File / Function</th><th>What is Tested</th></tr></thead>
+  <tbody>
+    <tr><td><span class="test-id">U-01</span></td><td><code>generateReferenceNumber()</code></td><td>Returns string matching format <code>AXN-YYYYMMDD-XXXX</code> where XXXX is 4 uppercase alphanumeric chars.</td></tr>
+    <tr><td><span class="test-id">U-02</span></td><td><code>generateReferenceNumber()</code></td><td>Two calls in same second return different values (randomness).</td></tr>
+    <tr><td><span class="test-id">U-03</span></td><td><code>generateQrToken()</code></td><td>Returns a valid UUID v4 string.</td></tr>
+    <tr><td><span class="test-id">U-04</span></td><td><code>generateQrToken()</code></td><td>100 sequential calls return all unique values.</td></tr>
+  </tbody>
+</table>
+
+<h3>3.2 Registration Status State Machine</h3>
+<table>
+  <thead><tr><th>Test ID</th><th>Transition</th><th>Expected</th></tr></thead>
+  <tbody>
+    <tr><td><span class="test-id">U-05</span></td><td>DRAFT → SUBMITTED (proof uploaded)</td><td>Allowed</td></tr>
+    <tr><td><span class="test-id">U-06</span></td><td>SUBMITTED → APPROVED (admin approves)</td><td>Allowed</td></tr>
+    <tr><td><span class="test-id">U-07</span></td><td>SUBMITTED → REJECTED (admin rejects)</td><td>Allowed</td></tr>
+    <tr><td><span class="test-id">U-08</span></td><td>REJECTED → SUBMITTED (re-upload proof)</td><td>Allowed</td></tr>
+    <tr><td><span class="test-id">U-09</span></td><td>APPROVED → REJECTED (invalid — status cannot go back)</td><td>Throws InvalidStatusTransitionException</td></tr>
+    <tr><td><span class="test-id">U-10</span></td><td>APPROVED → SUBMITTED (invalid)</td><td>Throws InvalidStatusTransitionException</td></tr>
+    <tr><td><span class="test-id">U-11</span></td><td>CANCELLED → SUBMITTED (invalid)</td><td>Throws InvalidStatusTransitionException</td></tr>
+    <tr><td><span class="test-id">U-12</span></td><td>DRAFT → CANCELLED (auto-cancel)</td><td>Allowed</td></tr>
+    <tr><td><span class="test-id">U-13</span></td><td>SUBMITTED → CANCELLED (auto-cancel)</td><td>Allowed</td></tr>
+  </tbody>
+</table>
+
+<h3>3.3 MIME Magic Byte Validation</h3>
+<table>
+  <thead><tr><th>Test ID</th><th>Input</th><th>Expected</th></tr></thead>
+  <tbody>
+    <tr><td><span class="test-id">U-14</span></td><td>Valid JPEG bytes (FF D8 FF ...)</td><td>Returns <code>{ valid: true, mimeType: 'image/jpeg' }</code></td></tr>
+    <tr><td><span class="test-id">U-15</span></td><td>Valid PNG bytes (89 50 4E 47 ...)</td><td>Returns <code>{ valid: true, mimeType: 'image/png' }</code></td></tr>
+    <tr><td><span class="test-id">U-16</span></td><td>Valid PDF bytes (25 50 44 46 ...)</td><td>Returns <code>{ valid: true, mimeType: 'application/pdf' }</code></td></tr>
+    <tr><td><span class="test-id">U-17</span></td><td>Executable bytes (MZ header — 4D 5A)</td><td>Returns <code>{ valid: false }</code></td></tr>
+    <tr><td><span class="test-id">U-18</span></td><td>JPEG file renamed to .exe</td><td>Returns <code>{ valid: true, mimeType: 'image/jpeg' }</code> (content wins, not extension)</td></tr>
+    <tr><td><span class="test-id">U-19</span></td><td>Empty buffer</td><td>Returns <code>{ valid: false }</code></td></tr>
+    <tr><td><span class="test-id">U-20</span></td><td>Buffer shorter than 8 bytes</td><td>Returns <code>{ valid: false }</code></td></tr>
+  </tbody>
+</table>
+
+<h3>3.4 Tier Availability Check</h3>
+<table>
+  <thead><tr><th>Test ID</th><th>Scenario</th><th>Expected</th></tr></thead>
+  <tbody>
+    <tr><td><span class="test-id">U-21</span></td><td>Tier with 50 capacity, 30 approved registrations</td><td>Available (20 remaining)</td></tr>
+    <tr><td><span class="test-id">U-22</span></td><td>Tier with 50 capacity, 50 approved registrations</td><td>Not available (0 remaining)</td></tr>
+    <tr><td><span class="test-id">U-23</span></td><td>Tier with 50 capacity, 48 approved + 3 submitted (pending)</td><td>Available (counts only APPROVED and PENDING for soft limit, 2 remaining for new)</td></tr>
+    <tr><td><span class="test-id">U-24</span></td><td>Group registration of 5 on tier with 3 remaining</td><td>Not available (insufficient for group size)</td></tr>
+  </tbody>
+</table>
+
+<h3>3.5 QR Token Verification</h3>
+<table>
+  <thead><tr><th>Test ID</th><th>Scenario</th><th>Expected</th></tr></thead>
+  <tbody>
+    <tr><td><span class="test-id">U-25</span></td><td>Valid QR token found in DB, not checked in</td><td>Returns attendee record, <code>checkedIn: false</code></td></tr>
+    <tr><td><span class="test-id">U-26</span></td><td>Valid QR token, already checked in</td><td>Returns attendee record, <code>checkedIn: true</code>, <code>checkedInAt: timestamp</code></td></tr>
+    <tr><td><span class="test-id">U-27</span></td><td>QR token not in DB</td><td>Throws NotFoundException</td></tr>
+    <tr><td><span class="test-id">U-28</span></td><td>QR token belongs to different event than scanner's active event</td><td>Throws ForbiddenException</td></tr>
+  </tbody>
+</table>
+
+<h2>4. Integration Tests</h2>
+
+<h3>4.1 Registration Endpoint (POST /api/v1/registrations)</h3>
+<table>
+  <thead><tr><th>Test ID</th><th>Scenario</th><th>Expected HTTP Status</th></tr></thead>
+  <tbody>
+    <tr><td><span class="test-id">I-01</span></td><td>Valid solo registration — all required fields</td><td>201 with referenceNumber, registrationId</td></tr>
+    <tr><td><span class="test-id">I-02</span></td><td>Valid group registration — 3 attendees</td><td>201 with 3 attendees in response</td></tr>
+    <tr><td><span class="test-id">I-03</span></td><td>Solo registration — missing required field (email)</td><td>400 with field-level error</td></tr>
+    <tr><td><span class="test-id">I-04</span></td><td>Registration with duplicate email for same event</td><td>409 with "email already registered" message</td></tr>
+    <tr><td><span class="test-id">I-05</span></td><td>Registration to a tier that is fully booked</td><td>422 with "tier at capacity" message</td></tr>
+    <tr><td><span class="test-id">I-06</span></td><td>Group registration exceeding maxGroupSize (e.g., 11 attendees, max 10)</td><td>400 with "exceeds max group size" message</td></tr>
+    <tr><td><span class="test-id">I-07</span></td><td>Registration to non-existent event</td><td>404</td></tr>
+    <tr><td><span class="test-id">I-08</span></td><td>Confirm DB: Attendee records created after registration</td><td>DB has attendee rows with correct registrationId</td></tr>
+    <tr><td><span class="test-id">I-09</span></td><td>Confirm email: registration confirmation email triggered</td><td>EmailService.sendConfirmation() called once</td></tr>
+  </tbody>
+</table>
+
+<h3>4.2 Lookup Endpoint (POST /api/v1/registrations/lookup)</h3>
+<table>
+  <thead><tr><th>Test ID</th><th>Scenario</th><th>Expected</th></tr></thead>
+  <tbody>
+    <tr><td><span class="test-id">I-10</span></td><td>Correct email + correct referenceNumber</td><td>200 with attendee JWT session token</td></tr>
+    <tr><td><span class="test-id">I-11</span></td><td>Correct email + incorrect referenceNumber</td><td>401 "not found" (no enumeration)</td></tr>
+    <tr><td><span class="test-id">I-12</span></td><td>Non-existent email</td><td>401 "not found" (no enumeration)</td></tr>
+    <tr><td><span class="test-id">I-13</span></td><td>11th attempt from same IP in 1 minute</td><td>429 Too Many Requests</td></tr>
+  </tbody>
+</table>
+
+<h3>4.3 Proof Upload Endpoint (POST /api/v1/registrations/:id/proof)</h3>
+<table>
+  <thead><tr><th>Test ID</th><th>Scenario</th><th>Expected</th></tr></thead>
+  <tbody>
+    <tr><td><span class="test-id">I-14</span></td><td>Valid JPEG file (correct magic bytes), valid session JWT</td><td>201 with proofId. Status changes to SUBMITTED.</td></tr>
+    <tr><td><span class="test-id">I-15</span></td><td>Valid PDF file, valid session JWT</td><td>201. Status SUBMITTED.</td></tr>
+    <tr><td><span class="test-id">I-16</span></td><td>Invalid file type (EXE magic bytes)</td><td>400 "Invalid file type"</td></tr>
+    <tr><td><span class="test-id">I-17</span></td><td>File over 5MB</td><td>413 Request Too Large</td></tr>
+    <tr><td><span class="test-id">I-18</span></td><td>No JWT token (unauthenticated)</td><td>401</td></tr>
+    <tr><td><span class="test-id">I-19</span></td><td>JWT for registration A, uploading to registration B (IDOR)</td><td>403 Forbidden</td></tr>
+    <tr><td><span class="test-id">I-20</span></td><td>Re-upload after REJECTED status</td><td>201. New proof created. Status returns to SUBMITTED.</td></tr>
+    <tr><td><span class="test-id">I-21</span></td><td>Upload to an APPROVED registration</td><td>422 "Cannot re-upload for approved registration"</td></tr>
+  </tbody>
+</table>
+
+<h3>4.4 Admin Verification Endpoints</h3>
+<table>
+  <thead><tr><th>Test ID</th><th>Endpoint</th><th>Scenario</th><th>Expected</th></tr></thead>
+  <tbody>
+    <tr><td><span class="test-id">I-22</span></td><td>GET /admin/verifications</td><td>Admin JWT, filter by status=submitted</td><td>200 with paginated list</td></tr>
+    <tr><td><span class="test-id">I-23</span></td><td>GET /admin/verifications</td><td>No JWT</td><td>401</td></tr>
+    <tr><td><span class="test-id">I-24</span></td><td>GET /admin/verifications</td><td>Attendee session JWT (non-admin)</td><td>403</td></tr>
+    <tr><td><span class="test-id">I-25</span></td><td>PATCH /approve</td><td>Valid admin JWT, SUBMITTED registration</td><td>200. Status APPROVED. QR tokens assigned to attendees. Email triggered.</td></tr>
+    <tr><td><span class="test-id">I-26</span></td><td>PATCH /approve</td><td>Valid admin JWT, APPROVED registration (double approve)</td><td>422 with current status error</td></tr>
+    <tr><td><span class="test-id">I-27</span></td><td>PATCH /reject</td><td>Valid admin JWT, SUBMITTED registration, reason provided</td><td>200. Status REJECTED. Rejection email triggered.</td></tr>
+    <tr><td><span class="test-id">I-28</span></td><td>PATCH /reject</td><td>Missing reason in body</td><td>400 validation error</td></tr>
+    <tr><td><span class="test-id">I-29</span></td><td>POST /bulk-approve</td><td>5 SUBMITTED registrations</td><td>200. All 5 approved. Audit log has 5 entries.</td></tr>
+    <tr><td><span class="test-id">I-30</span></td><td>POST /bulk-approve</td><td>21 IDs (exceeds max 20)</td><td>400 "Bulk approve limit is 20"</td></tr>
+    <tr><td><span class="test-id">I-31</span></td><td>POST /resend</td><td>APPROVED registration</td><td>200. QR emails re-triggered for all attendees.</td></tr>
+    <tr><td><span class="test-id">I-32</span></td><td>POST /resend</td><td>Non-APPROVED registration</td><td>422 "Can only resend for approved registrations"</td></tr>
+  </tbody>
+</table>
+
+<h3>4.5 Admin Audit Endpoint</h3>
+<table>
+  <thead><tr><th>Test ID</th><th>Scenario</th><th>Expected</th></tr></thead>
+  <tbody>
+    <tr><td><span class="test-id">I-33</span></td><td>Approve a registration then check audit log</td><td>AuditLog has entry: action=APPROVE_REGISTRATION, entityId=registrationId, adminId correct</td></tr>
+    <tr><td><span class="test-id">I-34</span></td><td>GET /admin/audit with date filter</td><td>Returns only entries within date range</td></tr>
+  </tbody>
+</table>
+
+<h2>5. End-to-End (E2E) Tests (Playwright)</h2>
+
+<h3>E2E Test Scenarios</h3>
+<table>
+  <thead><tr><th>Test ID</th><th>Scenario</th><th>Steps Covered</th></tr></thead>
+  <tbody>
+    <tr><td><span class="test-id">E-01</span></td><td>Solo Registration → Proof Upload → Approval → QR Email → Check-in</td><td>Register → upload proof → admin logs in → finds in queue → approves → verify email sent (staging) → scan QR on check-in page → confirm check-in success</td></tr>
+    <tr><td><span class="test-id">E-02</span></td><td>Group Registration Flow (3 attendees)</td><td>Add 3 attendees → verify total price calculation → submit → confirm 3 attendees on confirmation screen → upload proof → check all 3 attendees in queue</td></tr>
+    <tr><td><span class="test-id">E-03</span></td><td>Rejection → Re-upload → Approval</td><td>Register → upload proof → admin rejects with reason → verify rejection email → attendee re-uploads → admin approves → QR sent</td></tr>
+    <tr><td><span class="test-id">E-04</span></td><td>Duplicate Email Block</td><td>Register with email X → complete registration → attempt second registration with same email X for same event → verify error message "already registered"</td></tr>
+    <tr><td><span class="test-id">E-05</span></td><td>Registration Lookup (airline model)</td><td>Register → close browser → navigate to /my-registration → enter email + reference number → verify status page loads with correct registration details</td></tr>
+    <tr><td><span class="test-id">E-06</span></td><td>Bulk Approve (3 registrations)</td><td>Create 3 registrations → upload proofs → admin selects all 3 in queue → bulk approves → verify all 3 status APPROVED + 3 QR emails triggered</td></tr>
+    <tr><td><span class="test-id">E-07</span></td><td>Manual Check-in (no QR camera)</td><td>Approved attendee → admin goes to check-in → uses search box → finds by name → manually checks in → verify audit log entry has checkInMethod="manual"</td></tr>
+    <tr><td><span class="test-id">E-08</span></td><td>Admin Event Creation with Payment QR</td><td>Admin creates event → uploads payment QR image → sets payment instructions text → saves → verify event detail shows payment QR to registering attendee</td></tr>
+    <tr><td><span class="test-id">E-09</span></td><td>Tier Capacity Block</td><td>Set tier capacity to 2 → register 2 people → attempt 3rd registration → verify "tier full" error on form</td></tr>
+    <tr><td><span class="test-id">E-10</span></td><td>Accessibility — Registration Form</td><td>Run axe-core on registration form page → assert 0 violations at WCAG AA level</td></tr>
+  </tbody>
+</table>
+
+<h3>E2E Configuration Notes</h3>
+<ul>
+  <li>Tests run against Vercel preview branch URL (staging environment).</li>
+  <li>Test admin user is seeded via <code>prisma/seed.ts</code> on staging DB reset.</li>
+  <li>Real email testing (E-01, E-03): uses a dedicated <code>test@axontickets.ph</code> mailbox checked via Resend's API (or mailhog on staging).</li>
+  <li>Playwright runs in headed mode locally, headless in CI.</li>
+  <li>Screenshots taken on failure automatically (configured in <code>playwright.config.ts</code>).</li>
+</ul>
+
+<h2>6. Security Tests</h2>
+<table>
+  <thead><tr><th>Test ID</th><th>Test</th><th>Method</th><th>Pass Criteria</th></tr></thead>
+  <tbody>
+    <tr><td><span class="test-id">S-01</span></td><td>IDOR: attendee A accesses registration B</td><td>Jest integration</td><td>HTTP 403 returned</td></tr>
+    <tr><td><span class="test-id">S-02</span></td><td>MIME bypass: .exe file with JPEG extension</td><td>Jest integration</td><td>HTTP 400 "Invalid file type"</td></tr>
+    <tr><td><span class="test-id">S-03</span></td><td>Direct Cloudinary URL for private proof</td><td>Manual (curl)</td><td>HTTP 401 from Cloudinary</td></tr>
+    <tr><td><span class="test-id">S-04</span></td><td>Rate limit on /registrations: 11 req/min same IP</td><td>Jest integration</td><td>11th request gets HTTP 429</td></tr>
+    <tr><td><span class="test-id">S-05</span></td><td>Rate limit on /registrations/lookup</td><td>Jest integration</td><td>11th request gets HTTP 429</td></tr>
+    <tr><td><span class="test-id">S-06</span></td><td>Admin endpoint with no JWT</td><td>Jest integration</td><td>HTTP 401</td></tr>
+    <tr><td><span class="test-id">S-07</span></td><td>Admin endpoint with attendee (non-admin) JWT</td><td>Jest integration</td><td>HTTP 403</td></tr>
+    <tr><td><span class="test-id">S-08</span></td><td>Login brute force: 6 attempts on same email</td><td>Jest integration</td><td>6th attempt gets HTTP 429. Redis block confirmed.</td></tr>
+    <tr><td><span class="test-id">S-09</span></td><td>Expired JWT token on protected route</td><td>Jest integration</td><td>HTTP 401</td></tr>
+    <tr><td><span class="test-id">S-10</span></td><td>Tampered JWT (modified payload, same signature)</td><td>Jest integration</td><td>HTTP 401 "invalid token"</td></tr>
+    <tr><td><span class="test-id">S-11</span></td><td>SQL injection via firstName field (<code>' OR 1=1 --</code>)</td><td>Jest integration</td><td>Either 400 (validation) or 201 with literal string stored (Prisma parameterized). No DB error.</td></tr>
+    <tr><td><span class="test-id">S-12</span></td><td>XSS via firstName rendered in admin panel</td><td>Playwright E2E</td><td>Script tag rendered as text, not executed. No alert fires.</td></tr>
+    <tr><td><span class="test-id">S-13</span></td><td>Security headers present on all responses</td><td>curl / automated</td><td>All 7 headers from §11 of security plan present</td></tr>
+    <tr><td><span class="test-id">S-14</span></td><td>File upload over 5MB</td><td>Jest integration</td><td>HTTP 413</td></tr>
+    <tr><td><span class="test-id">S-15</span></td><td>Signed proof URL expires after 30 min</td><td>Manual (wait + curl)</td><td>URL returns 401 after 1800 seconds</td></tr>
+    <tr><td><span class="test-id">S-16</span></td><td>Proof upload rate limit (6 uploads in 1 hour, same registration)</td><td>Jest integration</td><td>6th upload gets HTTP 429</td></tr>
+    <tr><td><span class="test-id">S-17</span></td><td>Non-existent registrationId in path</td><td>Jest integration</td><td>HTTP 404 (not 500 or DB error)</td></tr>
+    <tr><td><span class="test-id">S-18</span></td><td>npm audit — zero critical/high vulnerabilities</td><td>CI (npm audit)</td><td>Exit code 0 with --audit-level=high</td></tr>
+  </tbody>
+</table>
+
+<h2>7. UAT Scenarios</h2>
+<p>To be conducted by: platform owner + 1–2 volunteer attendees + event organizer role on staging environment.</p>
+
+<table>
+  <thead><tr><th>UAT ID</th><th>Scenario</th><th>Actor</th><th>Pass Criteria</th></tr></thead>
+  <tbody>
+    <tr><td><span class="test-id">UAT-01</span></td><td>Complete attendee journey — solo registration to QR receipt</td><td>Test attendee</td><td>Attendee completes form, receives confirmation email with reference number, uploads proof successfully, receives QR email within 15 minutes of approval. QR is scannable.</td></tr>
+    <tr><td><span class="test-id">UAT-02</span></td><td>Organizer creates an event and verifies a batch of 5 registrations</td><td>Organizer</td><td>Organizer creates event with payment QR, reviews 5 proofs, approves all. Can view audit log showing all 5 actions.</td></tr>
+    <tr><td><span class="test-id">UAT-03</span></td><td>Attendee re-uploads after rejection</td><td>Test attendee</td><td>Receives rejection email with clear reason. Returns to status page, sees rejection message, uploads new proof. Organizer approves successfully.</td></tr>
+    <tr><td><span class="test-id">UAT-04</span></td><td>Check-in day simulation</td><td>Organizer (mobile)</td><td>Opens check-in page on mobile. Camera scanner loads. Scans a valid QR → success message. Scans same QR again → "already checked in" message. Searches manual attendee → checks in successfully.</td></tr>
+    <tr><td><span class="test-id">UAT-05</span></td><td>Reference lookup (lost email scenario)</td><td>Test attendee</td><td>Attendee navigates to "Find My Registration". Enters email + reference number from memory. Registration status page loads correctly with all details.</td></tr>
+  </tbody>
+</table>
+
+<h2>8. Edge Cases</h2>
+<table>
+  <thead><tr><th>ID</th><th>Edge Case</th><th>Expected Behavior</th></tr></thead>
+  <tbody>
+    <tr><td><span class="test-id">EC-01</span></td><td>Two concurrent requests to register with same email for same event (race condition)</td><td>Only one succeeds (201). Second gets 409. DB unique constraint on (eventId, email) as safety net.</td></tr>
+    <tr><td><span class="test-id">EC-02</span></td><td>Group registration where one attendee's email matches an already-registered attendee</td><td>Entire registration rejected with 409. Partial group insertion not permitted.</td></tr>
+    <tr><td><span class="test-id">EC-03</span></td><td>Admin approves registration but email delivery fails (Resend timeout)</td><td>Registration status set to APPROVED (persisted). Email failure logged as structured error. Admin can trigger resend manually. DB is source of truth — not the email.</td></tr>
+    <tr><td><span class="test-id">EC-04</span></td><td>Attendee uploads proof when their registration is in DRAFT state (no prior proof)</td><td>Proof accepted. Status transitions DRAFT → SUBMITTED.</td></tr>
+    <tr><td><span class="test-id">EC-05</span></td><td>Attendee uploads proof when registration is in APPROVED state</td><td>HTTP 422. Message: "Registration already approved."</td></tr>
+    <tr><td><span class="test-id">EC-06</span></td><td>Duplicate QR scan within 1 second (double-tap scenario)</td><td>Both requests processed. Second returns 200 with "already checked in" message. No duplicate DB write (idempotent check-in).</td></tr>
+    <tr><td><span class="test-id">EC-07</span></td><td>Early bird tier sale ends during a DRAFT registration (attendee fills form but delays upload)</td><td>Tier's saleEndsAt enforced at proof upload time. If sale ended: 422 "Early bird registration period has ended."</td></tr>
+    <tr><td><span class="test-id">EC-08</span></td><td>Admin cancels event that has APPROVED registrations</td><td>All APPROVED registrations transition to CANCELLED. Cancellation emails sent to all lead registrants. Audit log has one CANCEL_EVENT entry.</td></tr>
+    <tr><td><span class="test-id">EC-09</span></td><td>Re-upload after rejection replaces previous proof (not appends)</td><td>New ProofProof record created. Status returns to SUBMITTED. Previous proof record retained in DB (immutable history) but not active for review.</td></tr>
+    <tr><td><span class="test-id">EC-10</span></td><td>Group registration where lead email is same as one of the additional attendees' emails</td><td>400 "All attendee emails within a group must be unique."</td></tr>
+    <tr><td><span class="test-id">EC-11</span></td><td>Manual check-in of attendee whose registration is REJECTED</td><td>403 "Cannot check in. Registration status is REJECTED."</td></tr>
+    <tr><td><span class="test-id">EC-12</span></td><td>Attendee session JWT used after registration is CANCELLED</td><td>JWT still validates (token-based), but any action returns 422 "Registration has been cancelled."</td></tr>
+  </tbody>
+</table>
+
+<h2>9. Test Coverage Goals</h2>
+<table>
+  <thead><tr><th>Module / Layer</th><th>Coverage Target</th><th>Priority</th></tr></thead>
+  <tbody>
+    <tr><td>RegistrationsService (new)</td><td>90%</td><td>P0</td></tr>
+    <tr><td>PaymentProofsService (new)</td><td>85%</td><td>P0</td></tr>
+    <tr><td>VerificationsService (new)</td><td>85%</td><td>P0</td></tr>
+    <tr><td>Status state machine (new)</td><td>100%</td><td>P0</td></tr>
+    <tr><td>MIME validation utility (new)</td><td>100%</td><td>P0</td></tr>
+    <tr><td>AuditService (new)</td><td>70%</td><td>P1</td></tr>
+    <tr><td>EmailService (new)</td><td>60% (service calls mocked)</td><td>P1</td></tr>
+    <tr><td>AdminService (extended)</td><td>75%</td><td>P1</td></tr>
+    <tr><td>AuthService (minor extension)</td><td>70%</td><td>P1</td></tr>
+    <tr><td>packages/utils (new functions)</td><td>100%</td><td>P0</td></tr>
+    <tr><td>Legacy modules (Orders, Payments, etc.)</td><td>No new test coverage required (untouched)</td><td>P3</td></tr>
+  </tbody>
+</table>
+
+<h2>10. CI/CD Integration</h2>
+
+<h3>CI Pipeline (GitHub Actions)</h3>
+<ol>
+  <li><strong>Lint:</strong> <code>eslint</code> + <code>tsc --noEmit</code> (fail fast on type errors)</li>
+  <li><strong>Unit tests:</strong> <code>jest --testPathPattern spec</code> (API) + <code>vitest run</code> (packages)</li>
+  <li><strong>Integration tests:</strong> Spin up Neon test branch → run integration suite → teardown</li>
+  <li><strong>npm audit:</strong> <code>npm audit --audit-level=high</code> — fail if critical/high found</li>
+  <li><strong>Build:</strong> <code>turbo build</code></li>
+  <li><strong>E2E (pre-deploy only):</strong> Playwright against Vercel preview URL — runs on PR merge to main</li>
+</ol>
+
+<div class="info">
+  <strong>Test Gate:</strong> No code can merge to <code>main</code> without passing unit + integration + lint. E2E runs post-merge on preview before promotion to production.
+</div>
+
+<hr>
+<p style="font-size:9pt; color:#64748b; text-align:center;">Axon Tickets MVP — Test Plan v1.0 · May 19, 2026 · Confidential</p>
+
+</body>
+</html>

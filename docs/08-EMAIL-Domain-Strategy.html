@@ -1,0 +1,396 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Email &amp; Domain Strategy — Axon Tickets MVP</title>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif; font-size: 10.5pt; color: #1a1a1a; max-width: 1000px; margin: 0 auto; padding: 40px; line-height: 1.6; }
+    .header-block { background: linear-gradient(135deg, #1A3A5C 0%, #2d5a8a 100%); color: white; padding: 40px 48px; margin: -40px -40px 40px; }
+    .header-block h1 { color: white; font-size: 24pt; margin: 0 0 8px; border-bottom: 3px solid #EA6C00; padding-bottom: 14px; }
+    .header-block .doc-meta { color: #a8c4e0; font-size: 10pt; margin-top: 14px; }
+    .header-block .doc-meta span { margin-right: 24px; }
+    h2 { font-size: 14pt; color: #1A3A5C; margin-top: 40px; border-left: 5px solid #EA6C00; padding-left: 14px; }
+    h3 { font-size: 11.5pt; color: #EA6C00; margin-top: 24px; margin-bottom: 8px; }
+    h4 { font-size: 10.5pt; color: #1A3A5C; font-weight: 700; margin-top: 16px; }
+    table { width: 100%; border-collapse: collapse; margin: 12px 0; font-size: 9.5pt; }
+    th { background: #1A3A5C; color: white; padding: 9px 11px; text-align: left; font-weight: 600; }
+    td { padding: 7px 11px; border: 1px solid #dde3ec; vertical-align: top; }
+    tr:nth-child(even) td { background: #f7f9fc; }
+    ul, ol { margin: 6px 0 6px 20px; }
+    li { margin: 4px 0; }
+    code { font-family: 'Courier New', monospace; font-size: 9.5pt; background: #f1f5f9; padding: 1px 5px; border-radius: 3px; }
+    .code-block { font-family: 'Courier New', monospace; font-size: 9pt; background: #1e293b; color: #e2e8f0; padding: 14px 18px; border-radius: 6px; margin: 10px 0; white-space: pre; overflow-x: auto; line-height: 1.6; }
+    .info { background: #eff6ff; border-left: 4px solid #1A3A5C; padding: 10px 14px; margin: 14px 0; font-size: 10pt; border-radius: 0 4px 4px 0; }
+    .warning { background: #fff7ed; border-left: 4px solid #EA6C00; padding: 10px 14px; margin: 14px 0; font-size: 10pt; border-radius: 0 4px 4px 0; }
+    .success { background: #dcfce7; border-left: 4px solid #16a34a; padding: 10px 14px; margin: 14px 0; font-size: 10pt; border-radius: 0 4px 4px 0; }
+    hr { border: none; border-top: 1px solid #dde3ec; margin: 28px 0; }
+    .toc { background: #f7f9fc; border: 1px solid #dde3ec; border-radius: 8px; padding: 20px 24px; margin: 24px 0; }
+    .toc h3 { margin: 0 0 10px; color: #1A3A5C; font-size: 11pt; }
+    .toc ol { margin: 0; padding-left: 20px; }
+    .toc li { margin: 4px 0; font-size: 10pt; }
+    .recommendation { background: linear-gradient(90deg, #fff9f0 0%, #fff 100%); border: 2px solid #EA6C00; border-radius: 8px; padding: 16px 20px; margin: 16px 0; }
+    .recommendation h4 { color: #EA6C00; margin: 0 0 8px; }
+    .cost-callout { background: #f0fdf4; border: 1px solid #16a34a; border-radius: 8px; padding: 16px 20px; margin: 16px 0; }
+    .badge-recommend { background: #dcfce7; color: #166534; font-size: 8.5pt; font-weight: 700; padding: 2px 8px; border-radius: 10px; margin-left: 8px; }
+    .badge-fallback { background: #f1f5f9; color: #475569; font-size: 8.5pt; font-weight: 700; padding: 2px 8px; border-radius: 10px; margin-left: 8px; }
+  </style>
+</head>
+<body>
+
+<div class="header-block">
+  <h1>Axon Tickets — Email &amp; Domain Strategy</h1>
+  <p style="color:#e2ecf7; font-size:11pt; margin:8px 0 0;">Domain Registration · DNS Configuration · Transactional Email Architecture · Deliverability</p>
+  <div class="doc-meta">
+    <span><strong>Version:</strong> 1.0</span>
+    <span><strong>Status:</strong> Solutions Architect Recommendation</span>
+    <span><strong>Date:</strong> May 19, 2026</span>
+  </div>
+</div>
+
+<div class="toc">
+  <h3>Table of Contents</h3>
+  <ol>
+    <li>Domain Recommendation</li>
+    <li>Email Address Architecture</li>
+    <li>Email Service Provider — Resend</li>
+    <li>DNS Records (Complete Configuration)</li>
+    <li>Email Types &amp; Triggers</li>
+    <li>Email Template Specifications</li>
+    <li>Deliverability Strategy</li>
+    <li>Volume &amp; Scale Projections</li>
+    <li>Cost Breakdown</li>
+    <li>Implementation Checklist</li>
+    <li>Future Considerations</li>
+  </ol>
+</div>
+
+<h2>1. Domain Recommendation</h2>
+
+<div class="recommendation">
+  <h4>Primary Recommendation: axontickets.ph <span class="badge-recommend">RECOMMENDED</span></h4>
+  <p><strong>Why .ph (Philippine TLD):</strong></p>
+  <ul>
+    <li>Immediately signals a Philippine-market product to attendees and organizers.</li>
+    <li>Stronger brand authority for a locally-focused ticketing platform vs a generic .com.</li>
+    <li>Lower registration competition than .com — high chance the exact name is available.</li>
+    <li>Required for Philippine DPA compliance: establishes clear Philippine data jurisdiction.</li>
+  </ul>
+  <p><strong>Registrar:</strong> <strong>DotPH (dotph.com)</strong> — the official .ph registry accredited registrar. Managed directly at the source.</p>
+  <p><strong>Cost:</strong> ₱1,150–₱1,400 per year (standard .ph registration)</p>
+</div>
+
+<div class="recommendation">
+  <h4>Fallback: axontickets.com <span class="badge-fallback">FALLBACK</span></h4>
+  <p>Register as a fallback if .ph is unavailable, or acquire as a redirect-only domain pointing to axontickets.ph. Prevents brand squatting.</p>
+  <p><strong>Cost:</strong> ~$13–15/year (via Namecheap, Cloudflare Registrar, or Google Domains)</p>
+</div>
+
+<div class="info">
+  <strong>Action Required:</strong> Register axontickets.ph at <a href="https://www.dotph.com">dotph.com</a> before Phase 0 CPD. DNS propagation takes up to 48 hours — register early so email deliverability is not a blocker for Phase 5 testing.
+</div>
+
+<h3>Domain Redirect Strategy</h3>
+<table>
+  <thead><tr><th>Domain</th><th>Purpose</th><th>Configuration</th></tr></thead>
+  <tbody>
+    <tr><td>axontickets.ph</td><td>Primary production domain</td><td>A record → Vercel. CNAME www → axontickets.ph. Email DNS records on this domain.</td></tr>
+    <tr><td>axontickets.com</td><td>Brand protection + redirect</td><td>301 redirect → axontickets.ph. No email hosted here.</td></tr>
+    <tr><td>axon-tickets-app.vercel.app</td><td>Legacy Vercel URL (keep active)</td><td>Keep as-is during transition. After custom domain live, add axontickets.ph as Vercel custom domain.</td></tr>
+  </tbody>
+</table>
+
+<h2>2. Email Address Architecture</h2>
+
+<h3>Email Addresses Required</h3>
+<table>
+  <thead><tr><th>Address</th><th>Purpose</th><th>Seen by Attendee?</th></tr></thead>
+  <tbody>
+    <tr><td><code>hello@axontickets.ph</code></td><td>Registration confirmations, QR delivery, re-send emails</td><td>Yes — from address</td></tr>
+    <tr><td><code>noreply@axontickets.ph</code></td><td>System notifications, rejection notices, cancellation notices</td><td>Yes — from address</td></tr>
+    <tr><td><code>dmarc@axontickets.ph</code></td><td>DMARC aggregate report recipient (not customer-facing)</td><td>No</td></tr>
+    <tr><td><code>admin@axontickets.ph</code></td><td>Organizer/admin receives platform notifications (optional for MVP)</td><td>No</td></tr>
+  </tbody>
+</table>
+
+<div class="warning">
+  <strong>From Address Strategy:</strong> Use <code>hello@axontickets.ph</code> for all attendee-facing transactional emails. This reads as a friendly, responsive address. Use <code>noreply@axontickets.ph</code> only for automated system notices where replies aren't expected (cancellation, DMARC). Do NOT use noreply for QR delivery — attendees who can't scan QR may reply for help.
+</div>
+
+<h3>Reply-to Configuration</h3>
+<table>
+  <thead><tr><th>Email Type</th><th>From</th><th>Reply-to</th></tr></thead>
+  <tbody>
+    <tr><td>Registration confirmation</td><td>hello@axontickets.ph</td><td>hello@axontickets.ph</td></tr>
+    <tr><td>QR delivery</td><td>hello@axontickets.ph</td><td>hello@axontickets.ph</td></tr>
+    <tr><td>Rejection notice</td><td>hello@axontickets.ph</td><td>hello@axontickets.ph</td></tr>
+    <tr><td>Cancellation notice</td><td>noreply@axontickets.ph</td><td>hello@axontickets.ph</td></tr>
+    <tr><td>QR resend</td><td>hello@axontickets.ph</td><td>hello@axontickets.ph</td></tr>
+  </tbody>
+</table>
+
+<h2>3. Email Service Provider — Resend</h2>
+
+<h3>Why Resend</h3>
+<ul>
+  <li><strong>Already integrated</strong> in the codebase (<code>apps/api/src/</code> uses Resend SDK).</li>
+  <li><strong>Developer-first API</strong> — React Email templates supported natively.</li>
+  <li><strong>Free tier</strong>: 3,000 emails/month, 100/day. Sufficient for MVP scale.</li>
+  <li><strong>Built-in delivery analytics</strong>: open rate, click rate, bounce rate per email type.</li>
+  <li><strong>Custom domain support</strong> on free tier (domain verification required).</li>
+</ul>
+
+<h3>Resend Plan Comparison</h3>
+<table>
+  <thead><tr><th>Plan</th><th>Monthly emails</th><th>Daily limit</th><th>Cost</th><th>Recommendation</th></tr></thead>
+  <tbody>
+    <tr><td>Free</td><td>3,000</td><td>100</td><td>$0</td><td>✅ Sufficient for MVP (1–2 events, &lt;300 attendees/event)</td></tr>
+    <tr><td>Pro</td><td>50,000</td><td>Unlimited</td><td>$20/month</td><td>Upgrade when: &gt;1 event/month or &gt;100 attendees/day</td></tr>
+    <tr><td>Scale</td><td>100,000+</td><td>Unlimited</td><td>$90/month</td><td>Post-MVP growth phase</td></tr>
+  </tbody>
+</table>
+
+<div class="info">
+  <strong>Daily Limit Risk:</strong> Resend free tier is capped at 100 emails/day. If a single event approves 150 registrations in one day, QR delivery will be throttled. <strong>Mitigation:</strong> Stagger bulk approvals across multiple days, or upgrade to Pro ($20/month) before any event with expected single-day approvals &gt;100. Monitor in Resend dashboard.
+</div>
+
+<h2>4. DNS Records (Complete Configuration)</h2>
+
+<h3>Required DNS Records on axontickets.ph</h3>
+<table>
+  <thead><tr><th>Type</th><th>Name / Host</th><th>Value</th><th>TTL</th><th>Purpose</th></tr></thead>
+  <tbody>
+    <tr><td>A</td><td>@</td><td>76.76.21.21 (Vercel IP)</td><td>300</td><td>Root domain → Vercel web app</td></tr>
+    <tr><td>CNAME</td><td>www</td><td>cname.vercel-dns.com</td><td>300</td><td>www → Vercel</td></tr>
+    <tr><td>CNAME</td><td>api</td><td>cname.vercel-dns.com</td><td>300</td><td>api.axontickets.ph → Vercel API project (optional custom domain for API)</td></tr>
+    <tr><td>TXT</td><td>@</td><td>v=spf1 include:_spf.resend.com ~all</td><td>3600</td><td>SPF record — authorizes Resend to send email from this domain</td></tr>
+    <tr><td>CNAME</td><td>resend._domainkey</td><td>[generated by Resend dashboard — copy from Resend domain settings]</td><td>3600</td><td>DKIM — cryptographic email signing</td></tr>
+    <tr><td>TXT</td><td>_dmarc</td><td>v=DMARC1; p=quarantine; rua=mailto:dmarc@axontickets.ph; adkim=s; aspf=s</td><td>3600</td><td>DMARC — reject unauthenticated emails claiming to be from this domain</td></tr>
+    <tr><td>MX</td><td>@</td><td>(not required for send-only) — optional: use Google Workspace or Zoho Mail to receive replies to hello@</td><td>3600</td><td>Incoming mail routing (optional — see §11)</td></tr>
+  </tbody>
+</table>
+
+<div class="warning">
+  <strong>DKIM Key:</strong> The CNAME value for DKIM is auto-generated by Resend after you add your domain in the Resend dashboard. Do not set it manually — copy the exact value Resend provides. It changes per account.
+</div>
+
+<h3>DNS Setup Steps (Ordered)</h3>
+<ol>
+  <li>Register axontickets.ph at DotPH.</li>
+  <li>Log in to Resend dashboard → Domains → Add Domain → Enter: axontickets.ph</li>
+  <li>Resend will display 3 DNS records to add (SPF TXT, DKIM CNAME, DMARC TXT). Copy exact values.</li>
+  <li>In DotPH DNS management: add all 3 Resend records + Vercel A record + www CNAME.</li>
+  <li>Wait for propagation (typically 5–30 minutes for .ph, max 48h).</li>
+  <li>In Resend dashboard: click "Verify Domain". All 3 records must show green checkmarks.</li>
+  <li>In Vercel: add axontickets.ph as custom domain for web project. Vercel will confirm A record.</li>
+  <li>Update environment variable in API project: <code>RESEND_FROM_ADDRESS=hello@axontickets.ph</code></li>
+</ol>
+
+<h2>5. Email Types &amp; Triggers</h2>
+
+<table>
+  <thead><tr><th>Email Type</th><th>Trigger Event</th><th>Recipients</th><th>From</th><th>Subject Line</th></tr></thead>
+  <tbody>
+    <tr>
+      <td><strong>Registration Confirmation</strong></td>
+      <td>POST /registrations returns 201 (registration created)</td>
+      <td>Lead registrant only</td>
+      <td>hello@axontickets.ph</td>
+      <td>Your registration for [Event Name] — Ref: [REFERENCE NUMBER]</td>
+    </tr>
+    <tr>
+      <td><strong>QR Delivery</strong></td>
+      <td>Admin approves registration (PATCH /approve)</td>
+      <td>Each attendee individually (one email per attendee)</td>
+      <td>hello@axontickets.ph</td>
+      <td>You're in! Your QR ticket for [Event Name]</td>
+    </tr>
+    <tr>
+      <td><strong>Rejection Notice</strong></td>
+      <td>Admin rejects registration (PATCH /reject)</td>
+      <td>Lead registrant only</td>
+      <td>hello@axontickets.ph</td>
+      <td>Action needed: Your registration for [Event Name]</td>
+    </tr>
+    <tr>
+      <td><strong>Cancellation Notice</strong></td>
+      <td>Auto-cancel cron (early bird expired DRAFT) OR admin cancels event</td>
+      <td>Lead registrant only</td>
+      <td>noreply@axontickets.ph</td>
+      <td>Registration cancelled — [Event Name]</td>
+    </tr>
+    <tr>
+      <td><strong>QR Resend</strong></td>
+      <td>Admin triggers resend (POST /resend) or attendee requests from status page</td>
+      <td>Each attendee individually</td>
+      <td>hello@axontickets.ph</td>
+      <td>Here's your QR ticket again — [Event Name]</td>
+    </tr>
+  </tbody>
+</table>
+
+<h2>6. Email Template Specifications</h2>
+
+<h3>Registration Confirmation Email</h3>
+<ul>
+  <li><strong>Top:</strong> Axon Tickets logo + brand header (navy #1A3A5C, orange accent)</li>
+  <li><strong>Body:</strong> "Hi [First Name], you're registered for [Event Name]!"</li>
+  <li><strong>Details box:</strong> Event name, date/time, venue, tier name, attendee count</li>
+  <li><strong>Reference number:</strong> Large, bold, monospace font — easy to copy</li>
+  <li><strong>Instructions:</strong> "Next step: upload your payment proof" → orange CTA button linking to proof upload page</li>
+  <li><strong>Payment section:</strong> Payment instructions text + payment QR image (if event has one)</li>
+  <li><strong>Footer:</strong> "Questions? Reply to this email." + Philippine privacy notice (DPA 2012)</li>
+</ul>
+
+<h3>QR Delivery Email</h3>
+<ul>
+  <li><strong>Top:</strong> "You're Approved!" banner (green confirmation)</li>
+  <li><strong>Body:</strong> "Hi [Attendee Name], your ticket for [Event Name] is confirmed."</li>
+  <li><strong>QR code:</strong> Large QR code image (300×300px) embedded inline (base64 CID, not external URL — works in offline/airplane mode)</li>
+  <li><strong>Ticket summary box:</strong> Event name, date, time, venue, tier, attendee name</li>
+  <li><strong>Instructions:</strong> "Show this QR at the entrance. Screenshot or print it as backup."</li>
+  <li><strong>CTA:</strong> "View My Registration" → status page link</li>
+  <li><strong>Footer:</strong> Organizer contact information</li>
+</ul>
+
+<h3>Rejection Notice Email</h3>
+<ul>
+  <li><strong>Top:</strong> "Action Required" header (orange warning tone)</li>
+  <li><strong>Body:</strong> "Hi [First Name], your payment proof for [Event Name] needs attention."</li>
+  <li><strong>Rejection reason:</strong> Human-readable text from admin's selected reason preset (see UX Spec §microcopy)</li>
+  <li><strong>CTA:</strong> Orange button "Re-upload Payment Proof" → links directly to upload screen for this registration</li>
+  <li><strong>Support note:</strong> "If you believe this is an error, reply to this email."</li>
+</ul>
+
+<h3>Cancellation Notice Email</h3>
+<ul>
+  <li><strong>Top:</strong> "Registration Cancelled" header (neutral gray tone)</li>
+  <li><strong>Body:</strong> Clear explanation — either "Early bird period ended" or "Event was cancelled by organizer"</li>
+  <li><strong>CTA (if re-register possible):</strong> "Check if other tiers are still available" → event page link</li>
+  <li><strong>Reference:</strong> Registration reference number for their records</li>
+</ul>
+
+<h2>7. Deliverability Strategy</h2>
+
+<h3>Warm-up Plan</h3>
+<p>Resend handles sending reputation automatically on their infrastructure. For a new domain, the first 2 weeks of sending will have lower reputation. Follow this sequence:</p>
+<ol>
+  <li><strong>Week 1:</strong> Send to internal test emails only. Verify all DNS records pass. No bulk sends.</li>
+  <li><strong>Week 2:</strong> First real event registrations. Start small (&lt;50 registrations). Monitor bounce rate in Resend dashboard.</li>
+  <li><strong>Week 3+:</strong> Normal operation. Bounce rate should be &lt;2%. Spam complaints &lt;0.1%.</li>
+</ol>
+
+<h3>Deliverability Checklist (pre-launch)</h3>
+<table>
+  <thead><tr><th>#</th><th>Check</th><th>How to Verify</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>SPF record published and valid</td><td>Run: <code>dig TXT axontickets.ph</code> — should contain v=spf1</td></tr>
+    <tr><td>2</td><td>DKIM CNAME resolves correctly</td><td>Resend dashboard → Domain → shows green "Verified" on DKIM row</td></tr>
+    <tr><td>3</td><td>DMARC record published</td><td>Run: <code>dig TXT _dmarc.axontickets.ph</code></td></tr>
+    <tr><td>4</td><td>Resend domain status is "Verified"</td><td>Resend dashboard → Domains → axontickets.ph → all rows green</td></tr>
+    <tr><td>5</td><td>Test email arrives in Gmail inbox (not spam)</td><td>Send test from Resend to a Gmail address. Check inbox + spam folder.</td></tr>
+    <tr><td>6</td><td>QR code renders correctly in Gmail, Outlook, Apple Mail</td><td>Test QR delivery email across all 3 clients</td></tr>
+    <tr><td>7</td><td>QR code is scannable from email screenshot</td><td>Screenshot the email on phone → scan with phone camera app</td></tr>
+    <tr><td>8</td><td>Unsubscribe link present (CAN-SPAM / Philippine DPA)</td><td>Verify footer has unsubscribe link even on transactional emails</td></tr>
+  </tbody>
+</table>
+
+<h3>Bounce Management</h3>
+<ul>
+  <li>Resend automatically suppresses bounced addresses. Monitor in Resend dashboard → Suppressions.</li>
+  <li>Hard bounce rate &gt;5% triggers deliverability review. Common cause: registrants entering invalid emails.</li>
+  <li><strong>Mitigation:</strong> Email format validation at registration form. Consider adding email confirmation input (enter email twice) on the registration form to reduce typos.</li>
+</ul>
+
+<h2>8. Volume &amp; Scale Projections</h2>
+
+<h3>MVP Email Volume Estimate</h3>
+<p>Based on 1–2 events per month, 200–450 attendees per event:</p>
+<table>
+  <thead><tr><th>Email Type</th><th>Count per Event (300 attendees)</th><th>Monthly (2 events)</th></tr></thead>
+  <tbody>
+    <tr><td>Registration confirmation</td><td>300</td><td>600</td></tr>
+    <tr><td>QR delivery (1 per attendee)</td><td>300</td><td>600</td></tr>
+    <tr><td>Rejection notices (~15% rejection rate)</td><td>45</td><td>90</td></tr>
+    <tr><td>Re-upload confirmations (after resubmission)</td><td>30</td><td>60</td></tr>
+    <tr><td>QR resend requests (~5%)</td><td>15</td><td>30</td></tr>
+    <tr><td>Cancellation notices (&lt;5%)</td><td>15</td><td>30</td></tr>
+    <tr><td colspan="2"><strong>Total per month</strong></td><td><strong>~1,410</strong></td></tr>
+  </tbody>
+</table>
+
+<div class="success">
+  <strong>Free Tier Verdict:</strong> 1,410 emails/month is well within Resend's free tier limit of 3,000/month. Daily approvals for a 300-person event spread over 3–5 days = 60–100 QR emails/day — within the 100/day free limit. The free tier is sufficient for MVP.
+</div>
+
+<h3>Scale Trigger Points</h3>
+<table>
+  <thead><tr><th>Trigger</th><th>Action</th><th>Cost</th></tr></thead>
+  <tbody>
+    <tr><td>Single event with &gt;100 same-day approvals</td><td>Upgrade to Resend Pro or stagger approvals across 2 days</td><td>$20/month</td></tr>
+    <tr><td>Monthly email volume approaches 2,500</td><td>Upgrade to Resend Pro (buffer before free limit)</td><td>$20/month</td></tr>
+    <tr><td>Platform hosts &gt;5 events per month</td><td>Upgrade to Resend Pro</td><td>$20/month</td></tr>
+  </tbody>
+</table>
+
+<h2>9. Cost Breakdown</h2>
+
+<div class="cost-callout">
+  <h4>Total Cost at MVP Launch (Monthly)</h4>
+  <table>
+    <thead><tr><th>Item</th><th>Cost</th><th>Frequency</th><th>Notes</th></tr></thead>
+    <tbody>
+      <tr><td>axontickets.ph domain registration</td><td>₱1,400</td><td>Annual (~₱117/month)</td><td>DotPH registrar</td></tr>
+      <tr><td>axontickets.com (brand protection)</td><td>~₱700 (~$13)</td><td>Annual (~₱58/month)</td><td>Optional but recommended</td></tr>
+      <tr><td>Resend (transactional email)</td><td>$0</td><td>Monthly</td><td>Free tier: 3,000 emails/month</td></tr>
+      <tr><td><strong>Total email + domain</strong></td><td><strong>~₱175/month</strong></td><td>Monthly average</td><td>~$3 USD/month</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<h2>10. Implementation Checklist</h2>
+
+<table>
+  <thead><tr><th>#</th><th>Action</th><th>Who</th><th>When</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>Register axontickets.ph at dotph.com</td><td>Platform owner</td><td>Before Phase 0 CPD</td></tr>
+    <tr><td>2</td><td>Register axontickets.com (brand protection)</td><td>Platform owner</td><td>Before Phase 0 CPD</td></tr>
+    <tr><td>3</td><td>Add axontickets.ph as domain in Resend dashboard. Copy DKIM CNAME.</td><td>Developer</td><td>Before Phase 5</td></tr>
+    <tr><td>4</td><td>Add all DNS records at DotPH: Vercel A, www CNAME, SPF TXT, DKIM CNAME, DMARC TXT</td><td>Developer + Platform owner</td><td>Before Phase 5</td></tr>
+    <tr><td>5</td><td>Verify domain in Resend dashboard (all green)</td><td>Developer</td><td>After DNS propagation (up to 48h)</td></tr>
+    <tr><td>6</td><td>Add axontickets.ph as custom domain in Vercel (web project)</td><td>Developer</td><td>Phase 8 pre-deploy</td></tr>
+    <tr><td>7</td><td>Update RESEND_FROM_ADDRESS env var: hello@axontickets.ph</td><td>Developer</td><td>Phase 5 (after domain verified)</td></tr>
+    <tr><td>8</td><td>Send test emails to Gmail and Apple Mail. Verify inbox delivery + QR renders correctly.</td><td>Developer</td><td>Phase 5 gate check</td></tr>
+    <tr><td>9</td><td>Monitor Resend dashboard for bounces and spam complaints after first live event</td><td>Developer</td><td>Ongoing post-launch</td></tr>
+  </tbody>
+</table>
+
+<h2>11. Future Considerations</h2>
+
+<h3>Receiving Replies (Post-MVP)</h3>
+<p>The MVP does not require a mailbox for incoming email. Attendees who reply to hello@ will get a bounce (no MX record). For post-MVP, add an MX record pointing to either:</p>
+<ul>
+  <li><strong>Google Workspace</strong> (~$6/user/month) — full Gmail experience, professional email for the team</li>
+  <li><strong>Zoho Mail</strong> (free up to 5 users) — free email hosting for small teams</li>
+  <li><strong>Forwarder only</strong> (via DotPH or Cloudflare Email Routing) — forward hello@ to an existing personal Gmail, at zero cost</li>
+</ul>
+
+<div class="info">
+  <strong>MVP Decision:</strong> Set up a simple email forwarder (DotPH email forwarding or Cloudflare Email Routing) to forward hello@axontickets.ph to the organizer's existing email. This allows attendees to reply and get a response without requiring a full mailbox setup. Cost: free.
+</div>
+
+<h3>Dedicated IP (Future Scale)</h3>
+<p>At &gt;10,000 emails/month, consider Resend's dedicated IP option to ensure sending reputation is not affected by other Resend customers. Cost: contact Resend for pricing at that tier.</p>
+
+<h3>Email Analytics (Post-MVP)</h3>
+<p>Resend provides open rates and click rates per email type. Use these to:</p>
+<ul>
+  <li>Identify if QR delivery emails are being marked as spam (low open rate = deliverability issue)</li>
+  <li>Track unsubscribe rates per email type</li>
+  <li>A/B test subject lines for better attendee open rates on confirmation emails</li>
+</ul>
+
+<hr>
+<p style="font-size:9pt; color:#64748b; text-align:center;">Axon Tickets MVP — Email &amp; Domain Strategy v1.0 · May 19, 2026 · Confidential</p>
+
+</body>
+</html>

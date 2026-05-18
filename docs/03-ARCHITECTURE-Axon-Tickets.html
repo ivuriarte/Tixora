@@ -1,0 +1,706 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Technical Architecture — Axon Tickets</title>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif; font-size: 10.5pt; color: #1a1a1a; max-width: 1000px; margin: 0 auto; padding: 40px; line-height: 1.6; }
+    .header-block { background: linear-gradient(135deg, #1A3A5C 0%, #2d5a8a 100%); color: white; padding: 40px 48px; margin: -40px -40px 40px; }
+    .header-block h1 { color: white; font-size: 24pt; margin: 0 0 8px; border-bottom: 3px solid #EA6C00; padding-bottom: 14px; }
+    .header-block .doc-meta { color: #a8c4e0; font-size: 10pt; margin-top: 14px; }
+    .header-block .doc-meta span { margin-right: 24px; }
+    h2 { font-size: 14pt; color: #1A3A5C; margin-top: 40px; border-left: 5px solid #EA6C00; padding-left: 14px; }
+    h3 { font-size: 11.5pt; color: #EA6C00; margin-top: 24px; margin-bottom: 8px; }
+    h4 { font-size: 10.5pt; color: #1A3A5C; font-weight: 700; margin-top: 16px; }
+    table { width: 100%; border-collapse: collapse; margin: 12px 0; font-size: 9.5pt; }
+    th { background: #1A3A5C; color: white; padding: 9px 11px; text-align: left; font-weight: 600; }
+    td { padding: 7px 11px; border: 1px solid #dde3ec; vertical-align: top; }
+    tr:nth-child(even) td { background: #f7f9fc; }
+    ul, ol { margin: 6px 0 6px 20px; }
+    li { margin: 4px 0; }
+    .info { background: #eff6ff; border-left: 4px solid #1A3A5C; padding: 10px 14px; margin: 14px 0; font-size: 10pt; border-radius: 0 4px 4px 0; }
+    .warning { background: #fff7ed; border-left: 4px solid #EA6C00; padding: 10px 14px; margin: 14px 0; font-size: 10pt; border-radius: 0 4px 4px 0; }
+    code, .code { font-family: 'Courier New', monospace; font-size: 9.5pt; background: #f1f5f9; padding: 1px 5px; border-radius: 3px; }
+    .code-block { font-family: 'Courier New', monospace; font-size: 9pt; background: #1e293b; color: #e2e8f0; padding: 16px 20px; border-radius: 8px; margin: 12px 0; white-space: pre; overflow-x: auto; line-height: 1.6; }
+    .diagram-box { background: #f7f9fc; border: 1px solid #dde3ec; border-radius: 8px; padding: 20px; margin: 16px 0; font-family: 'Courier New', monospace; font-size: 9pt; white-space: pre; overflow-x: auto; line-height: 1.7; }
+    hr { border: none; border-top: 1px solid #dde3ec; margin: 28px 0; }
+    .toc { background: #f7f9fc; border: 1px solid #dde3ec; border-radius: 8px; padding: 20px 24px; margin: 24px 0; }
+    .toc h3 { margin: 0 0 10px; color: #1A3A5C; font-size: 11pt; }
+    .toc ol { margin: 0; padding-left: 20px; }
+    .toc li { margin: 4px 0; font-size: 10pt; }
+    .model-field { font-family: 'Courier New', monospace; font-size: 9pt; }
+    .new-badge { display: inline-block; background: #16a34a; color: white; font-size: 8pt; padding: 1px 7px; border-radius: 8px; font-weight: 700; margin-left: 6px; vertical-align: middle; }
+    .ext-badge { display: inline-block; background: #EA6C00; color: white; font-size: 8pt; padding: 1px 7px; border-radius: 8px; font-weight: 700; margin-left: 6px; vertical-align: middle; }
+    .badge { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 8.5pt; font-weight: 600; }
+    .get { background: #dcfce7; color: #166534; }
+    .post { background: #dbeafe; color: #1e40af; }
+    .patch { background: #fef3c7; color: #92400e; }
+    .delete { background: #fee2e2; color: #991b1b; }
+  </style>
+</head>
+<body>
+
+<div class="header-block">
+  <h1>Axon Tickets — Technical Architecture</h1>
+  <p style="color:#e2ecf7; font-size:11pt; margin:8px 0 0;">Data Models · API Specification · Service Map · Folder Structure</p>
+  <div class="doc-meta">
+    <span><strong>Version:</strong> 1.0</span>
+    <span><strong>Status:</strong> Approved for Development</span>
+    <span><strong>Date:</strong> May 19, 2026</span>
+  </div>
+</div>
+
+<div class="toc">
+  <h3>Table of Contents</h3>
+  <ol>
+    <li>System Overview</li>
+    <li>Technology Stack</li>
+    <li>System Architecture Diagram</li>
+    <li>Data Model — Existing Entities (Unchanged)</li>
+    <li>Data Model — New Entities</li>
+    <li>Database Relationships &amp; Indexes</li>
+    <li>API Endpoint Specification</li>
+    <li>Service Layer Map</li>
+    <li>Module Structure (NestJS)</li>
+    <li>Frontend Architecture (Next.js)</li>
+    <li>Cloudinary Strategy</li>
+    <li>Email Service Architecture</li>
+    <li>Folder Structure (Post-MVP)</li>
+    <li>Environment Variables</li>
+    <li>Deployment Architecture</li>
+  </ol>
+</div>
+
+<h2>1. System Overview</h2>
+<p>Axon Tickets is a <strong>Turborepo monorepo</strong> containing two deployable applications and two shared packages. All deployments target Vercel (serverless). The database is Neon (PostgreSQL, serverless), accessed via Prisma ORM. Redis (Upstash) is used for session management, rate limiting, and idempotency.</p>
+
+<div class="diagram-box">
+  MONOREPO ROOT
+  ├── apps/
+  │   ├── api/          → NestJS REST API (Vercel Serverless Functions via @vercel/ncc)
+  │   └── web/          → Next.js 14 App Router (Vercel Edge + SSR)
+  └── packages/
+      ├── types/         → Shared TypeScript interfaces (@axon-tickets/types)
+      └── utils/         → Shared utility functions (@axon-tickets/utils)
+
+  External Services
+  ├── Neon PostgreSQL   → Primary database (serverless, pooled connections)
+  ├── Upstash Redis     → Sessions, rate limiting, idempotency, OTP protection
+  ├── Cloudinary        → Event images (public) + Payment proofs (private)
+  └── Resend            → Transactional email delivery
+</div>
+
+<h2>2. Technology Stack</h2>
+<table>
+  <thead><tr><th>Layer</th><th>Technology</th><th>Version</th><th>Purpose</th></tr></thead>
+  <tbody>
+    <tr><td>Monorepo</td><td>Turborepo</td><td>latest</td><td>Parallel builds, shared cache, cross-package tasks</td></tr>
+    <tr><td>API Framework</td><td>NestJS</td><td>10.x</td><td>Modular REST API with DI, guards, interceptors</td></tr>
+    <tr><td>API Runtime</td><td>@vercel/ncc bundled</td><td>—</td><td>Single-file bundle for Vercel serverless deployment</td></tr>
+    <tr><td>Frontend</td><td>Next.js 14 (App Router)</td><td>14.x</td><td>SSR + RSC + client pages, Vercel Edge</td></tr>
+    <tr><td>Database ORM</td><td>Prisma</td><td>5.x</td><td>Type-safe DB access, migrations, seed</td></tr>
+    <tr><td>Database</td><td>Neon PostgreSQL</td><td>16.x</td><td>Serverless PostgreSQL, auto-scaling</td></tr>
+    <tr><td>Cache / KV</td><td>Upstash Redis</td><td>—</td><td>Sessions, OTP, rate limiting, idempotency keys</td></tr>
+    <tr><td>File Storage</td><td>Cloudinary</td><td>SDK v2</td><td>Event images + payment proof (private)</td></tr>
+    <tr><td>Email</td><td>Resend</td><td>2.x</td><td>Transactional email (confirmations, QR, rejection)</td></tr>
+    <tr><td>QR Codes</td><td>qrcode (npm)</td><td>1.5.x</td><td>PNG QR generation server-side</td></tr>
+    <tr><td>QR Scanner</td><td>@zxing/browser</td><td>0.1.x</td><td>Browser camera QR scanning at check-in</td></tr>
+    <tr><td>State (client)</td><td>Zustand</td><td>4.x</td><td>Auth store, cart store</td></tr>
+    <tr><td>Data fetching</td><td>@tanstack/query</td><td>5.x</td><td>Async state, caching, refetching</td></tr>
+    <tr><td>CSS</td><td>Tailwind CSS</td><td>3.x</td><td>Utility-first styling, design tokens</td></tr>
+    <tr><td>Auth</td><td>JWT (Passport.js)</td><td>—</td><td>Admin + attendee session tokens</td></tr>
+    <tr><td>Validation</td><td>class-validator + Zod</td><td>—</td><td>DTO validation (NestJS) + schema parsing (shared)</td></tr>
+    <tr><td>Testing</td><td>Jest (API) + Vitest/Playwright (Web)</td><td>—</td><td>Unit, integration, E2E</td></tr>
+    <tr><td>Shared Types</td><td>@axon-tickets/types</td><td>workspace</td><td>TypeScript interfaces shared between API and Web</td></tr>
+    <tr><td>Shared Utils</td><td>@axon-tickets/utils</td><td>workspace</td><td>QR token, currency, date, slug utilities</td></tr>
+  </tbody>
+</table>
+
+<h2>3. System Architecture Diagram</h2>
+<div class="diagram-box">
+  ┌─────────────────────────────────────────────────────────────┐
+  │                    ATTENDEE / ORGANIZER BROWSER              │
+  │         (Desktop · Chrome · Safari Mobile · Android)         │
+  └───────────────────────┬─────────────────────────────────────┘
+                          │ HTTPS
+  ┌───────────────────────▼─────────────────────────────────────┐
+  │              VERCEL EDGE NETWORK (CDN + WAF)                 │
+  │   Static assets · ISR pages · Edge middleware (auth guard)   │
+  └──────────┬────────────────────────────────┬─────────────────┘
+             │                                │
+  ┌──────────▼──────────┐         ┌───────────▼──────────────┐
+  │    NEXT.JS 14 APP    │         │    NESTJS API             │
+  │  (apps/web — Vercel) │  REST   │  (apps/api — Vercel       │
+  │  App Router + SSR    │◄───────►│   Serverless via ncc)     │
+  │  Zustand + React     │  /api/  │  Controllers · Services   │
+  │  Query + Tailwind    │  v1/*   │  Guards · Interceptors    │
+  └─────────────────────┘         └─────┬──────┬──────┬───────┘
+                                        │      │      │
+                         ┌──────────────┘      │      └────────────────┐
+                         │                     │                        │
+              ┌──────────▼──────┐  ┌───────────▼──────┐  ┌────────────▼────┐
+              │  NEON POSTGRESQL │  │  UPSTASH REDIS    │  │  CLOUDINARY     │
+              │  (Primary DB)    │  │  Sessions · OTP   │  │  Event images   │
+              │  Prisma ORM      │  │  Rate limits      │  │  Proof (private)│
+              └──────────────────┘  └──────────────────┘  └─────────────────┘
+                                                │
+                                     ┌──────────▼──────────┐
+                                     │  RESEND              │
+                                     │  Transactional email │
+                                     │  (confirmations, QR, │
+                                     │   rejections)        │
+                                     └─────────────────────┘
+</div>
+
+<h2>4. Data Model — Existing Entities</h2>
+<p>The following entities exist in the current schema. They are <strong>not modified</strong> unless listed in Section 5 (extensions).</p>
+
+<table>
+  <thead><tr><th>Model</th><th>Status</th><th>Key Fields</th></tr></thead>
+  <tbody>
+    <tr><td><code>User</code></td><td>Existing</td><td>id, email, password, isAdmin, googleId, firstName, lastName</td></tr>
+    <tr><td><code>Event</code></td><td><span class="ext-badge">EXTENDED</span></td><td>id, slug, title, description, venue, address, city, startsAt, endsAt, capacity, status + see §5.1</td></tr>
+    <tr><td><code>TicketTier</code></td><td>Existing</td><td>id, eventId, name, description, price, quantity, maxPerOrder, saleStartsAt, saleEndsAt, isVisible</td></tr>
+    <tr><td><code>Reservation</code></td><td>Retained</td><td>PayMongo flow. Retained, not used in MVP registration flow.</td></tr>
+    <tr><td><code>Order</code></td><td>Retained</td><td>PayMongo flow. Retained, not used in MVP registration flow.</td></tr>
+    <tr><td><code>OrderItem</code></td><td>Retained</td><td>PayMongo flow. Retained.</td></tr>
+    <tr><td><code>Ticket</code></td><td>Retained</td><td>PayMongo flow. Legacy QR token. Retained for backward compatibility.</td></tr>
+    <tr><td><code>OtpCode</code></td><td>Existing</td><td>Retained. Daily cleanup job to be added.</td></tr>
+    <tr><td><code>FraudFlag</code></td><td>Existing</td><td>Retained as-is.</td></tr>
+  </tbody>
+</table>
+
+<h2>5. Data Model — New Entities</h2>
+
+<h3>5.1 Event Model Extensions (PATCH to existing)</h3>
+<div class="code-block">// New fields added to Event model in schema.prisma
+model Event {
+  // ... existing fields ...
+  paymentInstructions  String?          // Text instructions (account name/number)
+  paymentQrImages      Json?            // Array: [{label, cloudinaryPublicId, cloudinaryUrl}]
+  venueMapUrl          String?          // Google Maps URL for venue
+  maxGroupSize         Int      @default(10)  // Max attendees per bundle registration
+  
+  // New relations
+  registrations        Registration[]
+  eventViews           EventView[]
+}</div>
+
+<h3>5.2 Registration <span class="new-badge">NEW</span></h3>
+<div class="code-block">model Registration {
+  id             String             @id @default(cuid())
+  referenceNumber String            @unique  // AXN-YYYYMMDD-XXXX
+  eventId        String
+  tierId         String
+  type           RegistrationType   // SOLO | GROUP
+  status         RegistrationStatus @default(DRAFT)
+  leadEmail      String             // Email for confirmation + re-upload notifications
+  totalAmount    Decimal            @db.Decimal(10, 2)
+  
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+  
+  // Relations
+  event          Event              @relation(fields: [eventId], references: [id])
+  tier           TicketTier         @relation(fields: [tierId], references: [id])
+  attendees      Attendee[]
+  paymentProofs  PaymentProof[]
+  
+  @@index([eventId, status])
+  @@index([referenceNumber])
+  @@index([leadEmail])
+}</div>
+
+<h3>5.3 Attendee <span class="new-badge">NEW</span></h3>
+<div class="code-block">model Attendee {
+  id             String    @id @default(cuid())
+  registrationId String
+  eventId        String    // Denormalized for fast check-in queries
+  
+  // Required fields
+  firstName      String
+  lastName       String
+  email          String
+  contactNumber  String
+  
+  // Optional fields
+  gender         String?
+  age            Int?
+  country        String?   @default("Philippines")
+  company        String?
+  affiliation    String?
+  city           String?
+  
+  // QR + Check-in
+  qrToken        String?   @unique  // Set on Registration approval
+  checkedInAt    DateTime?
+  checkedInBy    String?   // Admin user ID who performed manual check-in
+  checkInMethod  String?   // "scan" | "manual"
+  
+  isLead         Boolean   @default(false)  // True for lead registrant in group
+  
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  
+  // Relations
+  registration   Registration @relation(fields: [registrationId], references: [id])
+  
+  @@index([registrationId])
+  @@index([eventId, email])          // Duplicate check
+  @@index([eventId, qrToken])        // Fast check-in lookup
+}</div>
+
+<h3>5.4 PaymentProof <span class="new-badge">NEW</span></h3>
+<div class="code-block">model PaymentProof {
+  id                  String    @id @default(cuid())
+  registrationId      String
+  
+  cloudinaryPublicId  String    // Cloudinary public_id for signed URL generation
+  cloudinaryUrl       String    // Not served directly — used as fallback reference
+  mimeType            String    // image/jpeg | image/png | application/pdf
+  fileSizeBytes       Int
+  
+  status              ProofStatus @default(SUBMITTED) // SUBMITTED | REVIEWED
+  rejectionReason     String?   // Preset reason key
+  rejectionNote       String?   // Free-text note (if reason == "other")
+  reviewedAt          DateTime?
+  reviewedBy          String?   // Admin user ID
+  
+  createdAt           DateTime  @default(now())
+  
+  registration        Registration @relation(fields: [registrationId], references: [id])
+  
+  @@index([registrationId])
+}
+
+enum ProofStatus {
+  SUBMITTED
+  REVIEWED
+}</div>
+
+<h3>5.5 AuditLog <span class="new-badge">NEW</span></h3>
+<div class="code-block">model AuditLog {
+  id          String    @id @default(cuid())
+  adminId     String    // User.id of admin who performed action
+  action      String    // AuditAction enum value as string
+  entityType  String    // "Registration" | "Event" | "Attendee" | etc.
+  entityId    String    // ID of the affected entity
+  metadata    Json?     // { reason, count, rejectionNote, ... }
+  createdAt   DateTime  @default(now())
+  
+  @@index([adminId, createdAt])
+  @@index([entityType, entityId])
+  @@index([action, createdAt])
+}</div>
+
+<h3>5.6 EventView <span class="new-badge">NEW</span></h3>
+<div class="code-block">model EventView {
+  id        String    @id @default(cuid())
+  eventId   String
+  sessionId String?   // Anonymous browser session ID (no PII)
+  createdAt DateTime  @default(now())
+  
+  event     Event     @relation(fields: [eventId], references: [id])
+  
+  @@index([eventId, createdAt])
+}</div>
+
+<h3>5.7 New Enums</h3>
+<div class="code-block">enum RegistrationStatus {
+  DRAFT                // Form submitted, no proof
+  SUBMITTED            // Proof uploaded
+  PENDING_VERIFICATION // Organizer has opened proof for review
+  APPROVED             // QR codes generated and emailed
+  REJECTED             // Proof rejected, attendee can re-upload
+  CANCELLED            // Manually cancelled or early bird expired
+}
+
+enum RegistrationType {
+  SOLO
+  GROUP
+}
+
+// Predefined audit actions (stored as strings in AuditLog.action)
+// CREATE_EVENT | UPDATE_EVENT | CANCEL_EVENT
+// APPROVE_REGISTRATION | REJECT_REGISTRATION | BULK_APPROVE
+// RESEND_QR | CHECKIN_MANUAL | CHECKIN_OVERRIDE
+// EXPORT_CSV | UPDATE_TIER | DELETE_TIER</div>
+
+<h2>6. Database Relationships &amp; Indexes</h2>
+
+<div class="diagram-box">
+  Event
+  ├── TicketTier []    (1 event → many tiers)
+  ├── Registration []  (1 event → many registrations)  [NEW]
+  └── EventView []     (1 event → many views)           [NEW]
+
+  Registration
+  ├── TicketTier       (many registrations → 1 tier)
+  ├── Attendee []      (1 registration → 1+ attendees)  [NEW]
+  └── PaymentProof []  (1 registration → many proofs)   [NEW]
+
+  AuditLog             (independent entity, refs User + any entity by ID)
+
+  Legacy (retained):
+  Order → OrderItem → Ticket
+  User → Reservation
+</div>
+
+<h3>Critical Indexes</h3>
+<table>
+  <thead><tr><th>Table</th><th>Index</th><th>Purpose</th></tr></thead>
+  <tbody>
+    <tr><td>Registration</td><td><code>(eventId, status)</code></td><td>Verification queue filter by event and status</td></tr>
+    <tr><td>Registration</td><td><code>(referenceNumber)</code></td><td>Attendee lookup by reference (unique)</td></tr>
+    <tr><td>Attendee</td><td><code>(registrationId)</code></td><td>Load all attendees for a registration</td></tr>
+    <tr><td>Attendee</td><td><code>(eventId, email)</code></td><td>Duplicate email check per event</td></tr>
+    <tr><td>Attendee</td><td><code>(eventId, qrToken)</code></td><td>Fast check-in lookup (p95 &lt; 10ms)</td></tr>
+    <tr><td>PaymentProof</td><td><code>(registrationId)</code></td><td>Retrieve latest proof for a registration</td></tr>
+    <tr><td>AuditLog</td><td><code>(adminId, createdAt)</code></td><td>Per-admin activity history</td></tr>
+    <tr><td>AuditLog</td><td><code>(action, createdAt)</code></td><td>Filter by action type</td></tr>
+    <tr><td>EventView</td><td><code>(eventId, createdAt)</code></td><td>Event view aggregation by date</td></tr>
+  </tbody>
+</table>
+
+<h2>7. API Endpoint Specification</h2>
+
+<h3>7.1 Public Registration Endpoints (no auth)</h3>
+<table>
+  <thead><tr><th>Method</th><th>Path</th><th>Description</th></tr></thead>
+  <tbody>
+    <tr><td><span class="badge post">POST</span></td><td><code>/api/v1/registrations</code></td><td>Create solo or group registration. Rate: 10/min/IP.</td></tr>
+    <tr><td><span class="badge post">POST</span></td><td><code>/api/v1/registrations/lookup</code></td><td>Authenticate attendee: email + referenceNumber → returns JWT session. Rate: 10/min/IP.</td></tr>
+    <tr><td><span class="badge get">GET</span></td><td><code>/api/v1/registrations/:id</code></td><td>Get registration detail. Auth: attendee session JWT or admin JWT.</td></tr>
+  </tbody>
+</table>
+
+<h3>7.2 Attendee (reference session) Endpoints</h3>
+<table>
+  <thead><tr><th>Method</th><th>Path</th><th>Description</th></tr></thead>
+  <tbody>
+    <tr><td><span class="badge post">POST</span></td><td><code>/api/v1/registrations/:id/proof</code></td><td>Upload proof of payment. Auth: attendee session. Multipart/form-data.</td></tr>
+    <tr><td><span class="badge get">GET</span></td><td><code>/api/v1/registrations/:id/status</code></td><td>Get current registration status and proof history.</td></tr>
+  </tbody>
+</table>
+
+<h3>7.3 Admin — Verification Queue</h3>
+<table>
+  <thead><tr><th>Method</th><th>Path</th><th>Description</th></tr></thead>
+  <tbody>
+    <tr><td><span class="badge get">GET</span></td><td><code>/api/v1/admin/verifications</code></td><td>List registrations for verification queue. Query: ?status=submitted&amp;eventId=&amp;page=1&amp;limit=20</td></tr>
+    <tr><td><span class="badge get">GET</span></td><td><code>/api/v1/admin/verifications/:id</code></td><td>Get full registration detail + proof signed URL.</td></tr>
+    <tr><td><span class="badge patch">PATCH</span></td><td><code>/api/v1/admin/verifications/:id/approve</code></td><td>Approve registration → generate QR → send emails.</td></tr>
+    <tr><td><span class="badge patch">PATCH</span></td><td><code>/api/v1/admin/verifications/:id/reject</code></td><td>Reject with reason. Body: { reason, note? }.</td></tr>
+    <tr><td><span class="badge post">POST</span></td><td><code>/api/v1/admin/verifications/bulk-approve</code></td><td>Approve multiple registrations. Body: { ids: string[] }. Max 20.</td></tr>
+    <tr><td><span class="badge post">POST</span></td><td><code>/api/v1/admin/verifications/:id/resend</code></td><td>Resend QR emails to all attendees in approved registration.</td></tr>
+  </tbody>
+</table>
+
+<h3>7.4 Admin — Events &amp; Tiers (existing, extended)</h3>
+<table>
+  <thead><tr><th>Method</th><th>Path</th><th>Description</th></tr></thead>
+  <tbody>
+    <tr><td><span class="badge get">GET</span></td><td><code>/api/v1/admin/events</code></td><td>List all events (existing)</td></tr>
+    <tr><td><span class="badge post">POST</span></td><td><code>/api/v1/admin/events</code></td><td>Create event. Extended: paymentQrImages, venueMapUrl, maxGroupSize. (existing)</td></tr>
+    <tr><td><span class="badge patch">PATCH</span></td><td><code>/api/v1/admin/events/:id</code></td><td>Update event (existing + extended fields)</td></tr>
+    <tr><td><span class="badge post">POST</span></td><td><code>/api/v1/admin/events/:id/payment-qr</code></td><td><span class="new-badge">NEW</span> Upload payment QR image(s) for event.</td></tr>
+    <tr><td><span class="badge post">POST</span></td><td><code>/api/v1/admin/events/:id/tiers</code></td><td>Create tier (existing)</td></tr>
+    <tr><td><span class="badge patch">PATCH</span></td><td><code>/api/v1/admin/events/:id/tiers/:tierId</code></td><td>Update tier (existing)</td></tr>
+    <tr><td><span class="badge delete">DELETE</span></td><td><code>/api/v1/admin/events/:id/tiers/:tierId</code></td><td>Delete tier (existing)</td></tr>
+  </tbody>
+</table>
+
+<h3>7.5 Admin — Analytics</h3>
+<table>
+  <thead><tr><th>Method</th><th>Path</th><th>Description</th></tr></thead>
+  <tbody>
+    <tr><td><span class="badge get">GET</span></td><td><code>/api/v1/admin/analytics/dashboard</code></td><td>Overall metrics across all events (existing, extended for registration stats)</td></tr>
+    <tr><td><span class="badge get">GET</span></td><td><code>/api/v1/admin/analytics/events/:id</code></td><td><span class="new-badge">NEW</span> Per-event: registrations by status, by tier, capacity progress, checked-in count, revenue estimate.</td></tr>
+  </tbody>
+</table>
+
+<h3>7.6 Admin — Audit Log</h3>
+<table>
+  <thead><tr><th>Method</th><th>Path</th><th>Description</th></tr></thead>
+  <tbody>
+    <tr><td><span class="badge get">GET</span></td><td><code>/api/v1/admin/audit</code></td><td><span class="new-badge">NEW</span> List audit log. Query: ?action=&amp;from=&amp;to=&amp;page=1</td></tr>
+  </tbody>
+</table>
+
+<h3>7.7 Check-in (Admin)</h3>
+<table>
+  <thead><tr><th>Method</th><th>Path</th><th>Description</th></tr></thead>
+  <tbody>
+    <tr><td><span class="badge post">POST</span></td><td><code>/api/v1/admin/checkin</code></td><td>Existing. Extended to check <code>Attendee.qrToken</code> first, fallback to <code>Ticket.qrCode</code>.</td></tr>
+    <tr><td><span class="badge get">GET</span></td><td><code>/api/v1/admin/checkin/search</code></td><td><span class="new-badge">NEW</span> Search attendees by name/email for manual lookup. Query: ?q=&amp;eventId=</td></tr>
+  </tbody>
+</table>
+
+<h3>7.8 Auth (existing, minor extension)</h3>
+<table>
+  <thead><tr><th>Method</th><th>Path</th><th>Description</th></tr></thead>
+  <tbody>
+    <tr><td><span class="badge post">POST</span></td><td><code>/api/v1/auth/login</code></td><td>Admin login (existing)</td></tr>
+    <tr><td><span class="badge post">POST</span></td><td><code>/api/v1/auth/register</code></td><td>Admin registration (existing)</td></tr>
+    <tr><td><span class="badge post">POST</span></td><td><code>/api/v1/auth/refresh</code></td><td>Token refresh (existing)</td></tr>
+    <tr><td><span class="badge post">POST</span></td><td><code>/api/v1/auth/verify-otp</code></td><td>OTP verification (existing)</td></tr>
+    <tr><td><span class="badge get">GET</span></td><td><code>/api/v1/auth/google</code></td><td>Google OAuth (existing)</td></tr>
+    <tr><td><span class="badge post">POST</span></td><td><code>/api/v1/auth/complete-profile</code></td><td><span class="new-badge">NEW</span> Optional profile completion for attendees (set password).</td></tr>
+  </tbody>
+</table>
+
+<h2>8. Service Layer Map</h2>
+
+<table>
+  <thead><tr><th>Service</th><th>Module</th><th>Responsibility</th><th>Dependencies</th></tr></thead>
+  <tbody>
+    <tr><td><code>RegistrationsService</code></td><td>RegistrationsModule (NEW)</td><td>Create registration + attendees, duplicate check, reference generation, status transitions</td><td>PrismaService, EmailService, AuditService</td></tr>
+    <tr><td><code>PaymentProofsService</code></td><td>PaymentProofsModule (NEW)</td><td>Upload proof, validate MIME, coordinate Cloudinary upload, status update, signed URL generation</td><td>PrismaService, UploadService, AuditService</td></tr>
+    <tr><td><code>VerificationsService</code></td><td>RegistrationsModule (NEW)</td><td>Admin approve/reject/resend, QR generation, bulk operations</td><td>PrismaService, EmailService, AuditService, QrService</td></tr>
+    <tr><td><code>QrService</code></td><td>Shared (RegistrationsModule)</td><td>Generate QR token (UUID v4), render QR PNG image, verify token</td><td>qrcode library, @axon-tickets/utils</td></tr>
+    <tr><td><code>EmailService</code></td><td>EmailModule (NEW — extracted)</td><td>Send all transactional emails: confirmation, QR delivery, rejection, cancellation</td><td>Resend SDK</td></tr>
+    <tr><td><code>AuditService</code></td><td>AuditModule (NEW)</td><td>Write audit log entries async</td><td>PrismaService</td></tr>
+    <tr><td><code>UploadService</code></td><td>UploadModule (extended)</td><td>Event image upload (existing) + private payment proof upload + signed URL generation (new)</td><td>Cloudinary SDK</td></tr>
+    <tr><td><code>AdminService</code></td><td>AdminModule (extended)</td><td>Events CRUD, analytics (extended for registration stats), audit log queries</td><td>PrismaService, EmailService, AuditService</td></tr>
+    <tr><td><code>AuthService</code></td><td>AuthModule (existing)</td><td>Admin login/register/OTP. New: attendee lookup authentication, profile completion</td><td>PrismaService, RedisService</td></tr>
+    <tr><td><code>SchedulerService</code></td><td>SchedulerModule (NEW)</td><td>Early bird auto-cancellation cron, OTP cleanup cron</td><td>PrismaService, EmailService, AuditService</td></tr>
+  </tbody>
+</table>
+
+<h2>9. Module Structure (NestJS)</h2>
+
+<div class="code-block">apps/api/src/
+├── app.module.ts                    # Root module (existing — add new modules)
+├── main.ts
+├── serverless.ts
+│
+├── registrations/                   # NEW MODULE
+│   ├── registrations.module.ts
+│   ├── registrations.controller.ts  # POST /registrations, POST /registrations/lookup
+│   ├── registrations.service.ts     # Create, lookup, status
+│   ├── verifications.controller.ts  # Admin PATCH /admin/verifications/*
+│   ├── verifications.service.ts     # Approve, reject, resend
+│   └── dto/
+│       ├── create-registration.dto.ts
+│       ├── lookup-registration.dto.ts
+│       └── reject-registration.dto.ts
+│
+├── payment-proofs/                  # NEW MODULE
+│   ├── payment-proofs.module.ts
+│   ├── payment-proofs.controller.ts # POST /registrations/:id/proof
+│   ├── payment-proofs.service.ts    # Upload, signed URL
+│   └── dto/
+│       └── upload-proof.dto.ts
+│
+├── audit/                           # NEW MODULE
+│   ├── audit.module.ts
+│   ├── audit.service.ts             # log() method
+│   └── audit.types.ts               # AuditAction enum + AuditMeta type
+│
+├── email/                           # NEW MODULE (extracted)
+│   ├── email.module.ts
+│   ├── email.service.ts
+│   └── templates/
+│       ├── registration-confirmation.hbs
+│       ├── qr-delivery.hbs
+│       ├── rejection-notice.hbs
+│       └── cancellation-notice.hbs
+│
+├── scheduler/                       # NEW MODULE
+│   ├── scheduler.module.ts
+│   └── scheduler.service.ts         # @Cron jobs
+│
+├── admin/                           # EXISTING — extended
+│   ├── admin.controller.ts          # Extended: analytics/:id, audit, payment QR upload
+│   ├── admin.module.ts
+│   ├── admin.service.ts             # Extended: per-event analytics
+│   └── dto/
+│
+├── auth/                            # EXISTING — minor extension
+│   ├── auth.controller.ts           # Add POST /auth/complete-profile
+│   ├── auth.module.ts
+│   ├── auth.service.ts
+│   └── ...
+│
+├── upload/                          # EXISTING — extended
+│   ├── upload.module.ts
+│   └── upload.service.ts            # Add uploadPaymentProof(), getSignedProofUrl()
+│
+├── events/                          # EXISTING
+├── health/                          # EXISTING
+├── orders/                          # EXISTING — retained
+├── payments/                        # EXISTING — retained (PayMongo)
+├── redis/                           # EXISTING
+├── reservations/                    # EXISTING — retained
+├── ticket-tiers/                    # EXISTING
+├── tickets/                         # EXISTING
+├── users/                           # EXISTING
+├── prisma/                          # EXISTING
+└── common/
+    ├── decorators/
+    ├── filters/
+    ├── guards/
+    └── interceptors/</div>
+
+<h2>10. Frontend Architecture (Next.js)</h2>
+
+<h3>Route Map (Post-MVP)</h3>
+<div class="code-block">apps/web/src/app/
+├── page.tsx                          # Events listing (existing)
+├── events/
+│   └── [slug]/
+│       ├── page.tsx                  # Event detail + tier selection (existing, extended)
+│       ├── register/
+│       │   ├── page.tsx              # Registration form (solo + group) [NEW]
+│       │   └── confirm/
+│       │       └── [registrationId]/
+│       │           └── page.tsx      # Confirmation screen [NEW]
+│       └── payment/
+│           └── [registrationId]/
+│               └── page.tsx          # Payment instructions + proof upload [NEW]
+│
+├── my-registration/
+│   ├── page.tsx                      # Email + reference lookup form [NEW]
+│   └── [referenceNumber]/
+│       └── page.tsx                  # Registration status page [NEW]
+│
+├── checkout/
+│   └── [reservationId]/
+│       └── page.tsx                  # PayMongo flow (RETAINED — feature-flagged OFF)
+│
+├── auth/
+│   ├── login/page.tsx                # Admin login (existing)
+│   ├── register/page.tsx             # Admin register (existing)
+│   ├── verify/page.tsx               # OTP verify (existing)
+│   └── callback/page.tsx             # Google OAuth (existing)
+│
+└── admin/
+    ├── layout.tsx                    # Auth guard (FIXED — remove setTimeout)
+    ├── page.tsx                      # Dashboard (extended)
+    ├── events/
+    │   ├── page.tsx                  # Events list (existing)
+    │   ├── [id]/page.tsx             # Event detail (extended)
+    │   └── new/page.tsx              # Create event (existing, extended)
+    ├── verifications/                # [NEW]
+    │   ├── page.tsx                  # Verification queue
+    │   └── [id]/page.tsx             # Proof detail + approve/reject
+    ├── orders/page.tsx               # Legacy order list (existing, retained)
+    ├── orders/[id]/page.tsx          # Legacy order detail (existing, retained)
+    ├── audit/page.tsx                # Audit log viewer [NEW]
+    ├── attendees/page.tsx            # Attendee list (existing, will query Attendee model)
+    └── checkin/page.tsx              # Check-in scanner (existing + ZXing camera) [EXTENDED]</div>
+
+<h3>State Management</h3>
+<table>
+  <thead><tr><th>Store</th><th>File</th><th>State</th></tr></thead>
+  <tbody>
+    <tr><td>AuthStore</td><td>store/auth.store.ts</td><td>user, accessToken, refreshToken. Fixed: localStorage persistence on set/clear.</td></tr>
+    <tr><td>CartStore</td><td>store/cart.store.ts</td><td>Existing cart for PayMongo flow (retained).</td></tr>
+    <tr><td>RegistrationStore</td><td>store/registration.store.ts (NEW)</td><td>In-progress registration form state (tier selection, attendee rows). Not persisted.</td></tr>
+  </tbody>
+</table>
+
+<h2>11. Cloudinary Strategy</h2>
+<table>
+  <thead><tr><th>Asset Type</th><th>Folder</th><th>Upload Type</th><th>Access</th></tr></thead>
+  <tbody>
+    <tr><td>Event images (banner)</td><td><code>axon-tickets/events/</code></td><td>Authenticated upload, public delivery</td><td>Direct Cloudinary URL (public)</td></tr>
+    <tr><td>Payment QR images</td><td><code>axon-tickets/payment-qr/[eventId]/</code></td><td>Authenticated upload, public delivery</td><td>Direct URL (attendee-facing — just an image)</td></tr>
+    <tr><td>Payment proof files</td><td><code>axon-tickets/proofs/[registrationId]/</code></td><td>Authenticated upload, <strong>private</strong></td><td>Server-generated signed URL (30-min expiry, admin only)</td></tr>
+  </tbody>
+</table>
+
+<div class="warning"><strong>Security Rule:</strong> Payment proof Cloudinary public IDs are <em>never</em> stored as direct URLs that could be shared. Only the <code>publicId</code> is stored in the database. The <code>UploadService.getSignedProofUrl()</code> method generates a time-limited URL on demand for admin use only.</div>
+
+<h2>12. Email Service Architecture</h2>
+
+<h3>Email Types and Triggers</h3>
+<table>
+  <thead><tr><th>Email</th><th>Trigger</th><th>Recipient</th><th>Contains</th></tr></thead>
+  <tbody>
+    <tr><td>Registration Confirmation</td><td>POST /registrations success</td><td>Lead registrant</td><td>Reference number, attendee names, payment instructions link</td></tr>
+    <tr><td>QR Delivery</td><td>Admin approves registration</td><td>Each individual attendee</td><td>Attendee name, QR code image, event details, venue map link</td></tr>
+    <tr><td>Rejection Notice</td><td>Admin rejects registration</td><td>Lead registrant</td><td>Event name, rejection reason, re-upload link</td></tr>
+    <tr><td>Cancellation Notice</td><td>Auto-cancellation cron</td><td>Lead registrant</td><td>Event name, cancellation reason, link to re-register if tier open</td></tr>
+    <tr><td>QR Resend</td><td>Admin clicks Resend QR</td><td>Each individual attendee</td><td>Same as QR Delivery</td></tr>
+  </tbody>
+</table>
+
+<h3>Resend Configuration</h3>
+<ul>
+  <li>SDK: <code>resend</code> npm package v2</li>
+  <li>From address: <code>hello@axontickets.ph</code> (events) / <code>noreply@axontickets.ph</code> (system notifications)</li>
+  <li>Templates: HTML string templates (Handlebars or JSX-based via React Email library)</li>
+  <li>Retry: Resend handles delivery retries (3 attempts). Failures logged as structured error. Admin can trigger manual resend.</li>
+  <li>Free tier: 3,000 emails/month (sufficient for MVP events of 300–450 attendees + confirmation emails)</li>
+</ul>
+
+<h2>13. Folder Structure (Post-MVP Summary)</h2>
+<div class="code-block">Tixora - Online Ticketing Platform/
+├── apps/
+│   ├── api/src/
+│   │   ├── [existing modules — unchanged]
+│   │   ├── registrations/           NEW: Registration + Verification
+│   │   ├── payment-proofs/          NEW: Proof upload + signed URL
+│   │   ├── audit/                   NEW: Audit log service
+│   │   ├── email/                   NEW: Extracted email service
+│   │   └── scheduler/               NEW: Cron jobs
+│   └── web/src/app/
+│       ├── events/[slug]/register/  NEW: Registration form
+│       ├── my-registration/         NEW: Status lookup
+│       └── admin/verifications/     NEW: Verification queue
+├── packages/
+│   ├── types/src/
+│   │   └── registration.types.ts    NEW: Registration, Attendee, PaymentProof interfaces
+│   └── utils/src/
+│       └── reference.ts             NEW: generateReferenceNumber() utility
+├── docs/                            Documentation (this folder)
+└── prisma/schema.prisma             Central reference (api/prisma/schema.prisma is canonical)</div>
+
+<h2>14. Environment Variables</h2>
+<table>
+  <thead><tr><th>Variable</th><th>App</th><th>Required</th><th>Description</th></tr></thead>
+  <tbody>
+    <tr><td><code>DATABASE_URL</code></td><td>API</td><td>Yes</td><td>Neon PostgreSQL connection string (pooled)</td></tr>
+    <tr><td><code>DIRECT_URL</code></td><td>API</td><td>Yes</td><td>Neon direct connection string (for migrations)</td></tr>
+    <tr><td><code>REDIS_URL</code></td><td>API</td><td>Yes</td><td>Upstash Redis REST URL</td></tr>
+    <tr><td><code>REDIS_TOKEN</code></td><td>API</td><td>Yes</td><td>Upstash Redis REST token</td></tr>
+    <tr><td><code>JWT_SECRET</code></td><td>API</td><td>Yes</td><td>JWT signing secret (min 64 chars)</td></tr>
+    <tr><td><code>JWT_REFRESH_SECRET</code></td><td>API</td><td>Yes</td><td>Refresh token signing secret</td></tr>
+    <tr><td><code>CLOUDINARY_CLOUD_NAME</code></td><td>API</td><td>Yes</td><td>Cloudinary cloud name</td></tr>
+    <tr><td><code>CLOUDINARY_API_KEY</code></td><td>API</td><td>Yes</td><td>Cloudinary API key</td></tr>
+    <tr><td><code>CLOUDINARY_API_SECRET</code></td><td>API</td><td>Yes</td><td>Cloudinary API secret (never exposed to client)</td></tr>
+    <tr><td><code>RESEND_API_KEY</code></td><td>API</td><td>Yes</td><td>Resend transactional email API key</td></tr>
+    <tr><td><code>EMAIL_FROM_HELLO</code></td><td>API</td><td>Yes</td><td>hello@axontickets.ph (QR + confirmation emails)</td></tr>
+    <tr><td><code>EMAIL_FROM_NOREPLY</code></td><td>API</td><td>Yes</td><td>noreply@axontickets.ph (system notifications)</td></tr>
+    <tr><td><code>PAYMONGO_SECRET_KEY</code></td><td>API</td><td>No (retained)</td><td>PayMongo secret — inactive in MVP</td></tr>
+    <tr><td><code>HCAPTCHA_SECRET</code></td><td>API</td><td>Yes</td><td>hCaptcha server-side verification</td></tr>
+    <tr><td><code>NEXT_PUBLIC_API_URL</code></td><td>Web</td><td>Yes</td><td>NestJS API base URL</td></tr>
+    <tr><td><code>NEXT_PUBLIC_HCAPTCHA_SITE_KEY</code></td><td>Web</td><td>Yes</td><td>hCaptcha site key</td></tr>
+    <tr><td><code>NEXT_PUBLIC_ENABLE_ONLINE_PAYMENT</code></td><td>Web</td><td>No</td><td>Feature flag for PayMongo flow. Default: false (hidden in MVP).</td></tr>
+    <tr><td><code>NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME</code></td><td>Web</td><td>Yes</td><td>For event image display only</td></tr>
+  </tbody>
+</table>
+
+<h2>15. Deployment Architecture</h2>
+<table>
+  <thead><tr><th>Service</th><th>Platform</th><th>URL</th><th>Deployment Method</th></tr></thead>
+  <tbody>
+    <tr><td>Frontend (Next.js)</td><td>Vercel</td><td>axon-tickets-app.vercel.app</td><td>Git push to main → auto-deploy</td></tr>
+    <tr><td>API (NestJS)</td><td>Vercel Serverless</td><td>api-tau-six-59.vercel.app</td><td>ncc bundle → Vercel functions (custom deploy script required)</td></tr>
+    <tr><td>Database</td><td>Neon</td><td>(internal)</td><td>Prisma migrations via <code>prisma migrate deploy</code></td></tr>
+    <tr><td>Redis</td><td>Upstash</td><td>(internal)</td><td>Managed service — no deployment</td></tr>
+    <tr><td>Email</td><td>Resend</td><td>(external)</td><td>SDK + API key — no deployment</td></tr>
+    <tr><td>File Storage</td><td>Cloudinary</td><td>(external)</td><td>SDK + credentials — no deployment</td></tr>
+  </tbody>
+</table>
+
+<div class="info">
+  <strong>API Deployment Note:</strong> The NestJS API is deployed to Vercel as a pre-bundled serverless function using <code>@vercel/ncc</code>. The current deployment compiles <code>src/serverless.ts</code> into a single <code>api/index.js</code>. Any new modules must be imported through the module hierarchy rooted at <code>AppModule</code> — no separate bundle step is needed per module.
+</div>
+
+<hr>
+<p style="font-size:9pt; color:#64748b; text-align:center;">Axon Tickets — Technical Architecture v1.0 · May 19, 2026 · Confidential</p>
+
+</body>
+</html>
