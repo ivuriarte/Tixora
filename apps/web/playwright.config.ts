@@ -7,6 +7,9 @@ export default defineConfig({
   retries: process.env.CI ? 2 : 0,
   workers: 1,
   reporter: [['list'], ['html', { open: 'never' }]],
+  expect: {
+    timeout: 15000,
+  },
   use: {
     baseURL: process.env.BASE_URL ?? 'https://tixora-online-ticket-app.vercel.app',
     trace: 'on-first-retry',

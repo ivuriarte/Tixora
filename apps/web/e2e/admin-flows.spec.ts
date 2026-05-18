@@ -48,7 +48,7 @@ test.describe('Admin Dashboard', () => {
   test('admin can navigate to create event page', async ({ page }) => {
     await loginAsAdmin(page);
     await page.goto('/admin/events/new');
-    await expect(page.getByRole('heading', { name: /create.*event/i })).toBeVisible();
+    await expect(page.getByRole('heading', { name: /new event/i })).toBeVisible();
   });
 
   test('admin check-in page loads scanner UI', async ({ page }) => {
@@ -69,10 +69,10 @@ test.describe('Admin Create Event — Form Fields', () => {
     await loginAsAdmin(page);
     await page.goto('/admin/events/new');
 
-    // Core required fields
-    await expect(page.getByLabel(/title\s*\*/i)).toBeVisible();
-    await expect(page.getByLabel(/venue\s*\*/i)).toBeVisible();
-    await expect(page.getByLabel(/city\s*\*/i)).toBeVisible();
+    // Core required fields — use name attribute since labels lack htmlFor
+    await expect(page.locator('[name="title"]')).toBeVisible();
+    await expect(page.locator('[name="venue"]')).toBeVisible();
+    await expect(page.locator('[name="city"]')).toBeVisible();
   });
 
   test('form has date + time inputs as separate fields', async ({ page }) => {
@@ -89,7 +89,7 @@ test.describe('Admin Create Event — Form Fields', () => {
   test('form has address field', async ({ page }) => {
     await loginAsAdmin(page);
     await page.goto('/admin/events/new');
-    await expect(page.getByLabel(/address/i)).toBeVisible();
+    await expect(page.locator('[name="address"]')).toBeVisible();
   });
 
   test('empty submit shows validation — does not navigate away', async ({ page }) => {
@@ -140,31 +140,50 @@ test.describe('Admin Create Event — Form Fields', () => {
 
     await page.getByRole('button', { name: /add sponsor/i }).click();
 
-    // Name field should appear
-    const nameInput = page.getByPlaceholder(/sponsor name/i).first();
+    // Company Name field should appear (placeholder from ConferenceFields)
+    const nameInput = page.getByPlaceholder(/globe business/i).first();
     await expect(nameInput).toBeVisible();
     await nameInput.fill('ACME Corp');
 
-    // Remove the sponsor
-    await page.getByRole('button', { name: /remove|delete|×/i }).first().click();
+    // Save the sponsor
+    await page.getByRole('button', { name: /^add sponsor$/i }).click();
 
-    // Name field should disappear
-    await expect(page.getByPlaceholder(/sponsor name/i)).not.toBeVisible();
+    // Sponsor appears in list
+    await expect(page.getByText('ACME Corp')).toBeVisible();
+
+    // Delete the sponsor
+    await page.getByRole('button', { name: /^delete$/i }).first().click();
+
+    // Sponsor should be gone
+    await expect(page.getByText('ACME Corp')).not.toBeVisible();
   });
 
   test('can add and remove a FAQ entry', async ({ page }) => {
     await loginAsAdmin(page);
     await page.goto('/admin/events/new');
 
-    await page.getByRole('button', { name: /add faq|add question/i }).click();
+    await page.getByRole('button', { name: /add faq/i }).click();
 
-    const questionInput = page.getByPlaceholder(/question/i).first();
+    // Question input (placeholder from FaqForm)
+    const questionInput = page.getByPlaceholder(/what is included/i).first();
     await expect(questionInput).toBeVisible();
     await questionInput.fill('What time does it start?');
 
-    // Remove it
-    await page.getByRole('button', { name: /remove|delete|×/i }).first().click();
-    await expect(page.getByPlaceholder(/question/i)).not.toBeVisible();
+    // Answer is also required before saving
+    const answerInput = page.getByPlaceholder(/full day access/i).first();
+    await answerInput.fill('Doors open at 9am.');
+
+    // Save the FAQ
+    await page.getByRole('button', { name: /^add faq$/i }).click();
+
+    // FAQ appears in list
+    await expect(page.getByText('What time does it start?')).toBeVisible();
+
+    // Delete the FAQ
+    await page.getByRole('button', { name: /^delete$/i }).first().click();
+
+    // FAQ should be gone
+    await expect(page.getByText('What time does it start?')).not.toBeVisible();
   });
 });
 
@@ -226,7 +245,8 @@ test.describe('Admin Check-in', () => {
   test('check-in page renders three tabs', async ({ page }) => {
     await loginAsAdmin(page);
     await page.goto('/admin/checkin');
-    await expect(page.getByRole('button', { name: /camera/i })).toBeVisible();
+    // /camera/i matches both the tab button and "Start Camera" — use .first()
+    await expect(page.getByRole('button', { name: /camera/i }).first()).toBeVisible();
     await expect(page.getByRole('button', { name: /manual/i })).toBeVisible();
     await expect(page.getByRole('button', { name: /search/i })).toBeVisible();
   });

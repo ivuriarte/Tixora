@@ -21,9 +21,6 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
   useEffect(() => {
     if (isHydrating) return;
-    // Hydration is done (or never started because there was no token).
-    // If still not authenticated at this point, send to login.
-    if (!getRefreshToken()) return; // already handled above
     if (!isAuthenticated || !user?.isAdmin) {
       router.replace('/auth/login?redirect=/admin');
     }

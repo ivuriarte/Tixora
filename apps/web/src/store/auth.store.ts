@@ -23,7 +23,7 @@ interface AuthStore {
 export const useAuthStore = create<AuthStore>((set) => ({
   user: null,
   isAuthenticated: false,
-  isHydrating: false,
+  isHydrating: true,
 
   setAuth: (user, accessToken, refreshToken) => {
     setAccessToken(accessToken);

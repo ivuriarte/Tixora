@@ -18,7 +18,10 @@ function AuthHydrator({ children }: { children: React.ReactNode }) {
     attempted.current = true;
 
     const refreshToken = getRefreshToken();
-    if (!refreshToken) return;
+    if (!refreshToken) {
+      setHydrating(false);
+      return;
+    }
 
     setHydrating(true);
 
