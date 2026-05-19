@@ -34,7 +34,8 @@ const nextConfig = {
               // until nonce-based CSP is adopted in a future hardening pass
               "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://hcaptcha.com https://*.hcaptcha.com",
               "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
-              "img-src 'self' data: https://res.cloudinary.com https://*.cloudinary.com",
+              // images allowed from any HTTPS host to match next/image remotePatterns wildcard
+              "img-src 'self' data: blob: https:",
               "font-src 'self' https://fonts.gstatic.com",
               "connect-src 'self' https://api.axontickets.ph https://*.vercel.app",
               "frame-src https://hcaptcha.com https://*.hcaptcha.com",
