@@ -21,7 +21,7 @@ interface EventSummary {
 async function getEvents(page = 1): Promise<{ data: EventSummary[]; meta: { total: number; totalPages: number } }> {
   const baseUrl = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001/api/v1';
   try {
-    const res = await fetch(`${baseUrl}/events?page=${page}&limit=12`, { next: { revalidate: 60 } });
+    const res = await fetch(`${baseUrl}/events?page=${page}&limit=12`, { next: { revalidate: 60 }, signal: AbortSignal.timeout(8000) });
     if (!res.ok) return { data: [], meta: { total: 0, totalPages: 0 } };
     const json = await res.json();
     // TransformInterceptor wraps: { success, data: { data: [...], meta } }
@@ -34,7 +34,7 @@ async function getEvents(page = 1): Promise<{ data: EventSummary[]; meta: { tota
 async function getFeaturedEvent(slug: string): Promise<EventSummary | null> {
   const baseUrl = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001/api/v1';
   try {
-    const res = await fetch(`${baseUrl}/events/${slug}`, { next: { revalidate: 60 } });
+    const res = await fetch(`${baseUrl}/events/${slug}`, { next: { revalidate: 60 }, signal: AbortSignal.timeout(8000) });
     if (!res.ok) return null;
     const json = await res.json();
     return json.data;
