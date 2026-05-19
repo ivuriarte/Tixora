@@ -114,7 +114,7 @@ export default function AdminDashboardPage() {
                 <span className="text-sm text-gray-500">{event.ticketsSold} sold</span>
                 <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${
                   event.status === 'on_sale' ? 'bg-green-100 text-green-700' :
-                  event.status === 'sold_out' ? 'bg-orange-100 text-orange-700' :
+                  event.status === 'sold_out' ? 'bg-violet-100 text-violet-700' :
                   'bg-gray-100 text-gray-500'
                 }`}>{event.status.replace('_', ' ')}</span>
                 <Link href={`/admin/events/${event.id}`} className="text-sm text-primary hover:underline">

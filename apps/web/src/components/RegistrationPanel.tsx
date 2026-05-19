@@ -66,7 +66,7 @@ export default function RegistrationPanel({
               onClick={() => { setSelectedId(tier.id); setQty(1); }}
               className={`w-full text-left p-3 rounded-xl border transition-colors ${
                 selectedId === tier.id
-                  ? 'border-primary bg-orange-50'
+                  ? 'border-primary bg-violet-50'
                   : soldOut || disabled
                   ? 'border-gray-200 bg-gray-50 opacity-50 cursor-not-allowed'
                   : 'border-gray-200 hover:border-primary'
@@ -112,7 +112,7 @@ export default function RegistrationPanel({
 
       {/* Bank / GCash preview */}
       {(bankName || gcashNumber) && (
-        <div className="bg-orange-50 rounded-xl p-3 text-xs text-gray-600 space-y-1">
+        <div className="bg-violet-50 rounded-xl p-3 text-xs text-gray-600 space-y-1">
           <p className="font-semibold text-gray-800 text-sm">Payment via bank transfer</p>
           {bankName && <p>{bankName}</p>}
           {gcashNumber && <p>GCash: {gcashNumber}</p>}

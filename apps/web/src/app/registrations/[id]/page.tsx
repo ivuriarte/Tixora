@@ -125,7 +125,7 @@ export default function RegistrationDetailPage() {
 
         {/* Payment instructions */}
         {hasPaymentInfo && reg.status === 'pending_payment' && (
-          <div className="bg-orange-50 border border-orange-200 rounded-2xl p-5 space-y-3">
+          <div className="bg-violet-50 border border-violet-200 rounded-2xl p-5 space-y-3">
             <h2 className="font-semibold text-gray-900">Payment Instructions</h2>
             <div className="text-sm text-gray-700 space-y-1">
               {reg.event.bankName && (

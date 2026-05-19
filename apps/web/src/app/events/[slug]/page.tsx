@@ -95,7 +95,7 @@ export default async function EventPage({ params }: { params: { slug: string } }
                 </span>
               )}
               {isSoldOut && !isCancelled && (
-                <span className="inline-block mb-3 bg-orange-100 text-orange-700 text-sm font-semibold px-3 py-1 rounded-full">
+                <span className="inline-block mb-3 bg-violet-100 text-violet-700 text-sm font-semibold px-3 py-1 rounded-full">
                   Sold Out
                 </span>
               )}
@@ -133,7 +133,7 @@ export default async function EventPage({ params }: { params: { slug: string } }
                 <h2 className="text-lg font-semibold text-gray-900 mb-4">Program / Agenda</h2>
                 <div className="space-y-3">
                   {event.agenda.map((item, i) => (
-                    <div key={i} className="flex gap-4 p-4 bg-orange-50 rounded-xl">
+                    <div key={i} className="flex gap-4 p-4 bg-violet-50 rounded-xl">
                       <div className="text-primary font-bold text-sm whitespace-nowrap min-w-[80px]">{item.time}</div>
                       <div>
                         <p className="font-semibold text-gray-900">{item.title}</p>
