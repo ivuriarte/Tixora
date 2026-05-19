@@ -23,7 +23,6 @@ async function buildApp(): Promise<Express> {
       rawBody: true,
     },
   );
-
   app.useLogger(app.get(Logger));
 
   const config = app.get(ConfigService);
@@ -60,8 +59,14 @@ export default async function handler(
   req: IncomingMessage,
   res: ServerResponse,
 ) {
-  if (!cachedApp) {
-    cachedApp = await buildApp();
+  try {
+    if (!cachedApp) {
+      cachedApp = await buildApp();
+    }
+    cachedApp(req as any, res as any);
+  } catch (err) {
+    console.error('[serverless] buildApp error:', err);
+    res.writeHead(500, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'Server initialization failed', message: String(err) }));
   }
-  cachedApp(req as any, res as any);
 }
