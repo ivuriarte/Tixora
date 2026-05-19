@@ -9,7 +9,7 @@ interface Tier {
   id: string;
   name: string;
   price: number;
-  available: number;
+  availableQuantity: number;
   totalQuantity: number;
   maxPerOrder: number;
   saleStartsAt?: string | null;
@@ -26,6 +26,7 @@ interface Event {
   title: string;
   description: string;
   venue: string;
+  address?: string | null;
   city: string;
   startsAt: string;
   endsAt?: string | null;
@@ -109,10 +110,16 @@ export default async function EventPage({ params }: { params: { slug: string } }
               <div>
                 <p className="text-gray-400 uppercase tracking-wide text-xs font-medium">Date</p>
                 <p className="font-medium mt-0.5">{formatManila(new Date(event.startsAt))}</p>
+                {event.endsAt && (
+                  <p className="text-xs text-gray-500 mt-0.5">to {formatManila(new Date(event.endsAt))}</p>
+                )}
               </div>
               <div>
                 <p className="text-gray-400 uppercase tracking-wide text-xs font-medium">Venue</p>
                 <p className="font-medium mt-0.5">{event.venue}</p>
+                {event.address && (
+                  <p className="text-xs text-gray-500 mt-0.5">{event.address}</p>
+                )}
               </div>
               <div>
                 <p className="text-gray-400 uppercase tracking-wide text-xs font-medium">City</p>

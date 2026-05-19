@@ -6,14 +6,14 @@ import toast from 'react-hot-toast';
 import api from '@/lib/api';
 import { useAuthStore } from '@/store/auth.store';
 import { useCartStore } from '@/store/cart.store';
-import { formatPHP } from '@axon-tickets/utils';
+import { formatPHP, centavosToPeso } from '@axon-tickets/utils';
 import Button from '@/components/Button';
 
 interface Tier {
   id: string;
   name: string;
   price: number;
-  available: number;
+  availableQuantity: number;
   maxPerOrder: number;
   saleStartsAt?: string | null;
   saleEndsAt?: string | null;
@@ -38,7 +38,7 @@ export default function TierSelector({ eventId, eventSlug, tiers, disabled }: Pr
   const [loading, setLoading] = useState(false);
 
   const selectedTier = tiers.find((t) => t.id === selectedTierId);
-  const maxQty = Math.min(selectedTier?.maxPerOrder ?? 4, selectedTier?.available ?? 0);
+  const maxQty = Math.min(selectedTier?.maxPerOrder ?? 4, selectedTier?.availableQuantity ?? 0);
 
   async function handleReserve() {
     if (!isAuthenticated) {
@@ -89,7 +89,7 @@ export default function TierSelector({ eventId, eventSlug, tiers, disabled }: Pr
           <button
             key={tier.id}
             onClick={() => { setSelectedTierId(tier.id); setQuantity(1); }}
-            disabled={tier.available === 0 || disabled}
+            disabled={tier.availableQuantity === 0 || disabled}
             className={`w-full flex items-center justify-between rounded-xl border px-4 py-3 text-sm transition-colors ${
               selectedTierId === tier.id
                 ? 'border-primary bg-primary-50 text-primary'
@@ -99,10 +99,10 @@ export default function TierSelector({ eventId, eventSlug, tiers, disabled }: Pr
             <div className="text-left">
               <p className="font-medium">{tier.name}</p>
               <p className="text-xs text-gray-500 mt-0.5">
-                {tier.available > 0 ? `${tier.available} left` : 'Sold out'}
+                {tier.availableQuantity > 0 ? `${tier.availableQuantity} left` : 'Sold out'}
               </p>
             </div>
-            <span className="font-semibold ml-4 shrink-0">{formatPHP(tier.price)}</span>
+            <span className="font-semibold ml-4 shrink-0">{formatPHP(centavosToPeso(tier.price))}</span>
           </button>
         ))}
       </div>
@@ -126,7 +126,7 @@ export default function TierSelector({ eventId, eventSlug, tiers, disabled }: Pr
         <div className="flex items-center justify-between text-sm">
           <span className="text-gray-500">Total</span>
           <span className="font-bold text-gray-900 text-base">
-            {formatPHP(selectedTier.price * quantity)}
+            {formatPHP(centavosToPeso(selectedTier.price * quantity))}
           </span>
         </div>
       )}

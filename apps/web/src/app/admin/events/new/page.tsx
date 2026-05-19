@@ -6,7 +6,7 @@ import Navbar from '@/components/Navbar';
 import api from '@/lib/api';
 import toast from 'react-hot-toast';
 import Button from '@/components/Button';
-import { SponsorListManager, FaqListManager, type SponsorItem, type FaqItem } from '@/components/ConferenceFields';
+import { SponsorListManager, FaqListManager, AgendaListManager, type SponsorItem, type FaqItem, type AgendaItem } from '@/components/ConferenceFields';
 
 // ── helpers ────────────────────────────────────────────────────────────────────
 
@@ -56,10 +56,18 @@ export default function AdminNewEventPage() {
   });
 
   const [speakerName, setSpeakerName] = useState('');
-  const [agendaJson, setAgendaJson] = useState('');
+  const [imageUrl, setImageUrl] = useState('');
+  const [agenda, setAgenda] = useState<AgendaItem[]>([]);
   const [sponsors, setSponsors] = useState<SponsorItem[]>([]);
   const [faqs, setFaqs] = useState<FaqItem[]>([]);
   const [jsonErrors, setJsonErrors] = useState<Record<string, string>>({});
+
+  // Payment configuration
+  const [allowManualPayment, setAllowManualPayment] = useState(true);
+  const [bankName, setBankName] = useState('');
+  const [bankAccountName, setBankAccountName] = useState('');
+  const [bankAccountNumber, setBankAccountNumber] = useState('');
+  const [gcashNumber, setGcashNumber] = useState('');
 
   const [tiers, setTiers] = useState<LocalTier[]>([]);
   const [tierKey, setTierKey] = useState(0);
@@ -95,6 +103,7 @@ export default function AdminNewEventPage() {
       setJsonErrors((e) => { const n = { ...e }; delete n[key]; return n; });
     }
   }
+  void validateJson;
 
   function addTier(t: LocalTier) {
     setTiers((prev) => [...prev, t]);
@@ -125,9 +134,14 @@ export default function AdminNewEventPage() {
         endsAt: endsAtISO ?? undefined,
         maxPerUser: form.maxPerUser ? parseInt(form.maxPerUser, 10) : undefined,
         speakerName: speakerName.trim() || undefined,
+        imageUrl: imageUrl.trim() || undefined,
+        allowManualPayment,
+        bankName: bankName.trim() || undefined,
+        bankAccountName: bankAccountName.trim() || undefined,
+        bankAccountNumber: bankAccountNumber.trim() || undefined,
+        gcashNumber: gcashNumber.trim() || undefined,
       };
-      const agendaResult = parseJsonSafe(agendaJson);
-      if (agendaResult.ok && agendaResult.value) payload.agenda = agendaResult.value;
+      if (agenda.length > 0) payload.agenda = agenda;
       if (sponsors.length > 0) payload.sponsors = sponsors.map((s) => ({ name: s.name, ...(s.logoUrl && { logoUrl: s.logoUrl }), ...(s.tier && { tier: s.tier }) }));
       if (faqs.length > 0) payload.faqs = faqs;
 
@@ -257,23 +271,65 @@ export default function AdminNewEventPage() {
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Agenda <span className="text-gray-400 font-normal text-xs">— JSON array</span>
+                Cover Image URL <span className="text-gray-400 font-normal text-xs">(optional)</span>
               </label>
-              <textarea
-                rows={8}
-                spellCheck={false}
-                placeholder={'[\n  { "time": "8:00 AM", "title": "Opening Remarks", "description": "Welcome session" }\n]'}
-                value={agendaJson}
-                onChange={(e) => { setAgendaJson(e.target.value); if (jsonErrors['agenda']) setJsonErrors((prev) => { const n = { ...prev }; delete n['agenda']; return n; }); }}
-                onBlur={(e) => { if (e.target.value.trim()) validateJson(e.target.value, 'agenda'); }}
-                className={`w-full border rounded-lg px-3 py-2 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-primary resize-y ${jsonErrors['agenda'] ? 'border-red-400' : 'border-gray-300'}`}
-              />
-              {jsonErrors['agenda'] && <p className="text-xs text-red-500 mt-1">{jsonErrors['agenda']}</p>}
+              <input type="url" value={imageUrl} onChange={(e) => setImageUrl(e.target.value)}
+                placeholder="https://example.com/cover.jpg"
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
             </div>
+
+            <AgendaListManager agenda={agenda} onChange={setAgenda} />
 
             <SponsorListManager sponsors={sponsors} onChange={setSponsors} />
 
             <FaqListManager faqs={faqs} onChange={setFaqs} />
+          </section>
+
+          {/* ── Payment Options ───────────────────────────────── */}
+          <section className="bg-white shadow rounded-2xl p-8 space-y-5">
+            <h2 className="font-semibold text-gray-900">
+              Payment Options <span className="text-gray-400 text-sm font-normal">(optional)</span>
+            </h2>
+
+            <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+              <input type="checkbox" checked={allowManualPayment}
+                onChange={(e) => setAllowManualPayment(e.target.checked)} className="accent-primary" />
+              Accept manual payment (bank transfer / GCash with proof of payment)
+            </label>
+
+            {allowManualPayment && (
+              <div className="space-y-4 pl-6 border-l-2 border-primary/20">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Bank Name</label>
+                    <input value={bankName} onChange={(e) => setBankName(e.target.value)}
+                      placeholder="e.g. BPI"
+                      className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Account Name</label>
+                    <input value={bankAccountName} onChange={(e) => setBankAccountName(e.target.value)}
+                      placeholder="e.g. Axon Tickets Inc."
+                      className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Bank Account Number</label>
+                    <input value={bankAccountNumber} onChange={(e) => setBankAccountNumber(e.target.value)}
+                      placeholder="e.g. 1234-5678-90"
+                      className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">GCash Number</label>
+                    <input value={gcashNumber} onChange={(e) => setGcashNumber(e.target.value)}
+                      placeholder="e.g. 0917-123-4567"
+                      className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
+                  </div>
+                </div>
+                <p className="text-xs text-gray-400">These details are shown to attendees after registration.</p>
+              </div>
+            )}
           </section>
 
           {/* ── Ticket Tiers ───────────────────────────────────────────── */}

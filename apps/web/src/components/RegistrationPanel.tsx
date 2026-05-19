@@ -2,12 +2,13 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { formatPHP, centavosToPeso } from '@axon-tickets/utils';
 
 interface Tier {
   id: string;
   name: string;
   price: number;
-  available: number;
+  availableQuantity: number;
   totalQuantity: number;
   maxPerOrder: number;
   saleStartsAt?: string | null;
@@ -30,12 +31,12 @@ export default function RegistrationPanel({
   disabled = false,
 }: Props) {
   const router = useRouter();
-  const availableTiers = tiers.filter((t) => t.available > 0);
+  const availableTiers = tiers.filter((t) => t.availableQuantity > 0);
   const [selectedId, setSelectedId] = useState<string>(availableTiers[0]?.id ?? '');
   const [qty, setQty] = useState(1);
 
   const selected = tiers.find((t) => t.id === selectedId);
-  const maxQty = Math.min(selected?.maxPerOrder ?? 10, selected?.available ?? 0);
+  const maxQty = Math.min(selected?.maxPerOrder ?? 10, selected?.availableQuantity ?? 0);
 
   const handleRegister = () => {
     if (!selectedId) return;
@@ -57,7 +58,7 @@ export default function RegistrationPanel({
       {/* Tier picker */}
       <div className="space-y-2">
         {tiers.map((tier) => {
-          const soldOut = tier.available === 0;
+          const soldOut = tier.availableQuantity === 0;
           return (
             <button
               key={tier.id}
@@ -75,11 +76,11 @@ export default function RegistrationPanel({
               <div className="flex justify-between items-center">
                 <span className="font-medium text-sm text-gray-900">{tier.name}</span>
                 <span className="text-sm font-semibold text-primary">
-                  {tier.price === 0 ? 'Free' : `₱${tier.price.toLocaleString()}`}
+                  {tier.price === 0 ? 'Free' : formatPHP(centavosToPeso(tier.price))}
                 </span>
               </div>
               <p className="text-xs text-gray-400 mt-0.5">
-                {soldOut ? 'Sold out' : `${tier.available} slots left`}
+                {soldOut ? 'Sold out' : `${tier.availableQuantity} slots left`}
               </p>
             </button>
           );

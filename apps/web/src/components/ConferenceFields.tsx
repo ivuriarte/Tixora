@@ -367,3 +367,194 @@ export function FaqListManager({
     </div>
   );
 }
+
+// ── Agenda ─────────────────────────────────────────────────────────────────────
+
+export interface AgendaItem {
+  time: string;
+  title: string;
+  description?: string;
+}
+
+function AgendaForm({
+  value,
+  onChange,
+  onSave,
+  onCancel,
+  saveLabel,
+}: {
+  value: AgendaItem;
+  onChange: (v: AgendaItem) => void;
+  onSave: () => void;
+  onCancel: () => void;
+  saveLabel: string;
+}) {
+  return (
+    <div className="border border-primary/30 rounded-xl p-4 space-y-3 bg-primary/5">
+      <div className="grid grid-cols-3 gap-3">
+        <div>
+          <label className="block text-xs font-medium text-gray-600 mb-1">
+            Time <span className="text-red-500">*</span>
+          </label>
+          <input
+            className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+            placeholder="e.g. 9:00 AM"
+            value={value.time}
+            onChange={(e) => onChange({ ...value, time: e.target.value })}
+          />
+        </div>
+        <div className="col-span-2">
+          <label className="block text-xs font-medium text-gray-600 mb-1">
+            Title <span className="text-red-500">*</span>
+          </label>
+          <input
+            className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+            placeholder="e.g. Opening keynote"
+            value={value.title}
+            onChange={(e) => onChange({ ...value, title: e.target.value })}
+          />
+        </div>
+      </div>
+      <div>
+        <label className="block text-xs font-medium text-gray-600 mb-1">
+          Description <span className="text-gray-400 font-normal">(optional)</span>
+        </label>
+        <textarea
+          rows={2}
+          className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary resize-none"
+          placeholder="Brief session description"
+          value={value.description ?? ''}
+          onChange={(e) => onChange({ ...value, description: e.target.value })}
+        />
+      </div>
+      <div className="flex gap-2">
+        <button
+          type="button"
+          disabled={!value.time.trim() || !value.title.trim()}
+          onClick={onSave}
+          className="bg-primary text-white font-semibold px-4 py-1.5 rounded-lg text-sm hover:bg-primary-hover disabled:opacity-40"
+        >
+          {saveLabel}
+        </button>
+        <button
+          type="button"
+          onClick={onCancel}
+          className="border border-gray-300 text-gray-700 px-4 py-1.5 rounded-lg text-sm hover:bg-gray-50"
+        >
+          Cancel
+        </button>
+      </div>
+    </div>
+  );
+}
+
+export function AgendaListManager({
+  agenda,
+  onChange,
+}: {
+  agenda: AgendaItem[];
+  onChange: (agenda: AgendaItem[]) => void;
+}) {
+  const [editingIdx, setEditingIdx] = useState<number | null>(null);
+  const [showAdd, setShowAdd] = useState(false);
+  const [draft, setDraft] = useState<AgendaItem>({ time: '', title: '', description: '' });
+
+  function startEdit(idx: number) {
+    setDraft({ ...agenda[idx], description: agenda[idx].description ?? '' });
+    setEditingIdx(idx);
+    setShowAdd(false);
+  }
+
+  function saveEdit() {
+    if (!draft.time.trim() || !draft.title.trim() || editingIdx === null) return;
+    const cleaned: AgendaItem = {
+      time: draft.time.trim(),
+      title: draft.title.trim(),
+      ...(draft.description?.trim() ? { description: draft.description.trim() } : {}),
+    };
+    onChange(agenda.map((a, i) => (i === editingIdx ? cleaned : a)));
+    setEditingIdx(null);
+  }
+
+  function addItem() {
+    if (!draft.time.trim() || !draft.title.trim()) return;
+    const cleaned: AgendaItem = {
+      time: draft.time.trim(),
+      title: draft.title.trim(),
+      ...(draft.description?.trim() ? { description: draft.description.trim() } : {}),
+    };
+    onChange([...agenda, cleaned]);
+    setDraft({ time: '', title: '', description: '' });
+    setShowAdd(false);
+  }
+
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center justify-between">
+        <span className="block text-sm font-medium text-gray-700">Program / Agenda</span>
+        {!showAdd && editingIdx === null && (
+          <button
+            type="button"
+            onClick={() => { setShowAdd(true); setDraft({ time: '', title: '', description: '' }); }}
+            className="text-xs text-primary hover:underline font-medium"
+          >
+            + Add Agenda Item
+          </button>
+        )}
+      </div>
+
+      {agenda.length === 0 && !showAdd && (
+        <p className="text-xs text-gray-400 py-1">No agenda items yet.</p>
+      )}
+
+      <div className="space-y-2">
+        {agenda.map((a, idx) =>
+          editingIdx === idx ? (
+            <AgendaForm
+              key={idx}
+              value={draft}
+              onChange={setDraft}
+              onSave={saveEdit}
+              onCancel={() => setEditingIdx(null)}
+              saveLabel="Save"
+            />
+          ) : (
+            <div key={idx} className="flex items-start justify-between border border-gray-100 rounded-xl px-3 py-2.5">
+              <div className="flex gap-3 min-w-0 flex-1">
+                <div className="text-primary font-bold text-sm whitespace-nowrap min-w-[80px]">{a.time}</div>
+                <div className="min-w-0">
+                  <p className="text-sm font-medium text-gray-800">{a.title}</p>
+                  {a.description && (
+                    <p className="text-xs text-gray-500 mt-0.5">{a.description}</p>
+                  )}
+                </div>
+              </div>
+              <div className="flex items-center gap-3 flex-shrink-0 ml-3">
+                <button type="button" onClick={() => startEdit(idx)} className="text-primary hover:underline text-xs">
+                  Edit
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onChange(agenda.filter((_, i) => i !== idx))}
+                  className="text-red-500 hover:text-red-700 text-xs"
+                >
+                  Delete
+                </button>
+              </div>
+            </div>
+          )
+        )}
+      </div>
+
+      {showAdd && (
+        <AgendaForm
+          value={draft}
+          onChange={setDraft}
+          onSave={addItem}
+          onCancel={() => setShowAdd(false)}
+          saveLabel="Add Agenda Item"
+        />
+      )}
+    </div>
+  );
+}

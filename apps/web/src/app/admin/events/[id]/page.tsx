@@ -7,7 +7,7 @@ import api from '@/lib/api';
 import Navbar from '@/components/Navbar';
 import Link from 'next/link';
 import toast from 'react-hot-toast';
-import { SponsorListManager, FaqListManager, type SponsorItem, type FaqItem } from '@/components/ConferenceFields';
+import { SponsorListManager, FaqListManager, AgendaListManager, type SponsorItem, type FaqItem, type AgendaItem } from '@/components/ConferenceFields';
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -36,10 +36,16 @@ interface EventDetail {
   endsAt: string | null;
   maxPerUser: number;
   status: string;
+  imageUrl?: string | null;
   speakerName?: string | null;
   agenda?: Array<{ time: string; title: string; description?: string }> | null;
   sponsors?: Array<{ name: string; logoUrl?: string; tier?: string }> | null;
   faqs?: Array<{ question: string; answer: string }> | null;
+  allowManualPayment?: boolean;
+  bankName?: string | null;
+  bankAccountNumber?: string | null;
+  bankAccountName?: string | null;
+  gcashNumber?: string | null;
   tiers: Tier[];
 }
 
@@ -174,10 +180,18 @@ export default function AdminEventEditPage() {
   const [maxPerUser, setMaxPerUser] = useState('');
   const [status, setStatus] = useState('');
   const [speakerName, setSpeakerName] = useState('');
-  const [agendaJson, setAgendaJson] = useState('');
+  const [imageUrl, setImageUrl] = useState('');
+  const [agenda, setAgenda] = useState<AgendaItem[]>([]);
   const [sponsors, setSponsors] = useState<SponsorItem[]>([]);
   const [faqs, setFaqs] = useState<FaqItem[]>([]);
-  const [jsonErrors, setJsonErrors] = useState<Record<string, string>>({});
+  const [jsonErrors] = useState<Record<string, string>>({});
+
+  // Payment configuration
+  const [allowManualPayment, setAllowManualPayment] = useState(true);
+  const [bankName, setBankName] = useState('');
+  const [bankAccountName, setBankAccountName] = useState('');
+  const [bankAccountNumber, setBankAccountNumber] = useState('');
+  const [gcashNumber, setGcashNumber] = useState('');
 
   // Populate form once event loads
   const formInitialised = useRef(false);
@@ -200,13 +214,27 @@ export default function AdminEventEditPage() {
       setMaxPerUser(String(event.maxPerUser ?? ''));
       setStatus(event.status ?? 'draft');
       setSpeakerName(event.speakerName ?? '');
-      setAgendaJson(event.agenda ? JSON.stringify(event.agenda, null, 2) : '');
+      setImageUrl(event.imageUrl ?? '');
+      setAgenda(
+        Array.isArray(event.agenda)
+          ? event.agenda.map((a) => ({
+              time: a.time,
+              title: a.title,
+              ...(a.description ? { description: a.description } : {}),
+            }))
+          : [],
+      );
       setSponsors(
         event.sponsors
           ? event.sponsors.map((s) => ({ name: s.name, logoUrl: s.logoUrl ?? '', tier: s.tier ?? '' }))
           : [],
       );
       setFaqs(event.faqs ? event.faqs.map((f) => ({ question: f.question, answer: f.answer })) : []);
+      setAllowManualPayment(event.allowManualPayment ?? true);
+      setBankName(event.bankName ?? '');
+      setBankAccountName(event.bankAccountName ?? '');
+      setBankAccountNumber(event.bankAccountNumber ?? '');
+      setGcashNumber(event.gcashNumber ?? '');
     }
   }, [event]);
 
@@ -218,14 +246,10 @@ export default function AdminEventEditPage() {
   const requiredFilled = title.trim() && description.trim() && venue.trim() && city.trim() && startsAtISO;
   const canSave = requiredFilled && !hasJsonErrors && !endBeforeStart;
 
-  function validateJson(raw: string, key: string) {
-    const result = parseJsonSafe(raw);
-    if (!result.ok) {
-      setJsonErrors((e) => ({ ...e, [key]: 'Invalid JSON. Must be a valid JSON array.' }));
-    } else {
-      setJsonErrors((e) => { const n = { ...e }; delete n[key]; return n; });
-    }
+  function validateJson(_raw: string, _key: string) {
+    /* no-op kept for compatibility */
   }
+  void validateJson;
 
   // ── Mutations ────────────────────────────────────────────────────────────────
   const updateMutation = useMutation({
@@ -298,9 +322,14 @@ export default function AdminEventEditPage() {
       maxPerUser: parseInt(maxPerUser, 10) || undefined,
       status,
       speakerName: speakerName.trim() || null,
+      imageUrl: imageUrl.trim() || null,
+      allowManualPayment,
+      bankName: bankName.trim() || null,
+      bankAccountName: bankAccountName.trim() || null,
+      bankAccountNumber: bankAccountNumber.trim() || null,
+      gcashNumber: gcashNumber.trim() || null,
     };
-    const agendaResult = parseJsonSafe(agendaJson);
-    if (agendaResult.ok) payload.agenda = agendaResult.value;
+    payload.agenda = agenda.length > 0 ? agenda : null;
     payload.sponsors = sponsors.length > 0
       ? sponsors.map((s) => ({ name: s.name, ...(s.logoUrl && { logoUrl: s.logoUrl }), ...(s.tier && { tier: s.tier }) }))
       : null;
@@ -464,23 +493,63 @@ export default function AdminEventEditPage() {
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Agenda <span className="text-gray-400 font-normal text-xs">— JSON array</span>
+              Cover Image URL <span className="text-gray-400 font-normal text-xs">(optional)</span>
             </label>
-            <textarea
-              rows={8}
-              spellCheck={false}
-              placeholder={'[\n  { "time": "8:00 AM", "title": "Opening Remarks", "description": "Welcome session" }\n]'}
-              value={agendaJson}
-              onChange={(e) => { setAgendaJson(e.target.value); if (jsonErrors['agenda']) setJsonErrors((prev) => { const n = { ...prev }; delete n['agenda']; return n; }); }}
-              onBlur={(e) => { if (e.target.value.trim()) validateJson(e.target.value, 'agenda'); }}
-              className={`w-full border rounded-xl px-3 py-2 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-primary resize-y ${jsonErrors['agenda'] ? 'border-red-400' : 'border-gray-300'}`}
-            />
-            {jsonErrors['agenda'] && <p className="text-xs text-red-500 mt-1">{jsonErrors['agenda']}</p>}
+            <input type="url" className="w-full border border-gray-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+              placeholder="https://example.com/cover.jpg"
+              value={imageUrl} onChange={(e) => setImageUrl(e.target.value)} />
           </div>
+
+          <AgendaListManager agenda={agenda} onChange={setAgenda} />
 
           <SponsorListManager sponsors={sponsors} onChange={setSponsors} />
 
           <FaqListManager faqs={faqs} onChange={setFaqs} />
+        </section>
+
+        {/* ── Payment Options ───────────────────────────────── */}
+        <section className="bg-white shadow rounded-2xl p-6 space-y-4">
+          <h2 className="font-semibold text-gray-900">Payment Options</h2>
+
+          <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+            <input type="checkbox" checked={allowManualPayment}
+              onChange={(e) => setAllowManualPayment(e.target.checked)} className="accent-primary" />
+            Accept manual payment (bank transfer / GCash with proof of payment)
+          </label>
+
+          {allowManualPayment && (
+            <div className="space-y-4 pl-6 border-l-2 border-primary/20">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Bank Name</label>
+                  <input value={bankName} onChange={(e) => setBankName(e.target.value)}
+                    placeholder="e.g. BPI"
+                    className="w-full rounded-xl border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Account Name</label>
+                  <input value={bankAccountName} onChange={(e) => setBankAccountName(e.target.value)}
+                    placeholder="e.g. Axon Tickets Inc."
+                    className="w-full rounded-xl border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Bank Account Number</label>
+                  <input value={bankAccountNumber} onChange={(e) => setBankAccountNumber(e.target.value)}
+                    placeholder="e.g. 1234-5678-90"
+                    className="w-full rounded-xl border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">GCash Number</label>
+                  <input value={gcashNumber} onChange={(e) => setGcashNumber(e.target.value)}
+                    placeholder="e.g. 0917-123-4567"
+                    className="w-full rounded-xl border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
+                </div>
+              </div>
+              <p className="text-xs text-gray-400">These details are shown to attendees after registration.</p>
+            </div>
+          )}
         </section>
 
         {/* ── Ticket Tiers ───────────────────────────────────────────── */}

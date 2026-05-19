@@ -8,6 +8,8 @@ import {
   MinLength,
   MaxLength,
   IsNumber,
+  IsBoolean,
+  IsUrl,
 } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 
@@ -82,6 +84,41 @@ export class CreateEventDto {
   @IsNumber()
   @Min(0)
   platformFee?: number;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsUrl()
+  @MaxLength(500)
+  imageUrl?: string;
+
+  @ApiProperty({ required: false, default: true })
+  @IsOptional()
+  @IsBoolean()
+  allowManualPayment?: boolean;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  bankName?: string;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  @MaxLength(60)
+  bankAccountNumber?: string;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  bankAccountName?: string;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  @MaxLength(30)
+  gcashNumber?: string;
 }
 
 export class UpdateEventDto {
@@ -151,4 +188,28 @@ export class UpdateEventDto {
   @IsOptional()
   @IsString()
   imageUrl?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  allowManualPayment?: boolean;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  bankName?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(60)
+  bankAccountNumber?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  bankAccountName?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(30)
+  gcashNumber?: string;
 }
