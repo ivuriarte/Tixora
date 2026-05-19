@@ -9,15 +9,32 @@ import { useAuthStore } from '@/store/auth.store';
 import Button from '@/components/Button';
 import { Suspense } from 'react';
 
+function friendlyOtpError(err: any): string {
+  const raw = err?.response?.data?.message;
+  const status = err?.response?.status;
+  if (status === 429) return 'Too many attempts. Please wait a moment before trying again.';
+  if (status === 410) return 'This code has expired. Please request a new one.';
+  if (typeof raw === 'string') {
+    const lower = raw.toLowerCase();
+    if (lower.includes('invalid') || lower.includes('incorrect')) return 'That code is incorrect. Please check and try again.';
+    if (lower.includes('expired')) return 'Your code has expired. Tap "Resend code" to get a new one.';
+    if (lower.includes('already used')) return 'This code has already been used. Please request a new one.';
+    if (lower.includes('not found') || lower.includes('user')) return 'We could not find your account. Please register again.';
+  }
+  return 'Something went wrong. Please try again or request a new code.';
+}
+
 function VerifyForm() {
   const router = useRouter();
   const params = useSearchParams();
   const email = params.get('email') ?? '';
+  const userId = params.get('userId') ?? '';
   const { setAuth } = useAuthStore();
   const [otp, setOtp] = useState(['', '', '', '', '', '']);
   const [loading, setLoading] = useState(false);
   const [resending, setResending] = useState(false);
   const [cooldown, setCooldown] = useState(0);
+  const [inlineError, setInlineError] = useState('');
   const inputs = useRef<(HTMLInputElement | null)[]>([]);
 
   useEffect(() => {
@@ -27,7 +44,16 @@ function VerifyForm() {
     }
   }, [cooldown]);
 
+  // If userId is missing the link is broken — redirect back
+  useEffect(() => {
+    if (!userId) {
+      toast.error('Verification link is invalid. Please register again.');
+      router.replace('/auth/register');
+    }
+  }, [userId, router]);
+
   function handleOtpChange(index: number, value: string) {
+    setInlineError('');
     const digit = value.replace(/\D/g, '').slice(-1);
     const next = [...otp];
     next[index] = digit;
@@ -44,19 +70,24 @@ function VerifyForm() {
   async function handleVerify(e: React.FormEvent) {
     e.preventDefault();
     const code = otp.join('');
-    if (code.length < 6) { toast.error('Enter the full 6-digit code'); return; }
+    if (code.length < 6) {
+      setInlineError('Please enter the full 6-digit code.');
+      return;
+    }
     setLoading(true);
+    setInlineError('');
     try {
       const res = await api.post<{ data: { user: any; accessToken: string; refreshToken: string } }>(
         '/auth/verify-email',
-        { email, code },
+        { userId, otp: code },
       );
       const { user, accessToken, refreshToken } = res.data.data;
       setAuth(user, accessToken, refreshToken);
       toast.success('Email verified! Welcome to Axon Tickets 🎉');
       router.push('/');
     } catch (err: any) {
-      toast.error(err?.response?.data?.message ?? 'Invalid or expired code');
+      const msg = friendlyOtpError(err);
+      setInlineError(msg);
       setOtp(['', '', '', '', '', '']);
       inputs.current[0]?.focus();
     } finally {
@@ -66,29 +97,39 @@ function VerifyForm() {
 
   async function handleResend() {
     setResending(true);
+    setInlineError('');
     try {
-      await api.post('/auth/resend-otp', { email });
-      toast.success('New code sent!');
+      await api.post('/auth/resend-otp', { userId });
+      toast.success('A new code has been sent to your email.');
       setCooldown(60);
     } catch (err: any) {
-      toast.error(err?.response?.data?.message ?? 'Failed to resend');
+      const status = err?.response?.status;
+      if (status === 429) {
+        toast.error('Please wait a minute before requesting another code.');
+      } else {
+        toast.error('Could not resend the code. Please try again shortly.');
+      }
     } finally {
       setResending(false);
     }
   }
 
+  if (!userId) return null;
+
   return (
-    <div className="min-h-screen flex items-center justify-center px-4 py-12">
+    <div className="min-h-screen flex items-center justify-center px-4 py-12 bg-gray-50">
       <div className="w-full max-w-sm">
         <div className="text-center mb-8">
           <Link href="/" className="text-2xl font-bold text-primary">Axon Tickets</Link>
-          <h1 className="mt-4 text-2xl font-bold text-gray-900">Verify your email</h1>
+          <h1 className="mt-4 text-2xl font-bold text-gray-900">Check your email</h1>
           <p className="mt-1 text-sm text-gray-500">
-            We sent a 6-digit code to <strong>{email}</strong>
+            We sent a 6-digit code to{' '}
+            <strong className="text-gray-700 break-all">{email || 'your email'}</strong>
           </p>
         </div>
 
-        <form onSubmit={handleVerify} className="bg-white shadow rounded-2xl p-8 space-y-6">
+        <form onSubmit={handleVerify} className="bg-white shadow-sm rounded-2xl p-8 space-y-6 border border-gray-100">
+          {/* OTP inputs */}
           <div className="flex gap-2 justify-center">
             {otp.map((digit, i) => (
               <input
@@ -100,26 +141,53 @@ function VerifyForm() {
                 value={digit}
                 onChange={(e) => handleOtpChange(i, e.target.value)}
                 onKeyDown={(e) => handleKeyDown(i, e)}
-                className="w-11 h-14 text-center text-xl font-semibold border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
+                aria-label={`Digit ${i + 1}`}
+                className={`w-11 h-14 text-center text-xl font-semibold border rounded-lg focus:outline-none focus:ring-2 transition-colors ${
+                  inlineError
+                    ? 'border-red-300 focus:ring-red-400 bg-red-50'
+                    : 'border-gray-300 focus:ring-primary'
+                }`}
               />
             ))}
           </div>
 
+          {/* Inline error */}
+          {inlineError && (
+            <div className="flex items-start gap-2.5 rounded-lg bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700">
+              <svg className="mt-0.5 w-4 h-4 shrink-0" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true">
+                <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-8-5a.75.75 0 01.75.75v4.5a.75.75 0 01-1.5 0v-4.5A.75.75 0 0110 5zm0 10a1 1 0 100-2 1 1 0 000 2z" clipRule="evenodd" />
+              </svg>
+              <span>{inlineError}</span>
+            </div>
+          )}
+
           <Button type="submit" loading={loading} className="w-full" size="lg">
-            Verify
+            Verify email
           </Button>
 
-          <div className="text-center">
+          <div className="text-center space-y-1">
+            <p className="text-xs text-gray-400">Didn't receive a code?</p>
             <button
               type="button"
               onClick={handleResend}
               disabled={resending || cooldown > 0}
-              className="text-sm text-primary hover:underline disabled:opacity-50 disabled:cursor-not-allowed"
+              className="text-sm font-medium text-primary hover:underline disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {cooldown > 0 ? `Resend in ${cooldown}s` : resending ? 'Sending…' : 'Resend code'}
+              {cooldown > 0
+                ? `Resend in ${cooldown}s`
+                : resending
+                ? 'Sending…'
+                : 'Resend code'}
             </button>
           </div>
         </form>
+
+        <p className="mt-5 text-center text-xs text-gray-400">
+          Wrong email?{' '}
+          <Link href="/auth/register" className="text-primary hover:underline">
+            Start over
+          </Link>
+        </p>
       </div>
     </div>
   );
@@ -132,3 +200,4 @@ export default function VerifyPage() {
     </Suspense>
   );
 }
+
