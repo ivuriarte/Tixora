@@ -11,7 +11,8 @@
     "lint": "eslint \"src/**/*.ts\"",
     "typecheck": "tsc --noEmit",
     "test": "jest --passWithNoTests",
-    "test:e2e": "jest --config ./test/jest-e2e.json"
+    "test:e2e": "jest --config ./test/jest-e2e.json",
+    "delete-ian": "npx tsx prisma/delete-user.ts --email ivvuriarte@gmail.com"
   },
   "dependencies": {
     "@nestjs/common": "^10.4.0",

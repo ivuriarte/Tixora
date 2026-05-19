@@ -61,10 +61,10 @@ export default function Navbar() {
           {isAuthenticated ? (
             <>
               <Link href="/account/tickets" className="text-sm font-medium text-gray-700 hover:text-primary">
-                My Tickets
+                My Events
               </Link>
-              <Link href="/registrations" className="text-sm font-medium text-gray-700 hover:text-primary">
-                My Registrations
+              <Link href="/profile" className="text-sm font-medium text-gray-700 hover:text-primary">
+                My Profile
               </Link>
               {user?.isAdmin && (
                 <Link href="/admin" className="relative text-sm font-medium text-gray-700 hover:text-primary">
