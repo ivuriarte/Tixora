@@ -113,7 +113,13 @@ export function combineDatetime(date: string, time: string): string | undefined 
 }
 
 export function todayStr(): string {
-  return new Date().toISOString().split('T')[0];
+  // Asia/Manila date (UTC+8). 'en-CA' formats as YYYY-MM-DD natively.
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Manila',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(new Date());
 }
 
 // Per-step validation -------------------------------------------------------

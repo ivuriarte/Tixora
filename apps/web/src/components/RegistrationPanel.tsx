@@ -4,6 +4,22 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { formatPHP, centavosToPeso } from '@axon-tickets/utils';
 
+/** Privacy: keep first letter of each word, mask the rest. "Ian Uriarte" -> "I•• U••••••" */
+function maskAccountName(name: string): string {
+  return name
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((w) => (w.length <= 1 ? w : w[0] + '•'.repeat(Math.max(1, w.length - 1))))
+    .join(' ');
+}
+
+/** Privacy: keep last 4 digits of an account/phone number. "09254626315" -> "•••••••6315" */
+function maskAccountNumber(num: string): string {
+  const digits = num.replace(/\D/g, '');
+  if (digits.length <= 4) return num;
+  return '•'.repeat(digits.length - 4) + digits.slice(-4);
+}
+
 interface Tier {
   id: string;
   name: string;
@@ -131,8 +147,8 @@ export default function RegistrationPanel({
                 {pm.type === 'bank' ? 'Bank Transfer' : 'E-Wallet'}
               </span>
               {pm.name && <p className="font-medium text-gray-800">{pm.name}</p>}
-              {pm.accountName && <p>Account: {pm.accountName}</p>}
-              {pm.accountNumber && <p>Number: {pm.accountNumber}</p>}
+              {pm.accountName && <p>Account: {maskAccountName(pm.accountName)}</p>}
+              {pm.accountNumber && <p>Number: {maskAccountNumber(pm.accountNumber)}</p>}
               {pm.qrImageUrl && (
                 <img src={pm.qrImageUrl} alt="Payment QR" className="mt-1 h-24 w-24 object-contain rounded border border-gray-200" />
               )}

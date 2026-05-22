@@ -106,4 +106,48 @@ export class UploadService {
     this.logger.log({ msg: 'Payment QR uploaded', url: result.secure_url });
     return { url: result.secure_url };
   }
+
+  async uploadEventCover(buffer: Buffer): Promise<{ url: string }> {
+    const result = await new Promise<UploadApiResponse>((resolve, reject) => {
+      const stream = cloudinary.uploader.upload_stream(
+        {
+          folder: 'axon-tickets/event-covers',
+          resource_type: 'image',
+          transformation: [
+            { width: 1200, height: 630, crop: 'fill', gravity: 'auto' },
+            { quality: 'auto:good', fetch_format: 'auto' },
+          ],
+        },
+        (error, result) => {
+          if (error || !result) reject(error ?? new Error('Upload failed'));
+          else resolve(result);
+        },
+      );
+      stream.end(buffer);
+    });
+    this.logger.log({ msg: 'Event cover uploaded', url: result.secure_url });
+    return { url: result.secure_url };
+  }
+
+  async uploadSponsorLogo(buffer: Buffer): Promise<{ url: string }> {
+    const result = await new Promise<UploadApiResponse>((resolve, reject) => {
+      const stream = cloudinary.uploader.upload_stream(
+        {
+          folder: 'axon-tickets/sponsor-logos',
+          resource_type: 'image',
+          transformation: [
+            { width: 400, height: 400, crop: 'limit' },
+            { quality: 'auto:good', fetch_format: 'auto' },
+          ],
+        },
+        (error, result) => {
+          if (error || !result) reject(error ?? new Error('Upload failed'));
+          else resolve(result);
+        },
+      );
+      stream.end(buffer);
+    });
+    this.logger.log({ msg: 'Sponsor logo uploaded', url: result.secure_url });
+    return { url: result.secure_url };
+  }
 }

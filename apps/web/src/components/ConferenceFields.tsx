@@ -1,6 +1,32 @@
 'use client';
 
 import { useState } from 'react';
+import ImageUploader from './event-wizard/ImageUploader';
+import TimeSelect from './event-wizard/TimeSelect';
+
+// ── Time format helpers (agenda stores "h:MM AM/PM"; TimeSelect uses "HH:MM") ──
+
+function displayTimeTo24h(display: string): string {
+  if (!display) return '';
+  const m = display.trim().match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
+  if (!m) return '';
+  let h = parseInt(m[1], 10);
+  const min = parseInt(m[2], 10);
+  const period = m[3].toUpperCase();
+  if (period === 'AM') h = h === 12 ? 0 : h;
+  else h = h === 12 ? 12 : h + 12;
+  return `${String(h).padStart(2, '0')}:${String(min).padStart(2, '0')}`;
+}
+
+function time24hToDisplay(hhmm: string): string {
+  if (!hhmm) return '';
+  const [hStr, mStr] = hhmm.split(':');
+  const h24 = parseInt(hStr, 10);
+  const min = parseInt(mStr, 10);
+  const period = h24 < 12 ? 'AM' : 'PM';
+  const h12 = h24 === 0 ? 12 : h24 > 12 ? h24 - 12 : h24;
+  return `${h12}:${String(min).padStart(2, '0')} ${period}`;
+}
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -64,14 +90,17 @@ function SponsorForm({
       </div>
       <div>
         <label className="block text-xs font-medium text-gray-600 mb-1">
-          Logo URL <span className="text-gray-400 font-normal">(optional)</span>
+          Logo <span className="text-gray-400 font-normal">(optional)</span>
         </label>
-        <input
-          type="url"
-          className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
-          placeholder="https://example.com/logo.png"
+        <ImageUploader
           value={value.logoUrl}
-          onChange={(e) => onChange({ ...value, logoUrl: e.target.value })}
+          onChange={(url) => onChange({ ...value, logoUrl: url })}
+          endpoint="/upload/sponsor-logo"
+          accept="image/jpeg,image/png,image/webp,image/svg+xml"
+          maxSizeMB={2}
+          hint="Square works best"
+          previewAspect="aspect-square"
+          variant="logo"
         />
       </div>
       <div className="flex gap-2">
@@ -396,11 +425,9 @@ function AgendaForm({
           <label className="block text-xs font-medium text-gray-600 mb-1">
             Time <span className="text-red-500">*</span>
           </label>
-          <input
-            className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
-            placeholder="e.g. 9:00 AM"
-            value={value.time}
-            onChange={(e) => onChange({ ...value, time: e.target.value })}
+          <TimeSelect
+            value={displayTimeTo24h(value.time)}
+            onChange={(v) => onChange({ ...value, time: time24hToDisplay(v) })}
           />
         </div>
         <div className="col-span-2">

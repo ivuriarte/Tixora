@@ -176,7 +176,10 @@ export default function WizardShell({
                   <button
                     type="button"
                     onClick={handleNext}
-                    className="bg-primary text-white font-semibold px-5 py-2 rounded-xl text-sm hover:bg-primary-hover transition-colors"
+                    disabled={!canAdvance}
+                    title={!canAdvance && validationError ? validationError : undefined}
+                    aria-disabled={!canAdvance}
+                    className="bg-primary text-white font-semibold px-5 py-2 rounded-xl text-sm hover:bg-primary-hover disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-primary transition-colors"
                   >
                     Next →
                   </button>

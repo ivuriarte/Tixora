@@ -65,4 +65,46 @@ export class UploadController {
     if (!file) throw new BadRequestException('Image file is required');
     return this.uploadService.uploadPaymentQr(file.buffer, file.mimetype);
   }
+
+  @Post('event-cover')
+  @ApiOperation({ summary: 'Upload an event cover image (admin only, no eventId yet)' })
+  @ApiConsumes('multipart/form-data')
+  @UseInterceptors(
+    FileInterceptor('image', {
+      limits: { fileSize: 5 * 1024 * 1024 }, // 5 MB
+      fileFilter: (_req, file, cb) => {
+        const allowed = ['image/jpeg', 'image/png', 'image/webp'];
+        if (!allowed.includes(file.mimetype)) {
+          cb(new BadRequestException('Only JPG, PNG, WEBP allowed'), false);
+        } else {
+          cb(null, true);
+        }
+      },
+    }),
+  )
+  uploadEventCover(@UploadedFile() file: Express.Multer.File) {
+    if (!file) throw new BadRequestException('Image file is required');
+    return this.uploadService.uploadEventCover(file.buffer);
+  }
+
+  @Post('sponsor-logo')
+  @ApiOperation({ summary: 'Upload a sponsor logo (admin only)' })
+  @ApiConsumes('multipart/form-data')
+  @UseInterceptors(
+    FileInterceptor('image', {
+      limits: { fileSize: 2 * 1024 * 1024 }, // 2 MB
+      fileFilter: (_req, file, cb) => {
+        const allowed = ['image/jpeg', 'image/png', 'image/webp', 'image/svg+xml'];
+        if (!allowed.includes(file.mimetype)) {
+          cb(new BadRequestException('Only JPG, PNG, WEBP, SVG allowed'), false);
+        } else {
+          cb(null, true);
+        }
+      },
+    }),
+  )
+  uploadSponsorLogo(@UploadedFile() file: Express.Multer.File) {
+    if (!file) throw new BadRequestException('Image file is required');
+    return this.uploadService.uploadSponsorLogo(file.buffer);
+  }
 }
