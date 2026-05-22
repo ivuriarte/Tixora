@@ -8,7 +8,7 @@ import { useRouter } from 'next/navigation';
 import toast from 'react-hot-toast';
 
 export default function Navbar() {
-  const { user, isAuthenticated, logout } = useAuthStore();
+  const { user, isAuthenticated, isHydrating, logout } = useAuthStore();
   const router = useRouter();
   const [pendingCount, setPendingCount] = useState<number>(0);
 
@@ -61,7 +61,12 @@ export default function Navbar() {
               Browse Events
             </Link>
           )}
-          {isAuthenticated ? (
+          {isHydrating ? (
+            <div className="flex items-center gap-3">
+              <div className="h-4 w-14 bg-gray-100 rounded animate-pulse" />
+              <div className="h-8 w-18 bg-gray-100 rounded-lg animate-pulse" />
+            </div>
+          ) : isAuthenticated ? (
             <>
               <Link href="/account/tickets" className="text-sm font-medium text-gray-700 hover:text-primary">
                 My Events

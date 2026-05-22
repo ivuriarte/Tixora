@@ -19,8 +19,17 @@ async function main() {
     },
   });
   console.log('Admin user:', admin.email, admin.id);
+}
 
-  // Francis Kong conference event — MVP target
+main()
+  .then(() => prisma.$disconnect())
+  .catch((e) => {
+    console.error(e);
+    prisma.$disconnect();
+    process.exit(1);
+  });
+
+// Removed: Francis Kong demo event (was seeded for MVP testing)
   const startsAt = new Date('2026-09-20T08:00:00+08:00');
   const endsAt = new Date('2026-09-20T17:00:00+08:00');
 
