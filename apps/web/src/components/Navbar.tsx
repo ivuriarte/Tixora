@@ -70,6 +70,19 @@ export default function Navbar() {
             </div>
           ) : isAuthenticated ? (
             <>
+              {user?.isAdmin && (
+                <Link href="/admin" className="relative text-sm font-medium text-gray-700 hover:text-primary">
+                  Admin & Dashboard
+                  {pendingCount > 0 && (
+                    <span
+                      className="absolute -top-2 -right-3 min-w-[18px] h-[18px] px-1 inline-flex items-center justify-center text-[10px] font-bold text-white bg-red-600 rounded-full"
+                      title={`${pendingCount} pending verification${pendingCount === 1 ? '' : 's'}`}
+                    >
+                      {pendingCount > 99 ? '99+' : pendingCount}
+                    </span>
+                  )}
+                </Link>
+              )}
               {user?.isAdmin ? (
                 <Link href="/admin/event-previews" className="text-sm font-medium text-gray-700 hover:text-primary">
                   Event Previews
@@ -82,19 +95,6 @@ export default function Navbar() {
               <Link href="/profile" className="text-sm font-medium text-gray-700 hover:text-primary">
                 My Profile
               </Link>
-              {user?.isAdmin && (
-                <Link href="/admin" className="relative text-sm font-medium text-gray-700 hover:text-primary">
-                  Admin
-                  {pendingCount > 0 && (
-                    <span
-                      className="absolute -top-2 -right-3 min-w-[18px] h-[18px] px-1 inline-flex items-center justify-center text-[10px] font-bold text-white bg-red-600 rounded-full"
-                      title={`${pendingCount} pending verification${pendingCount === 1 ? '' : 's'}`}
-                    >
-                      {pendingCount > 99 ? '99+' : pendingCount}
-                    </span>
-                  )}
-                </Link>
-              )}
               <button
                 onClick={handleLogout}
                 className="text-sm font-medium text-gray-500 hover:text-gray-900"

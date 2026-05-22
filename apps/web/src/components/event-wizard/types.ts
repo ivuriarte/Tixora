@@ -10,6 +10,8 @@ export interface LocalTier {
   maxPerOrder: string;
   isVisible: boolean;
   soldQuantity?: number;
+  /** Position in the list. Persisted to API as `sortOrder` so the tier order survives reloads. */
+  sortOrder?: number;
 }
 
 export interface LocalPaymentMethod {
@@ -79,7 +81,7 @@ export const STEPS: readonly StepMeta[] = [
 export type StepId = StepMeta['id'];
 
 export function emptyTier(key: number): LocalTier {
-  return { key, name: '', description: '', price: '', totalQuantity: '', maxPerOrder: '', isVisible: true };
+  return { key, name: '', description: '', price: '', totalQuantity: '', maxPerOrder: '', isVisible: true, sortOrder: 0 };
 }
 
 export function emptyPM(key: number): LocalPaymentMethod {

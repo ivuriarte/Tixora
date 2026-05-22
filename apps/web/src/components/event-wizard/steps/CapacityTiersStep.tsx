@@ -4,6 +4,7 @@ import { useState } from 'react';
 import type { EventDraft, LocalTier } from '../types';
 import { emptyTier } from '../types';
 import TierForm from '../TierForm';
+import ReorderButtons, { moveItem } from '@/components/ReorderButtons';
 
 interface CapacityTiersStepProps {
   draft: EventDraft;
@@ -15,6 +16,8 @@ interface CapacityTiersStepProps {
   onEditTier: (t: LocalTier) => void;
   /** Remove a tier from the list. */
   onRemoveTier: (key: number) => void;
+  /** Persist a reordered tier list (optional; reorder UI hidden when omitted). */
+  onReorderTiers?: (next: LocalTier[]) => void;
 }
 
 const REQ = <span className="text-red-500 ml-0.5">*</span>;
@@ -27,6 +30,7 @@ export default function CapacityTiersStep({
   onAddTier,
   onEditTier,
   onRemoveTier,
+  onReorderTiers,
 }: CapacityTiersStepProps) {
   const [tierKey, setTierKey] = useState(0);
   const [showAdd, setShowAdd] = useState(true);
@@ -96,7 +100,7 @@ export default function CapacityTiersStep({
 
         {tiers.length > 0 && (
           <div className="space-y-2 mb-3">
-            {tiers.map((tier) =>
+            {tiers.map((tier, idx) =>
               editingKey === tier.key ? (
                 <TierForm
                   key={tier.key}
@@ -109,11 +113,20 @@ export default function CapacityTiersStep({
                 />
               ) : (
                 <div key={tier.key} className="flex items-center justify-between border border-gray-100 rounded-xl p-3">
-                  <div>
-                    <p className="font-medium text-gray-800 text-sm">{tier.name}</p>
-                    <p className="text-xs text-gray-500">
-                      ₱{parseFloat(tier.price || '0').toLocaleString()} · {tier.totalQuantity} total · max {tier.maxPerOrder}/order
-                    </p>
+                  <div className="flex items-center gap-2">
+                    {onReorderTiers && (
+                      <ReorderButtons
+                        index={idx}
+                        total={tiers.length}
+                        onMove={(from, to) => onReorderTiers(moveItem(tiers, from, to))}
+                      />
+                    )}
+                    <div>
+                      <p className="font-medium text-gray-800 text-sm">{tier.name}</p>
+                      <p className="text-xs text-gray-500">
+                        ₱{parseFloat(tier.price || '0').toLocaleString()} · {tier.totalQuantity} total · max {tier.maxPerOrder}/order
+                      </p>
+                    </div>
                   </div>
                   <div className="flex items-center gap-3">
                     <span className={`text-xs px-2 py-0.5 rounded-full ${tier.isVisible ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>

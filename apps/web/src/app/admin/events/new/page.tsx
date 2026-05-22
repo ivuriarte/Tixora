@@ -143,7 +143,7 @@ export default function AdminNewEventPage() {
       const eventId = eventData.data.id;
 
       await Promise.all(
-        tiers.map((t) =>
+        tiers.map((t, idx) =>
           api.post(`/admin/events/${eventId}/tiers`, {
             name: t.name.trim(),
             description: t.description.trim() || undefined,
@@ -151,6 +151,7 @@ export default function AdminNewEventPage() {
             totalQuantity: parseInt(t.totalQuantity, 10),
             maxPerOrder: parseInt(t.maxPerOrder, 10),
             isVisible: t.isVisible,
+            sortOrder: idx,
           }),
         ),
       );
@@ -218,7 +219,7 @@ export default function AdminNewEventPage() {
         submitLabel={loading ? 'Creating…' : 'Create Event'}
         submitting={loading}
         onSubmit={handleSubmit}
-        onCancel={() => router.back()}
+        onCancel={() => router.push('/admin')}
         statusIndicator={statusIndicator}
         topBanner={restoreBanner}
         renderStep={(step, jump) => {
@@ -231,6 +232,7 @@ export default function AdminNewEventPage() {
                   draft={draft} update={update}
                   tiers={tiers}
                   onAddTier={addTier} onEditTier={editTier} onRemoveTier={removeTier}
+                  onReorderTiers={setTiers}
                 />
               );
             case 'conference': return <ConferenceStep draft={draft} update={update} />;
@@ -239,6 +241,7 @@ export default function AdminNewEventPage() {
                 <PaymentStep
                   paymentMethods={paymentMethods}
                   onAdd={addPM} onEdit={editPM} onRemove={removePM}
+                  onReorder={setPaymentMethods}
                 />
               );
             case 'review':

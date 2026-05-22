@@ -4,15 +4,18 @@ import { useState } from 'react';
 import type { LocalPaymentMethod } from '../types';
 import { emptyPM } from '../types';
 import PaymentMethodForm from '../PaymentMethodForm';
+import ReorderButtons, { moveItem } from '@/components/ReorderButtons';
 
 interface PaymentStepProps {
   paymentMethods: LocalPaymentMethod[];
   onAdd: (pm: LocalPaymentMethod) => void;
   onEdit: (pm: LocalPaymentMethod) => void;
   onRemove: (key: number) => void;
+  /** Persist a reordered array (optional; if omitted, reorder controls are hidden). */
+  onReorder?: (next: LocalPaymentMethod[]) => void;
 }
 
-export default function PaymentStep({ paymentMethods, onAdd, onEdit, onRemove }: PaymentStepProps) {
+export default function PaymentStep({ paymentMethods, onAdd, onEdit, onRemove, onReorder }: PaymentStepProps) {
   const [pmKey, setPmKey] = useState(0);
   const [showAdd, setShowAdd] = useState(paymentMethods.length === 0);
   const [editingKey, setEditingKey] = useState<number | null>(null);
@@ -31,7 +34,7 @@ export default function PaymentStep({ paymentMethods, onAdd, onEdit, onRemove }:
 
       {paymentMethods.length > 0 && (
         <div className="space-y-2">
-          {paymentMethods.map((pm) =>
+          {paymentMethods.map((pm, idx) =>
             editingKey === pm.key ? (
               <PaymentMethodForm
                 key={pm.key}
@@ -44,7 +47,14 @@ export default function PaymentStep({ paymentMethods, onAdd, onEdit, onRemove }:
               />
             ) : (
               <div key={pm.key} className="flex items-center justify-between border border-gray-100 rounded-xl p-3">
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-2">
+                  {onReorder && (
+                    <ReorderButtons
+                      index={idx}
+                      total={paymentMethods.length}
+                      onMove={(from, to) => onReorder(moveItem(paymentMethods, from, to))}
+                    />
+                  )}
                   <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${
                     pm.type === 'bank' ? 'bg-blue-100 text-blue-700' : 'bg-green-100 text-green-700'
                   }`}>

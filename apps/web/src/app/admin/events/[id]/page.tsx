@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '@/lib/api';
@@ -17,6 +17,7 @@ import BasicsStep from '@/components/event-wizard/steps/BasicsStep';
 import LocationStep from '@/components/event-wizard/steps/LocationStep';
 import CapacityTiersStep from '@/components/event-wizard/steps/CapacityTiersStep';
 import ConferenceStep from '@/components/event-wizard/steps/ConferenceStep';
+import PaymentStep from '@/components/event-wizard/steps/PaymentStep';
 import ReviewStep from '@/components/event-wizard/steps/ReviewStep';
 import {
   emptyDraft,
@@ -37,6 +38,15 @@ interface ApiTier {
   soldQuantity: number;
   maxPerOrder: number;
   isVisible: boolean;
+  sortOrder?: number;
+}
+
+interface ApiPaymentMethod {
+  type: 'bank' | 'ewallet';
+  name?: string | null;
+  accountName?: string | null;
+  accountNumber?: string | null;
+  qrImageUrl?: string | null;
 }
 
 interface ApiEvent {
@@ -62,6 +72,7 @@ interface ApiEvent {
   bankAccountNumber?: string | null;
   bankAccountName?: string | null;
   gcashNumber?: string | null;
+  paymentMethods?: ApiPaymentMethod[] | null;
   tiers: ApiTier[];
 }
 
@@ -88,6 +99,7 @@ function apiTierToLocal(t: ApiTier, key: number): LocalTier {
     maxPerOrder: String(t.maxPerOrder),
     isVisible: t.isVisible,
     soldQuantity: t.soldQuantity,
+    sortOrder: t.sortOrder ?? 0,
   };
 }
 
@@ -106,13 +118,8 @@ export default function AdminEventEditPage() {
 
   const [draft, setDraft] = useState<EventDraft>(emptyDraft());
   const [tiers, setTiers] = useState<LocalTier[]>([]);
-
-  // Legacy payment fields (single bank + GCash, not the create-page array)
-  const [allowManualPayment, setAllowManualPayment] = useState(true);
-  const [bankName, setBankName] = useState('');
-  const [bankAccountName, setBankAccountName] = useState('');
-  const [bankAccountNumber, setBankAccountNumber] = useState('');
-  const [gcashNumber, setGcashNumber] = useState('');
+  const [paymentMethods, setPaymentMethods] = useState<LocalPaymentMethod[]>([]);
+  const nextPMKey = useRef(1);
 
   const [status, setStatus] = useState('draft');
 
@@ -136,30 +143,81 @@ export default function AdminEventEditPage() {
       endDate: end.date,
       endTime: end.time,
       maxCapacity: event.maxCapacity != null ? String(event.maxCapacity) : '',
+      // Defensive filters: drop any blank/incomplete rows so the editor
+      // doesn't render empty placeholder cards left over from a bad save.
       agenda: Array.isArray(event.agenda)
-        ? event.agenda.map<AgendaItem>((a) => ({
-            time: a.time,
-            title: a.title,
-            ...(a.description ? { description: a.description } : {}),
-          }))
+        ? event.agenda
+            .filter((a) => a && a.time && a.title)
+            .map<AgendaItem>((a) => ({
+              time: a.time,
+              title: a.title,
+              ...(a.description ? { description: a.description } : {}),
+            }))
         : [],
-      sponsors: event.sponsors
-        ? event.sponsors.map<SponsorItem>((s) => ({
-            name: s.name,
-            logoUrl: s.logoUrl ?? '',
-            tier: s.tier ?? '',
-          }))
+      sponsors: Array.isArray(event.sponsors)
+        ? event.sponsors
+            .filter((s) => s && s.name)
+            .map<SponsorItem>((s) => ({
+              name: s.name,
+              logoUrl: s.logoUrl ?? '',
+              tier: s.tier ?? '',
+            }))
         : [],
-      faqs: event.faqs
-        ? event.faqs.map<FaqItem>((f) => ({ question: f.question, answer: f.answer }))
+      faqs: Array.isArray(event.faqs)
+        ? event.faqs
+            .filter((f) => f && f.question && f.answer)
+            .map<FaqItem>((f) => ({ question: f.question, answer: f.answer }))
         : [],
     });
     setStatus(event.status ?? 'draft');
-    setAllowManualPayment(event.allowManualPayment ?? true);
-    setBankName(event.bankName ?? '');
-    setBankAccountName(event.bankAccountName ?? '');
-    setBankAccountNumber(event.bankAccountNumber ?? '');
-    setGcashNumber(event.gcashNumber ?? '');
+
+    // Hydrate paymentMethods. Prefer the new array; if absent but legacy
+    // single-bank / GCash fields exist, synthesize entries so existing events
+    // are editable in the new UI without data loss.
+    const fromArray = Array.isArray(event.paymentMethods)
+      ? event.paymentMethods
+          .filter((pm) => pm && (pm.name || pm.accountNumber || pm.qrImageUrl))
+          .map<LocalPaymentMethod>((pm) => ({
+            key: nextPMKey.current++,
+            type: pm.type === 'ewallet' ? 'ewallet' : 'bank',
+            name: pm.name ?? '',
+            accountName: pm.accountName ?? '',
+            accountNumber: pm.accountNumber ?? '',
+            qrFile: null,
+            qrPreview: pm.qrImageUrl ?? '',
+            qrImageUrl: pm.qrImageUrl ?? '',
+          }))
+      : [];
+    if (fromArray.length > 0) {
+      setPaymentMethods(fromArray);
+    } else {
+      const migrated: LocalPaymentMethod[] = [];
+      if (event.bankName || event.bankAccountNumber || event.bankAccountName) {
+        migrated.push({
+          key: nextPMKey.current++,
+          type: 'bank',
+          name: event.bankName ?? '',
+          accountName: event.bankAccountName ?? '',
+          accountNumber: event.bankAccountNumber ?? '',
+          qrFile: null,
+          qrPreview: '',
+          qrImageUrl: '',
+        });
+      }
+      if (event.gcashNumber) {
+        migrated.push({
+          key: nextPMKey.current++,
+          type: 'ewallet',
+          name: 'GCash',
+          accountName: '',
+          accountNumber: event.gcashNumber,
+          qrFile: null,
+          qrPreview: '',
+          qrImageUrl: '',
+        });
+      }
+      setPaymentMethods(migrated);
+    }
   }, [event]);
 
   // Keep local tier state in sync with server tiers (preserves key across refresh)
@@ -249,6 +307,7 @@ export default function AdminEventEditPage() {
       totalQuantity: parseInt(t.totalQuantity, 10),
       maxPerOrder: parseInt(t.maxPerOrder, 10),
       isVisible: t.isVisible,
+      sortOrder: tiers.length,
     });
   }
   function handleEditTier(t: LocalTier) {
@@ -270,11 +329,56 @@ export default function AdminEventEditPage() {
     if (!target?.serverId) return;
     deleteTierMutation.mutate(target.serverId);
   }
+  /**
+   * Persist the new tier order: optimistically update local state, then
+   * PUT each tier whose sortOrder changed. We avoid a full refetch so the
+   * user sees the change immediately; the query invalidates after success.
+   */
+  async function handleReorderTiers(next: LocalTier[]) {
+    setTiers(next);
+    const changed = next
+      .map((t, idx) => ({ t, idx }))
+      .filter(({ t, idx }) => t.serverId && t.sortOrder !== idx);
+    if (changed.length === 0) return;
+    try {
+      await Promise.all(
+        changed.map(({ t, idx }) =>
+          api.put(`/admin/tiers/${t.serverId}`, { sortOrder: idx }),
+        ),
+      );
+      queryClient.invalidateQueries({ queryKey: ['admin-event', id] });
+    } catch {
+      toast.error('Failed to save tier order');
+    }
+  }
+
+  // ─── Payment-method handlers (local; persisted with the event save) ──────
+  function addPM(pm: LocalPaymentMethod) {
+    setPaymentMethods((prev) => [...prev, { ...pm, key: nextPMKey.current++ }]);
+  }
+  function editPM(pm: LocalPaymentMethod) {
+    setPaymentMethods((prev) => prev.map((x) => (x.key === pm.key ? pm : x)));
+  }
+  function removePM(key: number) {
+    setPaymentMethods((prev) => prev.filter((x) => x.key !== key));
+  }
 
   // ─── Save (whole-event update) ────────────────────────────────────────────
   async function handleSubmit() {
     const startsAtISO = combineDatetime(draft.startDate, draft.startTime);
     const endsAtISO = combineDatetime(draft.endDate, draft.endTime);
+
+    // Upload any newly-attached QR images before sending the event payload.
+    const resolvedPMs = await Promise.all(
+      paymentMethods.map(async (pm) => {
+        if (!pm.qrFile) return pm;
+        const fd = new FormData();
+        fd.append('image', pm.qrFile);
+        const res = await api.post<{ data: { url: string } }>('/upload/payment-qr', fd);
+        return { ...pm, qrImageUrl: res.data.data.url };
+      }),
+    );
+
     const payload: Record<string, unknown> = {
       title: draft.title.trim(),
       description: draft.description.trim(),
@@ -287,11 +391,16 @@ export default function AdminEventEditPage() {
       status,
       speakerName: draft.speakerName.trim() || null,
       imageUrl: draft.imageUrl.trim() || null,
-      allowManualPayment,
-      bankName: bankName.trim() || null,
-      bankAccountName: bankAccountName.trim() || null,
-      bankAccountNumber: bankAccountNumber.trim() || null,
-      gcashNumber: gcashNumber.trim() || null,
+      allowManualPayment: resolvedPMs.length > 0,
+      paymentMethods: resolvedPMs.length > 0
+        ? resolvedPMs.map((pm) => ({
+            type: pm.type,
+            name: pm.name.trim() || undefined,
+            accountName: pm.accountName.trim() || undefined,
+            accountNumber: pm.accountNumber.trim() || undefined,
+            qrImageUrl: pm.qrImageUrl || undefined,
+          }))
+        : null,
       agenda: draft.agenda.length > 0 ? draft.agenda : null,
       sponsors:
         draft.sponsors.length > 0
@@ -392,68 +501,8 @@ export default function AdminEventEditPage() {
     </div>
   ) : null;
 
-  // ─── Inline Edit-mode Payment step (legacy bank/gcash schema) ─────────────
-  const editPaymentStep = useMemo(
-    () => (
-      <div className="space-y-4">
-        <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
-          <input
-            type="checkbox"
-            checked={allowManualPayment}
-            onChange={(e) => setAllowManualPayment(e.target.checked)}
-            className="accent-primary"
-          />
-          Accept manual payment (bank transfer / GCash with proof of payment)
-        </label>
-        {allowManualPayment && (
-          <div className="space-y-4 pl-6 border-l-2 border-primary/20">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Bank Name</label>
-                <input
-                  value={bankName}
-                  onChange={(e) => setBankName(e.target.value)}
-                  placeholder="e.g. BPI"
-                  className="w-full rounded-xl border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Account Name</label>
-                <input
-                  value={bankAccountName}
-                  onChange={(e) => setBankAccountName(e.target.value)}
-                  placeholder="e.g. Axon Tickets Inc."
-                  className="w-full rounded-xl border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                />
-              </div>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Bank Account Number</label>
-                <input
-                  value={bankAccountNumber}
-                  onChange={(e) => setBankAccountNumber(e.target.value)}
-                  placeholder="e.g. 1234-5678-90"
-                  className="w-full rounded-xl border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">GCash Number</label>
-                <input
-                  value={gcashNumber}
-                  onChange={(e) => setGcashNumber(e.target.value)}
-                  placeholder="e.g. 0917-123-4567"
-                  className="w-full rounded-xl border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                />
-              </div>
-            </div>
-            <p className="text-xs text-gray-400">These details are shown to attendees after registration.</p>
-          </div>
-        )}
-      </div>
-    ),
-    [allowManualPayment, bankName, bankAccountName, bankAccountNumber, gcashNumber],
-  );
+  // ─── Inline Edit-mode Payment step removed: the wizard now uses the
+  // multi-method PaymentStep directly (see render switch below).
 
   if (isLoading || !event) {
     return (
@@ -503,16 +552,26 @@ export default function AdminEventEditPage() {
                   onAddTier={handleAddTier}
                   onEditTier={handleEditTier}
                   onRemoveTier={handleRemoveTier}
+                  onReorderTiers={handleReorderTiers}
                 />
               );
             case 'conference': return <ConferenceStep draft={draft} update={update} />;
-            case 'payment': return editPaymentStep;
+            case 'payment':
+              return (
+                <PaymentStep
+                  paymentMethods={paymentMethods}
+                  onAdd={addPM}
+                  onEdit={editPM}
+                  onRemove={removePM}
+                  onReorder={setPaymentMethods}
+                />
+              );
             case 'review':
               return (
                 <ReviewStep
                   draft={draft}
                   tiers={tiers}
-                  paymentMethods={[] as LocalPaymentMethod[]}
+                  paymentMethods={paymentMethods}
                   onJump={jump}
                 />
               );

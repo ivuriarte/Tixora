@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import ImageUploader from './event-wizard/ImageUploader';
 import TimeSelect from './event-wizard/TimeSelect';
+import ReorderButtons, { moveItem } from './ReorderButtons';
 
 // ── Time format helpers (agenda stores "h:MM AM/PM"; TimeSelect uses "HH:MM") ──
 
@@ -188,7 +189,12 @@ export function SponsorListManager({
             />
           ) : (
             <div key={idx} className="flex items-center justify-between border border-gray-100 rounded-xl px-3 py-2.5">
-              <div className="flex items-center gap-3 min-w-0">
+              <div className="flex items-center gap-2 min-w-0">
+                <ReorderButtons
+                  index={idx}
+                  total={sponsors.length}
+                  onMove={(from, to) => onChange(moveItem(sponsors, from, to))}
+                />
                 {s.logoUrl && (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img src={s.logoUrl} alt={s.name} className="w-8 h-8 object-contain rounded flex-shrink-0"
@@ -362,6 +368,12 @@ export function FaqListManager({
           ) : (
             <div key={idx} className="border border-gray-100 rounded-xl px-3 py-2.5">
               <div className="flex items-start justify-between gap-2">
+                <ReorderButtons
+                  index={idx}
+                  total={faqs.length}
+                  onMove={(from, to) => onChange(moveItem(faqs, from, to))}
+                  className="mt-0.5"
+                />
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium text-gray-800">{f.question}</p>
                   <p className="text-xs text-gray-500 mt-0.5 line-clamp-2">{f.answer}</p>
@@ -548,6 +560,12 @@ export function AgendaListManager({
           ) : (
             <div key={idx} className="flex items-start justify-between border border-gray-100 rounded-xl px-3 py-2.5">
               <div className="flex gap-3 min-w-0 flex-1">
+                <ReorderButtons
+                  index={idx}
+                  total={agenda.length}
+                  onMove={(from, to) => onChange(moveItem(agenda, from, to))}
+                  className="mt-0.5"
+                />
                 <div className="text-primary font-bold text-sm whitespace-nowrap min-w-[80px]">{a.time}</div>
                 <div className="min-w-0">
                   <p className="text-sm font-medium text-gray-800">{a.title}</p>
