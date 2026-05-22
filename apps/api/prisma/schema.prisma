@@ -352,6 +352,9 @@ model Attendee {
   company        String?
   jobTitle       String?   @map("job_title")
   isLead         Boolean   @default(false) @map("is_lead")
+  // Anti-scalper: tickets are bound to the attendee record above and cannot
+  // be re-assigned. Reserved for a future admin-controlled transfer flow.
+  transferable   Boolean   @default(false) @map("transferable")
   qrToken        String?   @unique @map("qr_token")
   checkedInAt    DateTime? @map("checked_in_at")
   checkedInById  String?   @map("checked_in_by_id")

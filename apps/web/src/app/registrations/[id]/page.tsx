@@ -193,6 +193,14 @@ export default function RegistrationDetailPage() {
               </div>
             ))}
           </div>
+          <div className="mt-4 flex items-start gap-2 rounded-lg bg-amber-50 border border-amber-200 px-3 py-2 text-xs text-amber-800">
+            <span aria-hidden className="mt-0.5">🔒</span>
+            <p>
+              <span className="font-semibold">Non-transferable.</span> Each
+              ticket is bound to the attendee named above. A valid government
+              or company ID matching the name will be required at the door.
+            </p>
+          </div>
         </div>
 
         {/* Rejection reason */}

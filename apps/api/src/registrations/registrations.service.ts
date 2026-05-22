@@ -50,6 +50,30 @@ export class RegistrationsService {
       );
     }
 
+    // Anti-scalper #1: per-account cap across the WHOLE event (not just this
+    // registration). Sums attendees from all non-cancelled / non-rejected
+    // registrations this user already has for the event.
+    const maxPerUser = event.maxPerUser ?? 0;
+    if (maxPerUser > 0) {
+      const existing = await this.prisma.registration.aggregate({
+        where: {
+          userId,
+          eventId: dto.eventId,
+          status: { notIn: ['cancelled', 'rejected'] },
+        },
+        _sum: { attendeeCount: true },
+      });
+      const alreadyBooked = existing._sum.attendeeCount ?? 0;
+      if (alreadyBooked + attendeeCount > maxPerUser) {
+        const remaining = Math.max(maxPerUser - alreadyBooked, 0);
+        throw new BadRequestException(
+          remaining === 0
+            ? `You have already reached the limit of ${maxPerUser} ticket(s) for this event.`
+            : `You can only register ${remaining} more ticket(s) for this event (limit ${maxPerUser} per attendee, you already have ${alreadyBooked}).`,
+        );
+      }
+    }
+
     const unitPrice = Number(tier.price);
     const subtotal = unitPrice * attendeeCount;
     const fees = calculateFee(subtotal);
