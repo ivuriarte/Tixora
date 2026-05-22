@@ -4,6 +4,7 @@ import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { UsersService } from './users.service';
 import { UpdateProfileDto } from './update-profile.dto';
+import { ChangePasswordDto } from './change-password.dto';
 import type { JwtPayload } from '@axon-tickets/types';
 
 @ApiTags('users')
@@ -23,5 +24,11 @@ export class UsersController {
   @ApiOperation({ summary: 'Update my profile' })
   updateMe(@CurrentUser() user: JwtPayload, @Body() dto: UpdateProfileDto) {
     return this.usersService.updateProfile(user.sub, dto);
+  }
+
+  @Patch('me/password')
+  @ApiOperation({ summary: 'Change my password' })
+  changePassword(@CurrentUser() user: JwtPayload, @Body() dto: ChangePasswordDto) {
+    return this.usersService.changePassword(user.sub, dto.newPassword);
   }
 }

@@ -50,12 +50,16 @@ export default function LoginPage() {
           <p className="mt-1 text-sm text-gray-500">Log in to your account</p>
         </div>
 
-        <form onSubmit={handleSubmit} className="bg-white shadow rounded-2xl p-8 space-y-5">
+        <form onSubmit={handleSubmit} autoComplete="off" className="bg-white shadow rounded-2xl p-8 space-y-5">
+          {/* Honeypot: Chrome fills this instead of the real fields */}
+          <input type="text" name="username_fake" autoComplete="username" aria-hidden="true" className="hidden" tabIndex={-1} readOnly />
+          <input type="password" name="password_fake" autoComplete="current-password" aria-hidden="true" className="hidden" tabIndex={-1} readOnly />
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
             <input
               type="text"
               required
+              autoComplete="off"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
@@ -70,7 +74,7 @@ export default function LoginPage() {
                 required
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                autoComplete="current-password"
+                autoComplete="new-password"
                 className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary pr-10"
               />
               <button

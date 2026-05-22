@@ -12,7 +12,7 @@ function ChangePasswordModal({ open, onClose }: { open: boolean; onClose: () => 
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
-  const canSave = newPassword.length > 0 && newPassword === confirmPassword;
+  const canSave = newPassword.length >= 8 && newPassword === confirmPassword;
 
   async function handleSave(e: React.FormEvent) {
     e.preventDefault();
@@ -52,6 +52,7 @@ function ChangePasswordModal({ open, onClose }: { open: boolean; onClose: () => 
               onChange={e => setNewPassword(e.target.value)}
               className={`w-full rounded-lg border px-3 py-2 text-sm pr-10 ${error && newPassword !== confirmPassword ? 'border-red-500' : 'border-gray-300'}`}
               autoComplete="new-password"
+              minLength={8}
               required
             />
             <button
@@ -94,6 +95,9 @@ function ChangePasswordModal({ open, onClose }: { open: boolean; onClose: () => 
               )}
             </button>
           </div>
+          {newPassword.length > 0 && newPassword.length < 8 && (
+            <p className="text-xs text-amber-500 mt-1">Password must be at least 8 characters.</p>
+          )}
           {(confirmPassword && newPassword !== confirmPassword) && (
             <p className="text-xs text-red-500 mt-1">Passwords do not match.</p>
           )}
@@ -135,13 +139,8 @@ export default function ProfilePage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
-  // Password display toggle
-  const [showPassword, setShowPassword] = useState(false);
   const [changePwOpen, setChangePwOpen] = useState(false);
   // Phone split: store the 10 digits after +63
-    // Dummy password display (masked, unmaskable)
-    // In a real app, you would fetch a password hash or a placeholder
-    const passwordPlaceholder = '********';
   const [form, setForm] = useState({
     firstName: '',
     lastName: '',
@@ -258,27 +257,14 @@ export default function ProfilePage() {
         <div className="bg-white border border-gray-100 rounded-2xl shadow-sm p-6 space-y-4 mb-6">
           <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-widest">Password</h2>
           <div className="flex items-center gap-4">
-            <div className="relative w-64">
-              <input
-                type={showPassword ? 'text' : 'password'}
-                value={passwordPlaceholder}
-                readOnly
-                className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm pr-10 bg-gray-50 text-gray-400 cursor-not-allowed"
-                tabIndex={-1}
-              />
-              <button
-                type="button"
-                aria-label={showPassword ? 'Hide password' : 'Show password'}
-                className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-primary"
-                onClick={() => setShowPassword((v) => !v)}
-              >
-                {showPassword ? (
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M13.875 18.825A10.05 10.05 0 0112 19c-5 0-9-4-9-9 0-1.657.403-3.22 1.125-4.575M6.7 6.7A9.956 9.956 0 0112 5c5 0 9 4 9 9 0 1.657-.403 3.22-1.125 4.575M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" d="M3 3l18 18" /></svg>
-                ) : (
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-.37 1.144-.958 2.206-1.72 3.104M15.54 15.54A5.978 5.978 0 0112 17c-3.314 0-6-2.686-6-6 0-.795.155-1.552.44-2.24" /></svg>
-                )}
-              </button>
-            </div>
+            <input
+              type="password"
+              value="password-placeholder"
+              readOnly
+              className="w-64 rounded-lg border border-gray-200 px-3 py-2 text-sm bg-gray-50 text-gray-400 cursor-not-allowed"
+              tabIndex={-1}
+              aria-label="Current password (hidden)"
+            />
             <button
               type="button"
               className="px-4 py-2 rounded-lg bg-primary text-white font-semibold hover:bg-primary/90 transition-colors"
