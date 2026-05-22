@@ -111,7 +111,7 @@ export default function EventPreviewsPage() {
                   <p className="text-sm text-gray-500 mt-1 line-clamp-1">{event.venue}</p>
                   {event.lowestPrice != null && event.lowestPrice > 0 && (
                     <p className="mt-2 text-sm font-semibold text-primary">
-                      From ₱{event.lowestPrice.toLocaleString()}
+                      From ₱{(event.lowestPrice / 100).toLocaleString()}
                     </p>
                   )}
                   {(event.lowestPrice === 0 || event.lowestPrice == null) && (
