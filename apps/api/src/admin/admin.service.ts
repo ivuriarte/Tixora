@@ -81,7 +81,7 @@ export class AdminService {
         orderBy: { createdAt: 'desc' },
         include: {
           _count: { select: { tickets: true, orders: true } },
-          tiers: { select: { name: true, totalQuantity: true, soldQuantity: true } },
+          tiers: { select: { name: true, price: true, totalQuantity: true, soldQuantity: true } },
         },
       }),
     ]);
@@ -91,12 +91,17 @@ export class AdminService {
         id: e.id,
         slug: e.slug,
         title: e.title,
+        description: e.description,
+        imageUrl: e.imageUrl ?? null,
         venue: e.venue,
         city: e.city,
         startsAt: e.startsAt.toISOString(),
         status: e.status,
         ticketsSold: e._count.tickets,
         ordersCount: e._count.orders,
+        lowestPrice: e.tiers.length > 0
+          ? Math.min(...e.tiers.map((t: (typeof e.tiers)[number]) => Number(t.price)))
+          : null,
         tiers: e.tiers.map((t: (typeof e.tiers)[number]) => ({
           name: t.name,
           totalQuantity: t.totalQuantity,

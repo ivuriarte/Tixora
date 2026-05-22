@@ -53,10 +53,12 @@ export default function Navbar() {
         </Link>
 
         <div className="flex items-center gap-4">
-          <Link href="/" className="text-sm font-medium text-gray-700 hover:text-primary">
-            Home
-          </Link>
-          {process.env.NEXT_PUBLIC_ENABLE_MARKETPLACE !== 'false' && (
+          {!user?.isAdmin && (
+            <Link href="/" className="text-sm font-medium text-gray-700 hover:text-primary">
+              Home
+            </Link>
+          )}
+          {process.env.NEXT_PUBLIC_ENABLE_MARKETPLACE !== 'false' && !user?.isAdmin && (
             <Link href="/events" className="text-sm font-medium text-gray-500 hover:text-primary hidden sm:block">
               Browse Events
             </Link>
@@ -68,9 +70,15 @@ export default function Navbar() {
             </div>
           ) : isAuthenticated ? (
             <>
-              <Link href="/account/tickets" className="text-sm font-medium text-gray-700 hover:text-primary">
-                My Events
-              </Link>
+              {user?.isAdmin ? (
+                <Link href="/admin/event-previews" className="text-sm font-medium text-gray-700 hover:text-primary">
+                  Event Previews
+                </Link>
+              ) : (
+                <Link href="/account/tickets" className="text-sm font-medium text-gray-700 hover:text-primary">
+                  My Events
+                </Link>
+              )}
               <Link href="/profile" className="text-sm font-medium text-gray-700 hover:text-primary">
                 My Profile
               </Link>

@@ -69,10 +69,11 @@ export async function generateMetadata({ params }: { params: { slug: string } })
   };
 }
 
-export default async function EventPage({ params }: { params: { slug: string } }) {
+export default async function EventPage({ params, searchParams }: { params: { slug: string }; searchParams: { preview?: string } }) {
   const event = await getEvent(params.slug);
   if (!event) notFound();
 
+  const isPreview = searchParams.preview === '1';
   const isSoldOut = event.status === 'sold_out';
   const isCancelled = event.status === 'cancelled';
 
@@ -80,6 +81,18 @@ export default async function EventPage({ params }: { params: { slug: string } }
     <>
       <Navbar />
       <main className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
+        {isPreview && (
+          <div className="mb-6 flex items-center justify-between bg-amber-50 border border-amber-200 rounded-xl px-4 py-3">
+            <div className="flex items-center gap-2 text-amber-800">
+              <svg className="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+              </svg>
+              <span className="text-sm font-medium">Admin Preview — registration is disabled</span>
+            </div>
+            <a href="/admin/event-previews" className="text-sm text-amber-700 hover:underline font-medium">← Back to Event Previews</a>
+          </div>
+        )}
         <div className="lg:grid lg:grid-cols-3 lg:gap-10">
           {/* Left: Details */}
           <div className="lg:col-span-2 space-y-8">
@@ -199,7 +212,7 @@ export default async function EventPage({ params }: { params: { slug: string } }
                 tiers={event.tiers}
                 bankName={event.bankName ?? null}
                 gcashNumber={event.gcashNumber ?? null}
-                disabled={isSoldOut || isCancelled}
+                disabled={isPreview || isSoldOut || isCancelled}
               />
             ) : (
               <TierSelector
@@ -207,7 +220,7 @@ export default async function EventPage({ params }: { params: { slug: string } }
                 eventSlug={event.slug}
                 maxPerUser={event.maxPerUser}
                 tiers={event.tiers}
-                disabled={isSoldOut || isCancelled}
+                disabled={isPreview || isSoldOut || isCancelled}
               />
             )}
           </div>
