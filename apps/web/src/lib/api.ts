@@ -4,7 +4,11 @@ import { getAccessToken, setAccessToken, clearAuth, getRefreshToken } from './au
 const api = axios.create({
   baseURL: process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001/api/v1',
   timeout: 15_000,
-  headers: { 'Content-Type': 'application/json' },
+  // NOTE: do NOT set a global `Content-Type` header. Axios v1 sets it
+  // automatically per request: `application/json` for plain objects,
+  // `multipart/form-data; boundary=…` for FormData. Forcing it here breaks
+  // file uploads because the multipart boundary never makes it to the server,
+  // and the backend's multer interceptor sees an empty body → "Image file is required".
   withCredentials: false,
 });
 
