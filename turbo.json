@@ -5,7 +5,35 @@
     "build": {
       "dependsOn": ["^build"],
       "inputs": ["$TURBO_DEFAULT$", ".env*"],
-      "outputs": [".next/**", "!.next/cache/**", "dist/**"]
+      "outputs": [".next/**", "!.next/cache/**", "dist/**"],
+      "env": [
+        "NEXT_PUBLIC_API_URL",
+        "NEXT_PUBLIC_ENABLE_MARKETPLACE",
+        "NEXT_PUBLIC_FEATURED_EVENT_SLUG",
+        "NEXT_PUBLIC_HCAPTCHA_SITE_KEY",
+        "NEXT_PUBLIC_TURNSTILE_SITE_KEY",
+        "WEB_URL",
+        "DATABASE_URL",
+        "REDIS_URL",
+        "REDIS_TOKEN",
+        "JWT_SECRET",
+        "ADMIN_SECRET",
+        "GOOGLE_CLIENT_ID",
+        "GOOGLE_CLIENT_SECRET",
+        "CLOUDINARY_CLOUD_NAME",
+        "CLOUDINARY_API_KEY",
+        "CLOUDINARY_API_SECRET",
+        "SMTP_HOST",
+        "SMTP_PORT",
+        "SMTP_USER",
+        "SMTP_PASS",
+        "STRIPE_SECRET_KEY",
+        "STRIPE_WEBHOOK_SECRET",
+        "TURNSTILE_SECRET_KEY",
+        "HCAPTCHA_SECRET",
+        "VERCEL_URL",
+        "VERCEL_ENV"
+      ]
     },
     "dev": {
       "cache": false,
