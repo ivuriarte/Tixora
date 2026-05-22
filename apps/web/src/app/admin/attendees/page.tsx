@@ -68,7 +68,7 @@ export default function AdminAttendeesPage() {
     enabled: !!selectedEventId,
   });
 
-  const apiBase = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001/api/v1';
+  const apiBase = (process.env.NEXT_PUBLIC_API_URL || 'https://api-tau-six-59.vercel.app/api/v1');
 
   return (
     <>

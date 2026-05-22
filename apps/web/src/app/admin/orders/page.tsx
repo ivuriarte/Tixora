@@ -66,7 +66,7 @@ export default function AdminOrdersPage() {
             <h1 className="text-2xl font-bold text-gray-900">Orders</h1>
           </div>
           <a
-            href={`${process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001/api/v1'}/admin/orders/export${eventId ? `?eventId=${eventId}` : ''}`}
+            href={`${(process.env.NEXT_PUBLIC_API_URL || 'https://api-tau-six-59.vercel.app/api/v1')}/admin/orders/export${eventId ? `?eventId=${eventId}` : ''}`}
             target="_blank"
             rel="noopener noreferrer"
             className="text-sm font-semibold text-primary hover:underline border border-primary px-4 py-2 rounded-xl"

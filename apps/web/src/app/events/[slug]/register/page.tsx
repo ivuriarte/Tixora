@@ -40,7 +40,7 @@ export default function RegisterPage({
       router.replace(`/auth/login?redirect=/events/${params.slug}/register`);
       return;
     }
-    const baseUrl = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001/api/v1';
+    const baseUrl = (process.env.NEXT_PUBLIC_API_URL || 'https://api-tau-six-59.vercel.app/api/v1');
     fetch(`${baseUrl}/events/${params.slug}`)
       .then((r) => (r.ok ? r.json() : null))
       .then((json) => {

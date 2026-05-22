@@ -8,7 +8,7 @@ import toast from 'react-hot-toast';
 import api from '@/lib/api';
 import Button from '@/components/Button';
 
-const GOOGLE_URL = `${process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001/api/v1'}/auth/google`;
+const GOOGLE_URL = `${(process.env.NEXT_PUBLIC_API_URL || 'https://api-tau-six-59.vercel.app/api/v1')}/auth/google`;
 
 function GoogleIcon() {
   return (
