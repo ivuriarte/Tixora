@@ -20,13 +20,18 @@ interface EventSummary {
 
 async function getEvents(page = 1): Promise<{ data: EventSummary[]; meta: { total: number; totalPages: number } }> {
   const baseUrl = (process.env.NEXT_PUBLIC_API_URL || 'https://api-tau-six-59.vercel.app/api/v1');
+  const fullUrl = `${baseUrl}/events?page=${page}&limit=12`;
   try {
-    const res = await fetch(`${baseUrl}/events?page=${page}&limit=12`, { cache: 'no-store', signal: AbortSignal.timeout(8000) });
+    console.log('[getEvents] fetching', fullUrl);
+    const res = await fetch(fullUrl, { cache: 'no-store', signal: AbortSignal.timeout(8000) });
+    console.log('[getEvents] status', res.status);
     if (!res.ok) return { data: [], meta: { total: 0, totalPages: 0 } };
     const json = await res.json();
+    console.log('[getEvents] json keys', Object.keys(json), 'inner', json.data ? Object.keys(json.data) : 'no-data');
     // TransformInterceptor wraps: { success, data: { data: [...], meta } }
     return json.data ?? json;
-  } catch {
+  } catch (err) {
+    console.error('[getEvents] error', fullUrl, err);
     return { data: [], meta: { total: 0, totalPages: 0 } };
   }
 }
