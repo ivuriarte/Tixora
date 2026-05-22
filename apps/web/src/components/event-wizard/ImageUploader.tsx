@@ -77,10 +77,41 @@ export default function ImageUploader({
         onChange(res.data.data.url);
         toast.success('Image uploaded');
       } catch (e: unknown) {
-        const message =
-          (e as { response?: { data?: { message?: string } } })?.response?.data?.message ??
-          'Upload failed';
-        toast.error(message);
+        const err = e as {
+          response?: { status?: number; statusText?: string; data?: { message?: string | string[] } };
+          request?: unknown;
+          message?: string;
+          code?: string;
+        };
+        let message = 'Upload failed';
+        if (err.response) {
+          // Server responded with a non-2xx status
+          const status = err.response.status;
+          const raw = err.response.data?.message;
+          const serverMsg = Array.isArray(raw) ? raw.join(', ') : raw;
+          if (serverMsg) {
+            message = serverMsg;
+          } else if (status === 401 || status === 403) {
+            message = 'You are not authorized to upload. Please log in again.';
+          } else if (status === 404) {
+            message = `Upload endpoint not found (${endpoint}). Try again shortly — the API may be redeploying.`;
+          } else if (status === 413) {
+            message = `File is too large for the server (limit ${maxSizeMB} MB).`;
+          } else if (status === 415) {
+            message = 'Unsupported file type.';
+          } else if (status && status >= 500) {
+            message = `Server error (${status}). Please try again.`;
+          } else {
+            message = `Upload failed (HTTP ${status ?? '?'}).`;
+          }
+        } else if (err.code === 'ECONNABORTED') {
+          message = 'Upload timed out. Check your connection and try a smaller file.';
+        } else if (err.request) {
+          message = 'No response from server. Check your internet connection.';
+        } else if (err.message) {
+          message = err.message;
+        }
+        toast.error(message, { duration: 6000 });
       } finally {
         setUploading(false);
         setProgress(0);
