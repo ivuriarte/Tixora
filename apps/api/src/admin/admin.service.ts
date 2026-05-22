@@ -56,10 +56,19 @@ export class AdminService {
     return this.eventsService.update(id, dto);
   }
 
-  async cancelEvent(id: string) {
+  async deleteEvent(id: string) {
     const event = await this.prisma.event.findUnique({ where: { id } });
     if (!event) throw new NotFoundException('Event not found');
-    return this.eventsService.update(id, { status: 'cancelled' });
+
+    // Delete dependents that lack cascade from Event
+    const regs = await this.prisma.registration.findMany({ where: { eventId: id }, select: { id: true } });
+    if (regs.length > 0) {
+      await this.prisma.auditLog.deleteMany({ where: { registrationId: { in: regs.map((r) => r.id) } } });
+    }
+    await this.prisma.registration.deleteMany({ where: { eventId: id } });  // cascades Attendees, PaymentProofs
+    await this.prisma.order.deleteMany({ where: { eventId: id } });         // cascades OrderItems, Tickets, FraudFlags
+    await this.prisma.reservation.deleteMany({ where: { eventId: id } });
+    return this.prisma.event.delete({ where: { id } });                     // cascades TicketTiers, EventViews
   }
 
   async listEvents(page = 1, limit = 20) {

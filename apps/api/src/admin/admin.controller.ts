@@ -66,9 +66,9 @@ export class AdminController {
   }
 
   @Delete('events/:id')
-  @ApiOperation({ summary: 'Cancel / soft-delete event' })
-  cancelEvent(@Param('id') id: string) {
-    return this.adminService.cancelEvent(id);
+  @ApiOperation({ summary: 'Hard-delete event and all related data' })
+  deleteEvent(@Param('id') id: string) {
+    return this.adminService.deleteEvent(id);
   }
 
   // ── Tiers ────────────────────────────────────────────────────────────────

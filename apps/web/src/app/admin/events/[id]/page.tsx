@@ -254,18 +254,57 @@ export default function AdminEventEditPage() {
   // ── Mutations ────────────────────────────────────────────────────────────────
   const updateMutation = useMutation({
     mutationFn: (data: Record<string, unknown>) => api.put(`/admin/events/${id}`, data),
+    onMutate: async (data) => {
+      await queryClient.cancelQueries({ queryKey: ['admin-event', id] });
+      const prev = queryClient.getQueryData<EventDetail>(['admin-event', id]);
+      queryClient.setQueryData<EventDetail>(['admin-event', id], (old) =>
+        old ? { ...old, ...(data as Partial<EventDetail>) } : old!
+      );
+      return { prev };
+    },
     onSuccess: () => {
       toast.success('Event updated');
       queryClient.invalidateQueries({ queryKey: ['admin-event', id] });
       queryClient.invalidateQueries({ queryKey: ['admin-events'] });
     },
-    onError: () => toast.error('Failed to update event'),
+    onError: (_, __, ctx) => {
+      if (ctx?.prev) queryClient.setQueryData(['admin-event', id], ctx.prev);
+      toast.error('Failed to update event');
+    },
   });
 
-  const cancelMutation = useMutation({
+  const statusMutation = useMutation({
+    mutationFn: (newStatus: string) => api.put(`/admin/events/${id}`, { status: newStatus }),
+    onMutate: async (newStatus) => {
+      await queryClient.cancelQueries({ queryKey: ['admin-event', id] });
+      const prev = queryClient.getQueryData<EventDetail>(['admin-event', id]);
+      queryClient.setQueryData<EventDetail>(['admin-event', id], (old) =>
+        old ? { ...old, status: newStatus } : old!
+      );
+      queryClient.setQueryData<EventDetail[]>(['admin-events'], (old: any) =>
+        Array.isArray(old) ? old.map((e: any) => (e.id === id ? { ...e, status: newStatus } : e)) : old
+      );
+      return { prev };
+    },
+    onSuccess: () => toast.success('Status updated'),
+    onError: (_, __, ctx) => {
+      if (ctx?.prev) queryClient.setQueryData(['admin-event', id], ctx.prev);
+      toast.error('Failed to update status');
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin-event', id] });
+      queryClient.invalidateQueries({ queryKey: ['admin-events'] });
+    },
+  });
+
+  const deleteMutation = useMutation({
     mutationFn: () => api.delete(`/admin/events/${id}`),
-    onSuccess: () => { toast.success('Event cancelled'); router.push('/admin'); },
-    onError: () => toast.error('Failed to cancel event'),
+    onSuccess: () => {
+      toast.success('Event deleted');
+      queryClient.invalidateQueries({ queryKey: ['admin-events'] });
+      router.push('/admin');
+    },
+    onError: () => toast.error('Failed to delete event'),
   });
 
   // ── Tier management ──────────────────────────────────────────────────────────
@@ -442,11 +481,18 @@ export default function AdminEventEditPage() {
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
               <select className="w-full border border-gray-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                value={status} onChange={(e) => setStatus(e.target.value)}>
+                value={status}
+                onChange={(e) => {
+                  setStatus(e.target.value);
+                  statusMutation.mutate(e.target.value);
+                }}>
                 {STATUS_OPTIONS.map((s) => (
                   <option key={s} value={s}>{s.replace('_', ' ')}</option>
                 ))}
               </select>
+              {statusMutation.isPending && (
+                <p className="text-xs text-primary mt-1">Saving…</p>
+              )}
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Max Per User</label>
@@ -456,7 +502,7 @@ export default function AdminEventEditPage() {
             </div>
           </div>
 
-          {/* Save / Cancel Event row */}
+          {/* Save / Cancel / Delete row */}
           <div className="flex items-center justify-between pt-2">
             <button
               disabled={!canSave || updateMutation.isPending}
@@ -470,13 +516,26 @@ export default function AdminEventEditPage() {
                 {!requiredFilled ? 'Fill in required fields (*)' : endBeforeStart ? 'Fix end date/time' : hasJsonErrors ? 'Fix JSON errors' : ''}
               </p>
             )}
-            <button
-              onClick={() => { if (confirm('Cancel this event? This will mark it as cancelled.')) cancelMutation.mutate(); }}
-              disabled={cancelMutation.isPending || event.status === 'cancelled'}
-              className="text-red-600 hover:text-red-800 text-sm font-medium disabled:opacity-40"
-            >
-              {event.status === 'cancelled' ? 'Already Cancelled' : 'Cancel Event'}
-            </button>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => { if (confirm('Cancel this event? It will remain visible but marked as cancelled.')) statusMutation.mutate('cancelled'); }}
+                disabled={statusMutation.isPending || event.status === 'cancelled'}
+                className="text-amber-600 hover:text-amber-800 text-sm font-medium disabled:opacity-40"
+              >
+                {event.status === 'cancelled' ? 'Already Cancelled' : 'Cancel Event'}
+              </button>
+              <button
+                onClick={() => {
+                  if (confirm(`Delete "${event.title}"?\n\nThis permanently removes the event and all its data. This cannot be undone.`)) {
+                    deleteMutation.mutate();
+                  }
+                }}
+                disabled={deleteMutation.isPending}
+                className="text-red-600 hover:text-red-800 text-sm font-medium disabled:opacity-40"
+              >
+                {deleteMutation.isPending ? 'Deleting…' : 'Delete Event'}
+              </button>
+            </div>
           </div>
         </section>
 

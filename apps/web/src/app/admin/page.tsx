@@ -1,10 +1,21 @@
 'use client';
 
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '@/lib/api';
 import Navbar from '@/components/Navbar';
 import Link from 'next/link';
 import { formatShortDate } from '@axon-tickets/utils';
+import toast from 'react-hot-toast';
+
+const STATUS_OPTIONS = ['draft', 'published', 'on_sale', 'sold_out', 'cancelled', 'completed'];
+
+function statusStyle(s: string) {
+  if (s === 'on_sale') return 'bg-green-100 text-green-700';
+  if (s === 'sold_out') return 'bg-violet-100 text-violet-700';
+  if (s === 'cancelled') return 'bg-red-100 text-red-600';
+  if (s === 'completed') return 'bg-blue-100 text-blue-700';
+  return 'bg-gray-100 text-gray-500';
+}
 
 interface Event {
   id: string;
@@ -30,6 +41,8 @@ interface DashboardStats {
 }
 
 export default function AdminDashboardPage() {
+  const queryClient = useQueryClient();
+
   const { data, isLoading } = useQuery({
     queryKey: ['admin-events'],
     queryFn: () =>
@@ -41,6 +54,33 @@ export default function AdminDashboardPage() {
     queryFn: () =>
       api.get<{ data: DashboardStats }>('/admin/analytics/dashboard').then((r) => r.data.data),
     refetchInterval: 60_000,
+  });
+
+  const statusMutation = useMutation({
+    mutationFn: ({ id, status }: { id: string; status: string }) =>
+      api.put(`/admin/events/${id}`, { status }),
+    onMutate: async ({ id, status }) => {
+      await queryClient.cancelQueries({ queryKey: ['admin-events'] });
+      const previous = queryClient.getQueryData<Event[]>(['admin-events']);
+      queryClient.setQueryData<Event[]>(['admin-events'], (old) =>
+        old?.map((e) => (e.id === id ? { ...e, status } : e)) ?? []
+      );
+      return { previous };
+    },
+    onError: (_, __, ctx) => {
+      if (ctx?.previous) queryClient.setQueryData(['admin-events'], ctx.previous);
+      toast.error('Failed to update status');
+    },
+    onSettled: () => queryClient.invalidateQueries({ queryKey: ['admin-events'] }),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => api.delete(`/admin/events/${id}`),
+    onSuccess: (_, id) => {
+      queryClient.setQueryData<Event[]>(['admin-events'], (old) => old?.filter((e) => e.id !== id) ?? []);
+      toast.success('Event deleted');
+    },
+    onError: () => toast.error('Failed to delete event'),
   });
 
   const fmtRevenue = (n: number) =>
@@ -110,16 +150,32 @@ export default function AdminDashboardPage() {
                   {formatShortDate(new Date(event.startsAt))} · {event.venue}
                 </p>
               </div>
-              <div className="flex items-center gap-4">
+              <div className="flex items-center gap-3">
                 <span className="text-sm text-gray-500">{event.ticketsSold} sold</span>
-                <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${
-                  event.status === 'on_sale' ? 'bg-green-100 text-green-700' :
-                  event.status === 'sold_out' ? 'bg-violet-100 text-violet-700' :
-                  'bg-gray-100 text-gray-500'
-                }`}>{event.status.replace('_', ' ')}</span>
+                <select
+                  value={event.status}
+                  onChange={(e) => statusMutation.mutate({ id: event.id, status: e.target.value })}
+                  disabled={statusMutation.isPending}
+                  className={`text-xs font-semibold px-2.5 py-1 rounded-full border-0 cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary ${statusStyle(event.status)}`}
+                >
+                  {STATUS_OPTIONS.map((s) => (
+                    <option key={s} value={s}>{s.replace('_', ' ')}</option>
+                  ))}
+                </select>
                 <Link href={`/admin/events/${event.id}`} className="text-sm text-primary hover:underline">
                   Edit
                 </Link>
+                <button
+                  onClick={() => {
+                    if (confirm(`Delete "${event.title}"?\n\nThis permanently removes the event and all its data. This cannot be undone.`)) {
+                      deleteMutation.mutate(event.id);
+                    }
+                  }}
+                  disabled={deleteMutation.isPending}
+                  className="text-sm text-red-500 hover:text-red-700 font-medium disabled:opacity-40"
+                >
+                  Delete
+                </button>
               </div>
             </div>
           ))}
