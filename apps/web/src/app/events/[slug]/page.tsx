@@ -77,6 +77,19 @@ export async function generateMetadata({ params }: { params: { slug: string } })
   };
 }
 
+// Sanitize JSON list fields — DB may contain malformed entries (e.g. arrays-of-arrays
+// from older create flows). Treat each item as a plain object with string fields only.
+function sanitizeList<T extends object>(raw: unknown, requiredKeys: (keyof T)[]): T[] {
+  if (!Array.isArray(raw)) return [];
+  return raw.filter((item): item is T => {
+    if (!item || typeof item !== 'object' || Array.isArray(item)) return false;
+    return requiredKeys.every((k) => {
+      const v = (item as Record<string, unknown>)[k as string];
+      return typeof v === 'string' && v.trim().length > 0;
+    });
+  });
+}
+
 export default async function EventPage({ params, searchParams }: { params: { slug: string }; searchParams: { preview?: string } }) {
   const event = await getEvent(params.slug);
   if (!event) notFound();
@@ -84,6 +97,10 @@ export default async function EventPage({ params, searchParams }: { params: { sl
   const isPreview = searchParams.preview === '1';
   const isSoldOut = event.status === 'sold_out';
   const isCancelled = event.status === 'cancelled';
+
+  const agenda = sanitizeList<AgendaItem>(event.agenda, ['title']);
+  const sponsors = sanitizeList<Sponsor>(event.sponsors, ['name']);
+  const faqs = sanitizeList<Faq>(event.faqs, ['question', 'answer']);
 
   return (
     <>
@@ -159,13 +176,15 @@ export default async function EventPage({ params, searchParams }: { params: { sl
             )}
 
             {/* Agenda */}
-            {Array.isArray(event.agenda) && event.agenda.length > 0 && (
+            {agenda.length > 0 && (
               <div>
                 <h2 className="text-lg font-semibold text-gray-900 mb-4">Program / Agenda</h2>
                 <div className="space-y-3">
-                  {event.agenda.map((item, i) => (
+                  {agenda.map((item, i) => (
                     <div key={i} className="flex gap-4 p-4 bg-violet-50 rounded-xl">
-                      <div className="text-primary font-bold text-sm whitespace-nowrap min-w-[80px]">{item.time}</div>
+                      {item.time && (
+                        <div className="text-primary font-bold text-sm whitespace-nowrap min-w-[80px]">{item.time}</div>
+                      )}
                       <div>
                         <p className="font-semibold text-gray-900">{item.title}</p>
                         {item.description && <p className="text-sm text-gray-500 mt-0.5">{item.description}</p>}
@@ -177,11 +196,11 @@ export default async function EventPage({ params, searchParams }: { params: { sl
             )}
 
             {/* Sponsors */}
-            {Array.isArray(event.sponsors) && event.sponsors.length > 0 && (
+            {sponsors.length > 0 && (
               <div>
                 <h2 className="text-lg font-semibold text-gray-900 mb-4">Sponsors &amp; Partners</h2>
                 <div className="flex flex-wrap gap-6 items-center">
-                  {event.sponsors.map((s, i) => (
+                  {sponsors.map((s, i) => (
                     <div key={i} className="text-center">
                       {s.logoUrl ? (
                         <img src={s.logoUrl} alt={s.name} className="h-10 object-contain" />
@@ -195,11 +214,11 @@ export default async function EventPage({ params, searchParams }: { params: { sl
             )}
 
             {/* FAQs */}
-            {Array.isArray(event.faqs) && event.faqs.length > 0 && (
+            {faqs.length > 0 && (
               <div>
                 <h2 className="text-lg font-semibold text-gray-900 mb-4">Frequently Asked Questions</h2>
                 <div className="space-y-3">
-                  {event.faqs.map((faq, i) => (
+                  {faqs.map((faq, i) => (
                     <details key={i} className="group bg-gray-50 rounded-xl">
                       <summary className="flex justify-between items-center cursor-pointer p-4 font-medium text-gray-900 select-none">
                         {faq.question}

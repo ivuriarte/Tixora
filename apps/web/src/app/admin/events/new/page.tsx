@@ -129,15 +129,38 @@ export default function AdminNewEventPage() {
             }))
           : undefined,
       };
-      if (draft.agenda.length > 0) payload.agenda = draft.agenda;
-      if (draft.sponsors.length > 0) {
-        payload.sponsors = draft.sponsors.map((s) => ({
-          name: s.name,
-          ...(s.logoUrl && { logoUrl: s.logoUrl }),
-          ...(s.tier && { tier: s.tier }),
-        }));
+      if (draft.agenda.length > 0) {
+        const cleaned = draft.agenda
+          .filter((a) => a && typeof a === 'object' && !Array.isArray(a))
+          .map((a) => ({
+            time: (a.time ?? '').trim(),
+            title: (a.title ?? '').trim(),
+            ...(a.description?.trim() && { description: a.description.trim() }),
+          }))
+          .filter((a) => a.title.length > 0);
+        if (cleaned.length > 0) payload.agenda = cleaned;
       }
-      if (draft.faqs.length > 0) payload.faqs = draft.faqs;
+      if (draft.sponsors.length > 0) {
+        const cleaned = draft.sponsors
+          .filter((s) => s && typeof s === 'object' && !Array.isArray(s))
+          .map((s) => ({
+            name: (s.name ?? '').trim(),
+            ...(s.logoUrl && { logoUrl: s.logoUrl }),
+            ...(s.tier && { tier: s.tier }),
+          }))
+          .filter((s) => s.name.length > 0);
+        if (cleaned.length > 0) payload.sponsors = cleaned;
+      }
+      if (draft.faqs.length > 0) {
+        const cleaned = draft.faqs
+          .filter((f) => f && typeof f === 'object' && !Array.isArray(f))
+          .map((f) => ({
+            question: (f.question ?? '').trim(),
+            answer: (f.answer ?? '').trim(),
+          }))
+          .filter((f) => f.question.length > 0 && f.answer.length > 0);
+        if (cleaned.length > 0) payload.faqs = cleaned;
+      }
 
       const { data: eventData } = await api.post<{ data: { id: string } }>('/admin/events', payload);
       const eventId = eventData.data.id;
