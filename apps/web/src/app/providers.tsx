@@ -46,6 +46,20 @@ function AuthHydrator({ children }: { children: React.ReactNode }) {
 export default function Providers({ children }: { children: React.ReactNode }) {
   const queryClient = getQueryClient();
 
+  // Prevent the mouse-wheel from changing the value of focused number inputs.
+  // When the user scrolls the page while a <input type="number"> still has focus,
+  // the browser increments/decrements it. Blurring on wheel restores expected behaviour.
+  useEffect(() => {
+    function handleWheel(e: WheelEvent) {
+      const target = e.target as HTMLElement | null;
+      if (target && target.tagName === 'INPUT' && (target as HTMLInputElement).type === 'number' && document.activeElement === target) {
+        (target as HTMLInputElement).blur();
+      }
+    }
+    document.addEventListener('wheel', handleWheel, { passive: true });
+    return () => document.removeEventListener('wheel', handleWheel);
+  }, []);
+
   return (
     <QueryClientProvider client={queryClient}>
       <AuthHydrator>

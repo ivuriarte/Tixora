@@ -124,7 +124,7 @@ export function SponsorListManager({
     if (!draft.name.trim()) return;
     onChange([...sponsors, { ...draft, name: draft.name.trim() }]);
     setDraft({ name: '', logoUrl: '', tier: '' });
-    setShowAdd(false);
+    // keep panel open so user can immediately add another
   }
 
   return (
@@ -297,7 +297,7 @@ export function FaqListManager({
     if (!draft.question.trim() || !draft.answer.trim()) return;
     onChange([...faqs, { ...draft }]);
     setDraft({ question: '', answer: '' });
-    setShowAdd(false);
+    // keep panel open so user can immediately add another
   }
 
   return (
@@ -485,7 +485,7 @@ export function AgendaListManager({
     };
     onChange([...agenda, cleaned]);
     setDraft({ time: '', title: '', description: '' });
-    setShowAdd(false);
+    // keep panel open so user can immediately add another
   }
 
   return (
