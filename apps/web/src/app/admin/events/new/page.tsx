@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Navbar from '@/components/Navbar';
 import api from '@/lib/api';
@@ -15,26 +15,189 @@ function combineDatetime(date: string, time: string): string | undefined {
   return new Date(`${date}T${time}`).toISOString();
 }
 
+function todayStr() {
+  return new Date().toISOString().split('T')[0];
+}
+
+const REQ = <span className="text-red-500 ml-0.5">*</span>;
+
+// ── TimeSelect ─────────────────────────────────────────────────────────────────
+function TimeSelect({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const SELECT_CLS =
+    'rounded-lg border border-gray-300 px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-white';
+
+  const parse = (v: string) => {
+    if (!v) return { h12: 8, min: 0, period: 'AM' as 'AM' | 'PM' };
+    const [hh, mm] = v.split(':').map(Number);
+    const period: 'AM' | 'PM' = hh < 12 ? 'AM' : 'PM';
+    const h12 = hh === 0 ? 12 : hh > 12 ? hh - 12 : hh;
+    return { h12, min: mm ?? 0, period };
+  };
+
+  const emit = (h12: number, min: number, period: 'AM' | 'PM') => {
+    let h24 = h12 === 12 ? 0 : h12;
+    if (period === 'PM') h24 += 12;
+    if (h12 === 12 && period === 'PM') h24 = 12;
+    onChange(`${String(h24).padStart(2, '0')}:${String(min).padStart(2, '0')}`);
+  };
+
+  const { h12, min, period } = parse(value);
+
+  return (
+    <div className="flex items-center gap-1.5">
+      <select value={h12} onChange={(e) => emit(+e.target.value, min, period)}
+        className={SELECT_CLS}>
+        {[12, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11].map((h) => (
+          <option key={h} value={h}>{h}</option>
+        ))}
+      </select>
+      <span className="text-gray-400 font-bold text-sm select-none">:</span>
+      <select value={min} onChange={(e) => emit(h12, +e.target.value, period)}
+        className={SELECT_CLS}>
+        {[0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55].map((m) => (
+          <option key={m} value={m}>{String(m).padStart(2, '0')}</option>
+        ))}
+      </select>
+      <select value={period} onChange={(e) => emit(h12, min, e.target.value as 'AM' | 'PM')}
+        className={SELECT_CLS}>
+        <option value="AM">AM</option>
+        <option value="PM">PM</option>
+      </select>
+    </div>
+  );
+}
+
+// ── PaymentMethod types ───────────────────────────────────────────────────────
+interface LocalPaymentMethod {
+  key: number;
+  type: 'bank' | 'ewallet';
+  name: string;
+  accountName: string;
+  accountNumber: string;
+  qrFile: File | null;
+  qrPreview: string;
+  qrImageUrl: string;
+}
+
+function emptyPM(key: number): LocalPaymentMethod {
+  return { key, type: 'bank', name: '', accountName: '', accountNumber: '', qrFile: null, qrPreview: '', qrImageUrl: '' };
+}
+
+// ── PaymentMethodForm ─────────────────────────────────────────────────────────
+function PaymentMethodForm({
+  initial, onSave, onCancel,
+}: {
+  initial: LocalPaymentMethod;
+  onSave: (pm: LocalPaymentMethod) => void;
+  onCancel: () => void;
+}) {
+  const [pm, setPm] = useState<LocalPaymentMethod>(initial);
+  const fileRef = useRef<HTMLInputElement>(null);
+  const upd = (field: keyof LocalPaymentMethod, value: string) =>
+    setPm((prev) => ({ ...prev, [field]: value }));
+
+  const hasValue = pm.name.trim() || pm.accountName.trim() || pm.accountNumber.trim() || pm.qrFile;
+  const isNew = !initial.name && !initial.accountName && !initial.accountNumber;
+
+  function handleQrFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!['image/jpeg', 'image/png'].includes(file.type)) {
+      toast.error('Only JPG and PNG files are allowed');
+      e.target.value = '';
+      return;
+    }
+    const preview = URL.createObjectURL(file);
+    setPm((prev) => ({ ...prev, qrFile: file, qrPreview: preview }));
+  }
+
+  const INP = 'w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary';
+
+  return (
+    <div className="border border-primary/30 rounded-xl p-4 space-y-3 bg-primary/5">
+      <p className="font-medium text-sm text-gray-900">{isNew ? 'New Payment Method' : 'Edit Payment Method'}</p>
+      <div className="flex gap-3">
+        {(['bank', 'ewallet'] as const).map((t) => (
+          <button key={t} type="button"
+            onClick={() => setPm((prev) => ({ ...prev, type: t }))}
+            className={`flex-1 py-2 rounded-xl text-sm font-medium border transition-colors ${
+              pm.type === t ? 'bg-primary text-white border-primary' : 'bg-white text-gray-600 border-gray-300 hover:border-primary'
+            }`}>
+            {t === 'bank' ? '🏦 Bank Transfer' : '📱 E-Wallet'}
+          </button>
+        ))}
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <label className="block text-xs font-medium text-gray-600 mb-1">
+            {pm.type === 'bank' ? 'Bank Name' : 'E-Wallet Name'}
+          </label>
+          <input className={INP}
+            placeholder={pm.type === 'bank' ? 'e.g. BPI, BDO' : 'e.g. GCash, Maya'}
+            value={pm.name} onChange={(e) => upd('name', e.target.value)} />
+        </div>
+        <div>
+          <label className="block text-xs font-medium text-gray-600 mb-1">Account Name</label>
+          <input className={INP} placeholder="e.g. Juan Dela Cruz"
+            value={pm.accountName} onChange={(e) => upd('accountName', e.target.value)} />
+        </div>
+        <div className="col-span-2">
+          <label className="block text-xs font-medium text-gray-600 mb-1">
+            {pm.type === 'bank' ? 'Account Number' : 'Mobile / Account Number'}
+          </label>
+          <input className={INP}
+            placeholder={pm.type === 'bank' ? 'e.g. 1234-5678-90' : 'e.g. 0917-123-4567'}
+            value={pm.accountNumber} onChange={(e) => upd('accountNumber', e.target.value)} />
+        </div>
+      </div>
+      <div>
+        <label className="block text-xs font-medium text-gray-600 mb-1">
+          QR Code <span className="text-gray-400">(optional · JPG or PNG only)</span>
+        </label>
+        <input ref={fileRef} type="file" accept="image/jpeg,image/png" className="hidden" onChange={handleQrFile} />
+        {pm.qrPreview ? (
+          <div className="flex items-center gap-3">
+            <img src={pm.qrPreview} alt="QR preview" className="h-16 w-16 object-contain rounded border border-gray-200 bg-white" />
+            <button type="button"
+              onClick={() => { setPm((prev) => ({ ...prev, qrFile: null, qrPreview: '' })); if (fileRef.current) fileRef.current.value = ''; }}
+              className="text-xs text-red-500 hover:text-red-700">Remove</button>
+          </div>
+        ) : (
+          <button type="button" onClick={() => fileRef.current?.click()}
+            className="flex items-center gap-2 text-sm text-primary border border-dashed border-primary/40 rounded-lg px-3 py-2 hover:bg-primary/5 transition-colors">
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+            </svg>
+            Upload QR Code
+          </button>
+        )}
+      </div>
+      <div className="flex gap-2">
+        <button type="button" disabled={!hasValue} onClick={() => onSave(pm)}
+          className="bg-primary text-white font-semibold px-4 py-1.5 rounded-lg text-sm hover:bg-primary-hover disabled:opacity-40">
+          {isNew ? 'Add' : 'Save'}
+        </button>
+        <button type="button" onClick={onCancel}
+          className="border border-gray-300 text-gray-700 px-4 py-1.5 rounded-lg text-sm hover:bg-gray-50">Cancel</button>
+      </div>
+    </div>
+  );
+}
+
+// ── LocalTier + TierForm ──────────────────────────────────────────────────────
 interface LocalTier {
   key: number;
   name: string;
   description: string;
-  price: string; // pesos, e.g. "500"
+  price: string;
   totalQuantity: string;
   maxPerOrder: string;
   isVisible: boolean;
 }
 
 function emptyTier(key: number): LocalTier {
-  return { key, name: '', description: '', price: '', totalQuantity: '', maxPerOrder: '4', isVisible: true };
+  return { key, name: '', description: '', price: '', totalQuantity: '', maxPerOrder: '', isVisible: true };
 }
-
-function parseJsonSafe(raw: string): { ok: true; value: unknown } | { ok: false } {
-  if (!raw.trim()) return { ok: true, value: null };
-  try { return { ok: true, value: JSON.parse(raw) }; } catch { return { ok: false }; }
-}
-
-const REQ = <span className="text-red-500 ml-0.5">*</span>;
 
 // ── Page ──────────────────────────────────────────────────────────────────────
 
@@ -47,12 +210,13 @@ export default function AdminNewEventPage() {
     description: '',
     venue: '',
     address: '',
+    landmark: '',
     city: '',
+    maxCapacity: '',
     startDate: '',
-    startTime: '',
+    startTime: '08:00',
     endDate: '',
-    endTime: '',
-    maxPerUser: '',
+    endTime: '17:00',
   });
 
   const [speakerName, setSpeakerName] = useState('');
@@ -60,14 +224,12 @@ export default function AdminNewEventPage() {
   const [agenda, setAgenda] = useState<AgendaItem[]>([]);
   const [sponsors, setSponsors] = useState<SponsorItem[]>([]);
   const [faqs, setFaqs] = useState<FaqItem[]>([]);
-  const [jsonErrors, setJsonErrors] = useState<Record<string, string>>({});
 
-  // Payment configuration
-  const [allowManualPayment, setAllowManualPayment] = useState(true);
-  const [bankName, setBankName] = useState('');
-  const [bankAccountName, setBankAccountName] = useState('');
-  const [bankAccountNumber, setBankAccountNumber] = useState('');
-  const [gcashNumber, setGcashNumber] = useState('');
+  // Payment methods
+  const [paymentMethods, setPaymentMethods] = useState<LocalPaymentMethod[]>([]);
+  const [pmKey, setPmKey] = useState(0);
+  const [showAddPM, setShowAddPM] = useState(false);
+  const [editingPmKey, setEditingPmKey] = useState<number | null>(null);
 
   const [tiers, setTiers] = useState<LocalTier[]>([]);
   const [tierKey, setTierKey] = useState(0);
@@ -90,19 +252,19 @@ export default function AdminNewEventPage() {
     form.venue.trim() &&
     form.address.trim() &&
     form.city.trim() &&
+    parseInt(form.maxCapacity, 10) > 0 &&
     startsAtISO;
 
-  const hasJsonErrors = Object.keys(jsonErrors).length > 0;
+  const hasJsonErrors = false;
   const canSubmit = requiredFilled && tiers.length > 0 && !hasJsonErrors && !endBeforeStart;
 
-  function validateJson(raw: string, key: string) {
-    const result = parseJsonSafe(raw);
-    if (!result.ok) {
-      setJsonErrors((e) => ({ ...e, [key]: 'Invalid JSON. Must be a valid JSON array.' }));
-    } else {
-      setJsonErrors((e) => { const n = { ...e }; delete n[key]; return n; });
-    }
+  function addPaymentMethod(pm: LocalPaymentMethod) {
+    setPaymentMethods((prev) => [...prev, pm]);
+    setPmKey((k) => k + 1);
+    setShowAddPM(false);
   }
+
+  function validateJson(_raw: string, _key: string) { /* no-op */ }
   void validateJson;
 
   function addTier(t: LocalTier) {
@@ -124,22 +286,40 @@ export default function AdminNewEventPage() {
     setLoading(true);
 
     try {
+      // Upload any QR code files first
+      const resolvedPMs = await Promise.all(
+        paymentMethods.map(async (pm) => {
+          if (!pm.qrFile) return pm;
+          const fd = new FormData();
+          fd.append('image', pm.qrFile);
+          const res = await api.post<{ data: { url: string } }>('/upload/payment-qr', fd);
+          return { ...pm, qrImageUrl: res.data.data.url };
+        }),
+      );
+
       const payload: Record<string, unknown> = {
         title: form.title.trim(),
         description: form.description.trim(),
         venue: form.venue.trim(),
         address: form.address.trim() || undefined,
+        landmark: form.landmark.trim() || undefined,
         city: form.city.trim(),
+        maxCapacity: parseInt(form.maxCapacity, 10),
         startsAt: startsAtISO,
         endsAt: endsAtISO ?? undefined,
-        maxPerUser: form.maxPerUser ? parseInt(form.maxPerUser, 10) : undefined,
         speakerName: speakerName.trim() || undefined,
         imageUrl: imageUrl.trim() || undefined,
-        allowManualPayment,
-        bankName: bankName.trim() || undefined,
-        bankAccountName: bankAccountName.trim() || undefined,
-        bankAccountNumber: bankAccountNumber.trim() || undefined,
-        gcashNumber: gcashNumber.trim() || undefined,
+        allowManualPayment: resolvedPMs.length > 0,
+        paymentMethods:
+          resolvedPMs.length > 0
+            ? resolvedPMs.map((pm) => ({
+                type: pm.type,
+                name: pm.name.trim() || undefined,
+                accountName: pm.accountName.trim() || undefined,
+                accountNumber: pm.accountNumber.trim() || undefined,
+                qrImageUrl: pm.qrImageUrl || undefined,
+              }))
+            : undefined,
       };
       if (agenda.length > 0) payload.agenda = agenda;
       if (sponsors.length > 0) payload.sponsors = sponsors.map((s) => ({ name: s.name, ...(s.logoUrl && { logoUrl: s.logoUrl }), ...(s.tier && { tier: s.tier }) }));
@@ -196,35 +376,51 @@ export default function AdminNewEventPage() {
                 className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary resize-none" />
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Venue{REQ}</label>
-                <input name="venue" value={form.venue} onChange={update}
-                  placeholder="e.g. SMX Convention Center"
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">City{REQ}</label>
-                <input name="city" value={form.city} onChange={update}
-                  placeholder="e.g. Davao City"
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
-              </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Venue{REQ}</label>
+              <input name="venue" value={form.venue} onChange={update}
+                placeholder="e.g. SMX Convention Center"
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
             </div>
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Address{REQ}</label>
               <input name="address" value={form.address} onChange={update}
-                placeholder="e.g. SM Lanang Premier, JP Laurel Ave, Davao City 8000"
+                placeholder="e.g. JP Laurel Ave, Davao City 8000"
                 className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
             </div>
 
             <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Landmark <span className="text-gray-400 font-normal text-xs">(optional)</span>
+              </label>
+              <input name="landmark" value={form.landmark} onChange={update}
+                placeholder="e.g. Near SM Lanang Premier, beside BDO"
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">City{REQ}</label>
+              <input name="city" value={form.city} onChange={update}
+                placeholder="e.g. Davao City"
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Maximum Capacity{REQ}</label>
+              <input name="maxCapacity" type="number" min="1" value={form.maxCapacity} onChange={update}
+                placeholder="e.g. 500"
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
+              <p className="text-xs text-gray-400 mt-1">Total number of attendees allowed. Event will auto-switch to sold out when reached.</p>
+            </div>
+
+            <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Starts At{REQ}</label>
-              <div className="grid grid-cols-2 gap-3">
-                <input name="startDate" type="date" value={form.startDate} onChange={update}
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
-                <input name="startTime" type="time" value={form.startTime} onChange={update}
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
+              <div className="flex flex-wrap items-center gap-3">
+                <input name="startDate" type="date" min={todayStr()} value={form.startDate} onChange={update}
+                  className="rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
+                <TimeSelect value={form.startTime}
+                  onChange={(v) => setForm((f) => ({ ...f, startTime: v }))} />
               </div>
             </div>
 
@@ -232,11 +428,11 @@ export default function AdminNewEventPage() {
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Ends At <span className="text-gray-400 font-normal">(optional)</span>
               </label>
-              <div className="grid grid-cols-2 gap-3">
-                <input name="endDate" type="date" value={form.endDate} onChange={update}
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
-                <input name="endTime" type="time" value={form.endTime} onChange={update}
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
+              <div className="flex flex-wrap items-center gap-3">
+                <input name="endDate" type="date" min={form.startDate || todayStr()} value={form.endDate} onChange={update}
+                  className="rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
+                <TimeSelect value={form.endTime}
+                  onChange={(v) => setForm((f) => ({ ...f, endTime: v }))} />
               </div>
               {endBeforeStart && (
                 <div className="mt-2 flex items-center gap-2 bg-red-50 border border-red-200 rounded-lg px-3 py-2 text-sm text-red-600">
@@ -246,13 +442,6 @@ export default function AdminNewEventPage() {
                   End date/time must be after the start date/time.
                 </div>
               )}
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Max tickets per user</label>
-              <input name="maxPerUser" type="number" min={1} max={20} value={form.maxPerUser} onChange={update}
-                placeholder="e.g. 4"
-                className="w-32 rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
             </div>
           </section>
 
@@ -286,49 +475,73 @@ export default function AdminNewEventPage() {
           </section>
 
           {/* ── Payment Options ───────────────────────────────── */}
-          <section className="bg-white shadow rounded-2xl p-8 space-y-5">
-            <h2 className="font-semibold text-gray-900">
-              Payment Options <span className="text-gray-400 text-sm font-normal">(optional)</span>
-            </h2>
-
-            <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
-              <input type="checkbox" checked={allowManualPayment}
-                onChange={(e) => setAllowManualPayment(e.target.checked)} className="accent-primary" />
-              Accept manual payment (bank transfer / GCash with proof of payment)
-            </label>
-
-            {allowManualPayment && (
-              <div className="space-y-4 pl-6 border-l-2 border-primary/20">
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Bank Name</label>
-                    <input value={bankName} onChange={(e) => setBankName(e.target.value)}
-                      placeholder="e.g. BPI"
-                      className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Account Name</label>
-                    <input value={bankAccountName} onChange={(e) => setBankAccountName(e.target.value)}
-                      placeholder="e.g. Axon Tickets Inc."
-                      className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
-                  </div>
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Bank Account Number</label>
-                    <input value={bankAccountNumber} onChange={(e) => setBankAccountNumber(e.target.value)}
-                      placeholder="e.g. 1234-5678-90"
-                      className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">GCash Number</label>
-                    <input value={gcashNumber} onChange={(e) => setGcashNumber(e.target.value)}
-                      placeholder="e.g. 0917-123-4567"
-                      className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
-                  </div>
-                </div>
-                <p className="text-xs text-gray-400">These details are shown to attendees after registration.</p>
+          <section className="bg-white shadow rounded-2xl p-8 space-y-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="font-semibold text-gray-900">
+                  Payment Options <span className="text-gray-400 text-sm font-normal">(optional)</span>
+                </h2>
+                <p className="text-xs text-gray-400 mt-0.5">Add bank or e-wallet payment methods for attendees.</p>
               </div>
+              {!showAddPM && editingPmKey === null && (
+                <button type="button" onClick={() => setShowAddPM(true)}
+                  className="flex items-center gap-1.5 text-sm text-white bg-primary hover:bg-primary-hover px-3 py-1.5 rounded-lg font-medium transition-colors">
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                  </svg>
+                  Add Payment
+                </button>
+              )}
+            </div>
+
+            {paymentMethods.length > 0 && (
+              <div className="space-y-2">
+                {paymentMethods.map((pm) =>
+                  editingPmKey === pm.key ? (
+                    <PaymentMethodForm key={pm.key} initial={pm}
+                      onSave={(updated) => {
+                        setPaymentMethods((prev) => prev.map((p) => (p.key === updated.key ? updated : p)));
+                        setEditingPmKey(null);
+                      }}
+                      onCancel={() => setEditingPmKey(null)} />
+                  ) : (
+                    <div key={pm.key} className="flex items-center justify-between border border-gray-100 rounded-xl p-3">
+                      <div className="flex items-center gap-3">
+                        <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${
+                          pm.type === 'bank' ? 'bg-blue-100 text-blue-700' : 'bg-green-100 text-green-700'
+                        }`}>
+                          {pm.type === 'bank' ? 'Bank' : 'E-Wallet'}
+                        </span>
+                        <div>
+                          <p className="font-medium text-sm text-gray-800">{pm.name || '(no name)'}</p>
+                          {pm.accountNumber && <p className="text-xs text-gray-500">{pm.accountNumber}</p>}
+                        </div>
+                        {pm.qrPreview && (
+                          <img src={pm.qrPreview} alt="QR" className="h-8 w-8 object-contain rounded border border-gray-100" />
+                        )}
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <button type="button" onClick={() => setEditingPmKey(pm.key)}
+                          className="text-primary hover:underline text-xs">Edit</button>
+                        <button type="button" onClick={() => setPaymentMethods((prev) => prev.filter((p) => p.key !== pm.key))}
+                          className="text-red-500 hover:text-red-700 text-xs">Remove</button>
+                      </div>
+                    </div>
+                  )
+                )}
+              </div>
+            )}
+
+            {showAddPM && (
+              <PaymentMethodForm initial={emptyPM(pmKey)}
+                onSave={(pm) => addPaymentMethod(pm)}
+                onCancel={() => setShowAddPM(false)} />
+            )}
+
+            {paymentMethods.length === 0 && !showAddPM && (
+              <p className="text-sm text-gray-400 text-center py-4 border border-dashed border-gray-200 rounded-xl">
+                No payment methods added yet. Click <strong>Add Payment</strong> to get started.
+              </p>
             )}
           </section>
 
@@ -441,7 +654,8 @@ function TierForm({
     t.price !== '' &&
     !isNaN(parseFloat(t.price)) &&
     parseFloat(t.price) >= 0 &&
-    parseInt(t.totalQuantity, 10) > 0;
+    parseInt(t.totalQuantity, 10) > 0 &&
+    parseInt(t.maxPerOrder, 10) > 0;
 
   return (
     <div className="border border-primary/30 rounded-xl p-4 space-y-3 bg-primary/5">
@@ -472,9 +686,10 @@ function TierForm({
             onChange={(e) => upd('totalQuantity', e.target.value)} />
         </div>
         <div>
-          <label className="block text-xs font-medium text-gray-600 mb-1">Max Per Order</label>
+          <label className="block text-xs font-medium text-gray-600 mb-1">Max Per Order <span className="text-red-500">*</span></label>
           <input type="number" min={1} max={20}
             className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+            placeholder="e.g. 4"
             value={t.maxPerOrder}
             onChange={(e) => upd('maxPerOrder', e.target.value)} />
         </div>

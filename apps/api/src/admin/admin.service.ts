@@ -57,21 +57,21 @@ export class AdminService {
   }
 
   async deleteEvent(id: string) {
-    const event = await this.prisma.event.findUnique({ where: { id } });
+    const event = await this.prisma.event.findUnique({ where: { id }, select: { id: true } });
     if (!event) throw new NotFoundException('Event not found');
 
-    // Delete dependents that lack cascade from Event
-    const regs = await this.prisma.registration.findMany({ where: { eventId: id }, select: { id: true } });
-    if (regs.length > 0) {
-      await this.prisma.auditLog.deleteMany({ where: { registrationId: { in: regs.map((r) => r.id) } } });
-    }
-    await this.prisma.registration.deleteMany({ where: { eventId: id } });  // cascades Attendees, PaymentProofs
-    await this.prisma.order.deleteMany({ where: { eventId: id } });         // cascades OrderItems, Tickets, FraudFlags
-    await this.prisma.reservation.deleteMany({ where: { eventId: id } });
-    return this.prisma.event.delete({ where: { id } });                     // cascades TicketTiers, EventViews
+    // Single transaction: remove all dependents without a prior findMany round-trip
+    await this.prisma.$transaction([
+      this.prisma.auditLog.deleteMany({ where: { registration: { eventId: id } } }),
+      this.prisma.registration.deleteMany({ where: { eventId: id } }),   // cascades Attendees, PaymentProofs
+      this.prisma.order.deleteMany({ where: { eventId: id } }),          // cascades OrderItems, Tickets, FraudFlags
+      this.prisma.reservation.deleteMany({ where: { eventId: id } }),
+    ]);
+    return this.prisma.event.delete({ where: { id } });                  // cascades TicketTiers, EventViews
   }
 
   async listEvents(page = 1, limit = 20) {
+    await this.eventsService.autoCompleteExpiredEvents();
     const skip = (page - 1) * limit;
     const [total, events] = await Promise.all([
       this.prisma.event.count(),
@@ -97,6 +97,7 @@ export class AdminService {
         city: e.city,
         startsAt: e.startsAt.toISOString(),
         status: e.status,
+        maxCapacity: (e as any).maxCapacity ?? null,
         ticketsSold: e._count.tickets,
         ordersCount: e._count.orders,
         lowestPrice: e.tiers.length > 0

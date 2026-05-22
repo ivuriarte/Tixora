@@ -14,7 +14,6 @@ datasource db {
 
 enum EventStatus {
   draft
-  published
   on_sale
   sold_out
   cancelled
@@ -105,11 +104,13 @@ model Event {
   description  String?
   venue        String
   address      String?     @map("address")
+  landmark     String?     @map("landmark")
   city         String      @default("Manila")
   startsAt     DateTime    @map("starts_at")
   endsAt       DateTime?   @map("ends_at")
   imageUrl     String?     @map("image_url")
   status       EventStatus @default(draft)
+  maxCapacity  Int?        @map("max_capacity")
   maxPerUser   Int         @default(4) @map("max_per_user")
   // Conference-specific fields (added for Francis Kong MVP)
   speakerName  String?     @map("speaker_name")
@@ -117,7 +118,8 @@ model Event {
   sponsors     Json?       // Array of { name: string, logoUrl?: string, tier?: string }
   faqs         Json?       // Array of { question: string, answer: string }
   platformFee         Decimal     @default(50) @db.Decimal(10, 2) @map("platform_fee")
-  // Manual payment configuration
+  // Payment configuration
+  paymentMethods      Json?       @map("payment_methods")  // Array of PaymentMethod objects
   allowManualPayment  Boolean     @default(true) @map("allow_manual_payment")
   bankName            String?     @map("bank_name")
   bankAccountNumber   String?     @map("bank_account_number")

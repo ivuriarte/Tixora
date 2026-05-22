@@ -44,4 +44,25 @@ export class UploadController {
     if (!file) throw new BadRequestException('Image file is required');
     return this.uploadService.uploadEventImage(eventId, file.buffer, file.mimetype);
   }
+
+  @Post('payment-qr')
+  @ApiOperation({ summary: 'Upload a payment QR code image (admin only)' })
+  @ApiConsumes('multipart/form-data')
+  @UseInterceptors(
+    FileInterceptor('image', {
+      limits: { fileSize: 2 * 1024 * 1024 }, // 2 MB
+      fileFilter: (_req, file, cb) => {
+        const allowed = ['image/jpeg', 'image/png'];
+        if (!allowed.includes(file.mimetype)) {
+          cb(new BadRequestException('Only JPG and PNG allowed'), false);
+        } else {
+          cb(null, true);
+        }
+      },
+    }),
+  )
+  uploadPaymentQr(@UploadedFile() file: Express.Multer.File) {
+    if (!file) throw new BadRequestException('Image file is required');
+    return this.uploadService.uploadPaymentQr(file.buffer, file.mimetype);
+  }
 }

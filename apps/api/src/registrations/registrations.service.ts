@@ -419,7 +419,7 @@ export class RegistrationsService {
         proofs: { orderBy: { createdAt: 'desc' }, take: 1 },
         attendees: { orderBy: [{ isLead: 'desc' }, { createdAt: 'asc' }] },
         event: {
-          select: { id: true, title: true, startsAt: true, venue: true },
+          select: { id: true, title: true, startsAt: true, venue: true, maxCapacity: true },
         },
       },
     });
@@ -494,6 +494,20 @@ export class RegistrationsService {
     }
 
     this.logger.log({ msg: 'Registration approved', id, adminUserId });
+
+    // Auto sold-out: if the event has a capacity limit, check if we've now reached it
+    if (reg.event.maxCapacity) {
+      const verifiedAttendees = await this.prisma.attendee.count({
+        where: { registration: { eventId: reg.event.id, status: 'verified' } },
+      });
+      if (verifiedAttendees >= reg.event.maxCapacity) {
+        await this.prisma.event.updateMany({
+          where: { id: reg.event.id, status: 'on_sale' as any },
+          data: { status: 'sold_out' as any },
+        });
+      }
+    }
+
     return { message: 'Registration approved', id, status: 'verified' };
   }
 

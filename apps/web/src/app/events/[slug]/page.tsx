@@ -27,6 +27,7 @@ interface Event {
   description: string;
   venue: string;
   address?: string | null;
+  landmark?: string | null;
   city: string;
   startsAt: string;
   endsAt?: string | null;
@@ -45,6 +46,13 @@ interface Event {
   bankAccountNumber?: string | null;
   bankAccountName?: string | null;
   gcashNumber?: string | null;
+  paymentMethods?: Array<{
+    type: string;
+    name?: string;
+    accountName?: string;
+    accountNumber?: string;
+    qrImageUrl?: string;
+  }> | null;
 }
 
 async function getEvent(slug: string): Promise<Event | null> {
@@ -133,6 +141,9 @@ export default async function EventPage({ params, searchParams }: { params: { sl
                 {event.address && (
                   <p className="text-xs text-gray-500 mt-0.5">{event.address}</p>
                 )}
+                {event.landmark && (
+                  <p className="text-xs text-gray-400 mt-0.5">Near: {event.landmark}</p>
+                )}
               </div>
               <div>
                 <p className="text-gray-400 uppercase tracking-wide text-xs font-medium">City</p>
@@ -206,12 +217,13 @@ export default async function EventPage({ params, searchParams }: { params: { sl
 
           {/* Right: Tier selector / Registration panel */}
           <div className="mt-8 lg:mt-0">
-            {event.allowManualPayment ? (
+            {(event.paymentMethods?.length || event.allowManualPayment) ? (
               <RegistrationPanel
                 eventSlug={event.slug}
                 tiers={event.tiers}
                 bankName={event.bankName ?? null}
                 gcashNumber={event.gcashNumber ?? null}
+                paymentMethods={event.paymentMethods ?? null}
                 disabled={isPreview || isSoldOut || isCancelled}
               />
             ) : (

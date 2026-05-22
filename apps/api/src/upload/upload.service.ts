@@ -90,4 +90,20 @@ export class UploadService {
     });
     return { imageUrl: result.secure_url, cloudinaryPublicId: result.public_id };
   }
+
+  async uploadPaymentQr(buffer: Buffer, mimeType: string): Promise<{ url: string }> {
+    void mimeType;
+    const result = await new Promise<UploadApiResponse>((resolve, reject) => {
+      const stream = cloudinary.uploader.upload_stream(
+        { folder: 'axon-tickets/payment-qr', transformation: [{ quality: 'auto:good', fetch_format: 'auto' }] },
+        (error, result) => {
+          if (error || !result) reject(error ?? new Error('Upload failed'));
+          else resolve(result);
+        },
+      );
+      stream.end(buffer);
+    });
+    this.logger.log({ msg: 'Payment QR uploaded', url: result.secure_url });
+    return { url: result.secure_url };
+  }
 }

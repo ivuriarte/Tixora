@@ -1,13 +1,16 @@
 'use client';
 
+import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '@/lib/api';
 import Navbar from '@/components/Navbar';
+import ConfirmModal from '@/components/ConfirmModal';
 import Link from 'next/link';
 import { formatShortDate } from '@axon-tickets/utils';
 import toast from 'react-hot-toast';
 
-const STATUS_OPTIONS = ['draft', 'published', 'on_sale', 'sold_out', 'cancelled', 'completed'];
+// completed is auto-only — never in the dropdown
+const STATUS_OPTIONS = ['draft', 'on_sale', 'sold_out', 'cancelled'];
 
 function statusStyle(s: string) {
   if (s === 'on_sale') return 'bg-green-100 text-green-700';
@@ -42,6 +45,15 @@ interface DashboardStats {
 
 export default function AdminDashboardPage() {
   const queryClient = useQueryClient();
+
+  type ConfirmState = {
+    title: string;
+    message: string;
+    confirmLabel: string;
+    variant: 'danger' | 'warning';
+    onConfirm: () => void;
+  } | null;
+  const [dialog, setDialog] = useState<ConfirmState>(null);
 
   const { data, isLoading } = useQuery({
     queryKey: ['admin-events'],
@@ -88,6 +100,15 @@ export default function AdminDashboardPage() {
 
   return (
     <>
+      <ConfirmModal
+        open={dialog !== null}
+        title={dialog?.title ?? ''}
+        message={dialog?.message ?? ''}
+        confirmLabel={dialog?.confirmLabel}
+        variant={dialog?.variant ?? 'danger'}
+        onConfirm={() => { dialog?.onConfirm(); setDialog(null); }}
+        onCancel={() => setDialog(null)}
+      />
       <Navbar />
       <main className="max-w-6xl mx-auto px-4 py-10">
         <div className="flex items-center justify-between mb-8">
@@ -152,24 +173,47 @@ export default function AdminDashboardPage() {
               </div>
               <div className="flex items-center gap-3">
                 <span className="text-sm text-gray-500">{event.ticketsSold} sold</span>
-                <select
-                  value={event.status}
-                  onChange={(e) => statusMutation.mutate({ id: event.id, status: e.target.value })}
-                  disabled={statusMutation.isPending}
-                  className={`text-xs font-semibold px-2.5 py-1 rounded-full border-0 cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary ${statusStyle(event.status)}`}
-                >
-                  {STATUS_OPTIONS.map((s) => (
-                    <option key={s} value={s}>{s.replace('_', ' ')}</option>
-                  ))}
-                </select>
+                {event.status === 'completed' ? (
+                  <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${statusStyle(event.status)}`}>
+                    completed
+                  </span>
+                ) : (
+                  <select
+                    value={event.status}
+                    onChange={(e) => {
+                      const newStatus = e.target.value;
+                      if (newStatus === 'cancelled') {
+                        setDialog({
+                          title: `Cancel "${event.title}"?`,
+                          message: "This will mark the event as cancelled. Customers won't be able to purchase new tickets.",
+                          confirmLabel: 'Yes, cancel event',
+                          variant: 'warning',
+                          onConfirm: () => statusMutation.mutate({ id: event.id, status: 'cancelled' }),
+                        });
+                        return;
+                      }
+                      statusMutation.mutate({ id: event.id, status: newStatus });
+                    }}
+                    disabled={statusMutation.isPending}
+                    className={`text-xs font-semibold px-2.5 py-1 rounded-full border-0 cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary ${statusStyle(event.status)}`}
+                  >
+                    {STATUS_OPTIONS.map((s) => (
+                      <option key={s} value={s}>{s.replace('_', ' ')}</option>
+                    ))}
+                  </select>
+                )}
                 <Link href={`/admin/events/${event.id}`} className="text-sm text-primary hover:underline">
                   Edit
                 </Link>
                 <button
                   onClick={() => {
-                    if (confirm(`Delete "${event.title}"?\n\nThis permanently removes the event and all its data. This cannot be undone.`)) {
-                      deleteMutation.mutate(event.id);
-                    }
+                    setDialog({
+                      title: `Delete "${event.title}"?`,
+                      message: 'This permanently removes the event and all its data. This cannot be undone.',
+                      confirmLabel: 'Delete event',
+                      variant: 'danger',
+                      onConfirm: () => deleteMutation.mutate(event.id),
+                    });
                   }}
                   disabled={deleteMutation.isPending}
                   className="text-sm text-red-500 hover:text-red-700 font-medium disabled:opacity-40"

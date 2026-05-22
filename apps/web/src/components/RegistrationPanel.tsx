@@ -20,6 +20,13 @@ interface Props {
   tiers: Tier[];
   bankName: string | null;
   gcashNumber: string | null;
+  paymentMethods?: Array<{
+    type: string;
+    name?: string;
+    accountName?: string;
+    accountNumber?: string;
+    qrImageUrl?: string;
+  }> | null;
   disabled?: boolean;
 }
 
@@ -28,6 +35,7 @@ export default function RegistrationPanel({
   tiers,
   bankName,
   gcashNumber,
+  paymentMethods,
   disabled = false,
 }: Props) {
   const router = useRouter();
@@ -111,8 +119,31 @@ export default function RegistrationPanel({
         </div>
       )}
 
-      {/* Bank / GCash preview */}
-      {(bankName || gcashNumber) && (
+      {/* Payment methods — new card format */}
+      {paymentMethods && paymentMethods.length > 0 && (
+        <div className="space-y-2">
+          <p className="font-semibold text-gray-800 text-sm">Payment Options</p>
+          {paymentMethods.map((pm, i) => (
+            <div key={i} className="bg-violet-50 rounded-xl p-3 text-xs text-gray-600 space-y-1">
+              <span className={`inline-block text-xs font-bold px-2 py-0.5 rounded-full ${
+                pm.type === 'bank' ? 'bg-blue-100 text-blue-700' : 'bg-green-100 text-green-700'
+              }`}>
+                {pm.type === 'bank' ? 'Bank Transfer' : 'E-Wallet'}
+              </span>
+              {pm.name && <p className="font-medium text-gray-800">{pm.name}</p>}
+              {pm.accountName && <p>Account: {pm.accountName}</p>}
+              {pm.accountNumber && <p>Number: {pm.accountNumber}</p>}
+              {pm.qrImageUrl && (
+                <img src={pm.qrImageUrl} alt="Payment QR" className="mt-1 h-24 w-24 object-contain rounded border border-gray-200" />
+              )}
+            </div>
+          ))}
+          <p className="text-xs text-gray-400">Full details shown after registration</p>
+        </div>
+      )}
+
+      {/* Legacy flat fields fallback for old events */}
+      {(!paymentMethods || paymentMethods.length === 0) && (bankName || gcashNumber) && (
         <div className="bg-violet-50 rounded-xl p-3 text-xs text-gray-600 space-y-1">
           <p className="font-semibold text-gray-800 text-sm">Payment via bank transfer</p>
           {bankName && <p>{bankName}</p>}

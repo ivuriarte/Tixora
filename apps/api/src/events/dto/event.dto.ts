@@ -38,6 +38,12 @@ export class CreateEventDto {
   @MaxLength(300)
   address?: string;
 
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  landmark?: string;
+
   @ApiProperty({ required: false, default: 'Manila' })
   @IsOptional()
   @IsString()
@@ -59,6 +65,12 @@ export class CreateEventDto {
   @Min(1)
   @Max(20)
   maxPerUser?: number;
+
+  @ApiProperty({ required: false, description: 'Maximum total number of attendees for this event' })
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  maxCapacity?: number;
 
   // Conference-specific fields (Francis Kong MVP)
   @ApiProperty({ required: false, example: 'Francis Kong' })
@@ -119,6 +131,16 @@ export class CreateEventDto {
   @IsString()
   @MaxLength(30)
   gcashNumber?: string;
+
+  @ApiProperty({ required: false, description: 'Array of payment method objects (bank/ewallet)' })
+  @IsOptional()
+  paymentMethods?: Array<{
+    type: 'bank' | 'ewallet';
+    name?: string;
+    accountName?: string;
+    accountNumber?: string;
+    qrImageUrl?: string;
+  }>;
 }
 
 export class UpdateEventDto {
@@ -145,6 +167,11 @@ export class UpdateEventDto {
 
   @IsOptional()
   @IsString()
+  @MaxLength(200)
+  landmark?: string;
+
+  @IsOptional()
+  @IsString()
   @MaxLength(100)
   city?: string;
 
@@ -161,6 +188,11 @@ export class UpdateEventDto {
   @Min(1)
   @Max(20)
   maxPerUser?: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  maxCapacity?: number;
 
   @IsOptional()
   @IsString()
@@ -212,4 +244,13 @@ export class UpdateEventDto {
   @IsString()
   @MaxLength(30)
   gcashNumber?: string;
+
+  @IsOptional()
+  paymentMethods?: Array<{
+    type: 'bank' | 'ewallet';
+    name?: string;
+    accountName?: string;
+    accountNumber?: string;
+    qrImageUrl?: string;
+  }>;
 }

@@ -15,12 +15,28 @@ export class EventsService {
     private readonly redis: RedisService,
   ) {}
 
+  /** Auto-set expired on_sale/sold_out events to completed. Called on listing. */
+  async autoCompleteExpiredEvents() {
+    const now = new Date();
+    await this.prisma.event.updateMany({
+      where: {
+        status: { in: ['on_sale', 'sold_out'] as any[] },
+        OR: [
+          { endsAt: { lt: now } },
+          { endsAt: null, startsAt: { lt: now } },
+        ],
+      },
+      data: { status: 'completed' as any },
+    });
+  }
+
   async findAll(page = 1, limit = 20) {
+    await this.autoCompleteExpiredEvents();
     const safePage = Math.max(1, page);
     const safeLimit = Math.min(Math.max(1, limit), 100);
     const skip = (safePage - 1) * safeLimit;
     const where: Prisma.EventWhereInput = {
-      status: { in: ['published', 'on_sale', 'sold_out'] },
+      status: 'on_sale' as any,
     };
 
     const [total, events] = await Promise.all([
@@ -124,6 +140,7 @@ export class EventsService {
       imageUrl: event.imageUrl,
       status: event.status,
       maxPerUser: event.maxPerUser,
+      maxCapacity: event.maxCapacity ?? null,
       speakerName: event.speakerName ?? null,
       sponsors: event.sponsors ?? null,
       agenda: event.agenda ?? null,
@@ -147,10 +164,12 @@ export class EventsService {
         description: dto.description,
         venue: dto.venue,
         address: dto.address ?? null,
+        landmark: dto.landmark ?? null,
         city: dto.city ?? 'Manila',
         startsAt: new Date(dto.startsAt),
         endsAt: dto.endsAt ? new Date(dto.endsAt) : null,
         maxPerUser: dto.maxPerUser ?? 4,
+        ...(dto.maxCapacity !== undefined && { maxCapacity: dto.maxCapacity }),
         speakerName: dto.speakerName ?? null,
         agenda: (dto.agenda as Prisma.InputJsonValue | undefined) ?? Prisma.JsonNull,
         sponsors: (dto.sponsors as Prisma.InputJsonValue | undefined) ?? Prisma.JsonNull,
@@ -162,6 +181,8 @@ export class EventsService {
         ...(dto.bankAccountNumber !== undefined && { bankAccountNumber: dto.bankAccountNumber }),
         ...(dto.bankAccountName !== undefined && { bankAccountName: dto.bankAccountName }),
         ...(dto.gcashNumber !== undefined && { gcashNumber: dto.gcashNumber }),
+        ...(dto.landmark !== undefined && { landmark: dto.landmark }),
+        ...(dto.paymentMethods !== undefined && { paymentMethods: (dto.paymentMethods as Prisma.InputJsonValue | null) ?? Prisma.JsonNull }),
         createdById,
       },
     });
@@ -180,6 +201,7 @@ export class EventsService {
         ...(dto.startsAt && { startsAt: new Date(dto.startsAt) }),
         ...(dto.endsAt !== undefined && { endsAt: dto.endsAt ? new Date(dto.endsAt) : null }),
         ...(dto.maxPerUser && { maxPerUser: dto.maxPerUser }),
+        ...(dto.maxCapacity !== undefined && { maxCapacity: dto.maxCapacity }),
         ...(dto.status && { status: dto.status as any }),
         ...(dto.speakerName !== undefined && { speakerName: dto.speakerName }),
         ...(dto.agenda !== undefined && { agenda: (dto.agenda as Prisma.InputJsonValue | null) ?? Prisma.JsonNull }),
@@ -192,6 +214,8 @@ export class EventsService {
         ...(dto.bankAccountNumber !== undefined && { bankAccountNumber: dto.bankAccountNumber }),
         ...(dto.bankAccountName !== undefined && { bankAccountName: dto.bankAccountName }),
         ...(dto.gcashNumber !== undefined && { gcashNumber: dto.gcashNumber }),
+        ...(dto.landmark !== undefined && { landmark: dto.landmark }),
+        ...(dto.paymentMethods !== undefined && { paymentMethods: (dto.paymentMethods as Prisma.InputJsonValue | null) ?? Prisma.JsonNull }),
       },
     });
   }

@@ -5,6 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '@/lib/api';
 import Navbar from '@/components/Navbar';
+import ConfirmModal from '@/components/ConfirmModal';
 import Link from 'next/link';
 import toast from 'react-hot-toast';
 import { SponsorListManager, FaqListManager, AgendaListManager, type SponsorItem, type FaqItem, type AgendaItem } from '@/components/ConferenceFields';
@@ -35,6 +36,7 @@ interface EventDetail {
   startsAt: string;
   endsAt: string | null;
   maxPerUser: number;
+  maxCapacity: number | null;
   status: string;
   imageUrl?: string | null;
   speakerName?: string | null;
@@ -66,7 +68,8 @@ function parseJsonSafe(raw: string): { ok: true; value: unknown } | { ok: false 
   try { return { ok: true, value: JSON.parse(raw) }; } catch { return { ok: false }; }
 }
 
-const STATUS_OPTIONS = ['draft', 'published', 'on_sale', 'sold_out', 'cancelled', 'completed'];
+// completed is auto-only — never in the dropdown
+const STATUS_OPTIONS = ['draft', 'on_sale', 'sold_out', 'cancelled'];
 const REQ = <span className="text-red-500 ml-0.5">*</span>;
 
 // ── Tier inline edit form ──────────────────────────────────────────────────────
@@ -178,6 +181,7 @@ export default function AdminEventEditPage() {
   const [endDate, setEndDate] = useState('');
   const [endTime, setEndTime] = useState('');
   const [maxPerUser, setMaxPerUser] = useState('');
+  const [maxCapacity, setMaxCapacity] = useState('');
   const [status, setStatus] = useState('');
   const [speakerName, setSpeakerName] = useState('');
   const [imageUrl, setImageUrl] = useState('');
@@ -212,6 +216,7 @@ export default function AdminEventEditPage() {
         setEndTime(endLocal.slice(11, 16));
       }
       setMaxPerUser(String(event.maxPerUser ?? ''));
+      setMaxCapacity(event.maxCapacity != null ? String(event.maxCapacity) : '');
       setStatus(event.status ?? 'draft');
       setSpeakerName(event.speakerName ?? '');
       setImageUrl(event.imageUrl ?? '');
@@ -307,6 +312,16 @@ export default function AdminEventEditPage() {
     onError: () => toast.error('Failed to delete event'),
   });
 
+  // ── Confirm dialog ──────────────────────────────────────────────────────────
+  type ConfirmState = {
+    title: string;
+    message: string;
+    confirmLabel: string;
+    variant: 'danger' | 'warning';
+    onConfirm: () => void;
+  } | null;
+  const [dialog, setDialog] = useState<ConfirmState>(null);
+
   // ── Tier management ──────────────────────────────────────────────────────────
   const [editingTierId, setEditingTierId] = useState<string | null>(null);
   const [showAddTier, setShowAddTier] = useState(false);
@@ -359,6 +374,7 @@ export default function AdminEventEditPage() {
       startsAt: startsAtISO,
       endsAt: endsAtISO ?? null,
       maxPerUser: parseInt(maxPerUser, 10) || undefined,
+      maxCapacity: maxCapacity.trim() === '' ? null : parseInt(maxCapacity, 10),
       status,
       speakerName: speakerName.trim() || null,
       imageUrl: imageUrl.trim() || null,
@@ -402,6 +418,15 @@ export default function AdminEventEditPage() {
 
   return (
     <>
+      <ConfirmModal
+        open={dialog !== null}
+        title={dialog?.title ?? ''}
+        message={dialog?.message ?? ''}
+        confirmLabel={dialog?.confirmLabel}
+        variant={dialog?.variant ?? 'danger'}
+        onConfirm={() => { dialog?.onConfirm(); setDialog(null); }}
+        onCancel={() => setDialog(null)}
+      />
       <Navbar />
       <main className="max-w-3xl mx-auto px-4 py-10 space-y-8">
 
@@ -480,25 +505,44 @@ export default function AdminEventEditPage() {
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
-              <select className="w-full border border-gray-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                value={status}
-                onChange={(e) => {
-                  setStatus(e.target.value);
-                  statusMutation.mutate(e.target.value);
-                }}>
-                {STATUS_OPTIONS.map((s) => (
-                  <option key={s} value={s}>{s.replace('_', ' ')}</option>
-                ))}
-              </select>
+              {event.status === 'completed' ? (
+                <div className="w-full border border-gray-300 rounded-xl px-3 py-2 text-sm bg-gray-50 text-gray-600">
+                  completed <span className="text-xs text-gray-400 ml-2">(auto)</span>
+                </div>
+              ) : (
+                <select className="w-full border border-gray-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                  value={status}
+                  onChange={(e) => {
+                    const newStatus = e.target.value;
+                    if (newStatus === 'cancelled') {
+                      setDialog({
+                        title: `Cancel "${event.title}"?`,
+                        message: "This will mark the event as cancelled. Customers won't be able to purchase new tickets.",
+                        confirmLabel: 'Yes, cancel event',
+                        variant: 'warning',
+                        onConfirm: () => { setStatus('cancelled'); statusMutation.mutate('cancelled'); },
+                      });
+                      return;
+                    }
+                    setStatus(newStatus);
+                    statusMutation.mutate(newStatus);
+                  }}>
+                  {STATUS_OPTIONS.map((s) => (
+                    <option key={s} value={s}>{s.replace('_', ' ')}</option>
+                  ))}
+                </select>
+              )}
               {statusMutation.isPending && (
                 <p className="text-xs text-primary mt-1">Saving…</p>
               )}
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Max Per User</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Maximum Capacity</label>
               <input type="number" min={1}
                 className="w-full border border-gray-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                value={maxPerUser} onChange={(e) => setMaxPerUser(e.target.value)} />
+                placeholder="e.g. 500"
+                value={maxCapacity} onChange={(e) => setMaxCapacity(e.target.value)} />
+              <p className="text-xs text-gray-400 mt-1">Auto-switches to sold out when reached.</p>
             </div>
           </div>
 
@@ -518,18 +562,26 @@ export default function AdminEventEditPage() {
             )}
             <div className="flex items-center gap-3">
               <button
-                onClick={() => { if (confirm('Cancel this event? It will remain visible but marked as cancelled.')) statusMutation.mutate('cancelled'); }}
+                onClick={() => setDialog({
+                  title: `Cancel "${event.title}"?`,
+                  message: "This will mark the event as cancelled. Customers won't be able to purchase new tickets.",
+                  confirmLabel: 'Yes, cancel event',
+                  variant: 'warning',
+                  onConfirm: () => statusMutation.mutate('cancelled'),
+                })}
                 disabled={statusMutation.isPending || event.status === 'cancelled'}
                 className="text-amber-600 hover:text-amber-800 text-sm font-medium disabled:opacity-40"
               >
                 {event.status === 'cancelled' ? 'Already Cancelled' : 'Cancel Event'}
               </button>
               <button
-                onClick={() => {
-                  if (confirm(`Delete "${event.title}"?\n\nThis permanently removes the event and all its data. This cannot be undone.`)) {
-                    deleteMutation.mutate();
-                  }
-                }}
+                onClick={() => setDialog({
+                  title: `Delete "${event.title}"?`,
+                  message: 'This permanently removes the event and all its data. This cannot be undone.',
+                  confirmLabel: 'Delete event',
+                  variant: 'danger',
+                  onConfirm: () => deleteMutation.mutate(),
+                })}
                 disabled={deleteMutation.isPending}
                 className="text-red-600 hover:text-red-800 text-sm font-medium disabled:opacity-40"
               >
@@ -650,7 +702,13 @@ export default function AdminEventEditPage() {
                     <button onClick={() => setEditingTierId(tier.id)}
                       className="text-primary hover:underline text-xs">Edit</button>
                     <button
-                      onClick={() => { if (confirm(`Delete tier "${tier.name}"?`)) deleteTierMutation.mutate(tier.id); }}
+                      onClick={() => setDialog({
+                        title: `Delete tier "${tier.name}"?`,
+                        message: 'This will permanently remove the ticket tier.',
+                        confirmLabel: 'Delete tier',
+                        variant: 'danger',
+                        onConfirm: () => deleteTierMutation.mutate(tier.id),
+                      })}
                       disabled={tier.soldQuantity > 0}
                       className="text-red-500 hover:text-red-700 text-xs disabled:opacity-30 disabled:cursor-not-allowed"
                       title={tier.soldQuantity > 0 ? 'Cannot delete a tier with sold tickets' : 'Delete tier'}
