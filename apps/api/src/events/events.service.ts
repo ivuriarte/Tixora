@@ -15,15 +15,21 @@ export class EventsService {
     private readonly redis: RedisService,
   ) {}
 
-  /** Auto-set expired on_sale/sold_out events to completed. Called on listing. */
+  /**
+   * Auto-set expired on_sale/sold_out events to completed. Called on listing.
+   * Only completes when there is a definitive end time in the past:
+   *  - endsAt is set and in the past, OR
+   *  - endsAt is null but startsAt was more than 24h ago (grace window for single-day events).
+   */
   async autoCompleteExpiredEvents() {
     const now = new Date();
+    const graceCutoff = new Date(now.getTime() - 24 * 60 * 60 * 1000);
     await this.prisma.event.updateMany({
       where: {
         status: { in: ['on_sale', 'sold_out'] as any[] },
         OR: [
           { endsAt: { lt: now } },
-          { endsAt: null, startsAt: { lt: now } },
+          { endsAt: null, startsAt: { lt: graceCutoff } },
         ],
       },
       data: { status: 'completed' as any },
