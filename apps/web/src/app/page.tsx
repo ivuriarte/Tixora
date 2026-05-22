@@ -18,17 +18,16 @@ interface EventSummary {
   sponsors?: Array<{ name: string; logoUrl?: string; tier?: string }> | null;
 }
 
-async function getEvents(page = 1): Promise<{ data: EventSummary[]; meta: { total: number; totalPages: number }; _debug?: string }> {
+async function getEvents(page = 1): Promise<{ data: EventSummary[]; meta: { total: number; totalPages: number } }> {
   const baseUrl = (process.env.NEXT_PUBLIC_API_URL || 'https://api-tau-six-59.vercel.app/api/v1');
-  const fullUrl = `${baseUrl}/events?page=${page}&limit=12`;
   try {
-    const res = await fetch(fullUrl, { cache: 'no-store', signal: AbortSignal.timeout(8000) });
-    if (!res.ok) return { data: [], meta: { total: 0, totalPages: 0 }, _debug: `status=${res.status} url=${fullUrl}` };
+    const res = await fetch(`${baseUrl}/events?page=${page}&limit=12`, { cache: 'no-store', signal: AbortSignal.timeout(8000) });
+    if (!res.ok) return { data: [], meta: { total: 0, totalPages: 0 } };
     const json = await res.json();
-    const result = json.data ?? json;
-    return { ...result, _debug: `ok url=${fullUrl} keys=${Object.keys(json).join(',')} inner=${json.data ? Object.keys(json.data).join(',') : 'none'} count=${result?.data?.length ?? 'undef'}` };
-  } catch (err) {
-    return { data: [], meta: { total: 0, totalPages: 0 }, _debug: `error url=${fullUrl} ${String(err)}` };
+    // TransformInterceptor wraps: { success, data: { data: [...], meta } }
+    return json.data ?? json;
+  } catch {
+    return { data: [], meta: { total: 0, totalPages: 0 } };
   }
 }
 
@@ -167,9 +166,9 @@ export default async function HomePage({ searchParams }: { searchParams: { page?
 
   // Marketplace mode (default when no featured event)
   const page = parseInt(searchParams.page ?? '1', 10) || 1;
-  const { data: events, meta, _debug } = enableMarketplace
+  const { data: events, meta } = enableMarketplace
     ? await getEvents(page)
-    : { data: [], meta: { total: 0, totalPages: 0 }, _debug: 'marketplace_disabled' };
+    : { data: [], meta: { total: 0, totalPages: 0 } };
 
   return (
     <>
@@ -181,10 +180,7 @@ export default async function HomePage({ searchParams }: { searchParams: { page?
         </div>
 
         {events.length === 0 ? (
-          <div className="text-center py-20 text-gray-400">
-            No events available yet.
-            <div className="text-xs mt-4 text-red-500" data-debug>{_debug}</div>
-          </div>
+          <div className="text-center py-20 text-gray-400">No events available yet.</div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
             {events.map((event) => (
