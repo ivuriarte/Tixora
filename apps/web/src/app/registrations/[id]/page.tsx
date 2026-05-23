@@ -78,10 +78,10 @@ export default function RegistrationDetailPage() {
         <div className="text-center">
           <p className="text-gray-500">{error ?? 'Registration not found.'}</p>
           <button
-            onClick={() => router.push('/registrations')}
+            onClick={() => router.push('/account/tickets')}
             className="mt-4 text-primary text-sm hover:underline"
           >
-            Back to registrations
+            Back to My Events
           </button>
         </div>
       </main>
@@ -98,10 +98,10 @@ export default function RegistrationDetailPage() {
         {/* Header */}
         <div>
           <button
-            onClick={() => router.push('/registrations')}
+            onClick={() => router.push('/account/tickets')}
             className="text-sm text-gray-500 hover:text-gray-700"
           >
-            ← My Registrations
+            ← My Events
           </button>
           <div className="mt-3 flex items-start justify-between gap-4">
             <div>
