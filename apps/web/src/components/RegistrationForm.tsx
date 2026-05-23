@@ -126,7 +126,8 @@ export default function RegistrationForm({
 
       const res = await api.post('/registrations', payload);
       const reg = res.data?.data ?? res.data;
-      router.push(`/registrations/${reg.id}`);
+      // Send user to Step 2 (Payment & Proof Upload)
+      router.push(`/events/${eventSlug}/register/payment/${reg.id}`);
     } catch (err: unknown) {
       const msg =
         (err as { response?: { data?: { message?: string } } })?.response?.data?.message ??

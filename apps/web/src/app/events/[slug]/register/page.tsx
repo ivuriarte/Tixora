@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { getAccessToken } from '@/lib/auth';
 import RegistrationForm from '@/components/RegistrationForm';
+import CheckoutStepper from '@/components/CheckoutStepper';
 
 interface Tier {
   id: string;
@@ -88,6 +89,7 @@ export default function RegisterPage({
   return (
     <main className="min-h-screen bg-gray-50 py-10">
       <div className="max-w-2xl mx-auto px-4 sm:px-6">
+        <CheckoutStepper current={1} />
         <div className="mb-6">
           <a href={`/events/${event.slug}`} className="text-sm text-gray-500 hover:text-gray-700">
             ← Back to event

@@ -260,6 +260,7 @@ export class RegistrationsService {
             bankAccountNumber: true,
             bankAccountName: true,
             gcashNumber: true,
+            paymentMethods: true,
           },
         },
         attendees: { orderBy: [{ isLead: 'desc' }, { createdAt: 'asc' }] },
@@ -305,6 +306,7 @@ export class RegistrationsService {
         bankAccountNumber: reg.event.bankAccountNumber,
         bankAccountName: reg.event.bankAccountName,
         gcashNumber: reg.event.gcashNumber,
+        paymentMethods: reg.event.paymentMethods ?? null,
       },
       attendees: reg.attendees.map((a) => ({
         id: a.id,

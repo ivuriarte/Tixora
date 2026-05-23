@@ -41,6 +41,13 @@ export interface RegistrationEvent {
   bankAccountNumber: string | null;
   bankAccountName: string | null;
   gcashNumber: string | null;
+  paymentMethods?: Array<{
+    name: string;
+    type?: string;
+    accountName?: string;
+    accountNumber?: string;
+    instructions?: string;
+  }> | null;
 }
 
 export interface Registration {
