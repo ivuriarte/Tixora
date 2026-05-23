@@ -101,6 +101,21 @@ export default function AdminOrdersPage() {
         <div className="flex gap-3 mb-6 flex-wrap">
           <div>
             <label className="block text-xs font-medium text-gray-600 mb-1">
+              Event <span className="text-red-500">*</span>
+            </label>
+            <select
+              className="border border-gray-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary min-w-[240px]"
+              value={eventId}
+              onChange={(e) => { setEventId(e.target.value); setPage(1); }}
+            >
+              <option value="">Select event…</option>
+              {events?.map((ev) => (
+                <option key={ev.id} value={ev.id}>{ev.title}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1">
               Status <span className="text-red-500">*</span>
             </label>
             <select
@@ -113,21 +128,6 @@ export default function AdminOrdersPage() {
               <option value="pending">Pending</option>
               <option value="failed">Failed</option>
               <option value="refunded">Refunded</option>
-            </select>
-          </div>
-          <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">
-              Event <span className="text-red-500">*</span>
-            </label>
-            <select
-              className="border border-gray-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary min-w-[240px]"
-              value={eventId}
-              onChange={(e) => { setEventId(e.target.value); setPage(1); }}
-            >
-              <option value="">Select event…</option>
-              {events?.map((ev) => (
-                <option key={ev.id} value={ev.id}>{ev.title}</option>
-              ))}
             </select>
           </div>
         </div>
