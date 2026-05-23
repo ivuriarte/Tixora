@@ -28,6 +28,20 @@ export class RegistrationsService {
   ) {}
 
   async create(dto: CreateRegistrationDto, userId: string, ip?: string) {
+    try {
+      return await this.createImpl(dto, userId, ip);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      const stack = err instanceof Error ? err.stack : undefined;
+      this.logger.error(
+        `Registration create failed user=${userId} event=${dto.eventId} tier=${dto.tierId}: ${msg}`,
+        stack,
+      );
+      throw err;
+    }
+  }
+
+  private async createImpl(dto: CreateRegistrationDto, userId: string, ip?: string) {
     const event = await this.prisma.event.findUnique({
       where: { id: dto.eventId },
       include: { tiers: { where: { id: dto.tierId } } },
@@ -87,7 +101,7 @@ export class RegistrationsService {
         >`
           SELECT sold_quantity, total_quantity
           FROM ticket_tiers
-          WHERE id = ${dto.tierId}::uuid
+          WHERE id = ${dto.tierId}
           FOR UPDATE
         `;
 

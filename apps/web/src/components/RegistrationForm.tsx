@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { calculateFee } from '@axon-tickets/utils';
 import api from '@/lib/api';
+import { useAuthStore } from '@/store/auth.store';
 import type { CreateRegistrationDto } from '@axon-tickets/types';
 
 interface AttendeeFields {
@@ -24,6 +25,14 @@ const emptyAttendee = (): AttendeeFields => ({
   jobTitle: '',
 });
 
+interface PaymentMethod {
+  name: string;
+  type?: string;
+  accountName?: string;
+  accountNumber?: string;
+  instructions?: string;
+}
+
 interface Props {
   eventId: string;
   eventSlug: string;
@@ -31,6 +40,11 @@ interface Props {
   tierName: string;
   unitPrice: number;
   qty: number;
+  paymentMethods?: PaymentMethod[] | null;
+  bankName?: string | null;
+  bankAccountName?: string | null;
+  bankAccountNumber?: string | null;
+  paymentInstructions?: string | null;
 }
 
 export default function RegistrationForm({
@@ -40,11 +54,18 @@ export default function RegistrationForm({
   tierName,
   unitPrice,
   qty,
+  paymentMethods,
+  bankName,
+  bankAccountName,
+  bankAccountNumber,
+  paymentInstructions,
 }: Props) {
   const router = useRouter();
+  const currentUser = useAuthStore((s) => s.user);
   const [attendees, setAttendees] = useState<AttendeeFields[]>(() =>
     Array.from({ length: qty }, emptyAttendee),
   );
+  const [useMyDetails, setUseMyDetails] = useState(false);
   const [notes, setNotes] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -60,6 +81,28 @@ export default function RegistrationForm({
       return next;
     });
   };
+
+  const handleToggleMyDetails = (checked: boolean) => {
+    setUseMyDetails(checked);
+    if (checked && currentUser) {
+      setAttendees((prev) => {
+        const next = [...prev];
+        next[0] = {
+          ...next[0],
+          firstName: currentUser.firstName || next[0].firstName,
+          lastName: currentUser.lastName || next[0].lastName,
+          email: currentUser.email || next[0].email,
+        };
+        return next;
+      });
+    }
+  };
+
+  const hasPaymentDetails =
+    (paymentMethods && paymentMethods.length > 0) ||
+    bankName ||
+    bankAccountNumber ||
+    paymentInstructions;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -114,6 +157,85 @@ export default function RegistrationForm({
           <span className="text-primary">₱{total.toLocaleString()}</span>
         </div>
       </div>
+
+      {/* Payment details */}
+      {hasPaymentDetails && (
+        <div className="bg-white border border-gray-200 rounded-2xl p-5">
+          <h2 className="font-semibold text-gray-900 mb-3">Payment Details</h2>
+          <p className="text-xs text-gray-500 mb-3">
+            Pay manually using one of the methods below. Submit your proof of payment after registering.
+          </p>
+          <div className="space-y-3">
+            {paymentMethods?.map((m, idx) => (
+              <div key={idx} className="border border-gray-100 rounded-xl p-3 bg-gray-50">
+                <div className="flex items-center justify-between">
+                  <span className="font-semibold text-sm text-gray-900">{m.name}</span>
+                  {m.type && (
+                    <span className="text-[10px] uppercase tracking-wide bg-primary/10 text-primary px-2 py-0.5 rounded-full">
+                      {m.type}
+                    </span>
+                  )}
+                </div>
+                {m.accountName && (
+                  <div className="text-xs text-gray-600 mt-1">
+                    <span className="font-medium">Account Name:</span> {m.accountName}
+                  </div>
+                )}
+                {m.accountNumber && (
+                  <div className="text-xs text-gray-600">
+                    <span className="font-medium">Account No.:</span> {m.accountNumber}
+                  </div>
+                )}
+                {m.instructions && (
+                  <div className="text-xs text-gray-500 mt-1">{m.instructions}</div>
+                )}
+              </div>
+            ))}
+            {(bankName || bankAccountNumber) && (
+              <div className="border border-gray-100 rounded-xl p-3 bg-gray-50">
+                <div className="font-semibold text-sm text-gray-900">Bank Transfer</div>
+                {bankName && (
+                  <div className="text-xs text-gray-600 mt-1">
+                    <span className="font-medium">Bank:</span> {bankName}
+                  </div>
+                )}
+                {bankAccountName && (
+                  <div className="text-xs text-gray-600">
+                    <span className="font-medium">Account Name:</span> {bankAccountName}
+                  </div>
+                )}
+                {bankAccountNumber && (
+                  <div className="text-xs text-gray-600">
+                    <span className="font-medium">Account No.:</span> {bankAccountNumber}
+                  </div>
+                )}
+              </div>
+            )}
+            {paymentInstructions && (
+              <div className="text-xs text-gray-600 whitespace-pre-line">{paymentInstructions}</div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Autofill toggle */}
+      {currentUser && (
+        <div className="bg-white border border-gray-200 rounded-2xl p-4 flex items-start gap-3">
+          <input
+            id="use-my-details"
+            type="checkbox"
+            checked={useMyDetails}
+            onChange={(e) => handleToggleMyDetails(e.target.checked)}
+            className="mt-1 h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+          />
+          <label htmlFor="use-my-details" className="text-sm text-gray-700 cursor-pointer">
+            <span className="font-medium text-gray-900">Use my account details for Attendee 1</span>
+            <p className="text-xs text-gray-500 mt-0.5">
+              Auto-fill name and email from your profile ({currentUser.email}).
+            </p>
+          </label>
+        </div>
+      )}
 
       {/* Attendee forms */}
       {attendees.map((att, i) => (

@@ -13,6 +13,14 @@ interface Tier {
   maxPerOrder: number;
 }
 
+interface PaymentMethod {
+  name: string;
+  type?: string;
+  accountName?: string;
+  accountNumber?: string;
+  instructions?: string;
+}
+
 interface EventData {
   id: string;
   slug: string;
@@ -20,6 +28,12 @@ interface EventData {
   venue: string;
   startsAt: string;
   tiers: Tier[];
+  allowManualPayment?: boolean;
+  paymentMethods?: PaymentMethod[] | null;
+  bankName?: string | null;
+  bankAccountName?: string | null;
+  bankAccountNumber?: string | null;
+  paymentInstructions?: string | null;
 }
 
 export default function RegisterPage({
@@ -89,6 +103,11 @@ export default function RegisterPage({
           tierName={tier.name}
           unitPrice={tier.price}
           qty={qty}
+          paymentMethods={event.paymentMethods ?? null}
+          bankName={event.bankName ?? null}
+          bankAccountName={event.bankAccountName ?? null}
+          bankAccountNumber={event.bankAccountNumber ?? null}
+          paymentInstructions={event.paymentInstructions ?? null}
         />
       </div>
     </main>
