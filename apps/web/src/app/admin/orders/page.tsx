@@ -70,6 +70,8 @@ export default function AdminOrdersPage() {
         .then((r) => r.data.data);
     },
     enabled: filtersApplied,
+    staleTime: 15_000,
+    placeholderData: (prev) => prev,
   });
 
   return (
@@ -138,7 +140,19 @@ export default function AdminOrdersPage() {
 
         {/* Table */}
         {filtersApplied && (isLoading ? (
-          <p className="text-gray-400">Loading…</p>
+          <div className="bg-white shadow rounded-2xl overflow-hidden">
+            <table className="w-full text-sm">
+              <tbody className="divide-y divide-gray-100">
+                {[0, 1, 2, 3, 4].map((i) => (
+                  <tr key={i}>
+                    <td className="px-4 py-4">
+                      <div className="h-4 bg-gray-100 rounded animate-pulse-soft" />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         ) : (
           <>
             <div className="bg-white shadow rounded-2xl overflow-hidden">

@@ -66,6 +66,9 @@ export default function AdminDashboardPage() {
     queryFn: () =>
       api.get<{ data: DashboardStats }>('/admin/analytics/dashboard').then((r) => r.data.data),
     refetchInterval: 60_000,
+    refetchIntervalInBackground: false,
+    staleTime: 30_000,
+    refetchOnWindowFocus: false,
   });
 
   const statusMutation = useMutation({

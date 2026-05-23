@@ -167,6 +167,10 @@ export default function AdminAnalyticsPage() {
         .then((r) => r.data.data),
     enabled: !!selectedEventId,
     refetchInterval: 60_000,
+    refetchIntervalInBackground: false,
+    staleTime: 30_000,
+    refetchOnWindowFocus: false,
+    placeholderData: (prev) => prev,
   });
 
   // Timeline

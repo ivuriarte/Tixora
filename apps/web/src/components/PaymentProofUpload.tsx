@@ -16,6 +16,7 @@ export default function PaymentProofUpload({ registrationId, onUploaded }: Props
   const [preview, setPreview] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [progress, setProgress] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const handleSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -42,15 +43,22 @@ export default function PaymentProofUpload({ registrationId, onUploaded }: Props
     if (!file) return;
     setUploading(true);
     setError(null);
+    setProgress(0);
     try {
       const formData = new FormData();
       formData.append('file', file);
       formData.append('registrationId', registrationId);
       await api.post('/payment-proofs', formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
+        onUploadProgress: (evt) => {
+          if (evt.total) {
+            setProgress(Math.round((evt.loaded * 100) / evt.total));
+          }
+        },
       });
       setFile(null);
       setPreview(null);
+      setProgress(0);
       if (inputRef.current) inputRef.current.value = '';
       onUploaded();
     } catch (e: unknown) {
@@ -68,23 +76,42 @@ export default function PaymentProofUpload({ registrationId, onUploaded }: Props
         type="file"
         accept="image/jpeg,image/png,image/webp"
         onChange={handleSelect}
-        className="block w-full text-sm text-gray-700 file:mr-3 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-primary/10 file:text-primary file:font-medium hover:file:bg-primary/20"
+        disabled={uploading}
+        className="block w-full text-sm text-gray-700 file:mr-3 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-primary/10 file:text-primary file:font-medium hover:file:bg-primary/20 disabled:opacity-50"
       />
       {preview && (
         // eslint-disable-next-line @next/next/no-img-element
         <img
           src={preview}
           alt="Proof preview"
-          className="w-full max-h-72 object-contain rounded-lg border border-gray-200"
+          className="w-full max-h-72 object-contain rounded-lg border border-gray-200 animate-fade-in"
         />
       )}
-      {error && <p className="text-sm text-red-600">{error}</p>}
+      {error && (
+        <p className="text-sm text-red-600 animate-slide-down" role="alert">
+          {error}
+        </p>
+      )}
+      {uploading && (
+        <div className="space-y-1" aria-live="polite">
+          <div className="flex justify-between text-xs text-gray-500">
+            <span>Uploading…</span>
+            <span>{progress}%</span>
+          </div>
+          <div className="h-2 w-full bg-gray-100 rounded-full overflow-hidden">
+            <div
+              className="h-full bg-primary transition-all duration-200 ease-out"
+              style={{ width: `${progress}%` }}
+            />
+          </div>
+        </div>
+      )}
       <button
         onClick={handleUpload}
         disabled={!file || uploading}
-        className="w-full py-3 rounded-xl bg-primary text-white text-sm font-medium hover:opacity-90 disabled:opacity-50 transition-opacity"
+        className="w-full py-3 rounded-xl bg-primary text-white text-sm font-semibold hover:opacity-90 disabled:opacity-50 transition-all duration-200 active:scale-[0.98] disabled:active:scale-100"
       >
-        {uploading ? 'Uploading…' : 'Submit Payment Proof'}
+        {uploading ? `Uploading… ${progress}%` : 'Submit Payment Proof'}
       </button>
       <p className="text-xs text-gray-500">
         JPG / PNG / WEBP · Max 5 MB. Make sure the reference number and amount are visible.

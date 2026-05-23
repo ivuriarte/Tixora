@@ -240,7 +240,11 @@ export default function RegistrationForm({
 
       {/* Attendee forms */}
       {attendees.map((att, i) => (
-        <div key={i} className="bg-white border border-gray-200 rounded-2xl p-5 space-y-4">
+        <div
+          key={i}
+          className="bg-white border border-gray-200 rounded-2xl p-5 space-y-4 animate-fade-in-up"
+          style={{ animationDelay: `${i * 60}ms`, animationFillMode: 'both' }}
+        >
           <h3 className="font-semibold text-gray-900">
             Attendee {i + 1}
             {i === 0 && (

@@ -55,6 +55,9 @@ export default function AdminRegistrationsPage() {
         )
         .then((r) => r.data.data.data),
     enabled: !!eventId,
+    staleTime: 15_000,
+    placeholderData: (prev) => prev,
+    refetchOnWindowFocus: false,
   });
 
   return (
@@ -99,7 +102,15 @@ export default function AdminRegistrationsPage() {
           <p className="text-gray-500 text-sm">Pick an event to view registrations.</p>
         )}
 
-        {eventId && isLoading && <p className="text-gray-400 text-sm">Loading…</p>}
+        {eventId && isLoading && (
+          <div className="bg-white shadow rounded-2xl overflow-hidden">
+            {[0, 1, 2, 3, 4].map((i) => (
+              <div key={i} className="px-4 py-4 border-b border-gray-100 last:border-0">
+                <div className="h-4 bg-gray-100 rounded animate-pulse-soft" />
+              </div>
+            ))}
+          </div>
+        )}
 
         {eventId && regs && regs.length === 0 && (
           <p className="text-gray-500 text-sm">No registrations match the filter.</p>

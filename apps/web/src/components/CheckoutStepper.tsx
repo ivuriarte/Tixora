@@ -37,11 +37,16 @@ export default function CheckoutStepper({ current }: Props) {
 
           return (
             <li key={step.id} className="flex items-center gap-2 sm:gap-3 min-w-0">
-              <div className={`${dotBase} ${dotCls}`} aria-current={isActive ? 'step' : undefined}>
+              <div
+                className={`${dotBase} ${dotCls} transition-all duration-300 ease-out ${
+                  isActive ? 'scale-110' : 'scale-100'
+                }`}
+                aria-current={isActive ? 'step' : undefined}
+              >
                 {isDone ? (
                   <svg
                     xmlns="http://www.w3.org/2000/svg"
-                    className="h-4 w-4"
+                    className="h-4 w-4 animate-fade-in"
                     viewBox="0 0 20 20"
                     fill="currentColor"
                     aria-hidden
@@ -56,13 +61,13 @@ export default function CheckoutStepper({ current }: Props) {
                   step.id
                 )}
               </div>
-              <span className={`text-xs sm:text-sm whitespace-nowrap truncate ${labelCls}`}>
+              <span className={`text-xs sm:text-sm whitespace-nowrap truncate transition-colors duration-200 ${labelCls}`}>
                 {step.label}
               </span>
               {idx < STEPS.length - 1 && (
                 <span
                   aria-hidden
-                  className={`hidden sm:block h-px w-8 sm:w-12 ${
+                  className={`hidden sm:block h-px w-8 sm:w-12 transition-colors duration-500 ${
                     isDone ? 'bg-primary' : 'bg-gray-200'
                   }`}
                 />

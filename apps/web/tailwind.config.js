@@ -54,9 +54,24 @@ module.exports = {
           from: { opacity: '0', transform: 'scale(0.95)' },
           to:   { opacity: '1', transform: 'scale(1)' },
         },
+        'fade-in-up': {
+          from: { opacity: '0', transform: 'translateY(8px)' },
+          to:   { opacity: '1', transform: 'translateY(0)' },
+        },
+        'slide-down': {
+          from: { opacity: '0', transform: 'translateY(-8px)' },
+          to:   { opacity: '1', transform: 'translateY(0)' },
+        },
+        'pulse-soft': {
+          '0%, 100%': { opacity: '1' },
+          '50%': { opacity: '0.6' },
+        },
       },
       animation: {
-        'fade-in': 'fade-in 0.15s ease-out',
+        'fade-in': 'fade-in 0.18s ease-out',
+        'fade-in-up': 'fade-in-up 0.25s ease-out',
+        'slide-down': 'slide-down 0.2s ease-out',
+        'pulse-soft': 'pulse-soft 1.5s ease-in-out infinite',
       },
     },
   },

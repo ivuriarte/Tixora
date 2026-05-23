@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import Link from 'next/link';
+import toast from 'react-hot-toast';
 import api from '@/lib/api';
 import Navbar from '@/components/Navbar';
 import BackButton from '@/components/BackButton';
@@ -69,7 +70,6 @@ export default function VerificationsQueuePage() {
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [bulkBusy, setBulkBusy] = useState(false);
-  const [bulkMessage, setBulkMessage] = useState<string | null>(null);
 
   const fetchEvents = useCallback(async () => {
     try {
@@ -90,6 +90,9 @@ export default function VerificationsQueuePage() {
       return;
     }
     setLoading(true);
+    // Clear stale rows immediately to avoid showing previous event's data
+    setRows([]);
+    setSelected(new Set());
     try {
       const params = new URLSearchParams();
       params.set('eventId', eventId);
@@ -136,22 +139,26 @@ export default function VerificationsQueuePage() {
     const ids = Array.from(selected);
     if (!ids.length) return;
     if (ids.length > 20) {
-      setBulkMessage('Maximum 20 per bulk action.');
+      toast.error('Maximum 20 per bulk action.');
       return;
     }
     if (!confirm(`Approve ${ids.length} registration${ids.length === 1 ? '' : 's'}?`)) return;
     setBulkBusy(true);
-    setBulkMessage(null);
+    const tid = toast.loading(`Approving ${ids.length}…`);
     try {
       const res = await api.post('/admin/verifications/bulk-approve', { ids });
       const body = unwrap<{ message: string; results: Array<{ id: string; ok: boolean; error?: string }> }>(res);
       const succeeded = body.results.filter((r) => r.ok).length;
       const failed = body.results.length - succeeded;
-      setBulkMessage(`Approved ${succeeded}${failed ? ` · ${failed} failed` : ''}`);
+      if (failed === 0) {
+        toast.success(`Approved ${succeeded}`, { id: tid });
+      } else {
+        toast.error(`Approved ${succeeded} · ${failed} failed`, { id: tid });
+      }
       await fetchRows();
     } catch (e: unknown) {
       const err = e as { response?: { data?: { message?: string } } };
-      setBulkMessage(err.response?.data?.message ?? 'Bulk approve failed.');
+      toast.error(err.response?.data?.message ?? 'Bulk approve failed.', { id: tid });
     } finally {
       setBulkBusy(false);
     }
@@ -215,7 +222,9 @@ export default function VerificationsQueuePage() {
             </select>
           </div>
           <div className="ml-auto flex items-center gap-3">
-            {bulkMessage && <span className="text-xs text-gray-600">{bulkMessage}</span>}
+            {selected.size > 0 && (
+              <span className="text-xs text-gray-500">{selected.size} selected</span>
+            )}
             <button
               onClick={bulkApprove}
               disabled={bulkBusy || selectedEligible === 0}
@@ -285,7 +294,7 @@ export default function VerificationsQueuePage() {
                         {r.tierName ?? '—'} × {r.attendeeCount}
                       </td>
                       <td className="px-4 py-3 text-right font-medium">
-                        ₱{Number(r.total).toLocaleString()}
+                        ₱{(Number(r.total) / 100).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </td>
                       <td className="px-4 py-3">
                         <span

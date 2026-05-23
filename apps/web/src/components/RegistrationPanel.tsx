@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { formatPHP, centavosToPeso } from '@axon-tickets/utils';
 
@@ -55,6 +55,7 @@ export default function RegistrationPanel({
   disabled = false,
 }: Props) {
   const router = useRouter();
+  const [isPending, startTransition] = useTransition();
   const availableTiers = tiers.filter((t) => t.availableQuantity > 0);
   const [selectedId, setSelectedId] = useState<string>(availableTiers[0]?.id ?? '');
   const [qty, setQty] = useState(1);
@@ -64,7 +65,9 @@ export default function RegistrationPanel({
 
   const handleRegister = () => {
     if (!selectedId) return;
-    router.push(`/events/${eventSlug}/register?tierId=${selectedId}&qty=${qty}`);
+    startTransition(() => {
+      router.push(`/events/${eventSlug}/register?tierId=${selectedId}&qty=${qty}`);
+    });
   };
 
   if (tiers.length === 0) {
@@ -170,11 +173,17 @@ export default function RegistrationPanel({
 
       <button
         type="button"
-        disabled={!selectedId || disabled || maxQty === 0}
+        disabled={!selectedId || disabled || maxQty === 0 || isPending}
         onClick={handleRegister}
-        className="w-full py-3 rounded-xl bg-primary text-white font-semibold text-sm hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+        className="w-full py-3 rounded-xl bg-primary text-white font-semibold text-sm hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 active:scale-[0.98] disabled:active:scale-100 inline-flex items-center justify-center"
       >
-        {disabled ? 'Unavailable' : 'Register Now'}
+        {isPending && (
+          <svg className="animate-spin -ml-1 mr-2 h-4 w-4" fill="none" viewBox="0 0 24 24">
+            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
+          </svg>
+        )}
+        {isPending ? 'Loading…' : disabled ? 'Unavailable' : 'Register Now'}
       </button>
     </div>
   );

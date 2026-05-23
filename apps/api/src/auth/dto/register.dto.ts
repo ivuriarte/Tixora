@@ -6,10 +6,18 @@ export class RegisterDto {
   @IsEmail()
   email: string;
 
-  @ApiProperty({ minLength: 8 })
+  @ApiProperty({
+    minLength: 8,
+    description:
+      'Min 8 chars, must contain at least one uppercase letter, one lowercase letter, and one digit.',
+  })
   @IsString()
   @MinLength(8)
   @MaxLength(72)
+  @Matches(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).+$/, {
+    message:
+      'Password must contain at least one uppercase letter, one lowercase letter, and one digit',
+  })
   password: string;
 
   @ApiProperty({ example: 'Juan' })

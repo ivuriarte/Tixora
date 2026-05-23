@@ -153,16 +153,26 @@ export class RegistrationsService {
     const lead = registration.attendees.find((a) => a.isLead) ?? registration.attendees[0];
     if (lead && event.bankName && event.bankAccountNumber && event.bankAccountName) {
       const webBase = this.config.get<string>('webUrl') ?? 'https://axon-tickets-app.vercel.app';
-      await this.emailService.sendRegistrationConfirmation(
-        lead.email,
-        lead.firstName,
-        referenceNumber,
-        event.title,
-        event.bankName,
-        event.bankAccountNumber,
-        event.bankAccountName,
-        `${webBase}/registrations/${registration.id}`,
-      );
+      try {
+        await this.emailService.sendRegistrationConfirmation(
+          lead.email,
+          lead.firstName,
+          referenceNumber,
+          event.title,
+          event.bankName,
+          event.bankAccountNumber,
+          event.bankAccountName,
+          `${webBase}/registrations/${registration.id}`,
+        );
+      } catch (e: unknown) {
+        // Log but do not fail the registration creation - user can re-fetch bank details from the page
+        const err = e as Error;
+        this.logger.warn({
+          msg: 'Registration confirmation email failed',
+          regId: registration.id,
+          err: err.message,
+        });
+      }
     }
 
     await this.audit.log({

@@ -64,7 +64,26 @@ export default function Providers({ children }: { children: React.ReactNode }) {
     <QueryClientProvider client={queryClient}>
       <AuthHydrator>
         {children}
-        <Toaster position="top-center" toastOptions={{ duration: 4000 }} />
+        <Toaster
+          position="top-center"
+          toastOptions={{
+            duration: 4000,
+            style: {
+              borderRadius: '12px',
+              padding: '12px 16px',
+              fontSize: '14px',
+              maxWidth: '420px',
+            },
+            success: {
+              duration: 4000,
+              iconTheme: { primary: '#16a34a', secondary: '#fff' },
+            },
+            error: {
+              duration: 6000,
+              iconTheme: { primary: '#dc2626', secondary: '#fff' },
+            },
+          }}
+        />
         {process.env.NODE_ENV === 'development' && <ReactQueryDevtools />}
       </AuthHydrator>
     </QueryClientProvider>

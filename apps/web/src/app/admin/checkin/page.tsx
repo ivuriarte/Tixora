@@ -345,7 +345,7 @@ export default function AdminCheckinPage() {
 
         {/* Result card */}
         {result && (
-          <div className="bg-green-50 border border-green-200 rounded-2xl p-6 space-y-2">
+          <div className="bg-green-50 border border-green-200 rounded-2xl p-6 space-y-2 animate-fade-in-up" role="status" aria-live="polite">
             <p className="text-2xl text-center">✅</p>
             <p className="font-bold text-gray-900 text-center text-lg">{result.attendeeName}</p>
             <div className="text-sm text-gray-600 text-center space-y-0.5">
