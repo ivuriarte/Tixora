@@ -110,4 +110,58 @@ export class SchedulerService {
     });
     this.logger.log({ msg: 'OTP cleanup complete', deleted: count });
   }
+
+  /**
+   * Orphan registration cleanup.
+   * Runs every hour. Cancels pending_payment registrations older than 2 hours
+   * where the user abandoned the flow before uploading proof. Releases the
+   * reserved seats back to the tier's soldQuantity so inventory stays accurate.
+   */
+  @Cron('0 * * * *')
+  async cleanupOrphanRegistrations(): Promise<void> {
+    const cutoff = new Date(Date.now() - 2 * 60 * 60 * 1000);
+
+    const orphans = await this.prisma.registration.findMany({
+      where: {
+        status: 'pending_payment',
+        createdAt: { lt: cutoff },
+      },
+      select: {
+        id: true,
+        tierId: true,
+        attendeeCount: true,
+      },
+    });
+
+    if (!orphans.length) return;
+
+    this.logger.log({ msg: 'Orphan cleanup: found stale registrations', count: orphans.length });
+
+    for (const reg of orphans) {
+      try {
+        await this.prisma.$transaction([
+          this.prisma.registration.update({
+            where: { id: reg.id },
+            data: { status: 'cancelled' },
+          }),
+          ...(reg.tierId
+            ? [
+                this.prisma.ticketTier.update({
+                  where: { id: reg.tierId },
+                  data: { soldQuantity: { decrement: reg.attendeeCount } },
+                }),
+              ]
+            : []),
+        ]);
+
+        this.logger.log({ msg: 'Orphan registration cancelled', id: reg.id });
+      } catch (err: unknown) {
+        this.logger.error({
+          msg: 'Orphan cleanup failed for registration',
+          id: reg.id,
+          err: (err as Error).message,
+        });
+      }
+    }
+  }
 }

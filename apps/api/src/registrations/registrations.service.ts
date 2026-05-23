@@ -56,6 +56,24 @@ export class RegistrationsService {
     const tier = event.tiers[0];
     if (!tier) throw new NotFoundException('Ticket tier not found');
 
+    // Duplicate registration guard: block if user already has an active
+    // registration for this event (pending_payment or proof_submitted).
+    const activeRegistration = await this.prisma.registration.findFirst({
+      where: {
+        userId,
+        eventId: dto.eventId,
+        status: { in: ['pending_payment', 'proof_submitted'] },
+      },
+      select: { id: true, status: true },
+    });
+    if (activeRegistration) {
+      throw new BadRequestException(
+        activeRegistration.status === 'proof_submitted'
+          ? 'You already have a registration awaiting review for this event.'
+          : 'You already have an incomplete registration for this event. Please complete your existing registration or wait for it to expire.',
+      );
+    }
+
     const attendeeCount = dto.attendees.length;
     if (attendeeCount > tier.maxPerOrder) {
       throw new BadRequestException(
