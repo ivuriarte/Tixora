@@ -1,9 +1,35 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import ImageUploader from './event-wizard/ImageUploader';
 import TimeSelect from './event-wizard/TimeSelect';
 import ReorderButtons, { moveItem } from './ReorderButtons';
+
+/**
+ * Auto-commit hook: if the user typed a valid entry into the "+ Add" panel
+ * but navigated away (e.g. clicked Next in the wizard) without clicking the
+ * explicit Add button, flush the in-progress draft on unmount so the data
+ * isn't silently lost.
+ */
+function useFlushPendingDraft<T>(args: {
+  showAdd: boolean;
+  draft: T;
+  items: T[];
+  isValid: (d: T) => boolean;
+  clean: (d: T) => T;
+  onChange: (items: T[]) => void;
+}) {
+  const ref = useRef(args);
+  ref.current = args;
+  useEffect(() => {
+    return () => {
+      const { showAdd, draft, items, isValid, clean, onChange } = ref.current;
+      if (showAdd && isValid(draft)) {
+        onChange([...items, clean(draft)]);
+      }
+    };
+  }, []);
+}
 
 // ── Time format helpers (agenda stores "h:MM AM/PM"; TimeSelect uses "HH:MM") ──
 
@@ -137,6 +163,15 @@ export function SponsorListManager({
   const [editingIdx, setEditingIdx] = useState<number | null>(null);
   const [showAdd, setShowAdd] = useState(false);
   const [draft, setDraft] = useState<SponsorItem>({ name: '', logoUrl: '', tier: '' });
+
+  useFlushPendingDraft<SponsorItem>({
+    showAdd,
+    draft,
+    items: sponsors,
+    isValid: (d) => d.name.trim().length > 0,
+    clean: (d) => ({ ...d, name: d.name.trim() }),
+    onChange,
+  });
 
   function startEdit(idx: number) {
     setDraft({ ...sponsors[idx] });
@@ -315,6 +350,15 @@ export function FaqListManager({
   const [editingIdx, setEditingIdx] = useState<number | null>(null);
   const [showAdd, setShowAdd] = useState(false);
   const [draft, setDraft] = useState<FaqItem>({ question: '', answer: '' });
+
+  useFlushPendingDraft<FaqItem>({
+    showAdd,
+    draft,
+    items: faqs,
+    isValid: (d) => d.question.trim().length > 0 && d.answer.trim().length > 0,
+    clean: (d) => ({ question: d.question.trim(), answer: d.answer.trim() }),
+    onChange,
+  });
 
   function startEdit(idx: number) {
     setDraft({ ...faqs[idx] });
@@ -497,6 +541,19 @@ export function AgendaListManager({
   const [editingIdx, setEditingIdx] = useState<number | null>(null);
   const [showAdd, setShowAdd] = useState(false);
   const [draft, setDraft] = useState<AgendaItem>({ time: '', title: '', description: '' });
+
+  useFlushPendingDraft<AgendaItem>({
+    showAdd,
+    draft,
+    items: agenda,
+    isValid: (d) => d.time.trim().length > 0 && d.title.trim().length > 0,
+    clean: (d) => ({
+      time: d.time.trim(),
+      title: d.title.trim(),
+      ...(d.description?.trim() ? { description: d.description.trim() } : {}),
+    }),
+    onChange,
+  });
 
   function startEdit(idx: number) {
     setDraft({ ...agenda[idx], description: agenda[idx].description ?? '' });
