@@ -1,5 +1,6 @@
 import Navbar from '@/components/Navbar';
 import EventCard from '@/components/EventCard';
+import AdminRedirect from '@/components/AdminRedirect';
 import Link from 'next/link';
 import Image from 'next/image';
 
@@ -80,6 +81,7 @@ export default async function HomePage({ searchParams }: { searchParams: { page?
 
       return (
         <>
+          <AdminRedirect />
           <Navbar />
           <main>
             {/* Hero */}
@@ -185,6 +187,7 @@ export default async function HomePage({ searchParams }: { searchParams: { page?
 
   return (
     <>
+      <AdminRedirect />
       <Navbar />
       <main className="bg-gray-50 min-h-screen">
         {/* Netflix-style featured hero */}
