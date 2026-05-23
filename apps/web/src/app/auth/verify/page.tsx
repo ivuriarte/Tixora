@@ -166,7 +166,7 @@ function VerifyForm() {
           </Button>
 
           <div className="text-center space-y-1">
-            <p className="text-xs text-gray-400">Didn't receive a code?</p>
+            <p className="text-xs text-gray-400">Didn&apos;t receive a code?</p>
             <button
               type="button"
               onClick={handleResend}

@@ -266,7 +266,7 @@ export default function AdminCheckinPage() {
         {/* Manual input tab */}
         {tab === 'manual' && (
           <div className="bg-white shadow rounded-2xl p-6 space-y-4">
-            <p className="text-sm text-gray-500">Paste or type the QR token from the attendee's email.</p>
+            <p className="text-sm text-gray-500">Paste or type the QR token from the attendee&apos;s email.</p>
             <input
               autoFocus
               type="text"
