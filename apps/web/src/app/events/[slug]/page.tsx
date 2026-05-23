@@ -158,14 +158,17 @@ export default async function EventPage({ params, searchParams }: { params: { sl
                 {event.address && (
                   <p className="text-xs text-gray-500 mt-0.5">{event.address}</p>
                 )}
-                {event.landmark && (
-                  <p className="text-xs text-gray-400 mt-0.5">Near: {event.landmark}</p>
-                )}
               </div>
               <div>
                 <p className="text-gray-400 uppercase tracking-wide text-xs font-medium">City</p>
                 <p className="font-medium mt-0.5">{event.city}</p>
               </div>
+              {event.landmark && (
+                <div>
+                  <p className="text-gray-400 uppercase tracking-wide text-xs font-medium">Landmark</p>
+                  <p className="font-medium mt-0.5">{event.landmark}</p>
+                </div>
+              )}
             </div>
 
             {event.description && (

@@ -58,7 +58,10 @@ export default function RegistrationPanel({
   const [isPending, startTransition] = useTransition();
   const availableTiers = tiers.filter((t) => t.availableQuantity > 0);
   const [selectedId, setSelectedId] = useState<string>(availableTiers[0]?.id ?? '');
-  const [qty, setQty] = useState(1);
+  const [qty, setQty] = useState(() => {
+    const first = tiers.find((t) => t.availableQuantity > 0);
+    return first ? Math.min(first.maxPerOrder, first.availableQuantity) : 1;
+  });
 
   const selected = tiers.find((t) => t.id === selectedId);
   const maxQty = Math.min(selected?.maxPerOrder ?? 10, selected?.availableQuantity ?? 0);
@@ -91,7 +94,7 @@ export default function RegistrationPanel({
               key={tier.id}
               type="button"
               disabled={soldOut || disabled}
-              onClick={() => { setSelectedId(tier.id); setQty(1); }}
+              onClick={() => { setSelectedId(tier.id); setQty(Math.min(tier.maxPerOrder, tier.availableQuantity)); }}
               className={`w-full text-left p-3 rounded-xl border transition-colors ${
                 selectedId === tier.id
                   ? 'border-primary bg-violet-50'
@@ -114,8 +117,8 @@ export default function RegistrationPanel({
         })}
       </div>
 
-      {/* Quantity */}
-      {selected && !disabled && (
+      {/* Quantity — hidden when tier only allows 1 per transaction */}
+      {selected && !disabled && maxQty > 1 && (
         <div className="flex items-center gap-3">
           <span className="text-sm text-gray-600">Attendees</span>
           <div className="flex items-center gap-2 ml-auto">

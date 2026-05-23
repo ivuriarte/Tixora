@@ -28,7 +28,7 @@ interface AdminReg {
   rejectionReason: string | null;
   verifiedAt: string | null;
   createdAt: string;
-  event: { title: string; slug: string; startsAt: string; venue: string };
+  event: { title: string; slug: string; startsAt: string; venue: string; address: string | null; landmark: string | null };
   user: { email: string; firstName: string; lastName: string };
   attendees: Array<{
     id: string;
@@ -188,6 +188,12 @@ export default function AdminRegistrationDetailPage() {
             <p className="text-xs text-gray-400 mt-0.5">
               {formatManila(new Date(reg.event.startsAt))} · {reg.event.venue}
             </p>
+            {reg.event.address && (
+              <p className="text-xs text-gray-400 mt-0.5">{reg.event.address}</p>
+            )}
+            {reg.event.landmark && (
+              <p className="text-xs text-gray-400 mt-0.5">Near: {reg.event.landmark}</p>
+            )}
           </div>
           <span
             className={`shrink-0 text-xs font-semibold px-3 py-1.5 rounded-full ${

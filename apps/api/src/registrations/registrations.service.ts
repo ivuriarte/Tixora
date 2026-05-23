@@ -272,6 +272,7 @@ export class RegistrationsService {
             bankAccountName: true,
             gcashNumber: true,
             paymentMethods: true,
+            landmark: true,
           },
         },
         attendees: { orderBy: [{ isLead: 'desc' }, { createdAt: 'asc' }] },
@@ -318,6 +319,7 @@ export class RegistrationsService {
         bankAccountName: reg.event.bankAccountName,
         gcashNumber: reg.event.gcashNumber,
         paymentMethods: reg.event.paymentMethods ?? null,
+        landmark: reg.event.landmark,
       },
       attendees: reg.attendees.map((a) => ({
         id: a.id,
@@ -452,7 +454,7 @@ export class RegistrationsService {
     const reg = await this.prisma.registration.findUnique({
       where: { id },
       include: {
-        event: { select: { title: true, slug: true, startsAt: true, venue: true } },
+        event: { select: { title: true, slug: true, startsAt: true, venue: true, address: true, landmark: true } },
         attendees: { orderBy: [{ isLead: 'desc' }, { createdAt: 'asc' }] },
         proofs: { orderBy: { createdAt: 'desc' } },
         user: { select: { id: true, email: true, firstName: true, lastName: true } },

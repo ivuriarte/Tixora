@@ -121,6 +121,7 @@ export default function RegistrationDetailPage() {
           <p className="font-semibold text-gray-900">{reg.event.title}</p>
           <p>{formatManila(new Date(reg.event.startsAt))} · {reg.event.venue}</p>
           {reg.event.address && <p>{reg.event.address}</p>}
+          {reg.event.landmark && <p>Near: {reg.event.landmark}</p>}
         </div>
 
         {/* Payment instructions */}

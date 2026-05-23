@@ -36,6 +36,7 @@ export interface RegistrationEvent {
   endsAt: string | null;
   venue: string;
   address: string | null;
+  landmark: string | null;
   imageUrl: string | null;
   bankName: string | null;
   bankAccountNumber: string | null;
