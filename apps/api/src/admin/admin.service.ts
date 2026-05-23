@@ -433,7 +433,7 @@ export class AdminService {
   // ── Attendees ──────────────────────────────────────────────────────────
 
   /**
-   * P6-06 — Search attendees by name or email within an event (for manual check-in).
+   * P6-06 — Search attendees by name, email, or transaction reference number within an event.
    */
   async checkinSearch(eventId: string, q: string, page = 1, limit = 20) {
     if (!eventId) throw new BadRequestException('eventId is required');
@@ -451,6 +451,7 @@ export class AdminService {
         { firstName: { contains: term, mode: 'insensitive' } },
         { lastName: { contains: term, mode: 'insensitive' } },
         { email: { contains: term, mode: 'insensitive' } },
+        { registration: { referenceNumber: { contains: term, mode: 'insensitive' } } },
       ];
     }
 
@@ -463,7 +464,12 @@ export class AdminService {
         orderBy: [{ isLead: 'desc' }, { createdAt: 'asc' }],
         include: {
           registration: {
-            select: { status: true, tierName: true, event: { select: { title: true } } },
+            select: {
+              status: true,
+              tierName: true,
+              referenceNumber: true,
+              event: { select: { title: true } },
+            },
           },
         },
       }),
@@ -476,6 +482,7 @@ export class AdminService {
         lastName: a.lastName,
         email: a.email,
         tierName: a.registration.tierName ?? null,
+        referenceNumber: a.registration.referenceNumber,
         eventTitle: a.registration.event.title,
         registrationStatus: a.registration.status,
         checkedInAt: a.checkedInAt?.toISOString() ?? null,
@@ -913,11 +920,38 @@ export class AdminService {
   // ── Dashboard Stats ─────────────────────────────────────────────────────
 
   async getDashboardStats(eventId?: string) {
-    // When scoped to a specific event use a direct eventId filter.
-    // For the global dashboard, restrict to completed events only so the
-    // revenue and tickets-sold figures reflect settled, closed events.
-    const eventFilter = eventId ? { eventId } : {};
-    const completedEventFilter = eventId ? {} : { event: { status: 'completed' as const } };
+    // Build an explicit eventId filter so every query uses a direct scalar
+    // comparison rather than a relation-based filter, which is unambiguous.
+    // For the global dashboard we resolve all completed-event IDs up front;
+    // no record from a non-completed event can ever slip through.
+    let scopeFilter: { eventId: string } | { eventId: { in: string[] } };
+
+    if (eventId) {
+      scopeFilter = { eventId };
+    } else {
+      const completedEvents = await this.prisma.event.findMany({
+        where: { status: 'completed' },
+        select: { id: true },
+      });
+      const ids = completedEvents.map((e) => e.id);
+
+      if (ids.length === 0) {
+        return {
+          totalTicketsSold: 0,
+          paidOrders: 0,
+          pendingOrders: 0,
+          checkedInTickets: 0,
+          verifiedRegistrations: 0,
+          pendingRegistrations: 0,
+          checkedInAttendees: 0,
+          totalRegistrations: 0,
+          totalCheckedIn: 0,
+          grossRevenue: 0,
+        };
+      }
+
+      scopeFilter = { eventId: { in: ids } };
+    }
 
     const [
       totalTicketsSold,
@@ -930,21 +964,19 @@ export class AdminService {
       checkedInAttendees,
       registrationRevenueAgg,
     ] = await Promise.all([
-      this.prisma.ticket.count({ where: { ...eventFilter, ...completedEventFilter, status: { in: ['valid', 'used'] } } }),
-      this.prisma.order.count({ where: { ...eventFilter, ...completedEventFilter, status: 'paid' } }),
-      this.prisma.order.count({ where: { ...eventFilter, ...completedEventFilter, status: 'pending' } }),
-      this.prisma.ticket.count({ where: { ...eventFilter, ...completedEventFilter, status: 'used' } }),
-      this.prisma.order.aggregate({ where: { ...eventFilter, ...completedEventFilter, status: 'paid' }, _sum: { total: true } }),
+      this.prisma.ticket.count({ where: { ...scopeFilter, status: { in: ['valid', 'used'] } } }),
+      this.prisma.order.count({ where: { ...scopeFilter, status: 'paid' } }),
+      this.prisma.order.count({ where: { ...scopeFilter, status: 'pending' } }),
+      this.prisma.ticket.count({ where: { ...scopeFilter, status: 'used' } }),
+      this.prisma.order.aggregate({ where: { ...scopeFilter, status: 'paid' }, _sum: { total: true } }),
       // Registration flow
-      this.prisma.registration.count({ where: { ...eventFilter, ...completedEventFilter, status: 'verified' } }),
-      this.prisma.registration.count({ where: { ...eventFilter, ...completedEventFilter, status: 'pending_payment' } }),
+      this.prisma.registration.count({ where: { ...scopeFilter, status: 'verified' } }),
+      this.prisma.registration.count({ where: { ...scopeFilter, status: 'pending_payment' } }),
       this.prisma.attendee.count({
-        where: eventId
-          ? { registration: { eventId }, checkedInAt: { not: null } }
-          : { registration: { event: { status: 'completed' } }, checkedInAt: { not: null } },
+        where: { registration: scopeFilter, checkedInAt: { not: null } },
       }),
       this.prisma.registration.aggregate({
-        where: { ...eventFilter, ...completedEventFilter, status: 'verified' },
+        where: { ...scopeFilter, status: 'verified' },
         _sum: { total: true },
       }),
     ]);
@@ -954,16 +986,13 @@ export class AdminService {
       Number(registrationRevenueAgg._sum.total ?? 0);
 
     return {
-      // Legacy
       totalTicketsSold,
       paidOrders,
       pendingOrders,
       checkedInTickets,
-      // Registration flow
       verifiedRegistrations,
       pendingRegistrations,
       checkedInAttendees,
-      // Combined
       totalRegistrations: totalTicketsSold + verifiedRegistrations,
       totalCheckedIn: checkedInTickets + checkedInAttendees,
       grossRevenue,

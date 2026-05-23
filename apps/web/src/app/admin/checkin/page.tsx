@@ -24,6 +24,7 @@ interface AttendeeRow {
   lastName: string;
   email: string;
   tierName: string | null;
+  referenceNumber: string;
   eventTitle: string;
   registrationStatus: string;
   checkedInAt: string | null;
@@ -36,7 +37,7 @@ interface Event {
   status: string;
 }
 
-type Tab = 'camera' | 'manual' | 'search';
+type Tab = 'camera' | 'search';
 
 export default function AdminCheckinPage() {
   const [tab, setTab] = useState<Tab>('camera');
@@ -50,10 +51,6 @@ export default function AdminCheckinPage() {
   const readerRef = useRef<any>(null);
   const [cameraActive, setCameraActive] = useState(false);
   const [cameraError, setCameraError] = useState('');
-
-  // Manual token input
-  const [qrToken, setQrToken] = useState('');
-  const [loading, setLoading] = useState(false);
 
   // Search
   const [searchQ, setSearchQ] = useState('');
@@ -100,7 +97,7 @@ export default function AdminCheckinPage() {
         }
         if (err && !(err.name === 'NotFoundException')) {
           // NotFoundException fires constantly while waiting for QR — suppress it
-          setCameraError('Camera error. Please use manual input.');
+          setCameraError('Camera error. Switch to Search to look up by name or transaction ID.');
           stopCamera();
         }
       });
@@ -123,7 +120,6 @@ export default function AdminCheckinPage() {
   async function handleCheckin(token: string) {
     const t = token.trim();
     if (!t) return;
-    setLoading(true);
     setResult(null);
     try {
       const res = await api.post<{ data: CheckinResult }>('/admin/checkin', { qrToken: t });
@@ -138,9 +134,6 @@ export default function AdminCheckinPage() {
       } else {
         toast.error(msg);
       }
-    } finally {
-      setLoading(false);
-      setQrToken('');
     }
   }
 
@@ -178,13 +171,6 @@ export default function AdminCheckinPage() {
     }
   }
 
-  // Auto-submit on scan paste (barcode scanner sends newline)
-  function handleTokenChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const val = e.target.value;
-    setQrToken(val);
-    if (val.includes('\n') || val.length > 100) handleCheckin(val.trim());
-  }
-
   // ── Render ─────────────────────────────────────────────────────────────────
 
   return (
@@ -211,7 +197,7 @@ export default function AdminCheckinPage() {
 
         {/* Tabs */}
         <div className="flex gap-1 bg-gray-100 p-1 rounded-xl">
-          {(['camera', 'manual', 'search'] as Tab[]).map((t) => (
+          {(['camera', 'search'] as Tab[]).map((t) => (
             <button
               key={t}
               onClick={() => setTab(t)}
@@ -219,7 +205,7 @@ export default function AdminCheckinPage() {
                 tab === t ? 'bg-white shadow text-gray-900' : 'text-gray-500 hover:text-gray-700'
               }`}
             >
-              {t === 'camera' ? '📷 Camera' : t === 'manual' ? '⌨️ Manual Input' : '🔍 Search'}
+              {t === 'camera' ? '📷 Camera' : '🔍 Search'}
             </button>
           ))}
         </div>
@@ -263,29 +249,6 @@ export default function AdminCheckinPage() {
           </div>
         )}
 
-        {/* Manual input tab */}
-        {tab === 'manual' && (
-          <div className="bg-white shadow rounded-2xl p-6 space-y-4">
-            <p className="text-sm text-gray-500">Paste or type the QR token from the attendee&apos;s email.</p>
-            <input
-              autoFocus
-              type="text"
-              value={qrToken}
-              onChange={handleTokenChange}
-              placeholder="Paste QR token here…"
-              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-primary"
-            />
-            <Button
-              onClick={() => handleCheckin(qrToken)}
-              loading={loading}
-              disabled={!qrToken.trim()}
-              className="w-full"
-            >
-              Check In
-            </Button>
-          </div>
-        )}
-
         {/* Search tab */}
         {tab === 'search' && (
           <div className="bg-white shadow rounded-2xl p-6 space-y-4">
@@ -295,7 +258,7 @@ export default function AdminCheckinPage() {
                 value={searchQ}
                 onChange={(e) => setSearchQ(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && runSearch()}
-                placeholder="Name or email…"
+                placeholder="Name, email or transaction ID…"
                 className="flex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
               />
               <Button onClick={runSearch} loading={searching} disabled={!selectedEventId}>
@@ -315,6 +278,7 @@ export default function AdminCheckinPage() {
                       </p>
                       <p className="text-xs text-gray-500 truncate">{a.email}</p>
                       <p className="text-xs text-gray-400">{a.tierName ?? '—'}</p>
+                      <p className="text-xs text-gray-400 font-mono"># {a.referenceNumber}</p>
                     </div>
                     <div className="flex-shrink-0 text-right">
                       {a.checkedInAt ? (

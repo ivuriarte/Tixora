@@ -272,6 +272,39 @@ export class RegistrationsService {
     };
   }
 
+  /**
+   * Check whether the current user already has an active (non-cancelled / non-rejected)
+   * registration for a given event. Used to prevent duplicate registrations.
+   */
+  async checkForEvent(userId: string, eventId: string) {
+    const reg = await this.prisma.registration.findFirst({
+      where: {
+        userId,
+        eventId,
+        status: { notIn: ['cancelled', 'rejected'] },
+      },
+      select: {
+        id: true,
+        referenceNumber: true,
+        status: true,
+        tierName: true,
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    return {
+      hasRegistration: !!reg,
+      registration: reg
+        ? {
+            id: reg.id,
+            referenceNumber: reg.referenceNumber,
+            status: reg.status,
+            tierName: reg.tierName,
+          }
+        : null,
+    };
+  }
+
   async findById(id: string, userId: string) {
     const reg = await this.prisma.registration.findFirst({
       where: { id, userId },

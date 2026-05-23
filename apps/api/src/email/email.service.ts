@@ -27,7 +27,7 @@ export class EmailService {
     to: string,
     subject: string,
     html: string,
-    attachments?: { content: string; filename: string; content_type: string }[],
+    attachments?: { content: string | Buffer; filename: string; content_type: string }[],
   ): Promise<void> {
     const { error } = await this.resend.emails.send({
       from: `${this.fromName} <${this.fromEmail}>`,
@@ -132,18 +132,37 @@ export class EmailService {
     attendees: { firstName: string; lastName: string; email: string; qrToken: string | null }[],
   ): Promise<void> {
     const apiUrl = this.config.get<string>('apiUrl') ?? '';
-    const rows = attendees.map((a) => {
-      const qrCell = a.qrToken
-        ? `<img src="${apiUrl}/qr/${encodeURIComponent(a.qrToken)}" alt="QR Code" width="180" height="180" style="display:block" />`
-        : '<span style="color:#dc2626">No QR generated</span>';
-      return `<tr style="border-bottom:1px solid #e5e7eb">
+
+    const attachments: { content: Buffer; filename: string; content_type: string }[] = [];
+    const rows = await Promise.all(
+      attendees.map(async (a) => {
+        if (a.qrToken) {
+          const svgBuffer = await this.qrService.generateBrandedTicketSvg(
+            a.qrToken,
+            a.firstName,
+            a.lastName,
+          );
+          const safeName = `${a.firstName}-${a.lastName}`.toLowerCase().replace(/[^a-z0-9-]/g, '_');
+          attachments.push({
+            content: svgBuffer,
+            filename: `axon-tickets-${safeName}.svg`,
+            content_type: 'image/svg+xml',
+          });
+        }
+
+        const qrCell = a.qrToken
+          ? `<img src="${apiUrl}/qr/${encodeURIComponent(a.qrToken)}" alt="QR Code" width="180" height="180" style="display:block" />`
+          : '<span style="color:#dc2626">No QR generated</span>';
+
+        return `<tr style="border-bottom:1px solid #e5e7eb">
           <td style="padding:12px;vertical-align:top">
             <strong>${a.firstName} ${a.lastName}</strong><br />
             <span style="color:#64748b;font-size:13px">${a.email}</span>
           </td>
           <td style="padding:12px;text-align:center">${qrCell}</td>
         </tr>`;
-    });
+      }),
+    );
 
     await this.send(
       to,
@@ -153,6 +172,9 @@ export class EmailService {
         <h2 style="margin-top:0;color:#1A3A5C">${eventTitle}</h2>
         <p style="color:#64748b">${eventDate} · ${eventVenue}</p>
         <p>Hi ${firstName}, here are your QR codes. Show them at the door.</p>
+        <p style="color:#64748b;font-size:13px">
+          Your branded ticket card(s) are also attached to this email.
+        </p>
         <table style="width:100%;border-collapse:collapse;margin-top:16px">
           <thead>
             <tr style="background:#f7f9fc">
@@ -164,6 +186,7 @@ export class EmailService {
         </table>
         <p style="margin-top:24px;color:#9ca3af;font-size:12px">Axon Tickets · Online Ticketing Platform</p>
       </div>`,
+      attachments,
     );
   }
 

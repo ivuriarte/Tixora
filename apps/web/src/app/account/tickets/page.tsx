@@ -11,12 +11,14 @@ import type { RegistrationSummary, RegistrationStatus } from '@axon-tickets/type
 
 interface Ticket {
   id: string;
+  source: 'order' | 'registration';
   eventTitle: string;
   eventSlug: string;
   eventStartsAt: string;
   eventVenue: string;
   eventImageUrl?: string | null;
   tierName: string;
+  attendeeName?: string;
   status: string;
 }
 
@@ -296,9 +298,14 @@ export default function MyEventsPage() {
 
 function TicketCard({ ticket, muted = false }: { ticket: Ticket; muted?: boolean }) {
   const style = TICKET_STATUS_STYLES[ticket.status] ?? { dot: 'bg-gray-400', chip: 'bg-gray-100 text-gray-600 ring-gray-500/20', label: ticket.status };
+  // Registration-based tickets use att_ prefix — route to the attendee detail page
+  const href =
+    ticket.source === 'registration'
+      ? `/account/tickets/attendee/${ticket.id.slice(4)}`
+      : `/account/tickets/${ticket.id}`;
   return (
     <Link
-      href={`/account/tickets/${ticket.id}`}
+      href={href}
       className={`group flex items-center gap-4 bg-white rounded-2xl p-4 ring-1 ring-gray-200 hover:ring-primary/40 hover:shadow-lg hover:-translate-y-0.5 transition-all ${muted ? 'opacity-75' : ''}`}
     >
       <DatePill iso={ticket.eventStartsAt} />
@@ -309,7 +316,12 @@ function TicketCard({ ticket, muted = false }: { ticket: Ticket; muted?: boolean
           <svg className="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M17.657 16.657L13.414 20.9a2 2 0 01-2.828 0l-4.244-4.243a8 8 0 1111.314 0z"/><path strokeLinecap="round" strokeLinejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
           <span className="truncate">{ticket.eventVenue}</span>
         </p>
-        <p className="text-xs text-gray-400 mt-1">{ticket.tierName}</p>
+        <p className="text-xs text-gray-400 mt-1">
+          {ticket.tierName}
+          {ticket.attendeeName && (
+            <span className="ml-1.5 text-gray-400">· {ticket.attendeeName}</span>
+          )}
+        </p>
       </div>
       <div className="flex flex-col items-end gap-2 shrink-0">
         <StatusChip dot={style.dot} chip={style.chip}>{style.label}</StatusChip>

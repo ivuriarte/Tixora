@@ -54,6 +54,15 @@ export class RegistrationsController {
     );
   }
 
+  @Get('check')
+  @ApiOperation({ summary: 'Check if the current user has an active registration for an event' })
+  checkForEvent(
+    @CurrentUser() user: JwtPayload,
+    @Query('eventId') eventId: string,
+  ) {
+    return this.registrationsService.checkForEvent(user.sub, eventId);
+  }
+
   @Get(':id')
   @ApiOperation({ summary: 'Get registration detail' })
   findOne(@Param('id') id: string, @CurrentUser() user: JwtPayload) {

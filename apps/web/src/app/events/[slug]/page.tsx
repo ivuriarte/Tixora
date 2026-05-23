@@ -2,8 +2,7 @@ import Navbar from '@/components/Navbar';
 import { notFound } from 'next/navigation';
 import Image from 'next/image';
 import { formatManila } from '@axon-tickets/utils';
-import TierSelector from '@/components/TierSelector';
-import RegistrationPanel from '@/components/RegistrationPanel';
+import RegistrationGuard from '@/components/RegistrationGuard';
 
 interface Tier {
   id: string;
@@ -237,26 +236,19 @@ export default async function EventPage({ params, searchParams }: { params: { sl
             )}
           </div>
 
-          {/* Right: Tier selector / Registration panel */}
+          {/* Right: Registration guard (handles duplicate-check, then renders correct panel) */}
           <div className="mt-8 lg:mt-0">
-            {(event.paymentMethods?.length || event.allowManualPayment) ? (
-              <RegistrationPanel
-                eventSlug={event.slug}
-                tiers={event.tiers}
-                bankName={event.bankName ?? null}
-                gcashNumber={event.gcashNumber ?? null}
-                paymentMethods={event.paymentMethods ?? null}
-                disabled={isPreview || isSoldOut || isCancelled}
-              />
-            ) : (
-              <TierSelector
-                eventId={event.id}
-                eventSlug={event.slug}
-                maxPerUser={event.maxPerUser}
-                tiers={event.tiers}
-                disabled={isPreview || isSoldOut || isCancelled}
-              />
-            )}
+            <RegistrationGuard
+              eventId={event.id}
+              eventSlug={event.slug}
+              tiers={event.tiers}
+              maxPerUser={event.maxPerUser}
+              useManualPayment={!!(event.paymentMethods?.length || event.allowManualPayment)}
+              bankName={event.bankName ?? null}
+              gcashNumber={event.gcashNumber ?? null}
+              paymentMethods={event.paymentMethods ?? null}
+              disabled={isPreview || isSoldOut || isCancelled}
+            />
           </div>
         </div>
       </main>

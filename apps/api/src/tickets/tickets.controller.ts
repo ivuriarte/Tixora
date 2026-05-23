@@ -13,7 +13,7 @@ export class TicketsController {
   constructor(private readonly ticketsService: TicketsService) {}
 
   @Get()
-  @ApiOperation({ summary: 'Get all tickets for current user' })
+  @ApiOperation({ summary: 'Get all tickets for current user (order-based + registration-based)' })
   myTickets(
     @CurrentUser() user: JwtPayload,
     @Query('page') page?: string,
@@ -26,8 +26,14 @@ export class TicketsController {
     );
   }
 
+  @Get('attendee/:id')
+  @ApiOperation({ summary: 'Get registration-based ticket by attendee ID' })
+  findOneAttendee(@Param('id') id: string, @CurrentUser() user: JwtPayload) {
+    return this.ticketsService.findOneAttendee(id, user.sub);
+  }
+
   @Get(':id')
-  @ApiOperation({ summary: 'Get ticket details (includes QR token for rendering)' })
+  @ApiOperation({ summary: 'Get order-based ticket details (includes QR token for rendering)' })
   findOne(@Param('id') id: string, @CurrentUser() user: JwtPayload) {
     return this.ticketsService.findOne(id, user.sub);
   }
