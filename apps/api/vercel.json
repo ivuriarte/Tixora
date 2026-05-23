@@ -1,5 +1,7 @@
 {
-  "buildCommand": null,
+  "buildCommand": "echo 'pre-built'",
+  "installCommand": "echo 'pre-built'",
+  "outputDirectory": ".",
   "functions": {
     "api/index.js": {
       "memory": 1024,
