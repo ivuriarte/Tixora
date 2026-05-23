@@ -249,7 +249,7 @@ export default function AdminAnalyticsPage() {
                 color="text-gray-900"
               />
               <StatCard
-                label="Total Sold"
+                label="Total Tickets Sold"
                 value={analytics.totalSold.toLocaleString()}
                 sub="tickets sold for this event"
                 color="text-indigo-700"

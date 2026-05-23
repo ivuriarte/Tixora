@@ -913,7 +913,11 @@ export class AdminService {
   // ── Dashboard Stats ─────────────────────────────────────────────────────
 
   async getDashboardStats(eventId?: string) {
+    // When scoped to a specific event use a direct eventId filter.
+    // For the global dashboard, restrict to completed events only so the
+    // revenue and tickets-sold figures reflect settled, closed events.
     const eventFilter = eventId ? { eventId } : {};
+    const completedEventFilter = eventId ? {} : { event: { status: 'completed' as const } };
 
     const [
       totalTicketsSold,
@@ -926,21 +930,21 @@ export class AdminService {
       checkedInAttendees,
       registrationRevenueAgg,
     ] = await Promise.all([
-      this.prisma.ticket.count({ where: { ...eventFilter, status: { in: ['valid', 'used'] } } }),
-      this.prisma.order.count({ where: { ...eventFilter, status: 'paid' } }),
-      this.prisma.order.count({ where: { ...eventFilter, status: 'pending' } }),
-      this.prisma.ticket.count({ where: { ...eventFilter, status: 'used' } }),
-      this.prisma.order.aggregate({ where: { ...eventFilter, status: 'paid' }, _sum: { total: true } }),
+      this.prisma.ticket.count({ where: { ...eventFilter, ...completedEventFilter, status: { in: ['valid', 'used'] } } }),
+      this.prisma.order.count({ where: { ...eventFilter, ...completedEventFilter, status: 'paid' } }),
+      this.prisma.order.count({ where: { ...eventFilter, ...completedEventFilter, status: 'pending' } }),
+      this.prisma.ticket.count({ where: { ...eventFilter, ...completedEventFilter, status: 'used' } }),
+      this.prisma.order.aggregate({ where: { ...eventFilter, ...completedEventFilter, status: 'paid' }, _sum: { total: true } }),
       // Registration flow
-      this.prisma.registration.count({ where: { ...eventFilter, status: 'verified' } }),
-      this.prisma.registration.count({ where: { ...eventFilter, status: 'pending_payment' } }),
+      this.prisma.registration.count({ where: { ...eventFilter, ...completedEventFilter, status: 'verified' } }),
+      this.prisma.registration.count({ where: { ...eventFilter, ...completedEventFilter, status: 'pending_payment' } }),
       this.prisma.attendee.count({
         where: eventId
           ? { registration: { eventId }, checkedInAt: { not: null } }
-          : { checkedInAt: { not: null } },
+          : { registration: { event: { status: 'completed' } }, checkedInAt: { not: null } },
       }),
       this.prisma.registration.aggregate({
-        where: { ...eventFilter, status: 'verified' },
+        where: { ...eventFilter, ...completedEventFilter, status: 'verified' },
         _sum: { total: true },
       }),
     ]);

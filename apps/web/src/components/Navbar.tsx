@@ -71,11 +71,11 @@ export default function Navbar() {
                   className="group inline-flex items-center gap-2 text-sm font-medium text-gray-700 hover:text-primary transition-colors"
                   aria-label={
                     pendingCount > 0
-                      ? `Admin & Dashboard — ${pendingCount} pending verification${pendingCount === 1 ? '' : 's'}`
-                      : 'Admin & Dashboard'
+                      ? `Admin Dashboard — ${pendingCount} pending verification${pendingCount === 1 ? '' : 's'}`
+                      : 'Admin Dashboard'
                   }
                 >
-                  <span>Admin &amp; Dashboard</span>
+                  <span>Admin Dashboard</span>
                   {pendingCount > 0 && (
                     <span
                       className="inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full text-[11px] font-semibold leading-none bg-red-50 text-red-700 ring-1 ring-inset ring-red-200 group-hover:bg-red-100 transition-colors"
