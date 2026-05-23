@@ -1,10 +1,11 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
 import api from '@/lib/api';
 import Navbar from '@/components/Navbar';
-import Link from 'next/link';
+import BackButton from '@/components/BackButton';
 
 interface Attendee {
   id: string;
@@ -46,9 +47,17 @@ const PAYMENT_COLORS: Record<string, string> = {
 };
 
 export default function AdminAttendeesPage() {
-  const [selectedEventId, setSelectedEventId] = useState('');
+  const searchParams = useSearchParams();
+  const initialEvent = searchParams.get('eventId') ?? '';
+  const [selectedEventId, setSelectedEventId] = useState(initialEvent);
   const [searchQ, setSearchQ] = useState('');
   const [page, setPage] = useState(1);
+
+  useEffect(() => {
+    if (initialEvent && initialEvent !== selectedEventId) {
+      setSelectedEventId(initialEvent);
+    }
+  }, [initialEvent, selectedEventId]);
 
   const { data: events } = useQuery<Event[]>({
     queryKey: ['admin-events-select'],
@@ -75,9 +84,12 @@ export default function AdminAttendeesPage() {
       <Navbar />
       <main className="max-w-7xl mx-auto px-4 py-10">
         <div className="flex items-center justify-between mb-8">
-          <div className="flex items-center gap-4">
-            <Link href="/admin" className="text-gray-400 hover:text-gray-600 text-sm">← Admin</Link>
+          <div>
+            <BackButton href="/admin" label="Back to Admin" className="mb-2" />
             <h1 className="text-2xl font-bold text-gray-900">Attendees</h1>
+            <p className="text-sm text-gray-500 mt-1">
+              Select an event to view its attendee roster.
+            </p>
           </div>
           {selectedEventId && (
             <a

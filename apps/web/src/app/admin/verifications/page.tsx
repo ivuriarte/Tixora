@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from 'react';
 import Link from 'next/link';
 import api from '@/lib/api';
 import Navbar from '@/components/Navbar';
+import BackButton from '@/components/BackButton';
 import { formatManila } from '@axon-tickets/utils';
 
 interface VerificationRow {
@@ -82,10 +83,16 @@ export default function VerificationsQueuePage() {
   }, []);
 
   const fetchRows = useCallback(async () => {
+    if (!eventId) {
+      setRows([]);
+      setMeta({ total: 0, page: 1, limit: 50, totalPages: 0 });
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     try {
       const params = new URLSearchParams();
-      if (eventId) params.set('eventId', eventId);
+      params.set('eventId', eventId);
       if (status) params.set('status', status);
       params.set('page', String(page));
       params.set('limit', '50');
@@ -159,15 +166,13 @@ export default function VerificationsQueuePage() {
       <main className="max-w-7xl mx-auto px-4 py-10 space-y-6">
         <div className="flex items-start justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">Verifications Queue</h1>
+            <BackButton href="/admin" label="Back to Admin" className="mb-2" />
+            <h1 className="text-2xl font-bold text-gray-900">Transaction Verification Queue</h1>
             <p className="text-sm text-gray-500 mt-1">
-              Cross-event review of payment proofs.{' '}
+              Select an event to review verified registrations with paid transactions.{' '}
               {meta.total > 0 && <span className="font-medium">{meta.total} total</span>}
             </p>
           </div>
-          <Link href="/admin" className="text-sm text-gray-500 hover:text-gray-700">
-            ← Admin
-          </Link>
         </div>
 
         {/* Filters */}
@@ -190,7 +195,9 @@ export default function VerificationsQueuePage() {
             </select>
           </div>
           <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">Event</label>
+            <label className="block text-xs font-medium text-gray-600 mb-1">
+              Event <span className="text-red-500">*</span>
+            </label>
             <select
               value={eventId}
               onChange={(e) => {
@@ -199,7 +206,7 @@ export default function VerificationsQueuePage() {
               }}
               className="px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white min-w-[260px]"
             >
-              <option value="">All events</option>
+              <option value="">Select an event…</option>
               {events.map((e) => (
                 <option key={e.id} value={e.id}>
                   {e.title}
@@ -221,7 +228,11 @@ export default function VerificationsQueuePage() {
 
         {/* Table */}
         <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden">
-          {loading ? (
+          {!eventId ? (
+            <p className="text-sm text-gray-500 p-10 text-center">
+              Select an event above to load its transaction verification queue.
+            </p>
+          ) : loading ? (
             <p className="text-sm text-gray-400 p-6">Loading…</p>
           ) : rows.length === 0 ? (
             <p className="text-sm text-gray-500 p-6">No registrations match these filters.</p>

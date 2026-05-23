@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import api from '@/lib/api';
 import Navbar from '@/components/Navbar';
+import BackButton from '@/components/BackButton';
 import Link from 'next/link';
 import { formatShortDate } from '@axon-tickets/utils';
 
@@ -17,6 +18,11 @@ interface Order {
   total: number;
   paymentMethod: string | null;
   createdAt: string;
+}
+
+interface EventOption {
+  id: string;
+  title: string;
 }
 
 interface OrdersResponse {
@@ -43,6 +49,16 @@ export default function AdminOrdersPage() {
   const [statusFilter, setStatusFilter] = useState('');
   const [eventId, setEventId] = useState('');
 
+  const filtersApplied = !!statusFilter && !!eventId;
+
+  const { data: events } = useQuery<EventOption[]>({
+    queryKey: ['admin-events-tx'],
+    queryFn: () =>
+      api
+        .get<{ data: { data: EventOption[] } }>('/admin/events?limit=100')
+        .then((r) => r.data.data.data),
+  });
+
   const { data, isLoading } = useQuery<OrdersResponse>({
     queryKey: ['admin-orders', page, statusFilter, eventId],
     queryFn: () => {
@@ -53,6 +69,7 @@ export default function AdminOrdersPage() {
         .get<{ data: OrdersResponse }>(`/admin/orders?${params}`)
         .then((r) => r.data.data);
     },
+    enabled: filtersApplied,
   });
 
   return (
@@ -61,9 +78,12 @@ export default function AdminOrdersPage() {
       <main className="max-w-6xl mx-auto px-4 py-10">
         {/* Header */}
         <div className="flex items-center justify-between mb-8">
-          <div className="flex items-center gap-4">
-            <Link href="/admin" className="text-gray-400 hover:text-gray-600 text-sm">← Admin</Link>
-            <h1 className="text-2xl font-bold text-gray-900">Orders</h1>
+          <div>
+            <BackButton href="/admin" label="Back to Admin" className="mb-2" />
+            <h1 className="text-2xl font-bold text-gray-900">Transactions</h1>
+            <p className="text-sm text-gray-500 mt-1">
+              Audit trail of all transactions. Select a status and event to view records.
+            </p>
           </div>
           <a
             href={`${(process.env.NEXT_PUBLIC_API_URL || 'https://api-tau-six-59.vercel.app/api/v1')}/admin/orders/export${eventId ? `?eventId=${eventId}` : ''}`}
@@ -77,21 +97,47 @@ export default function AdminOrdersPage() {
 
         {/* Filters */}
         <div className="flex gap-3 mb-6 flex-wrap">
-          <select
-            className="border border-gray-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-            value={statusFilter}
-            onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }}
-          >
-            <option value="">All Statuses</option>
-            <option value="paid">Paid</option>
-            <option value="pending">Pending</option>
-            <option value="failed">Failed</option>
-            <option value="refunded">Refunded</option>
-          </select>
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1">
+              Status <span className="text-red-500">*</span>
+            </label>
+            <select
+              className="border border-gray-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+              value={statusFilter}
+              onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }}
+            >
+              <option value="">Select status…</option>
+              <option value="paid">Paid</option>
+              <option value="pending">Pending</option>
+              <option value="failed">Failed</option>
+              <option value="refunded">Refunded</option>
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1">
+              Event <span className="text-red-500">*</span>
+            </label>
+            <select
+              className="border border-gray-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary min-w-[240px]"
+              value={eventId}
+              onChange={(e) => { setEventId(e.target.value); setPage(1); }}
+            >
+              <option value="">Select event…</option>
+              {events?.map((ev) => (
+                <option key={ev.id} value={ev.id}>{ev.title}</option>
+              ))}
+            </select>
+          </div>
         </div>
 
+        {!filtersApplied && (
+          <div className="bg-white rounded-2xl shadow p-10 text-center text-gray-400">
+            Select both a status and an event to view transactions.
+          </div>
+        )}
+
         {/* Table */}
-        {isLoading ? (
+        {filtersApplied && (isLoading ? (
           <p className="text-gray-400">Loading…</p>
         ) : (
           <>
@@ -169,7 +215,7 @@ export default function AdminOrdersPage() {
               </div>
             )}
           </>
-        )}
+        ))}
       </main>
     </>
   );

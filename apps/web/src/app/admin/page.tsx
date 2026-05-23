@@ -123,14 +123,12 @@ export default function AdminDashboardPage() {
 
         {/* Metrics cards */}
         {stats && (
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4 mb-8">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-8">
             {[
+              { label: 'Total Revenue', value: fmtRevenue(stats.grossRevenue), color: 'text-gray-900' },
               { label: 'Total Sold', value: stats.totalRegistrations, color: 'text-indigo-700' },
-              { label: 'Paid Orders', value: stats.paidOrders, color: 'text-green-700' },
-              { label: 'Pending Payment', value: stats.pendingOrders, color: 'text-yellow-700' },
-              { label: 'Pending Verif.', value: stats.pendingRegistrations, color: stats.pendingRegistrations > 0 ? 'text-amber-600' : 'text-gray-400' },
-              { label: 'Checked In', value: stats.totalCheckedIn, color: 'text-blue-700' },
-              { label: 'Gross Revenue', value: fmtRevenue(stats.grossRevenue), color: 'text-gray-900' },
+              { label: 'Checked In', value: `${stats.totalCheckedIn} / ${stats.totalRegistrations}`, color: 'text-blue-700' },
+              { label: 'Pending Verification', value: stats.pendingRegistrations, color: stats.pendingRegistrations > 0 ? 'text-amber-600' : 'text-gray-400' },
             ].map((m) => (
               <div key={m.label} className="bg-white shadow rounded-2xl p-4 text-center">
                 <p className="text-xs text-gray-400 uppercase tracking-widest mb-1">{m.label}</p>
@@ -140,13 +138,12 @@ export default function AdminDashboardPage() {
           </div>
         )}
 
-        <div className="grid grid-cols-2 sm:grid-cols-6 gap-4 mb-8">
+        <div className="grid grid-cols-2 sm:grid-cols-5 gap-4 mb-8">
           {[
-            { href: '/admin/events', label: 'Manage Events' },
-            { href: '/admin/verifications', label: 'Verifications Queue' },
-            { href: '/admin/registrations', label: 'Verify Registrations' },
+            { href: '/admin/events', label: 'Event History' },
+            { href: '/admin/verifications', label: 'Transaction Verification Queue' },
             { href: '/admin/checkin', label: 'Check-In Scanner' },
-            { href: '/admin/orders', label: 'View Orders' },
+            { href: '/admin/orders', label: 'Transactions' },
             { href: '/admin/attendees', label: 'Attendees' },
             { href: '/admin/analytics', label: 'Analytics' },
           ].map((card) => (

@@ -684,6 +684,7 @@ export class AdminService {
         soldQuantity: tier.soldQuantity,
         available: Math.max(0, tier.totalQuantity - tier.soldQuantity),
         price: Number(tier.price),
+        revenue: Number(tier.price) * tier.soldQuantity,
         fillRate: tier.totalQuantity > 0
           ? Math.round((tier.soldQuantity / tier.totalQuantity) * 100)
           : 0,

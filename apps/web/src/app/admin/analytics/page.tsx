@@ -1,10 +1,11 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
 import api from '@/lib/api';
 import Navbar from '@/components/Navbar';
-import Link from 'next/link';
+import BackButton from '@/components/BackButton';
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -21,6 +22,7 @@ interface TierRow {
   soldQuantity: number;
   available: number;
   price: number;
+  revenue: number;
   fillRate: number;
 }
 
@@ -126,7 +128,10 @@ function CapacityBar({ tier }: { tier: TierRow }) {
       <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
         <div className={`h-full rounded-full transition-all ${color}`} style={{ width: `${pct}%` }} />
       </div>
-      <p className="text-xs text-gray-400">{fmtRevenue(tier.price)} per ticket · {tier.available} available</p>
+      <div className="flex justify-between text-xs text-gray-500">
+        <span>{fmtRevenue(tier.price)} per ticket · {tier.available} available</span>
+        <span className="font-semibold text-gray-900">Revenue: {fmtRevenue(tier.revenue)}</span>
+      </div>
     </div>
   );
 }
@@ -134,7 +139,9 @@ function CapacityBar({ tier }: { tier: TierRow }) {
 // ── Page ───────────────────────────────────────────────────────────────────────
 
 export default function AdminAnalyticsPage() {
-  const [selectedEventId, setSelectedEventId] = useState('');
+  const searchParams = useSearchParams();
+  const initialEvent = searchParams.get('eventId') ?? '';
+  const [selectedEventId, setSelectedEventId] = useState(initialEvent);
   const [timelineDays, setTimelineDays] = useState(14);
 
   // Load events
@@ -185,17 +192,12 @@ export default function AdminAnalyticsPage() {
         {/* Header */}
         <div className="flex items-center justify-between">
           <div>
+            <BackButton href="/admin" label="Back to Admin" className="mb-2" />
             <h1 className="text-2xl font-bold text-gray-900">Analytics</h1>
             <p className="text-sm text-gray-400 mt-0.5">
               Real-time stats for your events
             </p>
           </div>
-          <Link
-            href="/admin"
-            className="text-sm text-primary hover:underline"
-          >
-            ← Dashboard
-          </Link>
         </div>
 
         {/* Event selector */}
@@ -240,13 +242,12 @@ export default function AdminAnalyticsPage() {
               <StatCard
                 label="Total Revenue"
                 value={fmtRevenue(analytics.totalRevenue)}
-                sub={`${fmtRevenue(analytics.totalFees)} in fees`}
                 color="text-gray-900"
               />
               <StatCard
                 label="Total Sold"
                 value={analytics.totalSold.toLocaleString()}
-                sub={`${analytics.ticketsSold} tickets · ${analytics.verifiedAttendees} registrations`}
+                sub="tickets sold for this event"
                 color="text-indigo-700"
               />
               <StatCard
@@ -258,27 +259,25 @@ export default function AdminAnalyticsPage() {
               <StatCard
                 label="Pending Verification"
                 value={analytics.pendingRegistrations.toLocaleString()}
-                sub="registrations awaiting approval"
+                sub="transactions awaiting verification"
                 color={analytics.pendingRegistrations > 0 ? 'text-amber-600' : 'text-gray-400'}
               />
-            </div>
-
-            {/* Secondary stats */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-              <StatCard label="Paid Orders" value={analytics.paidOrders} color="text-green-700" />
-              <StatCard label="Verified Registrations" value={analytics.verifiedRegistrations} color="text-purple-700" />
-              <StatCard label="Ticket Check-ins" value={analytics.ticketCheckins} color="text-blue-700" />
-              <StatCard label="Registration Check-ins" value={analytics.registrationCheckins} color="text-blue-700" />
             </div>
 
             {/* Tier capacity */}
             {analytics.tierBreakdown.length > 0 && (
               <div className="bg-white shadow rounded-2xl p-6 space-y-4">
-                <h2 className="font-semibold text-gray-900">Tier Capacity</h2>
-                <div className="space-y-4">
+                <h2 className="font-semibold text-gray-900">Tier Capacity &amp; Revenue</h2>
+                <div className="space-y-5">
                   {analytics.tierBreakdown.map((tier) => (
                     <CapacityBar key={tier.tierId} tier={tier} />
                   ))}
+                </div>
+                <div className="pt-3 border-t border-gray-100 flex justify-between text-sm">
+                  <span className="font-medium text-gray-700">Total Revenue (all tiers)</span>
+                  <span className="font-bold text-gray-900">
+                    {fmtRevenue(analytics.tierBreakdown.reduce((sum, t) => sum + t.revenue, 0))}
+                  </span>
                 </div>
               </div>
             )}
