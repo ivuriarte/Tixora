@@ -148,7 +148,7 @@ export default function AdminDashboardPage() {
             { href: '/admin/checkin', label: 'Check-In Scanner' },
             { href: '/admin/orders', label: 'Transactions' },
             { href: '/admin/attendees', label: 'Attendees' },
-            { href: '/admin/analytics', label: 'Analytics' },
+            { href: '/admin/analytics', label: 'Real Time Analytics' },
           ].map((card) => (
             <Link
               key={card.href}

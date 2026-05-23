@@ -197,7 +197,7 @@ export default function AdminAnalyticsPage() {
         <div className="flex items-center justify-between">
           <div>
             <BackButton href="/admin" label="Back to Admin" className="mb-2" />
-            <h1 className="text-2xl font-bold text-gray-900">Analytics</h1>
+            <h1 className="text-2xl font-bold text-gray-900">Real Time Analytics</h1>
             <p className="text-sm text-gray-400 mt-0.5">
               Real-time stats for your events
             </p>
