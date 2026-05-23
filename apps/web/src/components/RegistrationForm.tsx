@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { centavosToPeso, formatPHP } from '@axon-tickets/utils';
 import api from '@/lib/api';
 import { useAuthStore } from '@/store/auth.store';
 import type { CreateRegistrationDto } from '@axon-tickets/types';
@@ -72,9 +73,10 @@ export default function RegistrationForm({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const subtotal = unitPrice * qty;
-  const fees = Number(platformFee) || 0;
-  const total = subtotal + fees;
+  // unitPrice is in centavos (50000 = ₱500). platformFee is in pesos (e.g. 50).
+  const subtotalPesos = centavosToPeso(unitPrice * qty);
+  const feesPesos = Number(platformFee) || 0;
+  const totalPesos = subtotalPesos + feesPesos;
 
   const updateAttendee = (index: number, field: keyof AttendeeFields, value: string) => {
     setAttendees((prev) => {
@@ -149,15 +151,15 @@ export default function RegistrationForm({
           <span>
             {tierName} × {qty}
           </span>
-          <span>₱{subtotal.toLocaleString()}</span>
+          <span>{formatPHP(subtotalPesos)}</span>
         </div>
         <div className="flex justify-between text-sm text-gray-600 mt-1">
           <span>Service fee</span>
-          <span>₱{fees.toLocaleString()}</span>
+          <span>{formatPHP(feesPesos)}</span>
         </div>
         <div className="flex justify-between font-bold text-gray-900 mt-3 pt-3 border-t border-gray-100">
           <span>Total</span>
-          <span className="text-primary">₱{total.toLocaleString()}</span>
+          <span className="text-primary">{formatPHP(totalPesos)}</span>
         </div>
       </div>
 
