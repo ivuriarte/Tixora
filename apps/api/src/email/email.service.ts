@@ -131,34 +131,19 @@ export class EmailService {
     eventVenue: string,
     attendees: { firstName: string; lastName: string; email: string; qrToken: string | null }[],
   ): Promise<void> {
-    // Generate a QR PNG for each attendee with a valid token (self-hosted, no 3rd-party CDN).
-    const attachments: { content: string; filename: string; content_type: string }[] = [];
-    const rows = await Promise.all(
-      attendees.map(async (a, idx) => {
-        let qrCell: string;
-        if (a.qrToken) {
-          const pngBuffer = await this.qrService.generateQrPng(a.qrToken);
-          const b64 = pngBuffer.toString('base64');
-          const dataUri = `data:image/png;base64,${b64}`;
-          // Inline image for clients that support data URIs; PNG attachment as universal fallback.
-          attachments.push({
-            content: b64,
-            filename: `qr-${idx + 1}-${a.firstName.toLowerCase()}-${a.lastName.toLowerCase()}.png`,
-            content_type: 'image/png',
-          });
-          qrCell = `<img src="${dataUri}" alt="QR Code" width="180" height="180" style="display:block" />`;
-        } else {
-          qrCell = '<span style="color:#dc2626">No QR generated</span>';
-        }
-        return `<tr style="border-bottom:1px solid #e5e7eb">
+    const apiUrl = this.config.get<string>('apiUrl') ?? '';
+    const rows = attendees.map((a) => {
+      const qrCell = a.qrToken
+        ? `<img src="${apiUrl}/qr/${encodeURIComponent(a.qrToken)}" alt="QR Code" width="180" height="180" style="display:block" />`
+        : '<span style="color:#dc2626">No QR generated</span>';
+      return `<tr style="border-bottom:1px solid #e5e7eb">
           <td style="padding:12px;vertical-align:top">
             <strong>${a.firstName} ${a.lastName}</strong><br />
             <span style="color:#64748b;font-size:13px">${a.email}</span>
           </td>
           <td style="padding:12px;text-align:center">${qrCell}</td>
         </tr>`;
-      }),
-    );
+    });
 
     await this.send(
       to,
@@ -168,9 +153,6 @@ export class EmailService {
         <h2 style="margin-top:0;color:#1A3A5C">${eventTitle}</h2>
         <p style="color:#64748b">${eventDate} · ${eventVenue}</p>
         <p>Hi ${firstName}, here are your QR codes. Show them at the door.</p>
-        <p style="color:#64748b;font-size:13px">
-          If the QR codes do not display, they are also attached to this email as PNG files.
-        </p>
         <table style="width:100%;border-collapse:collapse;margin-top:16px">
           <thead>
             <tr style="background:#f7f9fc">
@@ -182,7 +164,6 @@ export class EmailService {
         </table>
         <p style="margin-top:24px;color:#9ca3af;font-size:12px">Axon Tickets · Online Ticketing Platform</p>
       </div>`,
-      attachments,
     );
   }
 
