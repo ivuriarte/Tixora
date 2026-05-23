@@ -43,6 +43,7 @@ const TICKET_STATUS_STYLES: Record<string, { dot: string; chip: string; label: s
   used: { dot: 'bg-gray-400', chip: 'bg-gray-100 text-gray-600 ring-gray-500/20', label: 'Used' },
   revoked: { dot: 'bg-red-500', chip: 'bg-red-50 text-red-700 ring-red-600/20', label: 'Revoked' },
   cancelled: { dot: 'bg-red-500', chip: 'bg-red-50 text-red-700 ring-red-600/20', label: 'Cancelled' },
+  pending_qr: { dot: 'bg-amber-500', chip: 'bg-amber-50 text-amber-700 ring-amber-600/20', label: 'QR Pending' },
 };
 
 function DatePill({ iso }: { iso: string }) {

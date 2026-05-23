@@ -1,9 +1,14 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { generateAttendeeQrToken } from '@axon-tickets/utils';
 import { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()
 export class TicketsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly config: ConfigService,
+  ) {}
 
   async findByUser(userId: string, page = 1, limit = 20) {
     const skip = (page - 1) * limit;
@@ -20,7 +25,6 @@ export class TicketsService {
       }),
       this.prisma.attendee.findMany({
         where: {
-          qrToken: { not: null },
           registration: { userId, status: 'verified' },
         },
         orderBy: { createdAt: 'desc' },
@@ -61,8 +65,8 @@ export class TicketsService {
       eventImageUrl: a.registration.event.imageUrl ?? null,
       tierName: a.registration.tierName ?? '',
       attendeeName: `${a.firstName} ${a.lastName}`,
-      qrToken: a.qrToken as string,
-      status: a.checkedInAt ? 'used' : 'valid',
+      qrToken: a.qrToken ?? '',
+      status: a.checkedInAt ? 'used' : a.qrToken ? 'valid' : 'pending_qr',
       checkedInAt: a.checkedInAt?.toISOString() ?? null,
       createdAt: a.createdAt.toISOString(),
     }));
@@ -118,7 +122,6 @@ export class TicketsService {
     const attendee = await this.prisma.attendee.findFirst({
       where: {
         id: attendeeId,
-        qrToken: { not: null },
         registration: { userId, status: 'verified' },
       },
       include: {
@@ -126,12 +129,31 @@ export class TicketsService {
           select: {
             id: true,
             tierName: true,
-            event: { select: { title: true, slug: true, startsAt: true, venue: true, imageUrl: true } },
+            event: { select: { id: true, title: true, slug: true, startsAt: true, venue: true, imageUrl: true } },
           },
         },
       },
     });
     if (!attendee) throw new NotFoundException('Ticket not found');
+
+    // Lazily generate qrToken for verified attendees approved before
+    // qrToken generation was added to the approval flow.
+    let qrToken = attendee.qrToken;
+    if (!qrToken) {
+      const qrSecret = this.config.get<string>('qr.hmacSecret') ?? '';
+      qrToken = generateAttendeeQrToken(
+        {
+          attendeeId: attendee.id,
+          registrationId: attendee.registration.id,
+          eventId: attendee.registration.event.id,
+        },
+        qrSecret,
+      );
+      await this.prisma.attendee.update({
+        where: { id: attendee.id },
+        data: { qrToken },
+      });
+    }
 
     return {
       id: `att_${attendee.id}`,
@@ -143,7 +165,7 @@ export class TicketsService {
       eventImageUrl: attendee.registration.event.imageUrl ?? null,
       tierName: attendee.registration.tierName ?? '',
       attendeeName: `${attendee.firstName} ${attendee.lastName}`,
-      qrToken: attendee.qrToken as string,
+      qrToken,
       status: attendee.checkedInAt ? 'used' : 'valid',
       checkedInAt: attendee.checkedInAt?.toISOString() ?? null,
       createdAt: attendee.createdAt.toISOString(),
