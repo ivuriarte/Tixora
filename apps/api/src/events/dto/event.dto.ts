@@ -10,8 +10,99 @@ import {
   IsNumber,
   IsBoolean,
   IsUrl,
+  IsArray,
+  ValidateNested,
+  IsIn,
 } from 'class-validator';
+import { Type } from 'class-transformer';
 import { ApiProperty } from '@nestjs/swagger';
+
+// ─── Nested item DTOs ────────────────────────────────────────────────────
+// These are required so class-transformer (with enableImplicitConversion)
+// preserves the object shape of array items. Without @Type(), reflected
+// metadata for `Array<{...}>` is just `Array`, and implicit conversion
+// turns each item into `Object.assign(new Array(), item)`, which serializes
+// to `[]` (data loss).
+
+export class AgendaItemDto {
+  @ApiProperty()
+  @IsOptional()
+  @IsString()
+  @MaxLength(50)
+  time?: string;
+
+  @ApiProperty()
+  @IsString()
+  @MaxLength(200)
+  title: string;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  @MaxLength(1000)
+  description?: string;
+}
+
+export class SponsorItemDto {
+  @ApiProperty()
+  @IsString()
+  @MaxLength(200)
+  name: string;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  logoUrl?: string;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  @MaxLength(50)
+  tier?: string;
+}
+
+export class FaqItemDto {
+  @ApiProperty()
+  @IsString()
+  @MaxLength(500)
+  question: string;
+
+  @ApiProperty()
+  @IsString()
+  @MaxLength(2000)
+  answer: string;
+}
+
+export class PaymentMethodItemDto {
+  @ApiProperty({ enum: ['bank', 'ewallet'] })
+  @IsIn(['bank', 'ewallet'])
+  type: 'bank' | 'ewallet';
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  name?: string;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  accountName?: string;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  @MaxLength(60)
+  accountNumber?: string;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  qrImageUrl?: string;
+}
 
 export class CreateEventDto {
   @ApiProperty({ example: 'Francis Kong: Build to Lead' })
@@ -79,17 +170,26 @@ export class CreateEventDto {
   @MaxLength(200)
   speakerName?: string;
 
-  @ApiProperty({ required: false, description: 'Array of { time, title, description? }' })
+  @ApiProperty({ required: false, type: [AgendaItemDto] })
   @IsOptional()
-  agenda?: Array<{ time: string; title: string; description?: string }>;
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => AgendaItemDto)
+  agenda?: AgendaItemDto[];
 
-  @ApiProperty({ required: false, description: 'Array of { name, logoUrl?, tier? }' })
+  @ApiProperty({ required: false, type: [SponsorItemDto] })
   @IsOptional()
-  sponsors?: Array<{ name: string; logoUrl?: string; tier?: string }>;
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => SponsorItemDto)
+  sponsors?: SponsorItemDto[];
 
-  @ApiProperty({ required: false, description: 'Array of { question, answer }' })
+  @ApiProperty({ required: false, type: [FaqItemDto] })
   @IsOptional()
-  faqs?: Array<{ question: string; answer: string }>;
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => FaqItemDto)
+  faqs?: FaqItemDto[];
 
   @ApiProperty({ required: false, default: 50, description: 'Platform fee per ticket in PHP' })
   @IsOptional()
@@ -132,15 +232,12 @@ export class CreateEventDto {
   @MaxLength(30)
   gcashNumber?: string;
 
-  @ApiProperty({ required: false, description: 'Array of payment method objects (bank/ewallet)' })
+  @ApiProperty({ required: false, type: [PaymentMethodItemDto] })
   @IsOptional()
-  paymentMethods?: Array<{
-    type: 'bank' | 'ewallet';
-    name?: string;
-    accountName?: string;
-    accountNumber?: string;
-    qrImageUrl?: string;
-  }>;
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => PaymentMethodItemDto)
+  paymentMethods?: PaymentMethodItemDto[];
 }
 
 export class UpdateEventDto {
@@ -204,13 +301,22 @@ export class UpdateEventDto {
   speakerName?: string;
 
   @IsOptional()
-  agenda?: Array<{ time: string; title: string; description?: string }>;
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => AgendaItemDto)
+  agenda?: AgendaItemDto[];
 
   @IsOptional()
-  sponsors?: Array<{ name: string; logoUrl?: string; tier?: string }>;
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => SponsorItemDto)
+  sponsors?: SponsorItemDto[];
 
   @IsOptional()
-  faqs?: Array<{ question: string; answer: string }>;
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => FaqItemDto)
+  faqs?: FaqItemDto[];
 
   @IsOptional()
   @IsNumber()
@@ -246,11 +352,8 @@ export class UpdateEventDto {
   gcashNumber?: string;
 
   @IsOptional()
-  paymentMethods?: Array<{
-    type: 'bank' | 'ewallet';
-    name?: string;
-    accountName?: string;
-    accountNumber?: string;
-    qrImageUrl?: string;
-  }>;
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => PaymentMethodItemDto)
+  paymentMethods?: PaymentMethodItemDto[];
 }
