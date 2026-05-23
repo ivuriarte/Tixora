@@ -29,6 +29,7 @@ interface EventData {
   venue: string;
   startsAt: string;
   tiers: Tier[];
+  platformFee?: number;
   allowManualPayment?: boolean;
   paymentMethods?: PaymentMethod[] | null;
   bankName?: string | null;
@@ -105,6 +106,7 @@ export default function RegisterPage({
           tierName={tier.name}
           unitPrice={tier.price}
           qty={qty}
+          platformFee={event.platformFee ?? 50}
           paymentMethods={event.paymentMethods ?? null}
           bankName={event.bankName ?? null}
           bankAccountName={event.bankAccountName ?? null}

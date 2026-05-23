@@ -2,7 +2,6 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { calculateFee } from '@axon-tickets/utils';
 import api from '@/lib/api';
 import { useAuthStore } from '@/store/auth.store';
 import type { CreateRegistrationDto } from '@axon-tickets/types';
@@ -40,6 +39,8 @@ interface Props {
   tierName: string;
   unitPrice: number;
   qty: number;
+  /** Per-event flat service fee in pesos (defaults to 50). */
+  platformFee?: number;
   paymentMethods?: PaymentMethod[] | null;
   bankName?: string | null;
   bankAccountName?: string | null;
@@ -54,6 +55,7 @@ export default function RegistrationForm({
   tierName,
   unitPrice,
   qty,
+  platformFee = 50,
   paymentMethods,
   bankName,
   bankAccountName,
@@ -71,7 +73,7 @@ export default function RegistrationForm({
   const [error, setError] = useState<string | null>(null);
 
   const subtotal = unitPrice * qty;
-  const fees = calculateFee(subtotal);
+  const fees = Number(platformFee) || 0;
   const total = subtotal + fees;
 
   const updateAttendee = (index: number, field: keyof AttendeeFields, value: string) => {

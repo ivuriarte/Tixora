@@ -114,6 +114,7 @@ export default function AdminNewEventPage() {
         landmark: draft.landmark.trim() || undefined,
         city: draft.city.trim(),
         maxCapacity: parseInt(draft.maxCapacity, 10),
+        platformFee: parseFloat(draft.platformFee) || 50,
         startsAt: startsAtISO,
         endsAt: endsAtISO ?? undefined,
         speakerName: draft.speakerName.trim() || undefined,

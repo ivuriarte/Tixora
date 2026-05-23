@@ -61,6 +61,7 @@ interface ApiEvent {
   endsAt: string | null;
   maxPerUser: number;
   maxCapacity: number | null;
+  platformFee?: number | null;
   status: string;
   imageUrl?: string | null;
   speakerName?: string | null;
@@ -143,6 +144,7 @@ export default function AdminEventEditPage() {
       endDate: end.date,
       endTime: end.time,
       maxCapacity: event.maxCapacity != null ? String(event.maxCapacity) : '',
+      platformFee: event.platformFee != null ? String(event.platformFee) : '50',
       // Defensive filters: drop any blank/incomplete rows so the editor
       // doesn't render empty placeholder cards left over from a bad save.
       agenda: Array.isArray(event.agenda)
@@ -388,6 +390,7 @@ export default function AdminEventEditPage() {
       startsAt: startsAtISO,
       endsAt: endsAtISO ?? null,
       maxCapacity: draft.maxCapacity.trim() === '' ? null : parseInt(draft.maxCapacity, 10),
+      platformFee: parseFloat(draft.platformFee) || 50,
       status,
       speakerName: draft.speakerName.trim() || null,
       imageUrl: draft.imageUrl.trim() || null,

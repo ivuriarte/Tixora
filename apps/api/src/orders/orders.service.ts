@@ -11,7 +11,6 @@ import { RedisService } from '../redis/redis.service';
 import { CreateOrderDto } from './dto/order.dto';
 import { generateQrToken } from '@axon-tickets/utils';
 import { ConfigService } from '@nestjs/config';
-import { calculateFee } from '@axon-tickets/utils';
 import { EmailService } from '../email/email.service';
 
 @Injectable()
@@ -45,7 +44,8 @@ export class OrdersService {
 
     const unitPrice = Number(reservation.ticketTier.price);
     const subtotal = unitPrice * reservation.quantity;
-    const fees = calculateFee(subtotal);
+    // Per-event service fee (flat amount in pesos, configured by admin; defaults to 50)
+    const fees = Number(reservation.event.platformFee ?? 50);
     const total = subtotal + fees;
 
     // Run the critical section in a DB transaction with row-level lock

@@ -45,6 +45,8 @@ export interface EventDraftLocation {
 
 export interface EventDraftCapacity {
   maxCapacity: string;
+  /** Per-event service fee in pesos (string for form input). Default '50'. */
+  platformFee: string;
 }
 
 export interface EventDraft
@@ -103,6 +105,7 @@ export function emptyDraft(): EventDraft {
     endDate: '',
     endTime: '',
     maxCapacity: '',
+    platformFee: '50',
     agenda: [],
     sponsors: [],
     faqs: [],

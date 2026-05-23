@@ -157,6 +157,7 @@ export class EventsService {
       bankAccountName: event.bankAccountName ?? null,
       gcashNumber: event.gcashNumber ?? null,
       paymentMethods: event.paymentMethods ?? null,
+      platformFee: Number(event.platformFee ?? 50),
       tiers: tiersWithAvailable,
       createdAt: event.createdAt.toISOString(),
     };

@@ -36,6 +36,7 @@ export interface Event {
   imageUrl: string | null;
   status: EventStatus;
   maxPerUser: number;
+  platformFee: number;
   tiers: EventTier[];
   createdAt: string;
 }

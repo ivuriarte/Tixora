@@ -5,7 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import toast from 'react-hot-toast';
 import api from '@/lib/api';
 import { useCartStore } from '@/store/cart.store';
-import { formatPHP, calculateFee } from '@axon-tickets/utils';
+import { formatPHP } from '@axon-tickets/utils';
 import Button from '@/components/Button';
 import Navbar from '@/components/Navbar';
 import CountdownTimer from '@/components/CountdownTimer';
@@ -41,7 +41,10 @@ export default function CheckoutPage() {
   }
 
   const subtotal = (unitPrice ?? 0) * (quantity ?? 0);
-  const fee = calculateFee(subtotal);
+  // Note: this online-payment flow is gated behind NEXT_PUBLIC_ENABLE_ONLINE_PAYMENT.
+  // The authoritative fee comes from the event (event.platformFee) and is computed
+  // server-side when the order is created; the value below is a display fallback only.
+  const fee = 50;
   const total = subtotal + fee;
 
   async function handlePay() {

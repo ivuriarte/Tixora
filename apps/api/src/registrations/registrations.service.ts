@@ -11,7 +11,6 @@ import { EmailService } from '../email/email.service';
 import { AuditService } from '../audit/audit.service';
 import {
   generateReferenceNumber,
-  calculateFee,
   generateAttendeeQrToken,
 } from '@axon-tickets/utils';
 import { CreateRegistrationDto } from './dto/create-registration.dto';
@@ -90,7 +89,8 @@ export class RegistrationsService {
 
     const unitPrice = Number(tier.price);
     const subtotal = unitPrice * attendeeCount;
-    const fees = calculateFee(subtotal);
+    // Per-event service fee (flat amount in pesos, configured by admin; defaults to 50)
+    const fees = Number(event.platformFee ?? 50);
     const total = subtotal + fees;
     const referenceNumber = generateReferenceNumber();
 
