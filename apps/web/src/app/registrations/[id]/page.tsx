@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { formatManila } from '@axon-tickets/utils';
+import { formatManila, centavosToPeso, formatPHP } from '@axon-tickets/utils';
 import api from '@/lib/api';
 import PaymentProofUpload from '@/components/PaymentProofUpload';
 import type { Registration, RegistrationStatus } from '@axon-tickets/types';
@@ -150,7 +150,7 @@ export default function RegistrationDetailPage() {
               )}
             </div>
             <p className="text-xs text-gray-500">
-              Transfer exactly <span className="font-semibold text-primary">₱{reg.total.toLocaleString()}</span> and include your reference number in the transfer remarks.
+              Transfer exactly <span className="font-semibold text-primary">{formatPHP(centavosToPeso(reg.total))}</span> and include your reference number in the transfer remarks.
             </p>
           </div>
         )}
@@ -160,15 +160,15 @@ export default function RegistrationDetailPage() {
           <h2 className="font-semibold text-gray-900 mb-3">Order Breakdown</h2>
           <div className="flex justify-between text-gray-600">
             <span>{reg.tierName ?? 'Ticket'} × {reg.attendeeCount}</span>
-            <span>₱{reg.subtotal.toLocaleString()}</span>
+            <span>{formatPHP(centavosToPeso(reg.subtotal))}</span>
           </div>
           <div className="flex justify-between text-gray-600">
             <span>Service fee</span>
-            <span>₱{reg.fees.toLocaleString()}</span>
+            <span>{formatPHP(centavosToPeso(reg.fees))}</span>
           </div>
           <div className="flex justify-between font-bold text-gray-900 pt-2 border-t border-gray-100">
             <span>Total Due</span>
-            <span className="text-primary">₱{reg.total.toLocaleString()}</span>
+            <span className="text-primary">{formatPHP(centavosToPeso(reg.total))}</span>
           </div>
         </div>
 

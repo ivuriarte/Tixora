@@ -18,6 +18,24 @@ interface EventSummary {
   sponsors?: Array<{ name: string; logoUrl?: string; tier?: string }> | null;
 }
 
+// Hardcoded default featured event (Netflix-style hero).
+// The "Register Now" CTA links to /events/{slug} — seed this slug in admin
+// (or update FEATURED_EVENT.slug below) for a working registration flow.
+const FEATURED_EVENT = {
+  slug: 'francis-kong-leadership-talk',
+  speakerName: 'Francis Kong',
+  title: 'Lead With Purpose: A Night With Francis Kong',
+  tagline: 'AN EXCLUSIVE SPEAKING ENGAGEMENT',
+  description:
+    "Spend an inspiring evening with one of the Philippines' most sought-after motivational speakers. Francis Kong shares timeless lessons on leadership, character, and building a life of meaning — drawn from four decades of business and ministry.",
+  date: 'Saturday, June 21, 2026',
+  time: '7:00 PM',
+  venue: 'SMX Convention Center',
+  city: 'Pasay City',
+  imageUrl: '/featured/francis-kong.png',
+  priceFrom: '₱1,500',
+};
+
 async function getEvents(page = 1): Promise<{ data: EventSummary[]; meta: { total: number; totalPages: number } }> {
   const baseUrl = (process.env.NEXT_PUBLIC_API_URL || 'https://api-tau-six-59.vercel.app/api/v1');
   try {
@@ -164,7 +182,7 @@ export default async function HomePage({ searchParams }: { searchParams: { page?
     }
   }
 
-  // Marketplace mode (default when no featured event)
+  // Marketplace mode (Netflix-style: featured hero + event rows)
   const page = parseInt(searchParams.page ?? '1', 10) || 1;
   const { data: events, meta } = enableMarketplace
     ? await getEvents(page)
@@ -173,39 +191,124 @@ export default async function HomePage({ searchParams }: { searchParams: { page?
   return (
     <>
       <Navbar />
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900">Upcoming Events</h1>
-          <p className="text-gray-500 mt-1">Find and book tickets to the best events in the Philippines</p>
-        </div>
-
-        {events.length === 0 ? (
-          <div className="text-center py-20 text-gray-400">No events available yet.</div>
-        ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-            {events.map((event) => (
-              <EventCard key={event.id} event={event} />
-            ))}
+      <main className="bg-gray-50 min-h-screen">
+        {/* Netflix-style featured hero */}
+        <section className="relative overflow-hidden bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 text-white">
+          {/* Background portrait — right side, faded into gradient */}
+          <div className="absolute inset-y-0 right-0 w-full md:w-3/5 lg:w-1/2 opacity-60 md:opacity-90">
+            <Image
+              src={FEATURED_EVENT.imageUrl}
+              alt={FEATURED_EVENT.speakerName}
+              fill
+              priority
+              sizes="(max-width: 768px) 100vw, 50vw"
+              className="object-cover object-right-top"
+            />
+            <div className="absolute inset-0 bg-gradient-to-r from-slate-950 via-slate-950/80 to-transparent md:via-slate-950/40" />
           </div>
-        )}
 
-        {meta.totalPages > 1 && (
-          <div className="flex justify-center gap-3 mt-10">
-            {page > 1 && (
-              <Link href={`/?page=${page - 1}`} className="px-4 py-2 rounded-lg border border-gray-300 text-sm hover:border-gray-400 transition-colors">
-                ← Previous
-              </Link>
-            )}
-            <span className="px-4 py-2 text-sm text-gray-500">
-              Page {page} of {meta.totalPages}
-            </span>
-            {page < meta.totalPages && (
-              <Link href={`/?page=${page + 1}`} className="px-4 py-2 rounded-lg border border-gray-300 text-sm hover:border-gray-400 transition-colors">
-                Next →
-              </Link>
+          <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20 md:py-32 lg:py-40">
+            <div className="max-w-2xl">
+              <p className="text-amber-400 font-bold uppercase tracking-[0.2em] text-xs md:text-sm mb-5">
+                {FEATURED_EVENT.tagline}
+              </p>
+              <h1 className="text-4xl md:text-6xl lg:text-7xl font-extrabold leading-[1.05] mb-5 tracking-tight">
+                {FEATURED_EVENT.title}
+              </h1>
+              <p className="text-purple-200 text-lg font-semibold mb-6">
+                Featuring {FEATURED_EVENT.speakerName}
+              </p>
+              <p className="text-slate-300 text-base md:text-lg leading-relaxed mb-8 max-w-xl">
+                {FEATURED_EVENT.description}
+              </p>
+
+              <div className="flex flex-wrap gap-x-6 gap-y-3 text-sm text-slate-300 mb-10">
+                <div className="flex items-center gap-2">
+                  <svg className="w-5 h-5 text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                  </svg>
+                  <span>{FEATURED_EVENT.date} · {FEATURED_EVENT.time}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <svg className="w-5 h-5 text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                  </svg>
+                  <span>{FEATURED_EVENT.venue}, {FEATURED_EVENT.city}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <svg className="w-5 h-5 text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1" />
+                  </svg>
+                  <span>From {FEATURED_EVENT.priceFrom}</span>
+                </div>
+              </div>
+
+              <div className="flex flex-wrap gap-3">
+                <Link
+                  href={`/events/${FEATURED_EVENT.slug}`}
+                  className="inline-flex items-center gap-2 bg-white text-slate-900 font-bold px-8 py-3.5 rounded-lg text-base hover:bg-slate-100 transition-colors shadow-lg"
+                >
+                  <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M8 5v14l11-7z" />
+                  </svg>
+                  Register Now
+                </Link>
+                <Link
+                  href={`/events/${FEATURED_EVENT.slug}`}
+                  className="inline-flex items-center gap-2 bg-white/10 backdrop-blur text-white font-semibold px-8 py-3.5 rounded-lg text-base hover:bg-white/20 transition-colors border border-white/20"
+                >
+                  More Info
+                </Link>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* Upcoming events */}
+        <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 md:py-16">
+          <div className="flex items-end justify-between mb-6">
+            <div>
+              <h2 className="text-2xl md:text-3xl font-bold text-gray-900">Upcoming Events</h2>
+              <p className="text-gray-500 mt-1 text-sm">Find and book tickets to the best events in the Philippines</p>
+            </div>
+            {meta.total > 0 && (
+              <p className="text-xs text-gray-400 hidden sm:block">
+                {meta.total} event{meta.total === 1 ? '' : 's'}
+              </p>
             )}
           </div>
-        )}
+
+          {events.length === 0 ? (
+            <div className="text-center py-20 text-gray-400 bg-white rounded-2xl border border-dashed border-gray-200">
+              No additional events at this time. Check back soon.
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+              {events.map((event) => (
+                <EventCard key={event.id} event={event} />
+              ))}
+            </div>
+          )}
+
+          {meta.totalPages > 1 && (
+            <div className="flex justify-center gap-3 mt-10">
+              {page > 1 && (
+                <Link href={`/?page=${page - 1}`} className="px-4 py-2 rounded-lg border border-gray-300 text-sm hover:border-gray-400 transition-colors">
+                  ← Previous
+                </Link>
+              )}
+              <span className="px-4 py-2 text-sm text-gray-500">
+                Page {page} of {meta.totalPages}
+              </span>
+              {page < meta.totalPages && (
+                <Link href={`/?page=${page + 1}`} className="px-4 py-2 rounded-lg border border-gray-300 text-sm hover:border-gray-400 transition-colors">
+                  Next →
+                </Link>
+              )}
+            </div>
+          )}
+        </section>
       </main>
     </>
   );

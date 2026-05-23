@@ -661,6 +661,38 @@ export class RegistrationsService {
     };
   }
 
+  async bulkReject(
+    ids: string[],
+    adminUserId: string,
+    reason: string,
+    ip?: string,
+  ) {
+    if (!ids.length) {
+      throw new BadRequestException('No registration ids provided');
+    }
+    if (ids.length > 20) {
+      throw new BadRequestException('Maximum 20 registrations per bulk action');
+    }
+    if (!reason || reason.trim().length < 5) {
+      throw new BadRequestException('Rejection reason must be at least 5 characters');
+    }
+    const settled = await Promise.allSettled(
+      ids.map((id) => this.reject(id, adminUserId, reason, ip)),
+    );
+    const results = settled.map((s, i) => {
+      if (s.status === 'fulfilled') {
+        return { id: ids[i], ok: true };
+      }
+      const err = s.reason as Error;
+      return { id: ids[i], ok: false, error: err.message };
+    });
+    const successCount = results.filter((r) => r.ok).length;
+    return {
+      message: `Bulk reject completed: ${successCount}/${ids.length} succeeded`,
+      results,
+    };
+  }
+
   async resend(id: string, adminUserId: string, ip?: string) {
     const reg = await this.prisma.registration.findUnique({
       where: { id },
@@ -692,6 +724,8 @@ export class RegistrationsService {
     status: string = 'proof_submitted',
     page = 1,
     limit = 50,
+    dateFrom?: string,
+    dateTo?: string,
   ) {
     const safePage = Math.max(1, page);
     const safeLimit = Math.min(limit, 100);
@@ -700,6 +734,25 @@ export class RegistrationsService {
     const where: Prisma.RegistrationWhereInput = {};
     if (eventId) where.eventId = eventId;
     if (status) where.status = status as Prisma.RegistrationWhereInput['status'];
+
+    // Inclusive date range on createdAt. Accepts YYYY-MM-DD or ISO timestamps.
+    // dateFrom -> start of day UTC; dateTo -> end of day UTC.
+    const created: Prisma.DateTimeFilter = {};
+    const parseFrom = (s?: string): Date | undefined => {
+      if (!s) return undefined;
+      const d = /^\d{4}-\d{2}-\d{2}$/.test(s) ? new Date(`${s}T00:00:00.000Z`) : new Date(s);
+      return isNaN(d.getTime()) ? undefined : d;
+    };
+    const parseTo = (s?: string): Date | undefined => {
+      if (!s) return undefined;
+      const d = /^\d{4}-\d{2}-\d{2}$/.test(s) ? new Date(`${s}T23:59:59.999Z`) : new Date(s);
+      return isNaN(d.getTime()) ? undefined : d;
+    };
+    const gte = parseFrom(dateFrom);
+    const lte = parseTo(dateTo);
+    if (gte) created.gte = gte;
+    if (lte) created.lte = lte;
+    if (gte || lte) where.createdAt = created;
 
     const [total, items] = await Promise.all([
       this.prisma.registration.count({ where }),

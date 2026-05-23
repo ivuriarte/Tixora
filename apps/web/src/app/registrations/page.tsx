@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import Navbar from '@/components/Navbar';
-import { formatManila } from '@axon-tickets/utils';
+import { formatManila, centavosToPeso, formatPHP } from '@axon-tickets/utils';
 import api from '@/lib/api';
 import type { RegistrationSummary, RegistrationStatus } from '@axon-tickets/types';
 
@@ -45,7 +45,10 @@ export default function MyRegistrationsPage() {
       .get('/registrations/my')
       .then((res) => {
         const body = res.data;
-        setRegistrations(body?.data?.items ?? body?.items ?? []);
+        // API shape: { success, data: { data: items[], meta } }
+        setRegistrations(
+          body?.data?.data ?? body?.data?.items ?? body?.items ?? [],
+        );
       })
       .catch(() => setError('Failed to load registrations.'))
       .finally(() => setLoading(false));
@@ -122,7 +125,7 @@ export default function MyRegistrationsPage() {
                           <span className={`w-1.5 h-1.5 rounded-full ${style.dot}`} />
                           {STATUS_LABELS[reg.status]}
                         </span>
-                        <p className="text-base font-bold text-gray-900">₱{reg.total.toLocaleString()}</p>
+                        <p className="text-base font-bold text-gray-900">{formatPHP(centavosToPeso(reg.total))}</p>
                       </div>
                     </div>
                     <div className="mt-4 pt-3 border-t border-gray-100 flex items-center justify-between">

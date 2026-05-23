@@ -58,11 +58,6 @@ export default function Navbar() {
               Home
             </Link>
           )}
-          {process.env.NEXT_PUBLIC_ENABLE_MARKETPLACE !== 'false' && !user?.isAdmin && (
-            <Link href="/events" className="text-sm font-medium text-gray-500 hover:text-primary hidden sm:block">
-              Browse Events
-            </Link>
-          )}
           {isHydrating ? (
             <div className="flex items-center gap-3">
               <div className="h-4 w-14 bg-gray-100 rounded animate-pulse" />
@@ -71,11 +66,19 @@ export default function Navbar() {
           ) : isAuthenticated ? (
             <>
               {user?.isAdmin && (
-                <Link href="/admin" className="relative text-sm font-medium text-gray-700 hover:text-primary">
-                  Admin & Dashboard
+                <Link
+                  href="/admin"
+                  className="group inline-flex items-center gap-2 text-sm font-medium text-gray-700 hover:text-primary transition-colors"
+                  aria-label={
+                    pendingCount > 0
+                      ? `Admin & Dashboard — ${pendingCount} pending verification${pendingCount === 1 ? '' : 's'}`
+                      : 'Admin & Dashboard'
+                  }
+                >
+                  <span>Admin &amp; Dashboard</span>
                   {pendingCount > 0 && (
                     <span
-                      className="absolute -top-2 -right-3 min-w-[18px] h-[18px] px-1 inline-flex items-center justify-center text-[10px] font-bold text-white bg-red-600 rounded-full"
+                      className="inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full text-[11px] font-semibold leading-none bg-red-50 text-red-700 ring-1 ring-inset ring-red-200 group-hover:bg-red-100 transition-colors"
                       title={`${pendingCount} pending verification${pendingCount === 1 ? '' : 's'}`}
                     >
                       {pendingCount > 99 ? '99+' : pendingCount}

@@ -23,7 +23,7 @@ import { JwtPayload } from '@axon-tickets/types';
 import { AdminService } from './admin.service';
 import { CreateEventDto, UpdateEventDto } from '../events/dto/event.dto';
 import { CreateTierDto, UpdateTierDto } from '../ticket-tiers/dto/tier.dto';
-import { CheckinDto, RejectRegistrationDto, BulkApproveDto } from './dto/admin.dto';
+import { CheckinDto, RejectRegistrationDto, BulkApproveDto, BulkRejectDto } from './dto/admin.dto';
 import { RegistrationsService } from '../registrations/registrations.service';
 
 @ApiTags('admin')
@@ -271,12 +271,16 @@ export class AdminController {
     @Query('status') status?: string,
     @Query('page') page?: string,
     @Query('limit') limit?: string,
+    @Query('dateFrom') dateFrom?: string,
+    @Query('dateTo') dateTo?: string,
   ) {
     return this.registrationsService.listPendingVerifications(
       eventId,
       status ?? 'proof_submitted',
       page ? parseInt(page, 10) : 1,
       limit ? Math.min(parseInt(limit, 10), 100) : 50,
+      dateFrom,
+      dateTo,
     );
   }
 
@@ -294,6 +298,16 @@ export class AdminController {
     @Req() req: Request,
   ) {
     return this.registrationsService.bulkApprove(dto.ids, user.sub, req.ip);
+  }
+
+  @Post('verifications/bulk-reject')
+  @ApiOperation({ summary: 'Reject up to 20 registrations in one call (shared reason)' })
+  bulkReject(
+    @Body() dto: BulkRejectDto,
+    @CurrentUser() user: JwtPayload,
+    @Req() req: Request,
+  ) {
+    return this.registrationsService.bulkReject(dto.ids, user.sub, dto.reason, req.ip);
   }
 
   @Post('registrations/:id/resend')

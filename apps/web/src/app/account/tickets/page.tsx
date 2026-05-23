@@ -6,7 +6,7 @@ import api from '@/lib/api';
 import Navbar from '@/components/Navbar';
 import Link from 'next/link';
 import Image from 'next/image';
-import { formatManila } from '@axon-tickets/utils';
+import { formatManila, centavosToPeso, formatPHP } from '@axon-tickets/utils';
 import type { RegistrationSummary, RegistrationStatus } from '@axon-tickets/types';
 
 interface Ticket {
@@ -137,7 +137,8 @@ export default function MyEventsPage() {
     queryFn: () =>
       api.get('/registrations/my').then((r) => {
         const body = r.data;
-        return (body?.data?.items ?? body?.items ?? []) as RegistrationSummary[];
+        // API shape: { success, data: { data: items[], meta } }
+        return (body?.data?.data ?? body?.data?.items ?? body?.items ?? []) as RegistrationSummary[];
       }),
   });
 
@@ -337,7 +338,7 @@ function RegistrationCard({ reg }: { reg: RegistrationSummary }) {
         </div>
         <div className="text-right shrink-0 flex flex-col items-end gap-2">
           <StatusChip dot={style.dot} chip={style.chip}>{REG_STATUS_LABELS[reg.status]}</StatusChip>
-          <p className="text-base font-bold text-gray-900">₱{reg.total.toLocaleString()}</p>
+          <p className="text-base font-bold text-gray-900">{formatPHP(centavosToPeso(reg.total))}</p>
         </div>
       </div>
       <div className="mt-4 pt-3 border-t border-gray-100 flex items-center justify-between">

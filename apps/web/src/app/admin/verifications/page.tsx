@@ -1,11 +1,11 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
-import Link from 'next/link';
+import { useEffect, useState, useCallback, useMemo } from 'react';
 import toast from 'react-hot-toast';
 import api from '@/lib/api';
 import Navbar from '@/components/Navbar';
 import BackButton from '@/components/BackButton';
+import VerificationDrawer from '@/components/admin/VerificationDrawer';
 import { formatManila } from '@axon-tickets/utils';
 
 interface VerificationRow {
@@ -55,7 +55,6 @@ function unwrap<T>(res: { data: T | { data: T } }): T {
 
 const STATUSES = [
   { value: 'proof_submitted', label: 'Awaiting review' },
-  { value: 'pending_payment', label: 'Awaiting proof' },
   { value: 'verified', label: 'Verified' },
   { value: 'rejected', label: 'Rejected' },
 ];
@@ -65,11 +64,33 @@ export default function VerificationsQueuePage() {
   const [meta, setMeta] = useState<PageMeta>({ total: 0, page: 1, limit: 50, totalPages: 0 });
   const [eventId, setEventId] = useState<string>('');
   const [status, setStatus] = useState<string>('proof_submitted');
+  const [dateFrom, setDateFrom] = useState<string>('');
+  const [dateTo, setDateTo] = useState<string>('');
+  const [dateError, setDateError] = useState<string | null>(null);
   const [page, setPage] = useState(1);
   const [events, setEvents] = useState<EventOption[]>([]);
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [bulkBusy, setBulkBusy] = useState(false);
+
+  // Drawer state
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [drawerId, setDrawerId] = useState<string | null>(null);
+
+  // Bulk reject modal state
+  const REJECT_REASONS = useMemo(
+    () => [
+      'Amount does not match',
+      'Proof is unreadable / blurry',
+      'Wrong account / recipient',
+      'Duplicate proof',
+      'Other',
+    ] as const,
+    [],
+  );
+  const [bulkRejectOpen, setBulkRejectOpen] = useState(false);
+  const [bulkRejectChoice, setBulkRejectChoice] = useState<string>(REJECT_REASONS[0]);
+  const [bulkRejectCustom, setBulkRejectCustom] = useState('');
 
   const fetchEvents = useCallback(async () => {
     try {
@@ -89,6 +110,14 @@ export default function VerificationsQueuePage() {
       setLoading(false);
       return;
     }
+    // Validate range
+    if (dateFrom && dateTo && dateFrom > dateTo) {
+      setDateError('Date From must be on or before Date To.');
+      setRows([]);
+      setLoading(false);
+      return;
+    }
+    setDateError(null);
     setLoading(true);
     // Clear stale rows immediately to avoid showing previous event's data
     setRows([]);
@@ -97,6 +126,8 @@ export default function VerificationsQueuePage() {
       const params = new URLSearchParams();
       params.set('eventId', eventId);
       if (status) params.set('status', status);
+      if (dateFrom) params.set('dateFrom', dateFrom);
+      if (dateTo) params.set('dateTo', dateTo);
       params.set('page', String(page));
       params.set('limit', '50');
       const res = await api.get(`/admin/verifications?${params.toString()}`);
@@ -107,7 +138,7 @@ export default function VerificationsQueuePage() {
     } finally {
       setLoading(false);
     }
-  }, [eventId, status, page]);
+  }, [eventId, status, page, dateFrom, dateTo]);
 
   useEffect(() => {
     void fetchEvents();
@@ -116,6 +147,13 @@ export default function VerificationsQueuePage() {
   useEffect(() => {
     void fetchRows();
   }, [fetchRows]);
+
+  // Close drawer whenever the filter set changes — the open registration may
+  // belong to a different event/status and would be stale.
+  useEffect(() => {
+    setDrawerOpen(false);
+    setDrawerId(null);
+  }, [eventId, status, dateFrom, dateTo]);
 
   const toggle = (id: string) => {
     setSelected((prev) => {
@@ -166,6 +204,63 @@ export default function VerificationsQueuePage() {
 
   const eligibleCount = rows.filter((r) => r.status === 'proof_submitted').length;
   const selectedEligible = rows.filter((r) => r.status === 'proof_submitted' && selected.has(r.id)).length;
+
+  // Drawer navigation across eligible rows
+  const navIds = rows.map((r) => r.id);
+  const drawerIndex = drawerId ? navIds.indexOf(drawerId) : -1;
+  const hasPrev = drawerIndex > 0;
+  const hasNext = drawerIndex >= 0 && drawerIndex < navIds.length - 1;
+
+  const openDrawer = (id: string) => {
+    setDrawerId(id);
+    setDrawerOpen(true);
+  };
+  const closeDrawer = () => {
+    setDrawerOpen(false);
+    setDrawerId(null);
+  };
+  const drawerPrev = () => {
+    if (hasPrev) setDrawerId(navIds[drawerIndex - 1]);
+  };
+  const drawerNext = () => {
+    if (hasNext) setDrawerId(navIds[drawerIndex + 1]);
+  };
+
+  const bulkReject = async () => {
+    const ids = Array.from(selected);
+    if (!ids.length) return;
+    if (ids.length > 20) {
+      toast.error('Maximum 20 per bulk action.');
+      return;
+    }
+    const finalReason = bulkRejectChoice === 'Other' ? bulkRejectCustom.trim() : bulkRejectChoice;
+    if (finalReason.length < 5) {
+      toast.error('Reason must be at least 5 characters.');
+      return;
+    }
+    setBulkBusy(true);
+    const tid = toast.loading(`Rejecting ${ids.length}…`);
+    try {
+      const res = await api.post('/admin/verifications/bulk-reject', { ids, reason: finalReason });
+      const body = unwrap<{ message: string; results: Array<{ id: string; ok: boolean; error?: string }> }>(res);
+      const succeeded = body.results.filter((r) => r.ok).length;
+      const failed = body.results.length - succeeded;
+      if (failed === 0) {
+        toast.success(`Rejected ${succeeded}`, { id: tid });
+      } else {
+        toast.error(`Rejected ${succeeded} · ${failed} failed`, { id: tid });
+      }
+      setBulkRejectOpen(false);
+      setBulkRejectChoice(REJECT_REASONS[0]);
+      setBulkRejectCustom('');
+      await fetchRows();
+    } catch (e: unknown) {
+      const err = e as { response?: { data?: { message?: string } } };
+      toast.error(err.response?.data?.message ?? 'Bulk reject failed.', { id: tid });
+    } finally {
+      setBulkBusy(false);
+    }
+  };
 
   return (
     <>
@@ -221,6 +316,47 @@ export default function VerificationsQueuePage() {
               ))}
             </select>
           </div>
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1">Date From</label>
+            <input
+              type="date"
+              value={dateFrom}
+              max={dateTo || undefined}
+              onChange={(e) => {
+                setDateFrom(e.target.value);
+                setPage(1);
+              }}
+              className="px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1">Date To</label>
+            <input
+              type="date"
+              value={dateTo}
+              min={dateFrom || undefined}
+              onChange={(e) => {
+                setDateTo(e.target.value);
+                setPage(1);
+              }}
+              className="px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white"
+            />
+          </div>
+          {(dateFrom || dateTo) && (
+            <div>
+              <button
+                type="button"
+                onClick={() => {
+                  setDateFrom('');
+                  setDateTo('');
+                  setPage(1);
+                }}
+                className="px-3 py-2 text-sm font-medium text-gray-600 hover:text-primary hover:bg-gray-50 rounded-lg border border-transparent"
+              >
+                Clear dates
+              </button>
+            </div>
+          )}
           <div className="ml-auto flex items-center gap-3">
             {selected.size > 0 && (
               <span className="text-xs text-gray-500">{selected.size} selected</span>
@@ -232,8 +368,23 @@ export default function VerificationsQueuePage() {
             >
               {bulkBusy ? 'Approving…' : `Bulk approve (${selectedEligible})`}
             </button>
+            <button
+              onClick={() => {
+                if (selectedEligible === 0) return;
+                setBulkRejectChoice(REJECT_REASONS[0]);
+                setBulkRejectCustom('');
+                setBulkRejectOpen(true);
+              }}
+              disabled={bulkBusy || selectedEligible === 0}
+              className="px-4 py-2 rounded-lg border border-red-200 text-red-700 text-sm font-semibold hover:bg-red-50 disabled:opacity-40"
+            >
+              Bulk reject ({selectedEligible})
+            </button>
           </div>
         </div>
+        {dateError && (
+          <p className="text-xs text-red-600 -mt-3 ml-1">{dateError}</p>
+        )}
 
         {/* Table */}
         <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden">
@@ -315,12 +466,13 @@ export default function VerificationsQueuePage() {
                         {formatManila(new Date(r.createdAt))}
                       </td>
                       <td className="px-4 py-3 text-right">
-                        <Link
-                          href={`/admin/registrations/${r.id}`}
+                        <button
+                          type="button"
+                          onClick={() => openDrawer(r.id)}
                           className="text-xs text-primary hover:underline font-semibold"
                         >
-                          Review →
-                        </Link>
+                          {eligible ? 'Review →' : 'View →'}
+                        </button>
                       </td>
                     </tr>
                   );
@@ -353,6 +505,81 @@ export default function VerificationsQueuePage() {
           </div>
         )}
       </main>
+
+      {/* Drawer for proof review */}
+      <VerificationDrawer
+        open={drawerOpen}
+        registrationId={drawerId}
+        onClose={closeDrawer}
+        onPrev={drawerPrev}
+        onNext={drawerNext}
+        hasPrev={hasPrev}
+        hasNext={hasNext}
+        onActionComplete={() => {
+          void fetchRows();
+        }}
+      />
+
+      {/* Bulk reject modal */}
+      {bulkRejectOpen && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4" role="dialog" aria-modal="true">
+          <button
+            type="button"
+            aria-label="Close"
+            onClick={() => !bulkBusy && setBulkRejectOpen(false)}
+            className="absolute inset-0 bg-black/40"
+          />
+          <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 space-y-4">
+            <div>
+              <h2 className="text-lg font-bold text-gray-900">Reject {selectedEligible} registration{selectedEligible === 1 ? '' : 's'}?</h2>
+              <p className="text-sm text-gray-500 mt-1">
+                The selected buyers will be notified with the reason you choose below.
+              </p>
+            </div>
+            <div className="space-y-2">
+              <label className="block text-xs font-medium text-gray-700">Reason</label>
+              <select
+                value={bulkRejectChoice}
+                onChange={(e) => setBulkRejectChoice(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white"
+              >
+                {REJECT_REASONS.map((r) => (
+                  <option key={r} value={r}>{r}</option>
+                ))}
+              </select>
+              {bulkRejectChoice === 'Other' && (
+                <input
+                  autoFocus
+                  type="text"
+                  value={bulkRejectCustom}
+                  onChange={(e) => setBulkRejectCustom(e.target.value)}
+                  maxLength={500}
+                  placeholder="Describe the reason (min 5 chars)"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                />
+              )}
+            </div>
+            <div className="flex gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setBulkRejectOpen(false)}
+                disabled={bulkBusy}
+                className="flex-1 px-4 py-2 rounded-lg border border-gray-300 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={bulkReject}
+                disabled={bulkBusy}
+                className="flex-1 px-4 py-2 rounded-lg bg-red-600 text-white text-sm font-semibold hover:bg-red-700 disabled:opacity-50"
+              >
+                {bulkBusy ? 'Rejecting…' : `Reject ${selectedEligible}`}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }

@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import api from '@/lib/api';
 import Navbar from '@/components/Navbar';
-import { formatManila } from '@axon-tickets/utils';
+import { formatManila, centavosToPeso, formatPHP } from '@axon-tickets/utils';
 
 interface ProofRow {
   id: string;
@@ -220,15 +220,15 @@ export default function AdminRegistrationDetailPage() {
             <span>
               {reg.tierName ?? 'Ticket'} × {reg.attendeeCount}
             </span>
-            <span>₱{Number(reg.subtotal).toLocaleString()}</span>
+            <span>{formatPHP(centavosToPeso(Number(reg.subtotal)))}</span>
           </div>
           <div className="flex justify-between text-gray-600">
             <span>Service fee</span>
-            <span>₱{Number(reg.fees).toLocaleString()}</span>
+            <span>{formatPHP(centavosToPeso(Number(reg.fees)))}</span>
           </div>
           <div className="flex justify-between font-bold text-gray-900 pt-2 border-t border-gray-100">
             <span>Total</span>
-            <span className="text-primary">₱{Number(reg.total).toLocaleString()}</span>
+            <span className="text-primary">{formatPHP(centavosToPeso(Number(reg.total)))}</span>
           </div>
         </div>
 

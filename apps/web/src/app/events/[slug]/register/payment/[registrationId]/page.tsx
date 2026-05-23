@@ -7,6 +7,7 @@ import api from '@/lib/api';
 import CheckoutStepper from '@/components/CheckoutStepper';
 import PaymentProofDropzone from '@/components/PaymentProofDropzone';
 import type { Registration } from '@axon-tickets/types';
+import { centavosToPeso, formatPHP } from '@axon-tickets/utils';
 
 export default function PaymentStepPage() {
   const router = useRouter();
@@ -119,10 +120,10 @@ export default function PaymentStepPage() {
           </p>
           <div className="mt-1 flex items-end gap-3">
             <p className="text-3xl font-bold text-gray-900">
-              ₱{reg.total.toLocaleString()}
+              {formatPHP(centavosToPeso(reg.total))}
             </p>
             <button
-              onClick={() => copy('amount', String(reg.total))}
+              onClick={() => copy('amount', centavosToPeso(reg.total).toFixed(2))}
               className="mb-1 text-xs font-medium text-primary hover:underline"
             >
               {copied === 'amount' ? 'Copied!' : 'Copy'}

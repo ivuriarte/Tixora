@@ -1,4 +1,4 @@
-import { IsString, MinLength, IsArray, ArrayMaxSize, ArrayMinSize, IsUUID } from 'class-validator';
+import { IsString, MinLength, MaxLength, IsArray, ArrayMaxSize, ArrayMinSize, IsUUID } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 
 export class CheckinDto {
@@ -11,6 +11,7 @@ export class RejectRegistrationDto {
   @ApiProperty({ description: 'Reason for rejection (visible to user)' })
   @IsString()
   @MinLength(5)
+  @MaxLength(500)
   reason: string;
 }
 
@@ -21,4 +22,19 @@ export class BulkApproveDto {
   @ArrayMaxSize(20)
   @IsUUID('all', { each: true })
   ids: string[];
+}
+
+export class BulkRejectDto {
+  @ApiProperty({ description: 'Registration ids to reject (max 20)', type: [String] })
+  @IsArray()
+  @ArrayMinSize(1)
+  @ArrayMaxSize(20)
+  @IsUUID('all', { each: true })
+  ids: string[];
+
+  @ApiProperty({ description: 'Shared rejection reason (5-500 chars, visible to users)' })
+  @IsString()
+  @MinLength(5)
+  @MaxLength(500)
+  reason: string;
 }
