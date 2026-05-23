@@ -344,7 +344,7 @@ export default function RegistrationForm({
         disabled={loading}
         className="w-full py-3 rounded-xl bg-primary text-white font-semibold text-sm hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
       >
-        {loading ? 'Submitting…' : `Confirm Registration — ₱${total.toLocaleString()}`}
+        {loading ? 'Submitting…' : `Confirm Registration — ${formatPHP(totalPesos)}`}
       </button>
     </form>
   );
