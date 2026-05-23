@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import api from '@/lib/api';
 import Navbar from '@/components/Navbar';
@@ -126,6 +126,11 @@ function EmptyState({
 
 export default function MyEventsPage() {
   const [tab, setTab] = useState<'tickets' | 'registrations'>('tickets');
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('tab') === 'registrations') setTab('registrations');
+  }, []);
 
   const { data: tickets, isLoading: ticketsLoading } = useQuery({
     queryKey: ['my-tickets'],

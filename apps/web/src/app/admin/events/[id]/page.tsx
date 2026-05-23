@@ -74,6 +74,7 @@ interface ApiEvent {
   bankAccountName?: string | null;
   gcashNumber?: string | null;
   paymentMethods?: ApiPaymentMethod[] | null;
+  landmark?: string | null;
   tiers: ApiTier[];
 }
 
@@ -137,7 +138,7 @@ export default function AdminEventEditPage() {
       speakerName: event.speakerName ?? '',
       venue: event.venue ?? '',
       address: event.address ?? '',
-      landmark: '',
+      landmark: event.landmark ?? '',
       city: event.city ?? '',
       startDate: start.date,
       startTime: start.time,

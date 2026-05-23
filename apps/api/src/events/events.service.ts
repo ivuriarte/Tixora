@@ -158,6 +158,7 @@ export class EventsService {
       gcashNumber: event.gcashNumber ?? null,
       paymentMethods: event.paymentMethods ?? null,
       platformFee: Number(event.platformFee ?? 50),
+      landmark: event.landmark ?? null,
       tiers: tiersWithAvailable,
       createdAt: event.createdAt.toISOString(),
     };

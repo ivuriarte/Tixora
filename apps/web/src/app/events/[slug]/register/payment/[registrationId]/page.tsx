@@ -38,7 +38,7 @@ export default function PaymentStepPage() {
   }, [registrationId, router, slug]);
 
   const handleUploaded = () => {
-    router.push(`/registrations/${registrationId}`);
+    router.push('/account/tickets?tab=registrations');
   };
 
   const copy = async (label: string, value: string) => {

@@ -1,6 +1,6 @@
 'use client';
 
-import { Suspense, useState } from 'react';
+import { Suspense, useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import toast from 'react-hot-toast';
@@ -11,8 +11,15 @@ import Button from '@/components/Button';
 function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { setAuth } = useAuthStore();
+  const { setAuth, isAuthenticated, isHydrating, user } = useAuthStore();
   const [loading, setLoading] = useState(false);
+
+  // Redirect already-authenticated users away from the login page
+  useEffect(() => {
+    if (!isHydrating && isAuthenticated && user) {
+      router.replace(user.isAdmin ? '/admin' : '/');
+    }
+  }, [isHydrating, isAuthenticated, user, router]);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -30,7 +37,7 @@ function LoginForm() {
       const redirect = searchParams.get('redirect');
       // Only allow relative redirects to prevent open-redirect attacks
       const dest = redirect && redirect.startsWith('/') ? redirect : '/';
-      router.push(user.isAdmin ? '/admin' : dest);
+      router.replace(user.isAdmin ? '/admin' : dest);
     } catch (err: any) {
       const msg = err?.response?.data?.message ?? 'Login failed';
       // If account not verified, redirect to verify page

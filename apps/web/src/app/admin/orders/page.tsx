@@ -140,8 +140,8 @@ export default function AdminOrdersPage() {
 
         {/* Table */}
         {filtersApplied && (isLoading ? (
-          <div className="bg-white shadow rounded-2xl overflow-hidden">
-            <table className="w-full text-sm">
+          <div className="bg-white shadow rounded-2xl overflow-x-auto">
+            <table className="w-full text-sm min-w-[640px]">
               <tbody className="divide-y divide-gray-100">
                 {[0, 1, 2, 3, 4].map((i) => (
                   <tr key={i}>
@@ -155,8 +155,8 @@ export default function AdminOrdersPage() {
           </div>
         ) : (
           <>
-            <div className="bg-white shadow rounded-2xl overflow-hidden">
-              <table className="w-full text-sm">
+            <div className="bg-white shadow rounded-2xl overflow-x-auto">
+              <table className="w-full text-sm min-w-[640px]">
                 <thead>
                   <tr className="bg-gray-50 text-left text-gray-600 text-xs uppercase tracking-wide">
                     <th className="px-4 py-3">Order ID</th>

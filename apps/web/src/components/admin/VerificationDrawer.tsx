@@ -64,6 +64,14 @@ const REJECT_REASONS = [
   'Other',
 ] as const;
 
+const STATUS_LABELS: Record<string, string> = {
+  proof_submitted: 'Under Review',
+  verified: 'Verified',
+  rejected: 'Rejected',
+  pending_payment: 'Pending Payment',
+  cancelled: 'Cancelled',
+};
+
 interface Props {
   open: boolean;
   registrationId: string | null;
@@ -72,6 +80,8 @@ interface Props {
   onNext?: () => void;
   hasPrev?: boolean;
   hasNext?: boolean;
+  currentIndex?: number;
+  totalCount?: number;
   /** Called after a successful approve/reject so parent can refetch the list. */
   onActionComplete?: () => void;
 }
@@ -84,6 +94,8 @@ export default function VerificationDrawer({
   onNext,
   hasPrev,
   hasNext,
+  currentIndex,
+  totalCount,
   onActionComplete,
 }: Props) {
   const [reg, setReg] = useState<AdminReg | null>(null);
@@ -181,7 +193,6 @@ export default function VerificationDrawer({
 
   const approve = async () => {
     if (!reg) return;
-    if (!confirm('Approve this registration and verify payment?')) return;
     setActing(true);
     const tid = toast.loading('Approving…');
     try {
@@ -273,6 +284,12 @@ export default function VerificationDrawer({
             </p>
           </div>
           <div className="flex items-center gap-1">
+            {totalCount != null && currentIndex != null && currentIndex >= 0 && (
+              <span className="mr-2 text-xs font-semibold tabular-nums text-gray-400">
+                {currentIndex + 1}
+                <span className="font-normal"> / {totalCount}</span>
+              </span>
+            )}
             <button
               type="button"
               onClick={onPrev}
@@ -281,7 +298,9 @@ export default function VerificationDrawer({
               title="Previous (K or ↑)"
               aria-label="Previous registration"
             >
-              <svg width="16" height="16" viewBox="0 0 20 20" fill="currentColor"><path d="M15 13l-5-5-5 5" /></svg>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M18 15l-6-6-6 6" />
+              </svg>
             </button>
             <button
               type="button"
@@ -291,7 +310,9 @@ export default function VerificationDrawer({
               title="Next (J or ↓)"
               aria-label="Next registration"
             >
-              <svg width="16" height="16" viewBox="0 0 20 20" fill="currentColor"><path d="M5 7l5 5 5-5" /></svg>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M6 9l6 6 6-6" />
+              </svg>
             </button>
             <button
               ref={closeBtnRef}
@@ -302,7 +323,9 @@ export default function VerificationDrawer({
               title="Close (Esc)"
               aria-label="Close"
             >
-              <svg width="18" height="18" viewBox="0 0 20 20" fill="currentColor"><path d="M15 5L5 15M5 5l10 10" stroke="currentColor" strokeWidth="2" /></svg>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M18 6L6 18M6 6l12 12" />
+              </svg>
             </button>
           </div>
         </header>
@@ -408,7 +431,7 @@ export default function VerificationDrawer({
               {/* Status / actions */}
               {!canReview && (
                 <div className="rounded-xl bg-gray-50 border border-gray-200 px-4 py-3 text-sm text-gray-600">
-                  Current status: <span className="font-semibold">{reg.status.replace('_', ' ')}</span>
+                  Current status: <span className="font-semibold">{STATUS_LABELS[reg.status] ?? reg.status}</span>
                   {reg.rejectionReason && (
                     <p className="text-xs text-red-600 mt-1">Reason: {reg.rejectionReason}</p>
                   )}
@@ -480,12 +503,12 @@ export default function VerificationDrawer({
                   disabled={acting}
                   className="flex-1 px-4 py-2.5 rounded-lg bg-green-600 text-white text-sm font-semibold hover:bg-green-700 disabled:opacity-50"
                 >
-                  {acting ? 'Approving…' : 'Approve'}
+                  {acting ? 'Approving…' : hasNext ? 'Approve & Next →' : 'Approve ✓'}
                 </button>
               </div>
             )}
             <p className="text-[11px] text-gray-400 text-center">
-              Shortcuts: <kbd className="font-mono">J</kbd>/<kbd className="font-mono">K</kbd> navigate · <kbd className="font-mono">Esc</kbd> close
+              Approve / Reject auto-advances to next · <kbd className="font-mono">J</kbd>/<kbd className="font-mono">K</kbd> navigate · <kbd className="font-mono">Esc</kbd> close
             </p>
           </footer>
         )}

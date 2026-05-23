@@ -59,13 +59,28 @@ const STATUSES = [
   { value: 'rejected', label: 'Rejected' },
 ];
 
+const STATUS_CONFIG: Record<string, { label: string; dot: string; chip: string }> = {
+  proof_submitted: { label: 'Under Review',   dot: 'bg-blue-500',    chip: 'bg-blue-50 text-blue-700 ring-1 ring-inset ring-blue-600/20' },
+  verified:        { label: 'Verified',        dot: 'bg-emerald-500', chip: 'bg-emerald-50 text-emerald-700 ring-1 ring-inset ring-emerald-600/20' },
+  rejected:        { label: 'Rejected',        dot: 'bg-red-500',     chip: 'bg-red-50 text-red-700 ring-1 ring-inset ring-red-600/20' },
+  pending_payment: { label: 'Pending Payment', dot: 'bg-amber-500',   chip: 'bg-amber-50 text-amber-700 ring-1 ring-inset ring-amber-600/20' },
+};
+
 export default function VerificationsQueuePage() {
   const [rows, setRows] = useState<VerificationRow[]>([]);
   const [meta, setMeta] = useState<PageMeta>({ total: 0, page: 1, limit: 50, totalPages: 0 });
   const [eventId, setEventId] = useState<string>('');
   const [status, setStatus] = useState<string>('proof_submitted');
-  const [dateFrom, setDateFrom] = useState<string>('');
-  const [dateTo, setDateTo] = useState<string>('');
+  const [dateFrom, setDateFrom] = useState<string>(() => {
+    const d = new Date();
+    const p = (n: number) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+  });
+  const [dateTo, setDateTo] = useState<string>(() => {
+    const d = new Date();
+    const p = (n: number) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+  });
   const [dateError, setDateError] = useState<string | null>(null);
   const [page, setPage] = useState(1);
   const [events, setEvents] = useState<EventOption[]>([]);
@@ -170,35 +185,6 @@ export default function VerificationsQueuePage() {
       setSelected(new Set());
     } else {
       setSelected(new Set(eligible.slice(0, 20)));
-    }
-  };
-
-  const bulkApprove = async () => {
-    const ids = Array.from(selected);
-    if (!ids.length) return;
-    if (ids.length > 20) {
-      toast.error('Maximum 20 per bulk action.');
-      return;
-    }
-    if (!confirm(`Approve ${ids.length} registration${ids.length === 1 ? '' : 's'}?`)) return;
-    setBulkBusy(true);
-    const tid = toast.loading(`Approving ${ids.length}…`);
-    try {
-      const res = await api.post('/admin/verifications/bulk-approve', { ids });
-      const body = unwrap<{ message: string; results: Array<{ id: string; ok: boolean; error?: string }> }>(res);
-      const succeeded = body.results.filter((r) => r.ok).length;
-      const failed = body.results.length - succeeded;
-      if (failed === 0) {
-        toast.success(`Approved ${succeeded}`, { id: tid });
-      } else {
-        toast.error(`Approved ${succeeded} · ${failed} failed`, { id: tid });
-      }
-      await fetchRows();
-    } catch (e: unknown) {
-      const err = e as { response?: { data?: { message?: string } } };
-      toast.error(err.response?.data?.message ?? 'Bulk approve failed.', { id: tid });
-    } finally {
-      setBulkBusy(false);
     }
   };
 
@@ -362,13 +348,6 @@ export default function VerificationsQueuePage() {
               <span className="text-xs text-gray-500">{selected.size} selected</span>
             )}
             <button
-              onClick={bulkApprove}
-              disabled={bulkBusy || selectedEligible === 0}
-              className="px-4 py-2 rounded-lg bg-green-600 text-white text-sm font-semibold hover:bg-green-700 disabled:opacity-40"
-            >
-              {bulkBusy ? 'Approving…' : `Bulk approve (${selectedEligible})`}
-            </button>
-            <button
               onClick={() => {
                 if (selectedEligible === 0) return;
                 setBulkRejectChoice(REJECT_REASONS[0]);
@@ -387,7 +366,7 @@ export default function VerificationsQueuePage() {
         )}
 
         {/* Table */}
-        <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden">
+        <div className="bg-white border border-gray-200 rounded-2xl overflow-x-auto">
           {!eventId ? (
             <p className="text-sm text-gray-500 p-10 text-center">
               Select an event above to load its transaction verification queue.
@@ -397,7 +376,7 @@ export default function VerificationsQueuePage() {
           ) : rows.length === 0 ? (
             <p className="text-sm text-gray-500 p-6">No registrations match these filters.</p>
           ) : (
-            <table className="w-full text-sm">
+            <table className="w-full text-sm min-w-[800px]">
               <thead className="bg-gray-50 text-xs uppercase text-gray-500">
                 <tr>
                   <th className="px-4 py-3 w-10">
@@ -448,19 +427,15 @@ export default function VerificationsQueuePage() {
                         ₱{(Number(r.total) / 100).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </td>
                       <td className="px-4 py-3">
-                        <span
-                          className={`text-xs font-semibold px-2 py-1 rounded-full ${
-                            r.status === 'verified'
-                              ? 'bg-green-100 text-green-700'
-                              : r.status === 'proof_submitted'
-                                ? 'bg-blue-100 text-blue-700'
-                                : r.status === 'rejected'
-                                  ? 'bg-red-100 text-red-700'
-                                  : 'bg-yellow-100 text-yellow-700'
-                          }`}
-                        >
-                          {r.status.replace('_', ' ')}
-                        </span>
+                        {(() => {
+                          const cfg = STATUS_CONFIG[r.status] ?? { label: r.status, dot: 'bg-gray-400', chip: 'bg-gray-100 text-gray-600 ring-1 ring-inset ring-gray-500/20' };
+                          return (
+                            <span className={`inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full whitespace-nowrap ${cfg.chip}`}>
+                              <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${cfg.dot}`} />
+                              {cfg.label}
+                            </span>
+                          );
+                        })()}
                       </td>
                       <td className="px-4 py-3 text-xs text-gray-500">
                         {formatManila(new Date(r.createdAt))}
@@ -515,6 +490,8 @@ export default function VerificationsQueuePage() {
         onNext={drawerNext}
         hasPrev={hasPrev}
         hasNext={hasNext}
+        currentIndex={drawerIndex}
+        totalCount={navIds.length}
         onActionComplete={() => {
           void fetchRows();
         }}
