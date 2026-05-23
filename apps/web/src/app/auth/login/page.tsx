@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import toast from 'react-hot-toast';
 import api from '@/lib/api';
 import { useAuthStore } from '@/store/auth.store';
@@ -10,6 +10,7 @@ import Button from '@/components/Button';
 
 export default function LoginPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { setAuth } = useAuthStore();
   const [loading, setLoading] = useState(false);
   const [email, setEmail] = useState('');
@@ -26,7 +27,10 @@ export default function LoginPage() {
       const { user, accessToken, refreshToken } = res.data.data;
       setAuth(user, accessToken, refreshToken);
       toast.success(`Welcome back, ${user.firstName}!`);
-      router.push(user.isAdmin ? '/admin' : '/');
+      const redirect = searchParams.get('redirect');
+      // Only allow relative redirects to prevent open-redirect attacks
+      const dest = redirect && redirect.startsWith('/') ? redirect : '/';
+      router.push(user.isAdmin ? '/admin' : dest);
     } catch (err: any) {
       const msg = err?.response?.data?.message ?? 'Login failed';
       // If account not verified, redirect to verify page
