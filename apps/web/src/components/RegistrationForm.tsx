@@ -7,6 +7,15 @@ import api from '@/lib/api';
 import { useAuthStore } from '@/store/auth.store';
 import type { CreateRegistrationDto } from '@axon-tickets/types';
 
+interface ProfileData {
+  firstName: string;
+  lastName: string;
+  email: string;
+  phone?: string | null;
+  company?: string | null;
+  jobTitle?: string | null;
+}
+
 interface AttendeeFields {
   firstName: string;
   lastName: string;
@@ -69,6 +78,8 @@ export default function RegistrationForm({
     Array.from({ length: qty }, emptyAttendee),
   );
   const [useMyDetails, setUseMyDetails] = useState(false);
+  const [profileData, setProfileData] = useState<ProfileData | null>(null);
+  const [profileLoading, setProfileLoading] = useState(false);
   const [notes, setNotes] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -86,17 +97,38 @@ export default function RegistrationForm({
     });
   };
 
-  const handleToggleMyDetails = (checked: boolean) => {
-    setUseMyDetails(checked);
-    if (checked && currentUser) {
+  const handleToggleMyDetails = async (enabled: boolean) => {
+    setUseMyDetails(enabled);
+    if (enabled) {
+      let profile = profileData;
+      if (!profile) {
+        setProfileLoading(true);
+        try {
+          const res = await api.get<{ data: ProfileData }>('/users/me');
+          profile = (res.data as unknown as { data: ProfileData }).data ?? (res.data as unknown as ProfileData);
+          setProfileData(profile);
+        } catch {
+          // fall back to auth store values
+        } finally {
+          setProfileLoading(false);
+        }
+      }
       setAttendees((prev) => {
         const next = [...prev];
         next[0] = {
-          ...next[0],
-          firstName: currentUser.firstName || next[0].firstName,
-          lastName: currentUser.lastName || next[0].lastName,
-          email: currentUser.email || next[0].email,
+          firstName: profile?.firstName ?? currentUser?.firstName ?? '',
+          lastName: profile?.lastName ?? currentUser?.lastName ?? '',
+          email: profile?.email ?? currentUser?.email ?? '',
+          phone: profile?.phone ?? '',
+          company: profile?.company ?? '',
+          jobTitle: profile?.jobTitle ?? '',
         };
+        return next;
+      });
+    } else {
+      setAttendees((prev) => {
+        const next = [...prev];
+        next[0] = emptyAttendee();
         return next;
       });
     }
@@ -225,20 +257,28 @@ export default function RegistrationForm({
 
       {/* Autofill toggle */}
       {currentUser && (
-        <div className="bg-white border border-gray-200 rounded-2xl p-4 flex items-start gap-3">
-          <input
-            id="use-my-details"
-            type="checkbox"
-            checked={useMyDetails}
-            onChange={(e) => handleToggleMyDetails(e.target.checked)}
-            className="mt-1 h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
-          />
-          <label htmlFor="use-my-details" className="text-sm text-gray-700 cursor-pointer">
-            <span className="font-medium text-gray-900">Use my account details for Attendee 1</span>
+        <div className="bg-white border border-gray-200 rounded-2xl p-4 flex items-center justify-between gap-3">
+          <div>
+            <p className="text-sm font-medium text-gray-900">Use my account details for Attendee 1</p>
             <p className="text-xs text-gray-500 mt-0.5">
-              Auto-fill name and email from your profile ({currentUser.email}).
+              Auto-fill all profile details ({currentUser.email}).
             </p>
-          </label>
+          </div>
+          <button
+            type="button"
+            disabled={profileLoading}
+            onClick={() => handleToggleMyDetails(!useMyDetails)}
+            className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-primary/30 ${
+              useMyDetails ? 'bg-primary' : 'bg-gray-200'
+            } ${profileLoading ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'}`}
+            aria-pressed={useMyDetails}
+          >
+            <span
+              className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${
+                useMyDetails ? 'translate-x-6' : 'translate-x-1'
+              }`}
+            />
+          </button>
         </div>
       )}
 
@@ -265,7 +305,12 @@ export default function RegistrationForm({
                 required
                 value={att.firstName}
                 onChange={(e) => updateAttendee(i, 'firstName', e.target.value)}
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
+                readOnly={useMyDetails && i === 0}
+                className={`w-full border rounded-lg px-3 py-2 text-sm focus:outline-none ${
+                  useMyDetails && i === 0
+                    ? 'border-gray-200 bg-gray-50 text-gray-500 cursor-not-allowed'
+                    : 'border-gray-300 focus:ring-2 focus:ring-primary/30 focus:border-primary'
+                }`}
               />
             </div>
             <div>
@@ -274,7 +319,12 @@ export default function RegistrationForm({
                 required
                 value={att.lastName}
                 onChange={(e) => updateAttendee(i, 'lastName', e.target.value)}
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
+                readOnly={useMyDetails && i === 0}
+                className={`w-full border rounded-lg px-3 py-2 text-sm focus:outline-none ${
+                  useMyDetails && i === 0
+                    ? 'border-gray-200 bg-gray-50 text-gray-500 cursor-not-allowed'
+                    : 'border-gray-300 focus:ring-2 focus:ring-primary/30 focus:border-primary'
+                }`}
               />
             </div>
           </div>
@@ -286,7 +336,12 @@ export default function RegistrationForm({
               required
               value={att.email}
               onChange={(e) => updateAttendee(i, 'email', e.target.value)}
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
+              readOnly={useMyDetails && i === 0}
+              className={`w-full border rounded-lg px-3 py-2 text-sm focus:outline-none ${
+                useMyDetails && i === 0
+                  ? 'border-gray-200 bg-gray-50 text-gray-500 cursor-not-allowed'
+                  : 'border-gray-300 focus:ring-2 focus:ring-primary/30 focus:border-primary'
+              }`}
             />
           </div>
 
