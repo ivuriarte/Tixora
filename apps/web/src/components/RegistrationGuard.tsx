@@ -112,7 +112,7 @@ export default function RegistrationGuard({
               </svg>
             </div>
             <div className="flex-1 min-w-0">
-              <p className="font-semibold text-gray-900 text-sm">You're already registered</p>
+              <p className="font-semibold text-gray-900 text-sm">You&apos;re already registered</p>
               <p className="text-xs text-gray-500 mt-0.5 leading-relaxed">
                 You have an active registration for this event. To avoid duplicates, you cannot register again.
               </p>
