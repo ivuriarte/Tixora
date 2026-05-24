@@ -32,7 +32,12 @@
         "TURNSTILE_SECRET_KEY",
         "HCAPTCHA_SECRET",
         "VERCEL_URL",
-        "VERCEL_ENV"
+        "VERCEL_ENV",
+        "NEXT_PUBLIC_SENTRY_DSN",
+        "SENTRY_DSN",
+        "SENTRY_ORG",
+        "SENTRY_PROJECT",
+        "SENTRY_AUTH_TOKEN"
       ]
     },
     "dev": {

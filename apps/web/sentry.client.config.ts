@@ -1,3 +1,4 @@
+// Sentry browser-side initialization — auto-injected by @sentry/nextjs webpack plugin
 import * as Sentry from '@sentry/nextjs';
 
 const dsn = process.env.NEXT_PUBLIC_SENTRY_DSN;

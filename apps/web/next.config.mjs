@@ -63,6 +63,8 @@ export default withSentryConfig(nextConfig, {
   project: process.env.SENTRY_PROJECT,
   // Route browser Sentry requests through Next.js to avoid ad-blockers
   tunnelRoute: '/monitoring',
+  // Explicitly enable client-side auto-instrumentation (injects sentry.client.config.ts)
+  autoInstrumentClientSide: true,
   // Don't open browser on upload
   automaticVercelMonitors: false,
   // Hide source maps from client bundle
