@@ -87,7 +87,7 @@ export default function AdminOrdersPage() {
     queryKey: ['admin-orders', page, statusFilter, eventId],
     queryFn: () => {
       const params = new URLSearchParams({ page: String(page), limit: '20' });
-      if (statusFilter) params.set('status', statusFilter);
+      if (statusFilter && statusFilter !== 'all') params.set('status', statusFilter);
       if (eventId) params.set('eventId', eventId);
       return api
         .get<{ data: TransactionsResponse }>(`/admin/orders?${params}`)
@@ -125,13 +125,15 @@ export default function AdminOrdersPage() {
               All paid transactions — online (PayMongo) and manual (GCash / bank transfer).
             </p>
           </div>
-          <button
-            onClick={handleExport}
-            disabled={exporting}
-            className="text-sm font-semibold text-primary hover:underline border border-primary px-4 py-2 rounded-xl disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {exporting ? 'Exporting…' : '↓ Export CSV'}
-          </button>
+          {filtersApplied && (
+            <button
+              onClick={handleExport}
+              disabled={exporting}
+              className="text-sm font-semibold text-primary hover:underline border border-primary px-4 py-2 rounded-xl disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {exporting ? 'Exporting…' : '↓ Export CSV'}
+            </button>
+          )}
         </div>
 
         {/* Filters */}
@@ -161,6 +163,7 @@ export default function AdminOrdersPage() {
               onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }}
             >
               <option value="">Select status…</option>
+              <option value="all">All</option>
               <option value="paid">Paid</option>
               <option value="pending">Pending</option>
               <option value="failed">Failed / Rejected</option>
