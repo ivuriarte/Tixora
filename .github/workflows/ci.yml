@@ -116,8 +116,20 @@ jobs:
       - name: Rebuild API bundle (NCC)
         run: cd apps/api && npm run vercel-build
 
-      - name: Deploy API to Vercel (production)
-        run: npx vercel --prod --yes --cwd apps/api
+      - name: Pull Vercel project settings
+        run: npx vercel pull --yes --environment=production --cwd apps/api
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_API_PROJECT_ID }}
+
+      - name: Build for Vercel (local — avoids server-side framework detection)
+        run: npx vercel build --prod --cwd apps/api
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+
+      - name: Deploy prebuilt output to Vercel
+        run: npx vercel deploy --prebuilt --prod --yes --cwd apps/api
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
