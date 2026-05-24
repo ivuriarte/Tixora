@@ -37,6 +37,11 @@ jobs:
 
       - name: Type-check Web
         run: cd apps/web && npx tsc --noEmit
+        env:
+          # Sentry vars — left empty here; type-check doesn't need real values
+          SENTRY_AUTH_TOKEN: ''
+          SENTRY_ORG: ''
+          SENTRY_PROJECT: ''
 
   # ── Job 2: API unit tests ─────────────────────────────────────────────────
   api-unit-tests:
@@ -133,3 +138,12 @@ jobs:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_API_PROJECT_ID }}
+
+      - name: Notify Slack on deploy failure
+        if: failure()
+        uses: rtCamp/action-slack-notify@v2
+        env:
+          SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK_URL }}
+          SLACK_COLOR: danger
+          SLACK_TITLE: 'API deploy failed on `main`'
+          SLACK_MESSAGE: 'Check the Actions run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}'

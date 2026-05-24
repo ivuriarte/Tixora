@@ -4,10 +4,23 @@ import { ConfigService } from '@nestjs/config';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { Logger } from 'nestjs-pino';
 import helmet from 'helmet';
+import * as Sentry from '@sentry/node';
 import { AppModule } from './app.module';
 import { TransformInterceptor } from './common/interceptors/transform.interceptor';
+import { SentryExceptionFilter } from './common/filters/sentry-exception.filter';
 
 async function bootstrap() {
+  // Initialise Sentry before anything else so all errors (including bootstrap
+  // failures) are captured. No-op when SENTRY_DSN is not set.
+  const sentryDsn = process.env.SENTRY_DSN;
+  if (sentryDsn) {
+    Sentry.init({
+      dsn: sentryDsn,
+      environment: process.env.NODE_ENV ?? 'development',
+      tracesSampleRate: process.env.NODE_ENV === 'production' ? 0.1 : 1.0,
+    });
+  }
+
   const app = await NestFactory.create(AppModule, {
     bufferLogs: true,
     rawBody: true, // Required for PayMongo webhook signature verification
@@ -37,6 +50,9 @@ async function bootstrap() {
 
   // Global response envelope: { success: true, data: ... }
   app.useGlobalInterceptors(new TransformInterceptor());
+
+  // Forward unhandled 500+ errors to Sentry (no-op when DSN is not configured)
+  app.useGlobalFilters(new SentryExceptionFilter());
 
   // Validation pipe — strict mode, strips unknown fields
   app.useGlobalPipes(

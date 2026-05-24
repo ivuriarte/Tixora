@@ -1,3 +1,6 @@
+// @ts-check
+import { withSentryConfig } from '@sentry/nextjs';
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   env: {
@@ -37,7 +40,8 @@ const nextConfig = {
               // images allowed from any HTTPS host to match next/image remotePatterns wildcard
               "img-src 'self' data: blob: https:",
               "font-src 'self' https://fonts.gstatic.com",
-              "connect-src 'self' https://api.axontickets.ph https://*.vercel.app",
+              // Sentry tunnel and reporting endpoints
+              "connect-src 'self' https://api.axontickets.ph https://*.vercel.app https://*.sentry.io https://*.ingest.sentry.io",
               "frame-src https://hcaptcha.com https://*.hcaptcha.com",
               "object-src 'none'",
               "base-uri 'self'",
@@ -50,4 +54,19 @@ const nextConfig = {
   },
 };
 
-export default nextConfig;
+export default withSentryConfig(nextConfig, {
+  // Suppress Sentry CLI output during builds
+  silent: !process.env.CI,
+  // Upload source maps only when SENTRY_AUTH_TOKEN is present (CI/production)
+  authToken: process.env.SENTRY_AUTH_TOKEN,
+  org: process.env.SENTRY_ORG,
+  project: process.env.SENTRY_PROJECT,
+  // Route browser Sentry requests through Next.js to avoid ad-blockers
+  tunnelRoute: '/monitoring',
+  // Don't open browser on upload
+  automaticVercelMonitors: false,
+  // Hide source maps from client bundle
+  hideSourceMaps: true,
+  // Disable Sentry completely when DSN is not set (local dev)
+  disableLogger: true,
+});
