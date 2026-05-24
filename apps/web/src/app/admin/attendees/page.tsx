@@ -86,10 +86,13 @@ export default function AdminAttendeesPage() {
         `/admin/events/${selectedEventId}/attendees/export`,
         { responseType: 'blob' },
       );
+      const eventTitle = events?.find((e) => e.id === selectedEventId)?.title ?? 'Event';
+      const safeTitle = eventTitle.replace(/[<>:"/\\|?*]/g, '').trim();
+      const date = new Date().toISOString().slice(0, 10);
       const url = URL.createObjectURL(res.data);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `attendees-${selectedEventId}.csv`;
+      a.download = `[Attendees]${safeTitle}-${date}.csv`;
       a.click();
       URL.revokeObjectURL(url);
     } finally {

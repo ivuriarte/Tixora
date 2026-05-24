@@ -103,7 +103,10 @@ export default function AdminOrdersPage() {
     try {
       const params = new URLSearchParams();
       if (eventId) params.set('eventId', eventId);
-      await downloadCsv(`/admin/orders/export?${params}`, 'transactions.csv');
+      const eventTitle = events?.find((e) => e.id === eventId)?.title ?? 'Event';
+      const safeTitle = eventTitle.replace(/[<>:"/\\|?*]/g, '').trim();
+      const date = new Date().toISOString().slice(0, 10);
+      await downloadCsv(`/admin/orders/export?${params}`, `[Transaction]${safeTitle}-${date}.csv`);
     } finally {
       setExporting(false);
     }
