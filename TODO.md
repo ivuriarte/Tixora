@@ -110,8 +110,18 @@ Save the downloaded `.csv` to Google Sheets or print it. The columns are:
 ### Multi-Admin Accounts (for proof reviewers)
 
 For the Francis Kong event (3 core reviewers + volunteers):
-- Create individual `isAdmin: true` user accounts per reviewer via the admin dashboard or a DB seed
+- Have each reviewer **sign up** on the platform normally (they'll get a verified account)
+- Go to `/admin/users` → find their account → click **Make Admin**
+- **Important:** After promotion, ask them to **log out and log back in** — their existing session still has the old `isAdmin: false` claim in the JWT (15-minute window). The `/admin/users` page shows their current DB role in real time, so you can confirm the change took effect before they re-login.
 - Each reviewer gets their own login so audit logs show who approved/rejected each proof
 - Check-in staff can use the same reviewer accounts or separate ones — they only need `/admin/checkin` access
 - Granular roles (reviewer-only vs full admin) is a post-launch backlog item
+
+### ☑ Event Day Pre-flight Checklist
+
+- [ ] **T-30 min:** Run pre-event API warmup (see "Pre-event API Warmup" above)
+- [ ] **T-20 min:** Download and save CSV backup for all verified registrations (see "Event-Day CSV Backup" above)
+- [ ] **T-15 min:** Open `/admin/checkin` on all 3 check-in devices to warm the web container
+- [ ] **T-10 min:** Confirm all reviewers are logged in to admin with correct role
+- [ ] **T-0:** Doors open — BetterStack keeps containers warm from this point
 

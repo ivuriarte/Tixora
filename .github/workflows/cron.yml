@@ -22,18 +22,14 @@ jobs:
   auto-cancel-registrations:
     name: Auto-cancel expired registrations
     runs-on: ubuntu-latest
-    # Run once per hour — GitHub Actions doesn't support different schedules
-    # per job. We check the minute inside the step so only the 00-minute run
-    # actually fires the expensive DB query.
+    # Runs every 5 minutes (same cadence as release-reservations). The query is
+    # idempotent — it only touches tiers where saleEndsAt < now — so running it
+    # frequently is safe and avoids the GH Actions queue-drift problem that made
+    # a minute-based gate unreliable.
     steps:
-      - name: POST /cron/auto-cancel-registrations (hourly gate)
+      - name: POST /cron/auto-cancel-registrations
         run: |
-          MINUTE=$(date +%M)
-          if [ "$MINUTE" = "00" ] || [ "$MINUTE" = "05" ]; then
-            curl --fail-with-body -s -X POST \
-              -H "x-cron-secret: ${{ secrets.CRON_SECRET }}" \
-              -H "Content-Type: application/json" \
-              "${{ vars.API_BASE_URL }}/api/v1/cron/auto-cancel-registrations"
-          else
-            echo "Skipping auto-cancel — not an hourly run (minute: $MINUTE)"
-          fi
+          curl --fail-with-body -s -X POST \
+            -H "x-cron-secret: ${{ secrets.CRON_SECRET }}" \
+            -H "Content-Type: application/json" \
+            "${{ vars.API_BASE_URL }}/api/v1/cron/auto-cancel-registrations"
