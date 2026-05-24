@@ -1,5 +1,19 @@
 # Tixora — Tech Debt & Deferred Security Items
 
+## ⚠️ NEXT UP — Admin Proof Alert Email
+
+**What:** Right now, when an attendee uploads their payment proof (screenshot of GCash/bank transfer), the system sends an email to the **attendee** only ("We got your proof, we'll review it within 24 hours").
+
+**The problem:** Nobody emails *you* (the admin/reviewer). You have to manually log in to the admin dashboard and check if new proofs are waiting. If you forget to check, attendees can wait longer than 24 hours — breaking the SLA promise in the confirmation email.
+
+**What needs to be built:** When a proof is uploaded, automatically send an email to every admin account (everyone with `isAdmin = true`) saying: "New proof submitted — [Name], ref #XXXX, [event name]. Review it here: [link]"
+
+**Why it's safe:** The code already knows all admin emails — it just queries the database for all admin users and emails them. No new config or accounts needed.
+
+**Come back here and say: "implement the admin proof alert email"** and it will be done in one session.
+
+---
+
 ## Security (OWASP A06 — Vulnerable Components)
 
 ### multer DoS — HIGH

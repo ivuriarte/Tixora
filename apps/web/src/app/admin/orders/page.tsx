@@ -132,6 +132,19 @@ export default function AdminOrdersPage() {
           </div>
         </div>
 
+        {/* Info banner: manual payment registrations live on a separate page */}
+        <div className="mb-5 flex items-start gap-3 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800">
+          <span className="mt-0.5 shrink-0 text-blue-500">ℹ️</span>
+          <span>
+            This page shows <strong>online card payments</strong> (PayMongo). Attendees who paid via
+            GCash or bank transfer appear in the{' '}
+            <Link href="/admin/registrations" className="font-semibold underline">
+              Registrations
+            </Link>{' '}
+            page instead.
+          </span>
+        </div>
+
         {!filtersApplied && (
           <div className="bg-white rounded-2xl shadow p-10 text-center text-gray-400">
             Select both a status and an event to view transactions.

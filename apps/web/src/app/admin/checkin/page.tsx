@@ -51,6 +51,10 @@ export default function AdminCheckinPage() {
   const readerRef = useRef<any>(null);
   const [cameraActive, setCameraActive] = useState(false);
   const [cameraError, setCameraError] = useState('');
+  // Scan lock: prevents the ZXing per-frame callback from firing handleCheckin multiple times
+  const scanLockRef = useRef(false);
+  // Auto-restart timer: after a result is shown, restart the camera for the next scan
+  const autoRestartRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Search
   const [searchQ, setSearchQ] = useState('');
@@ -74,6 +78,13 @@ export default function AdminCheckinPage() {
   // ── Camera (ZXing) ─────────────────────────────────────────────────────────
 
   const stopCamera = useCallback(() => {
+    // Clear any pending auto-restart timer
+    if (autoRestartRef.current) {
+      clearTimeout(autoRestartRef.current);
+      autoRestartRef.current = null;
+    }
+    // Reset scan lock so the next camera session starts fresh
+    scanLockRef.current = false;
     if (readerRef.current) {
       try { readerRef.current.reset(); } catch {}
       readerRef.current = null;
@@ -92,6 +103,11 @@ export default function AdminCheckinPage() {
       setCameraActive(true);
       reader.decodeFromVideoDevice(undefined, videoRef.current, (result, err) => {
         if (result) {
+          // Guard: ZXing fires this callback on every frame where a QR is visible.
+          // Without the lock, handleCheckin would be called 10-30 times before
+          // stopCamera() can reset the reader, flooding the UI with toasts.
+          if (scanLockRef.current) return;
+          scanLockRef.current = true;
           stopCamera();
           handleCheckin(result.getText());
         }
@@ -125,15 +141,29 @@ export default function AdminCheckinPage() {
       const res = await api.post<{ data: CheckinResult }>('/admin/checkin', { qrToken: t });
       const r = res.data.data;
       setResult(r);
-      toast.success(`✅ ${r.attendeeName} checked in!`);
+      // Use a fixed toast ID so rapid duplicate calls replace the toast instead of stacking
+      toast.success(`✅ ${r.attendeeName} checked in!`, { id: 'checkin', duration: 2500 });
+      // Auto-restart camera after 2.5 s so staff can scan the next attendee immediately
+      autoRestartRef.current = setTimeout(() => {
+        setResult(null);
+        startCamera();
+      }, 2500);
     } catch (err: any) {
       const status = err?.response?.status;
       const msg = err?.response?.data?.message ?? 'Invalid ticket';
       if (status === 409) {
-        toast.error(`Already checked in — ${msg}`);
+        toast.error(`Already checked in — ${msg}`, { id: 'checkin', duration: 3500 });
       } else {
-        toast.error(msg);
+        toast.error(msg, { id: 'checkin', duration: 3500 });
       }
+      // Auto-restart on error too — scanner should stay ready
+      autoRestartRef.current = setTimeout(() => {
+        setResult(null);
+        startCamera();
+      }, 3500);
+    } finally {
+      // Always release the scan lock so the next scan session can proceed
+      scanLockRef.current = false;
     }
   }
 
@@ -143,14 +173,14 @@ export default function AdminCheckinPage() {
       const res = await api.post<{ data: CheckinResult }>(`/admin/checkin/manual/${attendeeId}`);
       const r = res.data.data;
       setResult(r);
-      toast.success(`✅ ${r.attendeeName} checked in!`);
+      toast.success(`✅ ${r.attendeeName} checked in!`, { id: 'checkin', duration: 2500 });
       // Refresh search results to show updated checkedInAt
       if (searchQ || selectedEventId) await runSearch();
     } catch (err: any) {
       const status = err?.response?.status;
       const msg = err?.response?.data?.message ?? 'Check-in failed';
-      if (status === 409) toast.error(`Already checked in — ${msg}`);
-      else toast.error(msg);
+      if (status === 409) toast.error(`Already checked in — ${msg}`, { id: 'checkin', duration: 3500 });
+      else toast.error(msg, { id: 'checkin', duration: 3500 });
     } finally {
       setCheckingInId(null);
     }
@@ -330,7 +360,14 @@ export default function AdminCheckinPage() {
               )}
             </div>
             <button
-              onClick={() => setResult(null)}
+              onClick={() => {
+                // Cancel auto-restart when user explicitly dismisses — they control the pace
+                if (autoRestartRef.current) {
+                  clearTimeout(autoRestartRef.current);
+                  autoRestartRef.current = null;
+                }
+                setResult(null);
+              }}
               className="block mx-auto text-xs text-gray-400 hover:text-gray-600 mt-2"
             >
               Dismiss

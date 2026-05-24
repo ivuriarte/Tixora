@@ -583,28 +583,52 @@ export class AdminService {
 
   async getAttendees(eventId: string, page = 1, limit = 50, q?: string) {
     const skip = (page - 1) * limit;
+    const term = q?.trim();
 
-    const baseWhere = { eventId, status: { in: ['valid', 'used'] as Prisma.EnumTicketStatusFilter['in'] } };
-    const where = q
+    // ── Path A: Registration flow (Attendee records from verified registrations) ──
+    const attendeeWhere: Prisma.AttendeeWhereInput = {
+      registration: { eventId, status: 'verified' },
+      ...(term
+        ? {
+            OR: [
+              { firstName: { contains: term, mode: 'insensitive' } },
+              { lastName: { contains: term, mode: 'insensitive' } },
+              { email: { contains: term, mode: 'insensitive' } },
+              { company: { contains: term, mode: 'insensitive' } },
+            ],
+          }
+        : {}),
+    };
+
+    // ── Path B: Online order flow (Ticket records from paid orders) ──────────
+    const ticketBaseWhere: Prisma.TicketWhereInput = {
+      eventId,
+      status: { in: ['valid', 'used'] },
+    };
+    const ticketWhere: Prisma.TicketWhereInput = term
       ? {
-          ...baseWhere,
+          ...ticketBaseWhere,
           user: {
             OR: [
-              { firstName: { contains: q, mode: 'insensitive' as const } },
-              { lastName: { contains: q, mode: 'insensitive' as const } },
-              { email: { contains: q, mode: 'insensitive' as const } },
-              { company: { contains: q, mode: 'insensitive' as const } },
+              { firstName: { contains: term, mode: 'insensitive' } },
+              { lastName: { contains: term, mode: 'insensitive' } },
+              { email: { contains: term, mode: 'insensitive' } },
+              { company: { contains: term, mode: 'insensitive' } },
             ],
           },
         }
-      : baseWhere;
+      : ticketBaseWhere;
 
-    const [total, tickets] = await Promise.all([
-      this.prisma.ticket.count({ where }),
+    const [attendees, tickets] = await Promise.all([
+      this.prisma.attendee.findMany({
+        where: attendeeWhere,
+        orderBy: { createdAt: 'desc' },
+        include: {
+          registration: { select: { tierName: true, paymentMethod: true, status: true } },
+        },
+      }),
       this.prisma.ticket.findMany({
-        where,
-        skip,
-        take: limit,
+        where: ticketWhere,
         orderBy: { createdAt: 'desc' },
         include: {
           user: { select: { email: true, firstName: true, lastName: true, company: true, jobTitle: true, city: true, phone: true } },
@@ -614,23 +638,42 @@ export class AdminService {
       }),
     ]);
 
-    type TicketRow = (typeof tickets)[number];
-
-    return {
-      data: tickets.map((t: TicketRow) => ({
+    // Merge both flows into a unified shape; Registration attendees come first
+    const unified = [
+      ...attendees.map((a) => ({
+        id: a.id,
+        userEmail: a.email,
+        userName: `${a.firstName} ${a.lastName}`,
+        userCompany: a.company ?? null,
+        userJobTitle: a.jobTitle ?? null,
+        userCity: null as string | null,
+        userPhone: a.phone ?? null,
+        tierName: a.registration.tierName ?? 'Registration',
+        orderStatus: a.registration.status === 'verified' ? 'paid' : 'pending',
+        paymentMethod: a.registration.paymentMethod ?? null,
+        status: a.checkedInAt ? 'used' : 'valid',
+        checkedInAt: a.checkedInAt?.toISOString() ?? null,
+      })),
+      ...tickets.map((t) => ({
         id: t.id,
-        userEmail: (t as any).user.email,
-        userName: `${(t as any).user.firstName} ${(t as any).user.lastName}`,
-        userCompany: (t as any).user.company ?? null,
-        userJobTitle: (t as any).user.jobTitle ?? null,
-        userCity: (t as any).user.city ?? null,
-        userPhone: (t as any).user.phone ?? null,
-        tierName: (t as any).ticketTier.name,
-        orderStatus: (t as any).order?.status ?? null,
-        paymentMethod: (t as any).order?.paymentMethod ?? null,
+        userEmail: t.user.email,
+        userName: `${t.user.firstName} ${t.user.lastName}`,
+        userCompany: t.user.company ?? null,
+        userJobTitle: t.user.jobTitle ?? null,
+        userCity: t.user.city ?? null,
+        userPhone: t.user.phone ?? null,
+        tierName: t.ticketTier.name,
+        orderStatus: t.order?.status ?? null,
+        paymentMethod: t.order?.paymentMethod ?? null,
         status: t.status,
         checkedInAt: t.checkedInAt?.toISOString() ?? null,
       })),
+    ];
+
+    const total = unified.length;
+
+    return {
+      data: unified.slice(skip, skip + limit),
       meta: {
         total,
         page,
@@ -922,6 +965,16 @@ export class AdminService {
   }
 
   async exportAttendees(eventId: string): Promise<string> {
+    // ── Path A: Registration flow (Attendee records from verified registrations) ──
+    const attendees = await this.prisma.attendee.findMany({
+      where: { registration: { eventId, status: 'verified' } },
+      orderBy: { createdAt: 'asc' },
+      include: {
+        registration: { select: { tierName: true, paymentMethod: true, status: true } },
+      },
+    });
+
+    // ── Path B: Online order flow (Ticket records from paid orders) ──────────
     const tickets = await this.prisma.ticket.findMany({
       where: { eventId, status: { in: ['valid', 'used'] } },
       orderBy: { createdAt: 'asc' },
@@ -932,8 +985,24 @@ export class AdminService {
       },
     });
 
-    const header = 'Ticket ID,Name,Email,Phone,Company,Job Title,City,Tier,Payment Status,Payment Method,Checked In,Checked In At\n';
-    const rows = tickets.map((t: (typeof tickets)[number]) => [
+    const header = 'ID,Name,Email,Phone,Company,Job Title,City,Tier,Payment Status,Payment Method,Checked In,Checked In At\n';
+
+    const attendeeRows = attendees.map((a) => [
+      a.id,
+      `"${this.escapeCsvCell(`${a.firstName} ${a.lastName}`)}"`,
+      this.escapeCsvCell(a.email),
+      this.escapeCsvCell(a.phone ?? ''),
+      `"${this.escapeCsvCell(a.company ?? '')}"`,
+      `"${this.escapeCsvCell(a.jobTitle ?? '')}"`,
+      '',
+      `"${this.escapeCsvCell(a.registration.tierName ?? 'Registration')}"`,
+      a.registration.status === 'verified' ? 'paid' : 'pending',
+      this.escapeCsvCell(a.registration.paymentMethod ?? ''),
+      a.checkedInAt ? 'Yes' : 'No',
+      a.checkedInAt?.toISOString() ?? '',
+    ].join(','));
+
+    const ticketRows = tickets.map((t) => [
       t.id,
       `"${this.escapeCsvCell(`${t.user.firstName} ${t.user.lastName}`)}"`,
       this.escapeCsvCell(t.user.email),
@@ -948,7 +1017,7 @@ export class AdminService {
       t.checkedInAt?.toISOString() ?? '',
     ].join(','));
 
-    return header + rows.join('\n');
+    return header + [...attendeeRows, ...ticketRows].join('\n');
   }
 
   /**
