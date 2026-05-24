@@ -71,6 +71,7 @@ export default withSentryConfig(nextConfig, {
   automaticVercelMonitors: false,
   // Hide source maps from client bundle
   hideSourceMaps: true,
-  // Disable Sentry completely when DSN is not set (local dev)
-  disableLogger: true,
+  // Keep Sentry's debug logger in the bundle so debug:true (in instrumentation-client) can print
+  // TODO: flip back to true once events are verified flowing
+  disableLogger: false,
 });
