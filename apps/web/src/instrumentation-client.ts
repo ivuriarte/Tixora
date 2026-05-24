@@ -13,9 +13,6 @@ if (dsn) {
     // Replay deliberately disabled for now — re-enable after baseline event flow is verified
     integrations: [],
     enabled: process.env.NODE_ENV === 'production',
-    // TEMPORARY: surface Sentry's internal logs in the browser console.
-    // Remove once events confirmed flowing in Sentry UI.
-    debug: true,
   });
 }
 
