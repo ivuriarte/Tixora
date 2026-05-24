@@ -27,8 +27,6 @@
         "SMTP_PORT",
         "SMTP_USER",
         "SMTP_PASS",
-        "STRIPE_SECRET_KEY",
-        "STRIPE_WEBHOOK_SECRET",
         "TURNSTILE_SECRET_KEY",
         "HCAPTCHA_SECRET",
         "VERCEL_URL",
