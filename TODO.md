@@ -3,6 +3,7 @@
 ## Security (OWASP A06 — Vulnerable Components)
 
 ### multer DoS — HIGH
+
 - **CVEs:** 3 CVEs in multer ≤ 2.1.0 (malformed multipart = DoS)
 - **Affected:** `apps/api` (file uploads: `/upload`, `/payment-proofs`)
 - **Mitigating factor:** All upload endpoints require authentication — attacker needs a valid account first
@@ -10,6 +11,7 @@
 - **Decision:** Deferred. Fix in a dedicated upgrade sprint before public launch.
 
 ### Next.js CVEs — HIGH
+
 - **CVEs:** HTTP smuggling, DoS via Image Optimizer, Server Components DoS in Next.js 14.x
 - **Affected:** `apps/web`
 - **Mitigating factor:** DoS-only (no data theft/account takeover), self-hosted behind Vercel edge
@@ -17,6 +19,7 @@
 - **Decision:** Deferred. Fix in a dedicated upgrade sprint before public launch.
 
 ### auth/orders/registrations controllers — LOW
+
 - **Issue:** `x-forwarded-for.split(',')[0]` used in audit log IP extraction (NOT rate limiting — that is fixed)
 - **Impact:** A spoofed IP appears in audit logs only; no security enforcement affected
 - **Fix:** Apply same `x-real-ip`-first pattern from `throttler.guard.ts` to the three controllers
@@ -24,7 +27,12 @@
 
 ---
 
-## Infrastructure
+## E2E Test Drift (must fix before next validation run)
+
+- [ ] `admin-flows.spec.ts` — `'check-in page renders three tabs'`: expects a **Manual** button that no longer exists. Tab type is now `'camera' | 'search'` only. Fix: update assertion to check for Camera + Search only (2 tabs).
+- [ ] `admin-flows.spec.ts` — `'manual tab: has an attendee ID input...'`: clicks a Manual tab that no longer exists → will throw. Fix: delete this test case entirely (the feature was removed May 24, 2026, commit `f479943`).
+
+---
 
 - [ ] Upstash Redis Global (multi-region) — upgrade when monthly cost is acceptable (~$20–40/mo)
 - [ ] Add structured alerting / on-call webhook for production errors
