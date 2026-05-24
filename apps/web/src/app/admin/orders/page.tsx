@@ -8,8 +8,10 @@ import BackButton from '@/components/BackButton';
 import Link from 'next/link';
 import { formatShortDate } from '@axon-tickets/utils';
 
-interface Order {
+interface Transaction {
   id: string;
+  source: 'order' | 'registration';
+  reference: string;
   userEmail: string;
   userName: string;
   eventTitle: string;
@@ -25,8 +27,8 @@ interface EventOption {
   title: string;
 }
 
-interface OrdersResponse {
-  data: Order[];
+interface TransactionsResponse {
+  data: Transaction[];
   meta: {
     total: number;
     page: number;
@@ -42,12 +44,34 @@ const STATUS_COLORS: Record<string, string> = {
   pending: 'bg-yellow-100 text-yellow-700',
   failed: 'bg-red-100 text-red-600',
   refunded: 'bg-purple-100 text-purple-700',
+  cancelled: 'bg-gray-100 text-gray-500',
 };
+
+const SOURCE_BADGE: Record<string, string> = {
+  order: 'bg-blue-50 text-blue-600',
+  registration: 'bg-orange-50 text-orange-600',
+};
+
+const SOURCE_LABEL: Record<string, string> = {
+  order: 'PayMongo',
+  registration: 'Manual',
+};
+
+async function downloadCsv(url: string, filename: string) {
+  const res = await api.get<Blob>(url, { responseType: 'blob' });
+  const objectUrl = URL.createObjectURL(res.data);
+  const a = document.createElement('a');
+  a.href = objectUrl;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(objectUrl);
+}
 
 export default function AdminOrdersPage() {
   const [page, setPage] = useState(1);
   const [statusFilter, setStatusFilter] = useState('');
   const [eventId, setEventId] = useState('');
+  const [exporting, setExporting] = useState(false);
 
   const filtersApplied = !!statusFilter && !!eventId;
 
@@ -59,20 +83,31 @@ export default function AdminOrdersPage() {
         .then((r) => r.data.data.data),
   });
 
-  const { data, isLoading } = useQuery<OrdersResponse>({
+  const { data, isLoading } = useQuery<TransactionsResponse>({
     queryKey: ['admin-orders', page, statusFilter, eventId],
     queryFn: () => {
       const params = new URLSearchParams({ page: String(page), limit: '20' });
       if (statusFilter) params.set('status', statusFilter);
       if (eventId) params.set('eventId', eventId);
       return api
-        .get<{ data: OrdersResponse }>(`/admin/orders?${params}`)
+        .get<{ data: TransactionsResponse }>(`/admin/orders?${params}`)
         .then((r) => r.data.data);
     },
     enabled: filtersApplied,
     staleTime: 15_000,
     placeholderData: (prev) => prev,
   });
+
+  const handleExport = async () => {
+    setExporting(true);
+    try {
+      const params = new URLSearchParams();
+      if (eventId) params.set('eventId', eventId);
+      await downloadCsv(`/admin/orders/export?${params}`, 'transactions.csv');
+    } finally {
+      setExporting(false);
+    }
+  };
 
   return (
     <>
@@ -84,17 +119,16 @@ export default function AdminOrdersPage() {
             <BackButton href="/admin" label="Back to Admin" className="mb-2" />
             <h1 className="text-2xl font-bold text-gray-900">Transactions</h1>
             <p className="text-sm text-gray-500 mt-1">
-              Audit trail of all transactions. Select a status and event to view records.
+              All paid transactions — online (PayMongo) and manual (GCash / bank transfer).
             </p>
           </div>
-          <a
-            href={`${(process.env.NEXT_PUBLIC_API_URL || 'https://api-tau-six-59.vercel.app/api/v1')}/admin/orders/export${eventId ? `?eventId=${eventId}` : ''}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-sm font-semibold text-primary hover:underline border border-primary px-4 py-2 rounded-xl"
+          <button
+            onClick={handleExport}
+            disabled={exporting}
+            className="text-sm font-semibold text-primary hover:underline border border-primary px-4 py-2 rounded-xl disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            ↓ Export CSV
-          </a>
+            {exporting ? 'Exporting…' : '↓ Export CSV'}
+          </button>
         </div>
 
         {/* Filters */}
@@ -126,23 +160,11 @@ export default function AdminOrdersPage() {
               <option value="">Select status…</option>
               <option value="paid">Paid</option>
               <option value="pending">Pending</option>
-              <option value="failed">Failed</option>
+              <option value="failed">Failed / Rejected</option>
               <option value="refunded">Refunded</option>
+              <option value="cancelled">Cancelled</option>
             </select>
           </div>
-        </div>
-
-        {/* Info banner: manual payment registrations live on a separate page */}
-        <div className="mb-5 flex items-start gap-3 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800">
-          <span className="mt-0.5 shrink-0 text-blue-500">ℹ️</span>
-          <span>
-            This page shows <strong>online card payments</strong> (PayMongo). Attendees who paid via
-            GCash or bank transfer appear in the{' '}
-            <Link href="/admin/registrations" className="font-semibold underline">
-              Registrations
-            </Link>{' '}
-            page instead.
-          </span>
         </div>
 
         {!filtersApplied && (
@@ -169,12 +191,13 @@ export default function AdminOrdersPage() {
         ) : (
           <>
             <div className="bg-white shadow rounded-2xl overflow-x-auto">
-              <table className="w-full text-sm min-w-[640px]">
+              <table className="w-full text-sm min-w-[700px]">
                 <thead>
                   <tr className="bg-gray-50 text-left text-gray-600 text-xs uppercase tracking-wide">
-                    <th className="px-4 py-3">Order ID</th>
+                    <th className="px-4 py-3">Reference</th>
                     <th className="px-4 py-3">Customer</th>
                     <th className="px-4 py-3">Event</th>
+                    <th className="px-4 py-3">Source</th>
                     <th className="px-4 py-3">Status</th>
                     <th className="px-4 py-3">Total</th>
                     <th className="px-4 py-3">Date</th>
@@ -182,35 +205,49 @@ export default function AdminOrdersPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
-                  {data?.data.map((order) => (
-                    <tr key={order.id} className="hover:bg-gray-50 transition-colors">
-                      <td className="px-4 py-3 font-mono text-xs text-gray-500">{order.id.slice(0, 8)}…</td>
-                      <td className="px-4 py-3">
-                        <p className="font-medium text-gray-800">{order.userName}</p>
-                        <p className="text-xs text-gray-400">{order.userEmail}</p>
+                  {data?.data.map((tx) => (
+                    <tr key={tx.id} className="hover:bg-gray-50 transition-colors">
+                      <td className="px-4 py-3 font-mono text-xs text-gray-500">
+                        {tx.source === 'registration' ? tx.reference : tx.reference.slice(0, 8) + '…'}
                       </td>
-                      <td className="px-4 py-3 text-gray-700">{order.eventTitle}</td>
                       <td className="px-4 py-3">
-                        <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${STATUS_COLORS[order.status] ?? 'bg-gray-100 text-gray-500'}`}>
-                          {order.status}
+                        <p className="font-medium text-gray-800">{tx.userName}</p>
+                        <p className="text-xs text-gray-400">{tx.userEmail}</p>
+                      </td>
+                      <td className="px-4 py-3 text-gray-700">{tx.eventTitle}</td>
+                      <td className="px-4 py-3">
+                        <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${SOURCE_BADGE[tx.source] ?? 'bg-gray-100 text-gray-500'}`}>
+                          {SOURCE_LABEL[tx.source]}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${STATUS_COLORS[tx.status] ?? 'bg-gray-100 text-gray-500'}`}>
+                          {tx.status}
                         </span>
                       </td>
                       <td className="px-4 py-3 font-medium text-gray-800">
-                        ₱{(order.total / 100).toLocaleString('en-PH', { minimumFractionDigits: 2 })}
+                        ₱{tx.total.toLocaleString('en-PH', { minimumFractionDigits: 2 })}
                       </td>
                       <td className="px-4 py-3 text-gray-500 text-xs">
-                        {formatShortDate(new Date(order.createdAt))}
+                        {formatShortDate(new Date(tx.createdAt))}
                       </td>
                       <td className="px-4 py-3">
-                        <Link href={`/admin/orders/${order.id}`} className="text-primary hover:underline text-xs">
-                          View
-                        </Link>
+                        {tx.source === 'order' && (
+                          <Link href={`/admin/orders/${tx.id}`} className="text-primary hover:underline text-xs">
+                            View
+                          </Link>
+                        )}
+                        {tx.source === 'registration' && (
+                          <Link href={`/admin/registrations/${tx.id}`} className="text-primary hover:underline text-xs">
+                            View
+                          </Link>
+                        )}
                       </td>
                     </tr>
                   ))}
                   {data?.data.length === 0 && (
                     <tr>
-                      <td colSpan={7} className="px-4 py-8 text-center text-gray-400">No orders found</td>
+                      <td colSpan={8} className="px-4 py-8 text-center text-gray-400">No transactions found</td>
                     </tr>
                   )}
                 </tbody>

@@ -172,39 +172,121 @@ export class AdminService {
 
   async listOrders(eventId?: string, status?: string, page = 1, limit = 20) {
     const skip = (page - 1) * limit;
+
+    // Map a single UI status value to the corresponding DB values for each table.
     const VALID_STATUSES = ['pending', 'paid', 'failed', 'refunded', 'cancelled'] as const;
-    const safeStatus = status && (VALID_STATUSES as readonly string[]).includes(status) ? status : undefined;
-    const where = {
-      ...(eventId ? { eventId } : {}),
-      ...(safeStatus ? { status: safeStatus as any } : {}),
+    const safeStatus = status && (VALID_STATUSES as readonly string[]).includes(status)
+      ? status
+      : undefined;
+
+    const orderStatusMap: Record<string, string[]> = {
+      paid: ['paid'],
+      pending: ['pending'],
+      failed: ['failed'],
+      refunded: ['refunded'],
+      cancelled: ['cancelled'],
+    };
+    // Registration statuses that map to the UI status values
+    const regStatusMap: Record<string, string[]> = {
+      paid: ['verified'],
+      pending: ['pending_payment', 'pending_review'],
+      failed: ['rejected'],
+      cancelled: ['cancelled'],
     };
 
-    const [total, orders] = await Promise.all([
-      this.prisma.order.count({ where }),
+    const orderStatusFilter = safeStatus ? orderStatusMap[safeStatus] : undefined;
+    const regStatusFilter   = safeStatus ? (regStatusMap[safeStatus] ?? []) : undefined;
+
+    const orderWhere = {
+      ...(eventId ? { eventId } : {}),
+      ...(orderStatusFilter ? { status: { in: orderStatusFilter as any } } : {}),
+    };
+
+    const regWhere = {
+      ...(eventId ? { eventId } : {}),
+      ...(regStatusFilter && regStatusFilter.length
+        ? { status: { in: regStatusFilter as any } }
+        : {}),
+    };
+
+    // Skip the registration query entirely when the status filter has no registration equivalent.
+    const includeRegs = !safeStatus || (regStatusFilter && regStatusFilter.length > 0);
+
+    const [orders, registrations] = await Promise.all([
       this.prisma.order.findMany({
-        where,
-        skip,
-        take: limit,
+        where: orderWhere,
         orderBy: { createdAt: 'desc' },
         include: {
           user: { select: { email: true, firstName: true, lastName: true } },
           event: { select: { title: true, slug: true } },
         },
       }),
+      includeRegs
+        ? this.prisma.registration.findMany({
+            where: regWhere,
+            orderBy: { createdAt: 'desc' },
+            include: {
+              user: { select: { email: true, firstName: true, lastName: true } },
+              event: { select: { title: true, slug: true } },
+            },
+          })
+        : Promise.resolve([] as any[]),
     ]);
 
+    type NormalizedRow = {
+      id: string;
+      source: 'order' | 'registration';
+      reference: string;
+      userEmail: string;
+      userName: string;
+      eventTitle: string;
+      eventSlug: string;
+      status: string;
+      total: number;
+      paymentMethod: string | null;
+      createdAt: Date;
+    };
+
+    const normalizedOrders: NormalizedRow[] = orders.map((o: (typeof orders)[number]) => ({
+      id: o.id,
+      source: 'order',
+      reference: o.id,
+      userEmail: o.user.email,
+      userName: `${o.user.firstName} ${o.user.lastName}`,
+      eventTitle: o.event.title,
+      eventSlug: o.event.slug,
+      status: o.status,
+      total: Number(o.total),
+      paymentMethod: o.paymentMethod,
+      createdAt: o.createdAt,
+    }));
+
+    const normalizedRegs: NormalizedRow[] = registrations.map((r: any) => ({
+      id: r.id,
+      source: 'registration',
+      reference: r.referenceNumber,
+      userEmail: r.user.email,
+      userName: `${r.user.firstName} ${r.user.lastName}`,
+      eventTitle: r.event.title,
+      eventSlug: r.event.slug,
+      // Normalise to a UI-friendly status so the frontend badge logic is consistent.
+      status: r.status === 'verified' ? 'paid'
+            : ['pending_payment', 'pending_review'].includes(r.status) ? 'pending'
+            : r.status === 'rejected' ? 'failed'
+            : r.status,
+      total: Number(r.total),
+      paymentMethod: r.paymentMethod,
+      createdAt: r.createdAt,
+    }));
+
+    const all: NormalizedRow[] = [...normalizedOrders, ...normalizedRegs]
+      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+
+    const total = all.length;
+    const paged = all.slice(skip, skip + limit);
+
     return {
-      data: orders.map((o: (typeof orders)[number]) => ({
-        id: o.id,
-        userEmail: o.user.email,
-        userName: `${o.user.firstName} ${o.user.lastName}`,
-        eventTitle: o.event.title,
-        eventSlug: o.event.slug,
-        status: o.status,
-        total: Number(o.total),
-        paymentMethod: o.paymentMethod,
-        createdAt: o.createdAt.toISOString(),
-      })),
+      data: paged.map((item) => ({ ...item, createdAt: item.createdAt.toISOString() })),
       meta: {
         total,
         page,
@@ -931,20 +1013,37 @@ export class AdminService {
   }
 
   async exportOrders(eventId?: string): Promise<string> {
-    const orders = await this.prisma.order.findMany({
-      where: eventId ? { eventId } : {},
-      orderBy: { createdAt: 'desc' },
-      include: {
-        user: { select: { email: true, firstName: true, lastName: true, company: true, jobTitle: true, city: true } },
-        event: { select: { title: true } },
-        items: { include: { ticketTier: { select: { name: true } } } },
-      },
-    });
+    const [orders, registrations] = await Promise.all([
+      this.prisma.order.findMany({
+        where: eventId ? { eventId } : {},
+        orderBy: { createdAt: 'desc' },
+        include: {
+          user: { select: { email: true, firstName: true, lastName: true, company: true, jobTitle: true, city: true } },
+          event: { select: { title: true } },
+          items: { include: { ticketTier: { select: { name: true } } } },
+        },
+      }),
+      this.prisma.registration.findMany({
+        where: {
+          ...(eventId ? { eventId } : {}),
+          status: 'verified',
+        },
+        orderBy: { createdAt: 'desc' },
+        include: {
+          user: { select: { email: true, firstName: true, lastName: true, company: true, jobTitle: true, city: true } },
+          event: { select: { title: true } },
+          attendees: { select: { id: true } },
+        },
+      }),
+    ]);
 
-    const header = 'Order ID,Event,Buyer Name,Email,Company,Job Title,City,Status,Tier,Qty,Total (PHP),Payment Method,Created At\n';
-    const rows = orders.map((o: (typeof orders)[number]) => {
+    const header = 'Source,Reference,Event,Buyer Name,Email,Company,Job Title,City,Status,Tier,Qty,Total (PHP),Payment Method,Created At\n';
+
+    const orderRows = orders.map((o: (typeof orders)[number]) => {
       const tierNames = o.items.map((i: (typeof o.items)[number]) => `${i.ticketTier.name} x${i.quantity}`).join(' | ');
+      const qty = o.items.reduce((sum: number, i: (typeof o.items)[number]) => sum + i.quantity, 0);
       return [
+        'Online (PayMongo)',
         o.id,
         `"${this.escapeCsvCell(o.event.title)}"`,
         `"${this.escapeCsvCell(`${o.user.firstName} ${o.user.lastName}`)}"`,
@@ -954,14 +1053,38 @@ export class AdminService {
         `"${this.escapeCsvCell(o.user.city ?? '')}"`,
         o.status,
         `"${this.escapeCsvCell(tierNames)}"`,
-        o.items.reduce((sum: number, i: (typeof o.items)[number]) => sum + i.quantity, 0),
+        qty,
         Number(o.total).toFixed(2),
         o.paymentMethod ?? '',
         o.createdAt.toISOString(),
       ].join(',');
     });
 
-    return header + rows.join('\n');
+    const regRows = registrations.map((r: any) => [
+      'Manual (GCash/Bank)',
+      this.escapeCsvCell(r.referenceNumber),
+      `"${this.escapeCsvCell(r.event.title)}"`,
+      `"${this.escapeCsvCell(`${r.user.firstName} ${r.user.lastName}`)}"`,
+      this.escapeCsvCell(r.user.email),
+      `"${this.escapeCsvCell(r.user.company ?? '')}"`,
+      `"${this.escapeCsvCell(r.user.jobTitle ?? '')}"`,
+      `"${this.escapeCsvCell(r.user.city ?? '')}"`,
+      'paid',
+      `"${this.escapeCsvCell(r.tierName ?? 'Registration')}"`,
+      r.attendeeCount,
+      Number(r.total).toFixed(2),
+      r.paymentMethod ?? '',
+      r.createdAt.toISOString(),
+    ].join(','));
+
+    // Merge and sort by date desc
+    type CsvRow = { createdAt: Date; row: string };
+    const merged: CsvRow[] = [
+      ...orders.map((o: any, i: number) => ({ createdAt: o.createdAt, row: orderRows[i] })),
+      ...registrations.map((r: any, i: number) => ({ createdAt: r.createdAt, row: regRows[i] })),
+    ].sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+
+    return header + merged.map((m) => m.row).join('\n');
   }
 
   async exportAttendees(eventId: string): Promise<string> {

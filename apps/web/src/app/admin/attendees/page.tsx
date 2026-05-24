@@ -52,6 +52,7 @@ export default function AdminAttendeesPage() {
   const [selectedEventId, setSelectedEventId] = useState(initialEvent);
   const [searchQ, setSearchQ] = useState('');
   const [page, setPage] = useState(1);
+  const [exporting, setExporting] = useState(false);
 
   useEffect(() => {
     if (initialEvent && initialEvent !== selectedEventId) {
@@ -77,7 +78,24 @@ export default function AdminAttendeesPage() {
     enabled: !!selectedEventId,
   });
 
-  const apiBase = (process.env.NEXT_PUBLIC_API_URL || 'https://api-tau-six-59.vercel.app/api/v1');
+  const handleExport = async () => {
+    if (!selectedEventId) return;
+    setExporting(true);
+    try {
+      const res = await api.get<Blob>(
+        `/admin/events/${selectedEventId}/attendees/export`,
+        { responseType: 'blob' },
+      );
+      const url = URL.createObjectURL(res.data);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `attendees-${selectedEventId}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } finally {
+      setExporting(false);
+    }
+  };
 
   return (
     <>
@@ -92,14 +110,13 @@ export default function AdminAttendeesPage() {
             </p>
           </div>
           {selectedEventId && (
-            <a
-              href={`${apiBase}/admin/events/${selectedEventId}/attendees/export`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-sm font-semibold text-primary hover:underline border border-primary px-4 py-2 rounded-xl"
+            <button
+              onClick={handleExport}
+              disabled={exporting}
+              className="text-sm font-semibold text-primary hover:underline border border-primary px-4 py-2 rounded-xl disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              ↓ Export CSV
-            </a>
+              {exporting ? 'Exporting…' : '↓ Export CSV'}
+            </button>
           )}
         </div>
 
