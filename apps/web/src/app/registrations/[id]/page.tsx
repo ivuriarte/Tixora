@@ -227,7 +227,9 @@ export default function RegistrationDetailPage() {
             <div>
               <p className="font-semibold text-gray-900">Awaiting verification</p>
               <p className="text-sm text-gray-600 mt-0.5">
-                We&apos;ve received your proof. The organizer will review it shortly.
+                We&apos;ve received your proof. Our team reviews within{' '}
+                <span className="font-semibold text-blue-700">24 hours</span> — you&apos;ll
+                get an email with your QR code once approved.
               </p>
             </div>
             {reg.proofs?.[0]?.imageUrl && (

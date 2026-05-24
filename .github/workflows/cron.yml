@@ -1,0 +1,39 @@
+name: Cron Jobs
+
+on:
+  schedule:
+    # Every 5 minutes — releases expired cart reservations and restores
+    # Redis inventory. GitHub Actions minimum interval is 5 minutes.
+    - cron: '*/5 * * * *'
+  workflow_dispatch: # allow manual trigger for testing / event-day use
+
+jobs:
+  release-reservations:
+    name: Release expired reservations
+    runs-on: ubuntu-latest
+    steps:
+      - name: POST /cron/release-reservations
+        run: |
+          curl --fail-with-body -s -X POST \
+            -H "x-cron-secret: ${{ secrets.CRON_SECRET }}" \
+            -H "Content-Type: application/json" \
+            "${{ vars.API_BASE_URL }}/api/v1/cron/release-reservations"
+
+  auto-cancel-registrations:
+    name: Auto-cancel expired registrations
+    runs-on: ubuntu-latest
+    # Run once per hour — GitHub Actions doesn't support different schedules
+    # per job. We check the minute inside the step so only the 00-minute run
+    # actually fires the expensive DB query.
+    steps:
+      - name: POST /cron/auto-cancel-registrations (hourly gate)
+        run: |
+          MINUTE=$(date +%M)
+          if [ "$MINUTE" = "00" ] || [ "$MINUTE" = "05" ]; then
+            curl --fail-with-body -s -X POST \
+              -H "x-cron-secret: ${{ secrets.CRON_SECRET }}" \
+              -H "Content-Type: application/json" \
+              "${{ vars.API_BASE_URL }}/api/v1/cron/auto-cancel-registrations"
+          else
+            echo "Skipping auto-cancel — not an hourly run (minute: $MINUTE)"
+          fi

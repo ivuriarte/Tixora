@@ -27,10 +27,9 @@
 
 ---
 
-## E2E Test Drift (must fix before next validation run)
+## E2E Test Drift
 
-- [ ] `admin-flows.spec.ts` — `'check-in page renders three tabs'`: expects a **Manual** button that no longer exists. Tab type is now `'camera' | 'search'` only. Fix: update assertion to check for Camera + Search only (2 tabs).
-- [ ] `admin-flows.spec.ts` — `'manual tab: has an attendee ID input...'`: clicks a Manual tab that no longer exists → will throw. Fix: delete this test case entirely (the feature was removed May 24, 2026, commit `f479943`).
+~~Resolved May 2026 — `admin-flows.spec.ts` already asserts Camera + Search only (2 tabs); no Manual tab reference remains.~~
 
 ---
 
@@ -46,9 +45,73 @@ Bundle tiers (1 purchase → many tickets) are the #1 scalper target. Mitigation
 - [x] **1. Per-account hard cap** — enforce `event.maxPerUser` across the user's whole event history (sums attendees from all non-cancelled/non-rejected registrations). _Shipped May 23, 2026 (RegistrationsService.create)._
 - [ ] **2. KYC for bundle buyers** — at checkout, require **all attendee names + emails up front** for every seat in the bundle (not just the buyer). We already capture per-ticket attendee data — make it strict + required for bundle tiers.
 - [x] **3. Named, non-transferable tickets** — `Attendee.transferable` flag added (default `false`); receipt page now shows "non-transferable + ID required at door" notice; admin check-in already returns the bound attendee name. _Shipped May 23, 2026._
+
+---
+
+## Major Version Upgrades (dedicated sprint before public launch)
+
+- [ ] **NestJS 10 → 11** — blocked by multer DoS fix (`npm audit fix --force`). Needs full API regression. Do together with multer CVE fix.
+- [ ] **Next.js 14 → 15** — App Router API changes (breaking). Needs full UI regression. Do together with Next.js CVE fix.
+
+---
+
+## Observability (deferred — not blocking launch)
+
+- [ ] **Structured log drain** — requires Vercel Pro ($20/mo). Two options when ready:
+  - **Option A (recommended):** Upgrade to Vercel Pro → add BetterStack log drain to both projects (API + Web). Zero code changes.
+  - **Option B (free):** Add `@logtail/pino` transport to NestJS app — ships logs from inside the process, no Vercel Pro needed.
+  - Until then: use Vercel dashboard runtime logs (real-time, 1 hr history) for manual debugging.
 - [ ] **▶ UP NEXT — 4. Velocity + Cloudflare Turnstile** — rate-limit bundle purchases per IP, per device fingerprint, per email domain. Add **Cloudflare Turnstile** (free, invisible) or hCaptcha challenge **only on bundle-tier checkout** (low friction for legit buyers).
 - [ ] **5. Staged release / virtual waiting room** — for hot events, gate bundles behind a queue OR sell bundles only via a separate **"request" flow with manual admin approval** (low-tech, very effective).
 - [ ] **6. Payment-method binding** — refuse multiple bundle purchases from the same card / GCash number within 24 h.
 - [ ] **7. Detection signals** — log `userAgent`, `Accept-Language`, headless-browser markers; auto-flag accounts created < 24 h before a bundle purchase.
 
 The DB schema already supports #1 and #3 — `Ticket` rows hold per-seat attendee info, and `tier.maxPerOrder` is in place; we just need to recount across all orders per user instead of per order.
+
+---
+
+## Event Day Operations
+
+### Pre-event API Warmup (do 30 min before doors open)
+
+Vercel Hobby serverless containers sleep after ~10 min of inactivity. BetterStack pings every 3 min keep them warm once the event is live, but you should manually warm before doors open:
+
+1. Open a terminal (or just run these in your browser dev console via `fetch`)
+2. Make 3 requests to the health endpoint, 30 seconds apart:
+   ```
+   curl https://api-ivvuriarte-5014s-projects.vercel.app/api/v1/health
+   ```
+   Each should return: `{"status":"ok","checks":{"database":"ok","redis":"ok"}}`
+3. Have a team member open the admin check-in page in their browser to warm the web container:
+   ```
+   https://tixora-online-ticket-app.vercel.app/admin/checkin
+   ```
+4. After warmup, BetterStack pings every 3 min will keep both containers warm for the duration.
+
+### Event-Day CSV Backup (download before doors open)
+
+If the app goes down mid-event, your check-in staff need a printed fallback list. Download it before doors open:
+
+```
+GET /api/v1/admin/events/{eventId}/registrations/export
+```
+(Requires admin JWT — use the browser while logged into the admin dashboard, or use Postman/curl with your bearer token.)
+
+Save the downloaded `.csv` to Google Sheets or print it. The columns are:
+`Reference, First Name, Last Name, Email, Phone, Tier, Qty, Status, Payment Method, Total (PHP), Registered At, Checked In, First Check-In At`
+
+### Check-In Staff Setup
+
+- 3 staff members need admin accounts (or the same shared admin account on 3 devices)
+- Each opens `/admin/checkin` in their browser — no app install needed
+- QR scanner works on any camera-enabled device
+- If a QR scan fails, use the **Search** tab to look up by reference number or name
+
+### Multi-Admin Accounts (for proof reviewers)
+
+For the Francis Kong event (3 core reviewers + volunteers):
+- Create individual `isAdmin: true` user accounts per reviewer via the admin dashboard or a DB seed
+- Each reviewer gets their own login so audit logs show who approved/rejected each proof
+- Check-in staff can use the same reviewer accounts or separate ones — they only need `/admin/checkin` access
+- Granular roles (reviewer-only vs full admin) is a post-launch backlog item
+

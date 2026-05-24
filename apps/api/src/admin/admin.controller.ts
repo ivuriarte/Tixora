@@ -13,6 +13,7 @@ import {
   Res,
   DefaultValuePipe,
   ParseIntPipe,
+  BadRequestException,
 } from '@nestjs/common';
 import type { Request, Response } from 'express';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
@@ -235,6 +236,21 @@ export class AdminController {
     );
   }
 
+  @Get('events/:eventId/registrations/export')
+  @ApiOperation({ summary: 'Export all registrations for an event as CSV (manual payment backup)' })
+  async exportRegistrations(
+    @Param('eventId') eventId: string,
+    @Res() res: Response,
+  ) {
+    const csv = await this.adminService.exportRegistrations(eventId);
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename="registrations-${eventId}.csv"`,
+    );
+    res.send(csv);
+  }
+
   @Get('registrations/:id')
   @ApiOperation({ summary: 'Get registration detail (admin)' })
   getRegistration(@Param('id') id: string) {
@@ -340,5 +356,32 @@ export class AdminController {
     @CurrentUser() user: JwtPayload,
   ) {
     return this.adminService.checkinManual(attendeeId, user.sub);
+  }
+
+  // ── User Management ──────────────────────────────────────────────────────
+
+  @Get('users')
+  @ApiOperation({ summary: 'List all users (admin)' })
+  listUsers(
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ) {
+    return this.adminService.listUsers(
+      page ? parseInt(page, 10) : 1,
+      limit ? Math.min(parseInt(limit, 10), 100) : 50,
+    );
+  }
+
+  @Patch('users/:id/role')
+  @ApiOperation({ summary: 'Grant or revoke admin role for a user' })
+  setUserRole(
+    @Param('id') id: string,
+    @Body('isAdmin') isAdmin: boolean,
+    @CurrentUser() caller: JwtPayload,
+  ) {
+    if (id === caller.sub) {
+      throw new BadRequestException('You cannot change your own admin role');
+    }
+    return this.adminService.setAdminRole(id, isAdmin);
   }
 }

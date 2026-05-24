@@ -96,7 +96,8 @@ export class EmailService {
         </table>
         <p style="color:#64748b;font-size:14px;margin-top:16px">
           After payment, upload your proof of payment via the link below.
-          Your QR code will be emailed once payment is verified.
+          Our team reviews proofs within <strong>24 hours</strong>.
+          Your QR code will be emailed to you once payment is verified.
         </p>
         ${viewLink}
         <p style="margin-top:24px;color:#9ca3af;font-size:12px">Axon Tickets · Online Ticketing Platform</p>
@@ -116,7 +117,7 @@ export class EmailService {
       `<div style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:24px">
         <h2 style="color:#1A3A5C">${eventTitle}</h2>
         <p>Hi ${firstName}, we have received your payment proof for reference <strong>${referenceNumber}</strong>.</p>
-        <p>Our team will verify your payment within 1–2 business days.
+        <p>Our team will verify your payment within <strong>24 hours</strong>.
            You will receive another email with your QR code once approved.</p>
         <p style="margin-top:24px;color:#9ca3af;font-size:12px">Axon Tickets · Online Ticketing Platform</p>
       </div>`,

@@ -23,6 +23,7 @@ import { UploadModule } from './upload/upload.module';
 import { RegistrationsModule } from './registrations/registrations.module';
 import { PaymentProofsModule } from './payment-proofs/payment-proofs.module';
 import { SchedulerModule } from './scheduler/scheduler.module';
+import { CronModule } from './cron/cron.module';
 
 @Module({
   imports: [
@@ -74,6 +75,7 @@ import { SchedulerModule } from './scheduler/scheduler.module';
     RegistrationsModule,
     PaymentProofsModule,
     SchedulerModule,
+    CronModule,
   ],
 })
 export class AppModule {}

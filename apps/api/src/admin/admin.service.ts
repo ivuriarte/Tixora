@@ -33,6 +33,40 @@ export class AdminService {
     this.resend = new Resend(this.config.get<string>('resend.apiKey'));
   }
 
+  // ── User Management ────────────────────────────────────────────────────
+
+  async listUsers(page = 1, limit = 50) {
+    const skip = (page - 1) * limit;
+    const [total, users] = await Promise.all([
+      this.prisma.user.count(),
+      this.prisma.user.findMany({
+        skip,
+        take: limit,
+        orderBy: { createdAt: 'desc' },
+        select: {
+          id: true,
+          email: true,
+          firstName: true,
+          lastName: true,
+          isAdmin: true,
+          isVerified: true,
+          createdAt: true,
+        },
+      }),
+    ]);
+    return { data: users, total, page, limit };
+  }
+
+  async setAdminRole(userId: string, isAdmin: boolean) {
+    const user = await this.prisma.user.findUnique({ where: { id: userId }, select: { id: true } });
+    if (!user) throw new NotFoundException('User not found');
+    return this.prisma.user.update({
+      where: { id: userId },
+      data: { isAdmin },
+      select: { id: true, email: true, firstName: true, lastName: true, isAdmin: true },
+    });
+  }
+
   // ── Events ──────────────────────────────────────────────────────────────
 
   async createEvent(dto: CreateEventDto, adminId: string) {
@@ -913,6 +947,52 @@ export class AdminService {
       t.status === 'used' ? 'Yes' : 'No',
       t.checkedInAt?.toISOString() ?? '',
     ].join(','));
+
+    return header + rows.join('\n');
+  }
+
+  /**
+   * Export all registrations for an event (manual payment flow) as CSV.
+   * Includes every status so admins have a complete backup before event day.
+   */
+  async exportRegistrations(eventId: string): Promise<string> {
+    const registrations = await this.prisma.registration.findMany({
+      where: { eventId },
+      orderBy: { createdAt: 'asc' },
+      include: {
+        attendees: {
+          orderBy: [{ isLead: 'desc' }, { createdAt: 'asc' }],
+        },
+      },
+    });
+
+    const header =
+      'Reference,First Name,Last Name,Email,Phone,Tier,Qty,Status,Payment Method,Total (PHP),Registered At,Checked In,First Check-In At\n';
+
+    const rows = registrations.map((reg) => {
+      const lead = reg.attendees.find((a) => a.isLead) ?? reg.attendees[0];
+      const checkedInCount = reg.attendees.filter((a) => a.checkedInAt !== null).length;
+      const firstCheckedInAt = reg.attendees
+        .filter((a): a is typeof a & { checkedInAt: Date } => a.checkedInAt !== null)
+        .sort((a, b) => a.checkedInAt.getTime() - b.checkedInAt.getTime())[0]
+        ?.checkedInAt;
+
+      return [
+        this.escapeCsvCell(reg.referenceNumber),
+        `"${this.escapeCsvCell(lead?.firstName ?? '')}"`,
+        `"${this.escapeCsvCell(lead?.lastName ?? '')}"`,
+        this.escapeCsvCell(lead?.email ?? ''),
+        this.escapeCsvCell(lead?.phone ?? ''),
+        `"${this.escapeCsvCell(reg.tierName ?? '')}"`,
+        reg.attendeeCount,
+        reg.status,
+        this.escapeCsvCell(reg.paymentMethod ?? ''),
+        reg.total.toString(),
+        reg.createdAt.toISOString(),
+        `${checkedInCount}/${reg.attendeeCount}`,
+        firstCheckedInAt?.toISOString() ?? '',
+      ].join(',');
+    });
 
     return header + rows.join('\n');
   }

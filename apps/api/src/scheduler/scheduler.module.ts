@@ -6,5 +6,6 @@ import { AuditModule } from '../audit/audit.module';
 @Module({
   imports: [PrismaModule, AuditModule],
   providers: [SchedulerService],
+  exports: [SchedulerService],
 })
 export class SchedulerModule {}
