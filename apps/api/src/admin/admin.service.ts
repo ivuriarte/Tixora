@@ -1093,7 +1093,14 @@ export class AdminService {
       where: { registration: { eventId, status: 'verified' } },
       orderBy: { createdAt: 'asc' },
       include: {
-        registration: { select: { tierName: true, paymentMethod: true, status: true } },
+        registration: {
+          select: {
+            tierName: true,
+            paymentMethod: true,
+            status: true,
+            user: { select: { city: true } },
+          },
+        },
       },
     });
 
@@ -1117,8 +1124,9 @@ export class AdminService {
       this.escapeCsvCell(a.phone ?? ''),
       `"${this.escapeCsvCell(a.company ?? '')}"`,
       `"${this.escapeCsvCell(a.jobTitle ?? '')}"`,
-      '',
+      `"${this.escapeCsvCell(a.registration.user?.city ?? '')}"`,
       `"${this.escapeCsvCell(a.registration.tierName ?? 'Registration')}"`,
+
       a.registration.status === 'verified' ? 'paid' : 'pending',
       this.escapeCsvCell(a.registration.paymentMethod ?? ''),
       a.checkedInAt ? 'Yes' : 'No',
