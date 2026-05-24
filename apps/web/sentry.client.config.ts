@@ -12,7 +12,8 @@ if (dsn) {
     // Capture 100% of session replays on error, 1% on normal browsing
     replaysOnErrorSampleRate: 1.0,
     replaysSessionSampleRate: 0.01,
-    integrations: [Sentry.replayIntegration()],
+    // replayIntegration is browser-only — guard against SSR execution
+    integrations: typeof window !== 'undefined' ? [Sentry.replayIntegration()] : [],
     // Don't send events in development
     enabled: process.env.NODE_ENV === 'production',
   });
