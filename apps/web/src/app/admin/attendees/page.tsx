@@ -92,7 +92,7 @@ export default function AdminAttendeesPage() {
       const url = URL.createObjectURL(res.data);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `[Attendees]${safeTitle}-${date}.csv`;
+      a.download = `[Attendees]${safeTitle}(${date}).csv`;
       a.click();
       URL.revokeObjectURL(url);
     } finally {
