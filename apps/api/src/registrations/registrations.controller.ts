@@ -34,7 +34,8 @@ export class RegistrationsController {
     @Req() req: Request,
   ) {
     const ip =
-      (req.headers['x-forwarded-for'] as string | undefined)?.split(',')[0].trim() ??
+      (req.headers['x-real-ip'] as string | undefined)?.trim() ??
+      (req.headers['x-forwarded-for'] as string | undefined)?.split(',').pop()?.trim() ??
       req.ip ??
       '';
     return this.registrationsService.create(dto, user.sub, ip);

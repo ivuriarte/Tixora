@@ -118,7 +118,7 @@ export default function ImageUploader({
         if (inputRef.current) inputRef.current.value = '';
       }
     },
-    [endpoint, onChange, validateFile],
+    [endpoint, maxSizeMB, onChange, validateFile],
   );
 
   function handleDrop(e: DragEvent<HTMLLabelElement>) {

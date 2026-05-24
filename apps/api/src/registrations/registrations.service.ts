@@ -668,7 +668,6 @@ export class RegistrationsService {
     if (lead) {
       const webBase =
         this.config.get<string>('web.baseUrl') ??
-        process.env.WEB_BASE_URL ??
         'https://axon-tickets-app.vercel.app';
       try {
         await this.emailService.sendRejectionEmail(

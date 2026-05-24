@@ -242,13 +242,13 @@ test.describe('Admin Edit Event — Pre-population', () => {
 test.describe('Admin Check-in', () => {
   test.skip(!ADMIN_EMAIL, 'Set TEST_ADMIN_EMAIL and TEST_ADMIN_PASSWORD to run admin tests');
 
-  test('check-in page renders three tabs', async ({ page }) => {
+  test('check-in page renders two tabs', async ({ page }) => {
     await loginAsAdmin(page);
     await page.goto('/admin/checkin');
     // /camera/i matches both the tab button and "Start Camera" — use .first()
     await expect(page.getByRole('button', { name: /camera/i }).first()).toBeVisible();
-    await expect(page.getByRole('button', { name: /manual/i })).toBeVisible();
     await expect(page.getByRole('button', { name: /search/i })).toBeVisible();
+    await expect(page.getByRole('button', { name: /manual/i })).not.toBeVisible();
   });
 
   test('check-in page has event selector', async ({ page }) => {
@@ -279,17 +279,6 @@ test.describe('Admin Check-in', () => {
     await expect(page.getByText(/something went wrong|unhandled/i)).not.toBeVisible();
   });
 
-  test('manual tab: has an attendee ID input and submit button', async ({ page }) => {
-    await loginAsAdmin(page);
-    await page.goto('/admin/checkin');
-
-    await page.getByRole('button', { name: /manual/i }).click();
-
-    // Manual check-in form
-    const idInput = page.locator('input').first();
-    await expect(idInput).toBeVisible();
-    await expect(page.getByRole('button', { name: /check.?in/i })).toBeVisible();
-  });
 });
 
 test.describe('Admin Analytics', () => {

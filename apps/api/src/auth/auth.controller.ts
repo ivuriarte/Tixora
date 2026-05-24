@@ -12,6 +12,7 @@ import {
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import { AuthGuard } from '@nestjs/passport';
+import { ConfigService } from '@nestjs/config';
 import { Request, Response } from 'express';
 import { AuthService } from './auth.service';
 import { RegisterDto } from './dto/register.dto';
@@ -24,16 +25,21 @@ import { JwtPayload } from '@axon-tickets/types';
 @ApiTags('auth')
 @Controller('auth')
 export class AuthController {
-  constructor(private readonly authService: AuthService) {}
+  constructor(
+    private readonly authService: AuthService,
+    private readonly config: ConfigService,
+  ) {}
 
   @Public()
   @Post('register')
   @Throttle({ default: { ttl: 60000, limit: 5 } })
   @ApiOperation({ summary: 'Register a new user' })
   async register(@Body() dto: RegisterDto, @Req() req: Request) {
-    const ip = (req.headers['x-forwarded-for'] as string | undefined)?.split(',')[0].trim()
-      ?? req.ip
-      ?? '';
+    const ip =
+      (req.headers['x-real-ip'] as string | undefined)?.trim() ??
+      (req.headers['x-forwarded-for'] as string | undefined)?.split(',').pop()?.trim() ??
+      req.ip ??
+      '';
     return this.authService.register(dto, ip);
   }
 
@@ -93,7 +99,7 @@ export class AuthController {
   @Get('google')
   @ApiOperation({ summary: 'Initiate Google OAuth login' })
   googleAuth(@Res() res: Response) {
-    const clientId = process.env.GOOGLE_CLIENT_ID;
+    const clientId = this.config.get<string>('google.clientId');
     if (!clientId) {
       (res as any).status(503).json({ message: 'Google login is not configured yet.' });
       return;
@@ -103,7 +109,7 @@ export class AuthController {
       `https://accounts.google.com/o/oauth2/v2/auth?` +
       new URLSearchParams({
         client_id: clientId,
-        redirect_uri: process.env.GOOGLE_CALLBACK_URL ?? '',
+        redirect_uri: this.config.get<string>('google.callbackUrl') ?? '',
         response_type: 'code',
         scope: 'email profile',
         access_type: 'offline',
@@ -127,7 +133,7 @@ export class AuthController {
 
     const { user, accessToken, refreshToken } = await this.authService.loginWithGoogle(profile);
     const webUrl = (req as any).app?.get?.('webUrl') as string | undefined;
-    const base = process.env.WEB_URL ?? webUrl ?? 'http://localhost:3000';
+    const base = this.config.get<string>('webUrl') ?? webUrl ?? 'http://localhost:3000';
 
     const params = new URLSearchParams({
       accessToken,

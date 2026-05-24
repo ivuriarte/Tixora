@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
+import Image from 'next/image';
 import { formatPHP, centavosToPeso } from '@axon-tickets/utils';
 
 /** Privacy: keep first letter of each word, mask the rest. "Ian Uriarte" -> "I•• U••••••" */
@@ -156,7 +157,7 @@ export default function RegistrationPanel({
               {pm.accountName && <p>Account: {maskAccountName(pm.accountName)}</p>}
               {pm.accountNumber && <p>Number: {maskAccountNumber(pm.accountNumber)}</p>}
               {pm.qrImageUrl && (
-                <img src={pm.qrImageUrl} alt="Payment QR" className="mt-1 h-24 w-24 object-contain rounded border border-gray-200" />
+                <Image src={pm.qrImageUrl} alt="Payment QR" className="mt-1 h-24 w-24 object-contain rounded border border-gray-200" width={96} height={96} />
               )}
             </div>
           ))}

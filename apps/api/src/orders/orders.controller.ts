@@ -31,7 +31,8 @@ export class OrdersController {
   @ApiOperation({ summary: 'Create an order from a reservation' })
   create(@Body() dto: CreateOrderDto, @CurrentUser() user: JwtPayload, @Req() req: Request) {
     const ip =
-      (req.headers['x-forwarded-for'] as string | undefined)?.split(',')[0].trim() ??
+      (req.headers['x-real-ip'] as string | undefined)?.trim() ??
+      (req.headers['x-forwarded-for'] as string | undefined)?.split(',').pop()?.trim() ??
       req.ip ??
       '';
     const userAgent = req.headers['user-agent'] ?? '';
