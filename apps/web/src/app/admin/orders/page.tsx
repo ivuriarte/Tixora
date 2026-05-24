@@ -71,6 +71,7 @@ export default function AdminOrdersPage() {
   const [page, setPage] = useState(1);
   const [statusFilter, setStatusFilter] = useState('');
   const [eventId, setEventId] = useState('');
+  const [eventTitle, setEventTitle] = useState('');
   const [exporting, setExporting] = useState(false);
 
   const filtersApplied = !!statusFilter && !!eventId;
@@ -103,8 +104,7 @@ export default function AdminOrdersPage() {
     try {
       const params = new URLSearchParams();
       if (eventId) params.set('eventId', eventId);
-      const eventTitle = events?.find((e) => e.id === eventId)?.title ?? 'Event';
-      const safeTitle = eventTitle.replace(/[<>:"/\\|?*]/g, '').trim();
+      const safeTitle = (eventTitle || events?.find((e) => e.id === eventId)?.title || 'Event').replace(/[<>:"/\\|?*]/g, '').trim();
       const date = new Date().toISOString().slice(0, 10);
       await downloadCsv(`/admin/orders/export?${params}`, `[Transaction]${safeTitle}(${date}).csv`);
     } finally {
@@ -145,7 +145,7 @@ export default function AdminOrdersPage() {
             <select
               className="border border-gray-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary min-w-[240px]"
               value={eventId}
-              onChange={(e) => { setEventId(e.target.value); setPage(1); }}
+              onChange={(e) => { setEventId(e.target.value); setEventTitle(e.target.options[e.target.selectedIndex]?.text ?? ''); setPage(1); }}
             >
               <option value="">Select event…</option>
               {events?.map((ev) => (

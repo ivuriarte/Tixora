@@ -50,6 +50,7 @@ export default function AdminAttendeesPage() {
   const searchParams = useSearchParams();
   const initialEvent = searchParams.get('eventId') ?? '';
   const [selectedEventId, setSelectedEventId] = useState(initialEvent);
+  const [selectedEventTitle, setSelectedEventTitle] = useState('');
   const [searchQ, setSearchQ] = useState('');
   const [page, setPage] = useState(1);
   const [exporting, setExporting] = useState(false);
@@ -86,8 +87,7 @@ export default function AdminAttendeesPage() {
         `/admin/events/${selectedEventId}/attendees/export`,
         { responseType: 'blob' },
       );
-      const eventTitle = events?.find((e) => e.id === selectedEventId)?.title ?? 'Event';
-      const safeTitle = eventTitle.replace(/[<>:"/\\|?*]/g, '').trim();
+      const safeTitle = (selectedEventTitle || events?.find((e) => e.id === selectedEventId)?.title || 'Event').replace(/[<>:"/\\|?*]/g, '').trim();
       const date = new Date().toISOString().slice(0, 10);
       const url = URL.createObjectURL(res.data);
       const a = document.createElement('a');
@@ -128,7 +128,7 @@ export default function AdminAttendeesPage() {
           <select
             className="border border-gray-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
             value={selectedEventId}
-            onChange={(e) => { setSelectedEventId(e.target.value); setPage(1); }}
+            onChange={(e) => { setSelectedEventId(e.target.value); setSelectedEventTitle(e.target.options[e.target.selectedIndex]?.text ?? ''); setPage(1); }}
           >
             <option value="">Select an event…</option>
             {events?.map((e) => (
