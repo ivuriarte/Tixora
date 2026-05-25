@@ -17,7 +17,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { RedisService } from '../redis/redis.service';
 import { EmailService } from '../email/email.service';
 import { RegisterDto } from './dto/register.dto';
-import { LoginDto, VerifyOtpDto } from './dto/auth.dto';
+import { LoginDto, VerifyOtpDto, RequestAccessDto, VerifyAccessDto } from './dto/auth.dto';
 import { JwtPayload } from '@axon-tickets/types';
 
 const BCRYPT_COST = 12;
@@ -96,7 +96,7 @@ export class AuthService {
     ]);
 
     return {
-      user: { id: user.id, email: user.email, firstName: user.firstName, lastName: user.lastName, isAdmin: user.isAdmin, isVerified: user.isVerified },
+      user: { id: user.id, email: user.email, firstName: user.firstName!, lastName: user.lastName!, isAdmin: user.isAdmin, isVerified: user.isVerified },
       accessToken,
       refreshToken,
     };
@@ -157,7 +157,7 @@ export class AuthService {
     ]);
 
     return {
-      user: { id: user.id, email: user.email, firstName: user.firstName, lastName: user.lastName, isAdmin: user.isAdmin, isVerified: true },
+      user: { id: user.id, email: user.email, firstName: user.firstName!, lastName: user.lastName!, isAdmin: user.isAdmin, isVerified: true },
       accessToken,
       refreshToken,
     };
@@ -283,9 +283,108 @@ export class AuthService {
     ]);
 
     return {
+      user: { id: user.id, email: user.email, firstName: user.firstName!, lastName: user.lastName!, isAdmin: user.isAdmin, isVerified: true },
+      accessToken,
+      refreshToken,
+    };
+  }
+
+  /**
+   * Step 1 of the passwordless access flow.
+   * Finds or creates a stub user by email, then sends a 6-digit OTP.
+   * Always returns { userId } — never distinguishes new vs existing (prevents enumeration).
+   */
+  async requestAccess(dto: RequestAccessDto): Promise<{ userId: string }> {
+    const email = dto.email.toLowerCase().trim();
+
+    let user = await this.prisma.user.findUnique({ where: { email } });
+
+    if (!user) {
+      user = await this.prisma.user.create({
+        data: { email, isVerified: false },
+      });
+    }
+
+    // Rate-limit: one OTP per 60 seconds per user
+    const recentOtp = await this.prisma.otpCode.findFirst({
+      where: {
+        userId: user.id,
+        type: 'email_verify',
+        used: false,
+        createdAt: { gt: new Date(Date.now() - 60_000) },
+      },
+    });
+    if (recentOtp) {
+      throw new BadRequestException('Please wait 60 seconds before requesting a new code');
+    }
+
+    await this.sendOtp(user.id, email, 'email_verify');
+    return { userId: user.id };
+  }
+
+  /**
+   * Step 2 of the passwordless access flow.
+   * Verifies the OTP, marks the user as verified, and returns a JWT pair.
+   * isNewUser = true when the account was created via requestAccess and has no profile yet.
+   */
+  async verifyAccess(dto: VerifyAccessDto): Promise<{
+    user: { id: string; email: string; firstName: string | null; lastName: string | null; isAdmin: boolean; isVerified: boolean };
+    accessToken: string;
+    refreshToken: string;
+    isNewUser: boolean;
+  }> {
+    const user = await this.prisma.user.findUnique({ where: { id: dto.userId } });
+    if (!user) throw new BadRequestException('Invalid request');
+
+    // Brute-force protection (shared with verifyOtp)
+    const attemptsKey = `otp:attempts:${dto.userId}`;
+    const attempts = parseInt((await this.redis.get(attemptsKey)) ?? '0', 10);
+    if (attempts >= OTP_MAX_ATTEMPTS) {
+      throw new BadRequestException('Too many failed attempts. Request a new code.');
+    }
+
+    const otpRecord = await this.prisma.otpCode.findFirst({
+      where: {
+        userId: dto.userId,
+        type: 'email_verify',
+        used: false,
+        expiresAt: { gt: new Date() },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    if (!otpRecord) throw new BadRequestException('Code expired or invalid. Request a new one.');
+
+    const match = await bcrypt.compare(dto.otp, otpRecord.codeHash);
+    if (!match) {
+      const newCount = attempts + 1;
+      await this.redis.set(attemptsKey, String(newCount), OTP_ATTEMPT_TTL);
+      if (newCount >= OTP_MAX_ATTEMPTS) {
+        await this.prisma.otpCode.update({ where: { id: otpRecord.id }, data: { used: true } });
+        throw new BadRequestException('Too many failed attempts. Request a new code.');
+      }
+      throw new BadRequestException('Incorrect code. Please try again.');
+    }
+
+    await this.redis.del(attemptsKey);
+
+    const isNewUser = user.firstName === null;
+
+    await this.prisma.$transaction([
+      this.prisma.otpCode.update({ where: { id: otpRecord.id }, data: { used: true } }),
+      this.prisma.user.update({ where: { id: dto.userId }, data: { isVerified: true } }),
+    ]);
+
+    const [accessToken, refreshToken] = await Promise.all([
+      this.generateAccessToken(user.id, user.email, user.isAdmin),
+      this.generateRefreshToken(user.id),
+    ]);
+
+    return {
       user: { id: user.id, email: user.email, firstName: user.firstName, lastName: user.lastName, isAdmin: user.isAdmin, isVerified: true },
       accessToken,
       refreshToken,
+      isNewUser,
     };
   }
 

@@ -42,7 +42,7 @@ export default function TierSelector({ eventId, eventSlug, tiers, disabled }: Pr
 
   async function handleReserve() {
     if (!isAuthenticated) {
-      router.push(`/auth/login?redirect=${encodeURIComponent(`/events/${eventSlug}`)}`);
+      router.push(`/auth/access?redirect=${encodeURIComponent(`/events/${eventSlug}`)}`);
       return;
     }
     if (!selectedTier) return;

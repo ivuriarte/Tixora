@@ -153,7 +153,7 @@ export default function ProfilePage() {
   useEffect(() => {
     if (isHydrating) return;
     if (!isAuthenticated) {
-      router.replace('/auth/login?redirect=/profile');
+      router.replace('/auth/access?redirect=/profile');
       return;
     }
     api

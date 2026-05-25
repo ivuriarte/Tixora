@@ -69,7 +69,7 @@ export default function RegisterPage({
       const redirectUrl = `/events/${params.slug}/register${
         searchParams.tierId ? `?tierId=${searchParams.tierId}&qty=${searchParams.qty ?? '1'}` : ''
       }`;
-      router.replace(`/auth/login?redirect=${encodeURIComponent(redirectUrl)}`);
+      router.replace(`/auth/access?redirect=${encodeURIComponent(redirectUrl)}`);
       return;
     }
 

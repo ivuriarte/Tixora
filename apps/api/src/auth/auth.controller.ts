@@ -16,7 +16,7 @@ import { ConfigService } from '@nestjs/config';
 import { Request, Response } from 'express';
 import { AuthService } from './auth.service';
 import { RegisterDto } from './dto/register.dto';
-import { LoginDto, VerifyOtpDto, ResendOtpDto, RefreshTokenDto } from './dto/auth.dto';
+import { LoginDto, VerifyOtpDto, ResendOtpDto, RefreshTokenDto, RequestAccessDto, VerifyAccessDto } from './dto/auth.dto';
 import { Public } from '../common/decorators/public.decorator';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
@@ -68,6 +68,24 @@ export class AuthController {
   @ApiOperation({ summary: 'Resend OTP code' })
   async resendOtp(@Body() dto: ResendOtpDto) {
     return this.authService.resendOtp(dto.userId);
+  }
+
+  @Public()
+  @Post('request-access')
+  @HttpCode(HttpStatus.OK)
+  @Throttle({ default: { ttl: 60000, limit: 5 } })
+  @ApiOperation({ summary: 'Request a passwordless access code (OTP) by email' })
+  async requestAccess(@Body() dto: RequestAccessDto) {
+    return this.authService.requestAccess(dto);
+  }
+
+  @Public()
+  @Post('verify-access')
+  @HttpCode(HttpStatus.OK)
+  @Throttle({ default: { ttl: 60000, limit: 10 } })
+  @ApiOperation({ summary: 'Verify the access code and receive a JWT pair' })
+  async verifyAccess(@Body() dto: VerifyAccessDto) {
+    return this.authService.verifyAccess(dto);
   }
 
   @Public()

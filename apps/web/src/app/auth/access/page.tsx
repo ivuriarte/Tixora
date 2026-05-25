@@ -1,0 +1,470 @@
+'use client';
+
+import { Suspense, useState, useEffect, useRef, useCallback } from 'react';
+import Link from 'next/link';
+import { useRouter, useSearchParams } from 'next/navigation';
+import axios from 'axios';
+import toast from 'react-hot-toast';
+import api from '@/lib/api';
+import { useAuthStore } from '@/store/auth.store';
+
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api-tau-six-59.vercel.app/api/v1';
+const RESEND_COOLDOWN = 60;
+
+type Step = 'email' | 'code' | 'profile';
+
+interface PendingAuth {
+  userId: string;
+  accessToken: string;
+  refreshToken: string;
+}
+
+function AccessForm() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const { setAuth, isAuthenticated, isHydrating, user } = useAuthStore();
+
+  const [step, setStep] = useState<Step>('email');
+  const [email, setEmail] = useState('');
+  const [otp, setOtp] = useState('');
+  const [pendingAuth, setPendingAuth] = useState<PendingAuth | null>(null);
+  const [profile, setProfile] = useState({ firstName: '', lastName: '', phoneDigits: '' });
+  const [loading, setLoading] = useState(false);
+  const [secondsLeft, setSecondsLeft] = useState(0);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const otpInputRef = useRef<HTMLInputElement>(null);
+
+  // Redirect already-authenticated users
+  useEffect(() => {
+    if (!isHydrating && isAuthenticated && user) {
+      const redirect = searchParams.get('redirect');
+      const dest = redirect && redirect.startsWith('/') ? redirect : user.isAdmin ? '/admin' : '/';
+      router.replace(dest);
+    }
+  }, [isHydrating, isAuthenticated, user, router, searchParams]);
+
+  // Auto-submit when 6 digits are entered
+  useEffect(() => {
+    if (otp.length === 6 && step === 'code') {
+      handleVerifyCode();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [otp]);
+
+  const startResendTimer = useCallback(() => {
+    setSecondsLeft(RESEND_COOLDOWN);
+    timerRef.current = setInterval(() => {
+      setSecondsLeft((s) => {
+        if (s <= 1) {
+          clearInterval(timerRef.current!);
+          return 0;
+        }
+        return s - 1;
+      });
+    }, 1000);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (timerRef.current) clearInterval(timerRef.current);
+    };
+  }, []);
+
+  const redirectAfterAuth = useCallback(
+    (isAdmin: boolean) => {
+      const redirect = searchParams.get('redirect');
+      const dest = redirect && redirect.startsWith('/') ? redirect : isAdmin ? '/admin' : '/';
+      router.replace(dest);
+    },
+    [searchParams, router],
+  );
+
+  // ── Step 1: Send OTP ────────────────────────────────────────────────────────
+  async function handleRequestAccess(e: React.FormEvent) {
+    e.preventDefault();
+    setLoading(true);
+    try {
+      const res = await api.post<{ data: { userId: string } }>('/auth/request-access', { email });
+      const { userId } = res.data.data;
+      setPendingAuth({ userId, accessToken: '', refreshToken: '' });
+      setStep('code');
+      startResendTimer();
+      setTimeout(() => otpInputRef.current?.focus(), 50);
+    } catch (err: any) {
+      const msg = err?.response?.data?.message ?? 'Could not send code';
+      toast.error(Array.isArray(msg) ? msg.join(', ') : msg);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  // ── Step 2: Verify OTP ──────────────────────────────────────────────────────
+  async function handleVerifyCode() {
+    if (!pendingAuth || otp.length !== 6) return;
+    setLoading(true);
+    try {
+      const res = await api.post<{
+        data: {
+          user: { id: string; email: string; firstName: string | null; lastName: string | null; isAdmin: boolean; isVerified: boolean };
+          accessToken: string;
+          refreshToken: string;
+          isNewUser: boolean;
+        };
+      }>('/auth/verify-access', { userId: pendingAuth.userId, otp });
+
+      const { user: verifiedUser, accessToken, refreshToken, isNewUser } = res.data.data;
+
+      if (isNewUser) {
+        // Hold tokens in state — don't set global auth until profile is complete
+        setPendingAuth({ userId: verifiedUser.id, accessToken, refreshToken });
+        setStep('profile');
+      } else {
+        setAuth(
+          {
+            id: verifiedUser.id,
+            email: verifiedUser.email,
+            firstName: verifiedUser.firstName ?? '',
+            lastName: verifiedUser.lastName ?? '',
+            isAdmin: verifiedUser.isAdmin,
+            isVerified: verifiedUser.isVerified,
+          },
+          accessToken,
+          refreshToken,
+        );
+        toast.success(`Welcome back!`);
+        redirectAfterAuth(verifiedUser.isAdmin);
+      }
+    } catch (err: any) {
+      const msg = err?.response?.data?.message ?? 'Verification failed';
+      toast.error(Array.isArray(msg) ? msg.join(', ') : msg);
+      setOtp('');
+      otpInputRef.current?.focus();
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  // ── Resend code (re-uses request-access) ───────────────────────────────────
+  async function handleResend() {
+    if (secondsLeft > 0 || !pendingAuth) return;
+    setLoading(true);
+    try {
+      await api.post('/auth/request-access', { email });
+      setOtp('');
+      startResendTimer();
+      toast.success('A new code has been sent.');
+      setTimeout(() => otpInputRef.current?.focus(), 50);
+    } catch (err: any) {
+      const msg = err?.response?.data?.message ?? 'Could not resend code';
+      toast.error(Array.isArray(msg) ? msg.join(', ') : msg);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  // ── Step 3: Complete profile ────────────────────────────────────────────────
+  async function handleCompleteProfile(e: React.FormEvent) {
+    e.preventDefault();
+    if (!pendingAuth) return;
+    setLoading(true);
+    try {
+      const phone =
+        profile.phoneDigits.length === 10 ? `+63${profile.phoneDigits}` : undefined;
+
+      const res = await axios.patch<{
+        data: { id: string; email: string; firstName: string; lastName: string; isAdmin: boolean; isVerified: boolean };
+      }>(
+        `${API_URL}/users/me`,
+        { firstName: profile.firstName, lastName: profile.lastName, ...(phone && { phone }) },
+        { headers: { Authorization: `Bearer ${pendingAuth.accessToken}` } },
+      );
+
+      const updatedUser = res.data.data;
+      setAuth(
+        {
+          id: updatedUser.id,
+          email: updatedUser.email,
+          firstName: updatedUser.firstName,
+          lastName: updatedUser.lastName,
+          isAdmin: updatedUser.isAdmin,
+          isVerified: updatedUser.isVerified,
+        },
+        pendingAuth.accessToken,
+        pendingAuth.refreshToken,
+      );
+      toast.success(`Welcome, ${updatedUser.firstName}!`);
+      redirectAfterAuth(updatedUser.isAdmin);
+    } catch (err: any) {
+      const msg = err?.response?.data?.message ?? 'Could not save profile';
+      toast.error(Array.isArray(msg) ? msg.join(', ') : msg);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  const inputClass =
+    'w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-white';
+
+  return (
+    <div className="min-h-screen flex items-center justify-center px-4 py-12 bg-gray-50">
+      <div className="w-full max-w-sm">
+        {/* Header */}
+        <div className="text-center mb-8">
+          <Link href="/" className="text-2xl font-bold text-primary">
+            Axon Tickets
+          </Link>
+          {step === 'email' && (
+            <>
+              <h1 className="mt-4 text-2xl font-bold text-gray-900">Sign in or join</h1>
+              <p className="mt-1 text-sm text-gray-500">
+                Enter your email — no password needed
+              </p>
+            </>
+          )}
+          {step === 'code' && (
+            <>
+              <h1 className="mt-4 text-2xl font-bold text-gray-900">Check your inbox</h1>
+              <p className="mt-1 text-sm text-gray-500">
+                Sent a 6-digit code to{' '}
+                <span className="font-medium text-gray-700">{email}</span>
+              </p>
+            </>
+          )}
+          {step === 'profile' && (
+            <>
+              <h1 className="mt-4 text-2xl font-bold text-gray-900">One last thing</h1>
+              <p className="mt-1 text-sm text-gray-500">
+                Tell us your name so we can personalise your tickets
+              </p>
+            </>
+          )}
+        </div>
+
+        {/* ── Step 1: Email ── */}
+        {step === 'email' && (
+          <form
+            onSubmit={handleRequestAccess}
+            className="bg-white shadow rounded-2xl p-8 space-y-5"
+          >
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Email address
+              </label>
+              <input
+                type="email"
+                required
+                autoFocus
+                autoComplete="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="you@example.com"
+                className={inputClass}
+              />
+            </div>
+
+            <button
+              type="submit"
+              disabled={loading || !email}
+              className="w-full py-2.5 rounded-xl bg-primary text-white text-sm font-semibold hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+            >
+              {loading ? (
+                <svg className="animate-spin w-4 h-4" viewBox="0 0 24 24" fill="none">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+                </svg>
+              ) : (
+                <>
+                  Send my code
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
+                  </svg>
+                </>
+              )}
+            </button>
+
+            <div className="relative">
+              <div className="absolute inset-0 flex items-center">
+                <div className="w-full border-t border-gray-200" />
+              </div>
+              <div className="relative flex justify-center text-xs">
+                <span className="bg-white px-3 text-gray-400">or</span>
+              </div>
+            </div>
+
+            <a
+              href={`${API_URL}/auth/google`}
+              className="flex items-center justify-center gap-3 w-full rounded-xl border border-gray-300 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+            >
+              <svg width="18" height="18" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                <path d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844a4.14 4.14 0 01-1.796 2.716v2.259h2.908c1.702-1.567 2.684-3.875 2.684-6.615z" fill="#4285F4" />
+                <path d="M9 18c2.43 0 4.467-.806 5.956-2.18l-2.908-2.259c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332A8.997 8.997 0 009 18z" fill="#34A853" />
+                <path d="M3.964 10.71A5.41 5.41 0 013.682 9c0-.593.102-1.17.282-1.71V4.958H.957A8.996 8.996 0 000 9c0 1.452.348 2.827.957 4.042l3.007-2.332z" fill="#FBBC05" />
+                <path d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 00.957 4.958L3.964 7.29C4.672 5.163 6.656 3.58 9 3.58z" fill="#EA4335" />
+              </svg>
+              Continue with Google
+            </a>
+          </form>
+        )}
+
+        {/* ── Step 2: OTP Code ── */}
+        {step === 'code' && (
+          <div className="bg-white shadow rounded-2xl p-8 space-y-6">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-3 text-center">
+                Enter the 6-digit code
+              </label>
+              <input
+                ref={otpInputRef}
+                type="text"
+                inputMode="numeric"
+                pattern="\d{6}"
+                maxLength={6}
+                autoFocus
+                autoComplete="one-time-code"
+                value={otp}
+                onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                disabled={loading}
+                placeholder="000000"
+                className="w-full text-center text-3xl font-mono tracking-[0.5em] rounded-xl border border-gray-300 px-4 py-4 focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-50"
+              />
+            </div>
+
+            {loading && (
+              <div className="flex items-center justify-center gap-2 text-sm text-gray-500">
+                <svg className="animate-spin w-4 h-4" viewBox="0 0 24 24" fill="none">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+                </svg>
+                Verifying…
+              </div>
+            )}
+
+            <div className="text-center space-y-1">
+              {secondsLeft > 0 ? (
+                <p className="text-xs text-gray-400">
+                  Resend available in{' '}
+                  <span className="font-medium tabular-nums">{secondsLeft}s</span>
+                </p>
+              ) : (
+                <button
+                  type="button"
+                  onClick={handleResend}
+                  disabled={loading}
+                  className="text-xs text-primary font-medium hover:underline disabled:opacity-50"
+                >
+                  Didn&apos;t receive it? Resend code
+                </button>
+              )}
+              <div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setStep('email');
+                    setOtp('');
+                  }}
+                  className="text-xs text-gray-400 hover:text-gray-600"
+                >
+                  Use a different email
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ── Step 3: Complete profile ── */}
+        {step === 'profile' && (
+          <form
+            onSubmit={handleCompleteProfile}
+            className="bg-white shadow rounded-2xl p-8 space-y-5"
+          >
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  First name <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  required
+                  autoFocus
+                  autoComplete="given-name"
+                  value={profile.firstName}
+                  onChange={(e) => setProfile((p) => ({ ...p, firstName: e.target.value }))}
+                  className={inputClass}
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Last name <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  required
+                  autoComplete="family-name"
+                  value={profile.lastName}
+                  onChange={(e) => setProfile((p) => ({ ...p, lastName: e.target.value }))}
+                  className={inputClass}
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Mobile number{' '}
+                <span className="text-gray-400 font-normal">(optional)</span>
+              </label>
+              <div className="flex">
+                <span className="inline-flex items-center px-3 rounded-l-lg border border-r-0 border-gray-300 bg-gray-50 text-sm text-gray-500 select-none">
+                  +63
+                </span>
+                <input
+                  type="tel"
+                  inputMode="numeric"
+                  autoComplete="tel-national"
+                  maxLength={10}
+                  value={profile.phoneDigits}
+                  onChange={(e) =>
+                    setProfile((p) => ({
+                      ...p,
+                      phoneDigits: e.target.value.replace(/\D/g, '').slice(0, 10),
+                    }))
+                  }
+                  placeholder="9171234567"
+                  className="flex-1 rounded-r-lg border border-gray-300 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-white"
+                />
+              </div>
+            </div>
+
+            <button
+              type="submit"
+              disabled={loading || !profile.firstName || !profile.lastName}
+              className="w-full py-2.5 rounded-xl bg-primary text-white text-sm font-semibold hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+            >
+              {loading ? (
+                <svg className="animate-spin w-4 h-4" viewBox="0 0 24 24" fill="none">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+                </svg>
+              ) : (
+                'Continue'
+              )}
+            </button>
+          </form>
+        )}
+
+        {step === 'email' && (
+          <p className="mt-4 text-center text-xs text-gray-400">
+            We&apos;ll email you a one-time code. No password required.
+          </p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+export default function AccessPage() {
+  return (
+    <Suspense>
+      <AccessForm />
+    </Suspense>
+  );
+}

@@ -21,7 +21,7 @@ export default function PaymentStepPage() {
 
   useEffect(() => {
     if (!getAccessToken()) {
-      router.replace(`/auth/login?redirect=/events/${slug}/register/payment/${registrationId}`);
+      router.replace(`/auth/access?redirect=/events/${slug}/register/payment/${registrationId}`);
       return;
     }
     (async () => {
