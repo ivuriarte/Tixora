@@ -3,7 +3,7 @@ import { getAccessToken, setAccessToken, clearAuth, getRefreshToken } from './au
 
 const api = axios.create({
   baseURL: (process.env.NEXT_PUBLIC_API_URL || 'https://api-tau-six-59.vercel.app/api/v1'),
-  timeout: 15_000,
+  timeout: 30_000,
   // NOTE: do NOT set a global `Content-Type` header. Axios v1 sets it
   // automatically per request: `application/json` for plain objects,
   // `multipart/form-data; boundary=…` for FormData. Forcing it here breaks

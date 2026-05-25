@@ -21,6 +21,16 @@ import {
 } from '@/components/event-wizard/types';
 import { loadDraft, clearDraft, useAutosaveDraft } from '@/components/event-wizard/useEventDraft';
 
+/** Retry once on network/timeout errors (cold-start protection). Does not retry on 4xx/5xx. */
+async function postWithRetry(url: string, body: object): Promise<{ data: unknown }> {
+  try {
+    return await api.post(url, body);
+  } catch (err) {
+    if ((err as { response?: unknown }).response) throw err;
+    return api.post(url, body);
+  }
+}
+
 export default function AdminNewEventPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
@@ -113,7 +123,7 @@ export default function AdminNewEventPage() {
         address: draft.address.trim() || undefined,
         landmark: draft.landmark.trim() || undefined,
         city: draft.city.trim(),
-        maxCapacity: parseInt(draft.maxCapacity, 10),
+        maxCapacity: draft.maxCapacity.trim() === '' ? undefined : parseInt(draft.maxCapacity, 10),
         platformFee: parseFloat(draft.platformFee) || 50,
         startsAt: startsAtISO,
         endsAt: endsAtISO ?? undefined,
@@ -166,19 +176,25 @@ export default function AdminNewEventPage() {
       const { data: eventData } = await api.post<{ data: { id: string } }>('/admin/events', payload);
       const eventId = eventData.data.id;
 
-      await Promise.all(
-        tiers.map((t, idx) =>
-          api.post(`/admin/events/${eventId}/tiers`, {
-            name: t.name.trim(),
-            description: t.description.trim() || undefined,
-            price: Math.round(parseFloat(t.price) * 100),
-            totalQuantity: parseInt(t.totalQuantity, 10),
-            maxPerOrder: parseInt(t.maxPerOrder, 10),
-            isVisible: t.isVisible,
-            sortOrder: idx,
-          }),
-        ),
-      );
+      try {
+        await Promise.all(
+          tiers.map((t, idx) =>
+            postWithRetry(`/admin/events/${eventId}/tiers`, {
+              name: t.name.trim(),
+              description: t.description.trim() || undefined,
+              price: Math.round(parseFloat(t.price) * 100),
+              totalQuantity: parseInt(t.totalQuantity, 10),
+              maxPerOrder: parseInt(t.maxPerOrder, 10),
+              isVisible: t.isVisible,
+              sortOrder: idx,
+            }),
+          ),
+        );
+      } catch (tierErr) {
+        // Roll back the orphaned event so the user can safely retry from scratch
+        try { await api.delete(`/admin/events/${eventId}`); } catch { /* best-effort */ }
+        throw tierErr;
+      }
 
       clearDraft();
       toast.success('Event created!');

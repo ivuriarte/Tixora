@@ -114,7 +114,9 @@ export function emptyDraft(): EventDraft {
 
 export function combineDatetime(date: string, time: string): string | undefined {
   if (!date || !time) return undefined;
-  return new Date(`${date}T${time}`).toISOString();
+  // Append +08:00 (Asia/Manila) so the string is parsed as local time
+  // regardless of whether this runs on a UTC server (SSR) or the browser.
+  return new Date(`${date}T${time}:00+08:00`).toISOString();
 }
 
 export function todayStr(): string {
