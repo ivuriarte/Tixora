@@ -42,9 +42,9 @@
   <h1>Axon Tickets — Security Plan</h1>
   <p style="color:#e2ecf7; font-size:11pt; margin:8px 0 0;">Threat Model · OWASP Coverage · Auth Flows · Access Control · Data Privacy</p>
   <div class="doc-meta">
-    <span><strong>Version:</strong> 1.0</span>
-    <span><strong>Status:</strong> Approved for Development</span>
-    <span><strong>Date:</strong> May 19, 2026</span>
+    <span><strong>Version:</strong> 1.1</span>
+    <span><strong>Status:</strong> Active — 2 CVEs Deferred (Pre-Launch Sprint)</span>
+    <span><strong>Date:</strong> May 25, 2026</span>
   </div>
 </div>
 
@@ -107,7 +107,7 @@
     <tr><td>A03</td><td>Injection</td><td><span class="status-yes">Covered</span></td><td>Prisma ORM with parameterized queries (no raw SQL in new code). class-validator on all DTOs. Input length limits enforced.</td></tr>
     <tr><td>A04</td><td>Insecure Design</td><td><span class="status-yes">Covered</span></td><td>Status machine enforced server-side (no client-controlled transitions). Proof access via signed URLs (not direct). Audit trail on all mutations.</td></tr>
     <tr><td>A05</td><td>Security Misconfiguration</td><td><span class="status-partial">Partial</span></td><td>Security headers present (see §11). CORS configured for known origins. No directory listing on Vercel. TODO: CSP header review post-MVP.</td></tr>
-    <tr><td>A06</td><td>Vulnerable &amp; Outdated Components</td><td><span class="status-partial">Partial</span></td><td>npm audit run before each release. TODO: Dependabot / automated dependency updates configured for repo.</td></tr>
+    <tr><td>A06</td><td>Vulnerable &amp; Outdated Components</td><td><span class="status-partial">Partial</span></td><td>npm audit run before each release. Two CVEs explicitly tracked and deferred to pre-launch upgrade sprint: (1) multer DoS (NestJS 10 → 11 upgrade required), (2) Next.js HTTP smuggling (Next.js 14 → 15 upgrade required). Both are tracked in <code>TODO.md</code> under &quot;Deferred Security Items&quot;. Scheduled for completion before first public commercial event.</td></tr>
     <tr><td>A07</td><td>Identification &amp; Authentication Failures</td><td><span class="status-yes">Covered</span></td><td>Brute-force protection via Redis (5 fails → lockout, 15-min sliding window). JWT expiry: access 15 min, refresh 7 days. OTP for email verification. hCaptcha on registration form.</td></tr>
     <tr><td>A08</td><td>Software &amp; Data Integrity Failures</td><td><span class="status-yes">Covered</span></td><td>MIME magic byte validation for uploads. JSON schema validation on all API inputs. No eval(), no dynamic require(). Server-side QR generation only.</td></tr>
     <tr><td>A09</td><td>Security Logging &amp; Monitoring Failures</td><td><span class="status-yes">Covered</span></td><td>Structured JSON logs (all key operations). Audit log for all admin mutations. Failed auth attempts logged. TODO: alert on anomalous patterns post-MVP.</td></tr>

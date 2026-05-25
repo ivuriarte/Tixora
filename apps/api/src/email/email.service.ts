@@ -172,7 +172,7 @@ export class EmailService {
         <h1 style="color:#EA6C00;margin-bottom:4px">Payment verified!</h1>
         <h2 style="margin-top:0;color:#1A3A5C">${eventTitle}</h2>
         <p style="color:#64748b">${eventDate} · ${eventVenue}</p>
-        <p>Hi ${firstName}, here are your QR codes. Show them at the door.</p>
+        <p>Hi ${firstName}, ${attendees.length === 1 ? 'here is your QR code. Show it at the door.' : 'here are your QR codes. Show them at the door.'}</p>
         <p style="color:#64748b;font-size:13px">
           Your branded ticket card(s) are also attached to this email.
         </p>

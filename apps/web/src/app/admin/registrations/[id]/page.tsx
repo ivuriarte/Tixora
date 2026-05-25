@@ -124,7 +124,7 @@ export default function AdminRegistrationDetailPage() {
   };
 
   const resend = async () => {
-    if (!confirm('Resend QR code email to lead attendee?')) return;
+    if (!confirm(`Resend QR code email to all ${reg?.attendees?.length ?? 'attendee(s)'}?`)) return;
     setActing(true);
     setResendStatus(null);
     setError(null);

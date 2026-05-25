@@ -44,9 +44,9 @@
   <h1>Axon Tickets — Technical Architecture</h1>
   <p style="color:#e2ecf7; font-size:11pt; margin:8px 0 0;">Data Models · API Specification · Service Map · Folder Structure</p>
   <div class="doc-meta">
-    <span><strong>Version:</strong> 1.0</span>
-    <span><strong>Status:</strong> Approved for Development</span>
-    <span><strong>Date:</strong> May 19, 2026</span>
+    <span><strong>Version:</strong> 1.1</span>
+    <span><strong>Status:</strong> Live Architecture — Updated May 25, 2026</span>
+    <span><strong>Date:</strong> May 25, 2026</span>
   </div>
 </div>
 
@@ -454,7 +454,7 @@ enum RegistrationType {
 <table>
   <thead><tr><th>Service</th><th>Module</th><th>Responsibility</th><th>Dependencies</th></tr></thead>
   <tbody>
-    <tr><td><code>RegistrationsService</code></td><td>RegistrationsModule (NEW)</td><td>Create registration + attendees, duplicate check, reference generation, status transitions</td><td>PrismaService, EmailService, AuditService</td></tr>
+    <tr><td><code>RegistrationsService</code></td><td>RegistrationsModule (NEW)</td><td>Create registration + attendees, duplicate check, reference generation, status transitions. <strong>Added May 25:</strong> <code>PATCH /registrations/:id/attendees</code> — update attendee details on a <code>pending_payment</code> registration (scoped by userId, validates count unchanged, atomic $transaction).</td><td>PrismaService, EmailService, AuditService</td></tr>
     <tr><td><code>PaymentProofsService</code></td><td>PaymentProofsModule (NEW)</td><td>Upload proof, validate MIME, coordinate Cloudinary upload, status update, signed URL generation</td><td>PrismaService, UploadService, AuditService</td></tr>
     <tr><td><code>VerificationsService</code></td><td>RegistrationsModule (NEW)</td><td>Admin approve/reject/resend, QR generation, bulk operations</td><td>PrismaService, EmailService, AuditService, QrService</td></tr>
     <tr><td><code>QrService</code></td><td>Shared (RegistrationsModule)</td><td>Generate QR token (UUID v4), render QR PNG image, verify token</td><td>qrcode library, @axon-tickets/utils</td></tr>
@@ -476,7 +476,7 @@ enum RegistrationType {
 │
 ├── registrations/                   # NEW MODULE
 │   ├── registrations.module.ts
-│   ├── registrations.controller.ts  # POST /registrations, POST /registrations/lookup
+│   ├── registrations.controller.ts  # POST /registrations, POST /registrations/lookup, PATCH /registrations/:id/attendees
 │   ├── registrations.service.ts     # Create, lookup, status
 │   ├── verifications.controller.ts  # Admin PATCH /admin/verifications/*
 │   ├── verifications.service.ts     # Approve, reject, resend

@@ -18,6 +18,7 @@ import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { JwtPayload } from '@axon-tickets/types';
 import { RegistrationsService } from './registrations.service';
 import { CreateRegistrationDto } from './dto/create-registration.dto';
+import { UpdateRegistrationAttendeesDto } from './dto/update-registration-attendees.dto';
 
 @ApiTags('registrations')
 @Controller('registrations')
@@ -68,6 +69,17 @@ export class RegistrationsController {
   @ApiOperation({ summary: 'Get registration detail' })
   findOne(@Param('id') id: string, @CurrentUser() user: JwtPayload) {
     return this.registrationsService.findById(id, user.sub);
+  }
+
+  @Patch(':id/attendees')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Update attendee details for a pending registration' })
+  updateAttendees(
+    @Param('id') id: string,
+    @Body() dto: UpdateRegistrationAttendeesDto,
+    @CurrentUser() user: JwtPayload,
+  ) {
+    return this.registrationsService.updateAttendees(id, user.sub, dto);
   }
 
   @Patch(':id/cancel')

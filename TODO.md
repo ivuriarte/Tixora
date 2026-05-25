@@ -1,4 +1,14 @@
-# Tixora — Tech Debt & Deferred Security Items
+# Axon Tickets — Tech Debt & Deferred Work
+
+---
+
+## ✅ Shipped — May 25, 2026 (commit 0b30148 → f26ab7a)
+
+- **Group bundle single-receipt policy notices** — amber callout added to all 3 checkout touchpoints: event page tier selector (RegistrationPanel), attendee details form (RegistrationForm), and payment/proof upload page. Shown when qty > 1 or attendeeCount > 1.
+- **Payment Options simplified** — RegistrationPanel now shows only provider type + name chips (E-Wallet: GCash · Maya / Bank Transfer: BPI · BDO). No account name or account number exposed before registration.
+- **`tierId` added to `Registration` shared type** — was missing from `packages/types/src/registration.types.ts`; caused a Vercel build failure. Fixed in commit f26ab7a.
+
+---
 
 ## ⚠️ NEXT UP — Admin Proof Alert Email
 
@@ -59,6 +69,7 @@ Bundle tiers (1 purchase → many tickets) are the #1 scalper target. Mitigation
 - [x] **1. Per-account hard cap** — enforce `event.maxPerUser` across the user's whole event history (sums attendees from all non-cancelled/non-rejected registrations). _Shipped May 23, 2026 (RegistrationsService.create)._
 - [ ] **2. KYC for bundle buyers** — at checkout, require **all attendee names + emails up front** for every seat in the bundle (not just the buyer). We already capture per-ticket attendee data — make it strict + required for bundle tiers.
 - [x] **3. Named, non-transferable tickets** — `Attendee.transferable` flag added (default `false`); receipt page now shows "non-transferable + ID required at door" notice; admin check-in already returns the bound attendee name. _Shipped May 23, 2026._
+- [ ] **Group receipt policy** — amber callout + 3-point checklist shown at all 3 checkout touchpoints when qty > 1. _Shipped May 25, 2026._ ✅
 
 ---
 

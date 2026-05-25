@@ -14,6 +14,7 @@ import {
   generateAttendeeQrToken,
 } from '@axon-tickets/utils';
 import { CreateRegistrationDto } from './dto/create-registration.dto';
+import { UpdateRegistrationAttendeesDto } from './dto/update-registration-attendees.dto';
 
 @Injectable()
 export class RegistrationsService {
@@ -393,6 +394,45 @@ export class RegistrationsService {
         reviewedAt: p.reviewedAt?.toISOString() ?? null,
       })),
     };
+  }
+
+  async updateAttendees(id: string, userId: string, dto: UpdateRegistrationAttendeesDto) {
+    const reg = await this.prisma.registration.findFirst({
+      where: { id, userId },
+      include: { attendees: { orderBy: { isLead: 'desc' } } },
+    });
+    if (!reg) throw new NotFoundException('Registration not found');
+    if (reg.status !== 'pending_payment') {
+      throw new BadRequestException(
+        'Attendee details can only be updated before payment is submitted',
+      );
+    }
+    if (dto.attendees.length !== reg.attendees.length) {
+      throw new BadRequestException(
+        `Expected ${reg.attendees.length} attendee(s) — cannot change quantity`,
+      );
+    }
+
+    await this.prisma.$transaction([
+      ...reg.attendees.map((a, i) =>
+        this.prisma.attendee.update({
+          where: { id: a.id },
+          data: {
+            firstName: dto.attendees[i].firstName,
+            lastName: dto.attendees[i].lastName,
+            email: dto.attendees[i].email,
+            phone: dto.attendees[i].phone ?? null,
+            company: dto.attendees[i].company ?? null,
+            jobTitle: dto.attendees[i].jobTitle ?? null,
+          },
+        }),
+      ),
+      ...(dto.notes !== undefined
+        ? [this.prisma.registration.update({ where: { id }, data: { notes: dto.notes } })]
+        : []),
+    ]);
+
+    return { message: 'Attendees updated' };
   }
 
   async cancel(id: string, userId: string) {
@@ -866,23 +906,36 @@ export class RegistrationsService {
       },
     });
     if (!reg) return;
-    const lead = reg.attendees.find((a) => a.isLead) ?? reg.attendees[0];
-    if (!lead) return;
+    if (reg.attendees.length === 0) return;
 
     const eventDate = reg.event.startsAt.toISOString().slice(0, 10);
-    await this.emailService.sendQrCodeEmail(
-      lead.email,
-      lead.firstName,
-      reg.event.title,
-      eventDate,
-      reg.event.venue,
-      reg.attendees.map((a) => ({
-        firstName: a.firstName,
-        lastName: a.lastName,
-        email: a.email,
-        qrToken: a.qrToken,
-      })),
+
+    // Send an individual QR email to every attendee at their own email address.
+    // Using allSettled so a single bad address does not block the rest of the group.
+    const results = await Promise.allSettled(
+      reg.attendees.map((a) =>
+        this.emailService.sendQrCodeEmail(
+          a.email,
+          a.firstName,
+          reg.event.title,
+          eventDate,
+          reg.event.venue,
+          [{ firstName: a.firstName, lastName: a.lastName, email: a.email, qrToken: a.qrToken }],
+        ),
+      ),
     );
+
+    results.forEach((r, i) => {
+      if (r.status === 'rejected') {
+        const a = reg.attendees[i];
+        this.logger.warn({
+          msg: 'QR email failed for attendee',
+          regId: registrationId,
+          attendeeId: a.id,
+          err: (r.reason as Error)?.message,
+        });
+      }
+    });
   }
 }
 

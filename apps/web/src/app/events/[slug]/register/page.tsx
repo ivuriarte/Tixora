@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { getAccessToken } from '@/lib/auth';
+import api from '@/lib/api';
 import RegistrationForm from '@/components/RegistrationForm';
 import CheckoutStepper from '@/components/CheckoutStepper';
 
@@ -38,34 +39,72 @@ interface EventData {
   paymentInstructions?: string | null;
 }
 
+interface AttendeeFields {
+  firstName: string;
+  lastName: string;
+  email: string;
+  phone: string;
+  company: string;
+  jobTitle: string;
+}
+
 export default function RegisterPage({
   params,
   searchParams,
 }: {
   params: { slug: string };
-  searchParams: { tierId?: string; qty?: string };
+  searchParams: { tierId?: string; qty?: string; registrationId?: string };
 }) {
   const router = useRouter();
   const [event, setEvent] = useState<EventData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [initialAttendees, setInitialAttendees] = useState<AttendeeFields[] | undefined>(undefined);
+  const [initialNotes, setInitialNotes] = useState<string | undefined>(undefined);
 
   const qty = Math.max(1, parseInt(searchParams.qty ?? '1', 10));
+  const existingRegistrationId = searchParams.registrationId;
 
   useEffect(() => {
     if (!getAccessToken()) {
       router.replace(`/auth/login?redirect=/events/${params.slug}/register`);
       return;
     }
+
     const baseUrl = (process.env.NEXT_PUBLIC_API_URL || 'https://api-tau-six-59.vercel.app/api/v1');
-    fetch(`${baseUrl}/events/${params.slug}`)
-      .then((r) => (r.ok ? r.json() : null))
-      .then((json) => {
-        if (!json) { router.replace(`/events/${params.slug}`); return; }
-        setEvent(json.data);
+
+    const eventFetch = fetch(`${baseUrl}/events/${params.slug}`)
+      .then((r) => (r.ok ? r.json() : null));
+
+    const regFetch = existingRegistrationId
+      ? api.get(`/registrations/${existingRegistrationId}`).then((r) => r.data?.data ?? r.data).catch(() => null)
+      : Promise.resolve(null);
+
+    Promise.all([eventFetch, regFetch])
+      .then(([eventJson, regData]) => {
+        if (!eventJson) { router.replace(`/events/${params.slug}`); return; }
+        setEvent(eventJson.data);
+
+        if (regData?.attendees) {
+          // Sort lead first to match the order used by the PATCH endpoint
+          const sorted = [...regData.attendees].sort(
+            (a: { isLead: boolean }, b: { isLead: boolean }) => (b.isLead ? 1 : 0) - (a.isLead ? 1 : 0),
+          );
+          setInitialAttendees(
+            sorted.map((a: { firstName: string; lastName: string; email: string; phone?: string | null; company?: string | null; jobTitle?: string | null }) => ({
+              firstName: a.firstName,
+              lastName: a.lastName,
+              email: a.email,
+              phone: a.phone ?? '',
+              company: a.company ?? '',
+              jobTitle: a.jobTitle ?? '',
+            })),
+          );
+          setInitialNotes(regData.notes ?? '');
+        }
       })
       .catch(() => router.replace(`/events/${params.slug}`))
       .finally(() => setLoading(false));
-  }, [params.slug, router]);
+  }, [params.slug, existingRegistrationId, router]);
 
   if (loading || !event) {
     return (
@@ -112,6 +151,9 @@ export default function RegisterPage({
           bankAccountName={event.bankAccountName ?? null}
           bankAccountNumber={event.bankAccountNumber ?? null}
           paymentInstructions={event.paymentInstructions ?? null}
+          registrationId={existingRegistrationId}
+          initialAttendees={initialAttendees}
+          initialNotes={initialNotes}
         />
       </div>
     </main>

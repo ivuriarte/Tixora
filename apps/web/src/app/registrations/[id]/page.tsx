@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
+import { useQueryClient } from '@tanstack/react-query';
 import { formatManila, centavosToPeso, formatPHP } from '@axon-tickets/utils';
 import api from '@/lib/api';
 import PaymentProofUpload from '@/components/PaymentProofUpload';
@@ -26,6 +27,7 @@ const STATUS_COLORS: Record<RegistrationStatus, string> = {
 export default function RegistrationDetailPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
+  const queryClient = useQueryClient();
   const [reg, setReg] = useState<Registration | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -53,6 +55,9 @@ export default function RegistrationDetailPage() {
     try {
       await api.patch(`/registrations/${id}/cancel`);
       setReg((prev) => prev ? { ...prev, status: 'cancelled' } : prev);
+      // Invalidate the event-page registration check so RegistrationGuard
+      // immediately reflects the cancellation when the user navigates back.
+      void queryClient.invalidateQueries({ queryKey: ['registration-check'] });
     } catch {
       alert('Failed to cancel registration.');
     } finally {
