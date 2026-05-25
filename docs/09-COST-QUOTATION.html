@@ -111,7 +111,7 @@
   <p class="subtitle">Development · Infrastructure · Maintenance · Azure Scale-Up Migration</p>
   <div class="doc-meta">
     <span><strong>Document:</strong> 09-COST-QUOTATION</span>
-    <span><strong>Version:</strong> 1.0</span>
+    <span><strong>Version:</strong> 1.1</span>
     <span><strong>Prepared by:</strong> CTO / Engineering</span>
     <span><strong>Date:</strong> May 25, 2026</span>
     <span><strong>Audience:</strong> CEO / Board</span>
@@ -179,6 +179,7 @@
     <li><a href="#development">Development Cost (One-Time)</a></li>
     <li><a href="#current-infra">Current Infrastructure (MVP — Free Tier)</a></li>
     <li><a href="#growth-infra">Growth Infrastructure (1K–10K Users/Month)</a></li>
+    <li><a href="#environments">Multi-Environment Strategy (UAT · Staging · Prod)</a></li>
     <li><a href="#maintenance">Ongoing Maintenance Costs</a></li>
     <li><a href="#azure">Azure Cloud Migration</a></li>
     <li><a href="#tco">Total Cost of Ownership (TCO Summary)</a></li>
@@ -636,6 +637,253 @@
       <p>Begin <strong>Azure migration</strong>. See Section 7 below.</p>
     </div>
   </div>
+</div>
+
+<h3 id="environments">5.3 Multi-Environment Strategy (UAT · Staging · Production)</h3>
+
+<p>During the Building &amp; Scaling phase, a formal three-environment model is required to protect production stability and provide stakeholder sign-off gates. Each environment serves a distinct purpose and maps to a separate branch of every service (database, cache, deployments).</p>
+
+<table>
+  <thead>
+    <tr>
+      <th>Environment</th>
+      <th>URL</th>
+      <th>Purpose</th>
+      <th>Who Uses It</th>
+      <th>Deploy Trigger</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><strong>Production</strong> <span class="badge badge-done">LIVE</span></td>
+      <td>axontickets.com</td>
+      <td>Live customer-facing platform. Real attendee data, real payments, real QR codes.</td>
+      <td>Attendees, event organizers, admin</td>
+      <td>Merge to <code>main</code> after UAT sign-off</td>
+    </tr>
+    <tr>
+      <td><strong>Staging</strong> <span class="badge badge-required">Required</span></td>
+      <td>staging.axontickets.com</td>
+      <td>Final pre-production QA gate. Full production mirror — same seed data, same env vars, real email in test mode. No real payments.</td>
+      <td>CTO, QA, development team</td>
+      <td>Auto-deploy on push to <code>develop</code></td>
+    </tr>
+    <tr>
+      <td><strong>UAT</strong> <span class="badge badge-required">Required</span></td>
+      <td>uat.axontickets.com</td>
+      <td>Stakeholder &amp; client acceptance testing. Feature demos, CEO/organiser review, new UI sign-off. Reset between UAT cycles.</td>
+      <td>CEO, event organizers, key stakeholders</td>
+      <td>Manual deploy when a feature is ready for review</td>
+    </tr>
+  </tbody>
+</table>
+
+<h4>Service Configuration per Environment</h4>
+
+<table>
+  <thead>
+    <tr>
+      <th>Service</th>
+      <th>Production</th>
+      <th>Staging</th>
+      <th>UAT</th>
+      <th>Notes</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><strong>Vercel Deployment</strong></td>
+      <td>Production environment (main)</td>
+      <td>Preview environment — custom domain <code>staging.*</code></td>
+      <td>Preview environment — custom domain <code>uat.*</code></td>
+      <td>All three covered under Vercel Pro ($20/mo). No extra cost.</td>
+    </tr>
+    <tr>
+      <td><strong>Database (Neon)</strong></td>
+      <td><code>main</code> branch</td>
+      <td><code>staging</code> branch (reset weekly from main snapshot)</td>
+      <td><code>uat</code> branch (reset per UAT cycle)</td>
+      <td>Neon Launch ($19/mo) includes unlimited branches. No extra DB cost.</td>
+    </tr>
+    <tr>
+      <td><strong>Redis (Upstash)</strong></td>
+      <td>Primary database</td>
+      <td>Separate <code>staging</code> database</td>
+      <td>Separate <code>uat</code> database</td>
+      <td>Upstash PAYG: ~$2/mo staging + ~$1/mo UAT at low usage. Total: +$3/mo.</td>
+    </tr>
+    <tr>
+      <td><strong>Email (Resend)</strong></td>
+      <td>Live sends to real attendees</td>
+      <td>Test mode — emails routed to internal team inbox only</td>
+      <td>Test mode — emails routed to stakeholder inbox for review</td>
+      <td>Resend test mode is free and does not count toward the 3,000/mo limit.</td>
+    </tr>
+    <tr>
+      <td><strong>File Storage (Cloudinary)</strong></td>
+      <td><code>prod/</code> folder prefix</td>
+      <td><code>staging/</code> folder prefix</td>
+      <td><code>uat/</code> folder prefix</td>
+      <td>Same Cloudinary account, folder-isolated. No extra cost — uses same free/paid quota.</td>
+    </tr>
+    <tr>
+      <td><strong>Error Monitoring (Sentry)</strong></td>
+      <td>Production environment tag</td>
+      <td>Staging environment tag</td>
+      <td>UAT environment tag</td>
+      <td>Sentry environments are free config — same project, different <code>SENTRY_ENVIRONMENT</code> variable.</td>
+    </tr>
+    <tr>
+      <td><strong>CI/CD (GitHub Actions)</strong></td>
+      <td>Deploy on push to <code>main</code></td>
+      <td>Deploy on push to <code>develop</code></td>
+      <td>Manual workflow dispatch (<code>workflow_dispatch</code>)</td>
+      <td>All within GitHub free tier (public repo). No extra cost.</td>
+    </tr>
+  </tbody>
+</table>
+
+<h4>Environment Setup Cost (One-Time)</h4>
+
+<table>
+  <thead>
+    <tr>
+      <th>Task</th>
+      <th>Description</th>
+      <th>Est. Hours</th>
+      <th class="right">Cost (USD)</th>
+      <th class="right">Cost (PHP)</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>Environment architecture &amp; branching strategy</td>
+      <td>Define Git branching model (<code>main</code> / <code>develop</code> / feature branches), environment variable separation, data isolation rules</td>
+      <td class="center">4</td>
+      <td class="right">$120</td>
+      <td class="right">₱6,720</td>
+    </tr>
+    <tr>
+      <td>Neon branch setup</td>
+      <td>Create <code>staging</code> and <code>uat</code> DB branches, configure Prisma DATABASE_URL per environment, set up weekly branch reset script</td>
+      <td class="center">2</td>
+      <td class="right">$60</td>
+      <td class="right">₱3,360</td>
+    </tr>
+    <tr>
+      <td>Vercel environment configuration</td>
+      <td>Configure staging &amp; UAT preview environments, assign custom subdomains (<code>staging.*</code>, <code>uat.*</code>), set environment-specific env vars in Vercel dashboard</td>
+      <td class="center">4</td>
+      <td class="right">$120</td>
+      <td class="right">₱6,720</td>
+    </tr>
+    <tr>
+      <td>CI/CD pipeline update</td>
+      <td>Add GitHub Actions jobs: (1) auto-deploy to staging on push to <code>develop</code>, (2) manual UAT deploy via <code>workflow_dispatch</code>, (3) production deploy gates requiring UAT approval</td>
+      <td class="center">8</td>
+      <td class="right">$240</td>
+      <td class="right">₱13,440</td>
+    </tr>
+    <tr>
+      <td>Upstash multi-database setup</td>
+      <td>Create separate Redis databases for staging and UAT, update connection strings per environment</td>
+      <td class="center">1</td>
+      <td class="right">$30</td>
+      <td class="right">₱1,680</td>
+    </tr>
+    <tr>
+      <td>Resend test mode configuration</td>
+      <td>Configure Resend test mode for staging/UAT (emails delivered to internal inbox only), validate template rendering in each environment</td>
+      <td class="center">2</td>
+      <td class="right">$60</td>
+      <td class="right">₱3,360</td>
+    </tr>
+    <tr>
+      <td>DNS &amp; subdomain setup</td>
+      <td>Add DNS A/CNAME records for <code>staging.axontickets.com</code> and <code>uat.axontickets.com</code>, validate SSL</td>
+      <td class="center">1</td>
+      <td class="right">$30</td>
+      <td class="right">₱1,680</td>
+    </tr>
+    <tr>
+      <td>Smoke testing &amp; data isolation validation</td>
+      <td>Run Playwright E2E suite against staging, verify no cross-environment data leakage, validate UAT reset process</td>
+      <td class="center">4</td>
+      <td class="right">$120</td>
+      <td class="right">₱6,720</td>
+    </tr>
+    <tr class="subtotal-row">
+      <td colspan="2"><strong>TOTAL ENVIRONMENT SETUP (One-Time)</strong></td>
+      <td class="center"><strong>26 hrs</strong></td>
+      <td class="right"><strong>$780</strong></td>
+      <td class="right"><strong>₱43,680</strong></td>
+    </tr>
+  </tbody>
+</table>
+
+<h4>Incremental Monthly Infrastructure Cost (Staging + UAT)</h4>
+
+<table>
+  <thead>
+    <tr>
+      <th>Service</th>
+      <th class="right">Additional Monthly (USD)</th>
+      <th class="right">Additional Monthly (PHP)</th>
+      <th>Notes</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>Vercel Pro (Staging + UAT)</td>
+      <td class="right">$0</td>
+      <td class="right">₱0</td>
+      <td>Preview deployments are included in Vercel Pro. No extra charge per environment.</td>
+    </tr>
+    <tr>
+      <td>Neon Branches (Staging + UAT)</td>
+      <td class="right">$0</td>
+      <td class="right">₱0</td>
+      <td>Neon Launch ($19/mo) includes unlimited branches with shared compute pool.</td>
+    </tr>
+    <tr>
+      <td>Upstash Redis — Staging DB</td>
+      <td class="right">~$2</td>
+      <td class="right">₱112</td>
+      <td>Low command volume (internal team use only). PAYG at $0.20/100K commands.</td>
+    </tr>
+    <tr>
+      <td>Upstash Redis — UAT DB</td>
+      <td class="right">~$1</td>
+      <td class="right">₱56</td>
+      <td>Minimal usage (demo sessions only). Can be reset and reused.</td>
+    </tr>
+    <tr>
+      <td>Resend (Staging + UAT)</td>
+      <td class="right">$0</td>
+      <td class="right">₱0</td>
+      <td>Test mode sends do not count toward the monthly email quota.</td>
+    </tr>
+    <tr>
+      <td>GitHub Actions CI</td>
+      <td class="right">$0</td>
+      <td class="right">₱0</td>
+      <td>Additional workflow runs covered under existing free/Pro minutes.</td>
+    </tr>
+    <tr class="total-row">
+      <td><strong>TOTAL ADDITIONAL MONTHLY (Staging + UAT)</strong></td>
+      <td class="right"><strong>~$3</strong></td>
+      <td class="right"><strong>≈ ₱168</strong></td>
+      <td></td>
+    </tr>
+  </tbody>
+</table>
+
+<div class="success">
+  <strong>Key Insight:</strong> A full three-environment pipeline (UAT → Staging → Production) costs only <strong>$780 one-time setup</strong> and <strong>~$3/month ongoing</strong> using the existing growth stack. This is the standard for professional software delivery and protects the production environment from untested changes. Recommended to implement at the start of the Building &amp; Scaling phase.
+</div>
+
+<div class="info">
+  <strong>UAT Sign-Off Process:</strong> When a feature sprint is complete, the developer deploys to UAT and notifies the CEO/organiser. Stakeholders test on <code>uat.axontickets.com</code> using a pre-seeded test event. Once approved, the change is promoted to Staging for a final QA regression run, then merged to <code>main</code> for production release. This ensures <strong>zero untested code reaches attendees</strong>.
 </div>
 
 <hr>
@@ -1325,7 +1573,7 @@
 <div style="margin-top:48px; padding-top:24px; border-top:2px solid #dde3ec; display:flex; justify-content:space-between; align-items:flex-end;">
   <div>
     <p style="margin:0; font-size:9.5pt; color:#64748b;"><strong>Axon Tickets — Cost Quotation &amp; TCO Analysis</strong></p>
-    <p style="margin:4px 0 0; font-size:9pt; color:#94a3b8;">Document 09-COST-QUOTATION · Version 1.0 · May 25, 2026 · Confidential</p>
+    <p style="margin:4px 0 0; font-size:9pt; color:#94a3b8;">Document 09-COST-QUOTATION · Version 1.1 · May 25, 2026 · Confidential</p>
     <p style="margin:4px 0 0; font-size:9pt; color:#94a3b8;">Prepared by: CTO / Engineering · Audience: CEO / Board</p>
   </div>
   <div style="text-align:right;">
