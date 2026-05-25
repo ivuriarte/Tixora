@@ -1,118 +1,6 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import Modal from '@/components/Modal';
-
-// Password change modal component
-function ChangePasswordModal({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const [newPassword, setNewPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
-  const [showNew, setShowNew] = useState(false);
-  const [showConfirm, setShowConfirm] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState('');
-
-  const canSave = newPassword.length >= 8 && newPassword === confirmPassword;
-
-  async function handleSave(e: React.FormEvent) {
-    e.preventDefault();
-    if (!canSave) return;
-    setSaving(true);
-    setError('');
-    try {
-      await api.patch('/users/me/password', { newPassword });
-      toast.success('Password changed!');
-      onClose();
-    } catch (err: any) {
-      setError(err?.response?.data?.message || 'Failed to change password.');
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  useEffect(() => {
-    if (!open) {
-      setNewPassword('');
-      setConfirmPassword('');
-      setShowNew(false);
-      setShowConfirm(false);
-      setError('');
-    }
-  }, [open]);
-
-  return (
-    <Modal open={open} onClose={onClose} title="Change Password">
-      <form onSubmit={handleSave} className="space-y-5">
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">New Password</label>
-          <div className="relative">
-            <input
-              type={showNew ? 'text' : 'password'}
-              value={newPassword}
-              onChange={e => setNewPassword(e.target.value)}
-              className={`w-full rounded-lg border px-3 py-2 text-sm pr-10 ${error && newPassword !== confirmPassword ? 'border-red-500' : 'border-gray-300'}`}
-              autoComplete="new-password"
-              minLength={8}
-              required
-            />
-            <button
-              type="button"
-              tabIndex={-1}
-              aria-label={showNew ? 'Hide password' : 'Show password'}
-              className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-primary"
-              onClick={() => setShowNew(v => !v)}
-            >
-              {showNew ? (
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M13.875 18.825A10.05 10.05 0 0112 19c-5 0-9-4-9-9 0-1.657.403-3.22 1.125-4.575M6.7 6.7A9.956 9.956 0 0112 5c5 0 9 4 9 9 0 1.657-.403 3.22-1.125 4.575M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" d="M3 3l18 18" /></svg>
-              ) : (
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-.37 1.144-.958 2.206-1.72 3.104M15.54 15.54A5.978 5.978 0 0112 17c-3.314 0-6-2.686-6-6 0-.795.155-1.552.44-2.24" /></svg>
-              )}
-            </button>
-          </div>
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Confirm Password</label>
-          <div className="relative">
-            <input
-              type={showConfirm ? 'text' : 'password'}
-              value={confirmPassword}
-              onChange={e => setConfirmPassword(e.target.value)}
-              className={`w-full rounded-lg border px-3 py-2 text-sm pr-10 ${error || (confirmPassword && newPassword !== confirmPassword) ? 'border-red-500' : 'border-gray-300'}`}
-              autoComplete="new-password"
-              required
-            />
-            <button
-              type="button"
-              tabIndex={-1}
-              aria-label={showConfirm ? 'Hide password' : 'Show password'}
-              className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-primary"
-              onClick={() => setShowConfirm(v => !v)}
-            >
-              {showConfirm ? (
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M13.875 18.825A10.05 10.05 0 0112 19c-5 0-9-4-9-9 0-1.657.403-3.22 1.125-4.575M6.7 6.7A9.956 9.956 0 0112 5c5 0 9 4 9 9 0 1.657-.403 3.22-1.125 4.575M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" d="M3 3l18 18" /></svg>
-              ) : (
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-.37 1.144-.958 2.206-1.72 3.104M15.54 15.54A5.978 5.978 0 0112 17c-3.314 0-6-2.686-6-6 0-.795.155-1.552.44-2.24" /></svg>
-              )}
-            </button>
-          </div>
-          {newPassword.length > 0 && newPassword.length < 8 && (
-            <p className="text-xs text-amber-500 mt-1">Password must be at least 8 characters.</p>
-          )}
-          {(confirmPassword && newPassword !== confirmPassword) && (
-            <p className="text-xs text-red-500 mt-1">Passwords do not match.</p>
-          )}
-          {error && (
-            <p className="text-xs text-red-500 mt-1">{error}</p>
-          )}
-        </div>
-        <div className="flex gap-3 justify-end pt-2">
-          <button type="button" className="px-4 py-2 rounded-lg bg-gray-100 text-gray-700 font-medium" onClick={onClose} disabled={saving}>Cancel</button>
-          <button type="submit" className="px-4 py-2 rounded-lg bg-primary text-white font-semibold disabled:opacity-60" disabled={!canSave || saving}>{saving ? 'Saving…' : 'Save Changes'}</button>
-        </div>
-      </form>
-    </Modal>
-  );
-}
 import Navbar from '@/components/Navbar';
 import api from '@/lib/api';
 import { useAuthStore } from '@/store/auth.store';
@@ -139,7 +27,6 @@ export default function ProfilePage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
-  const [changePwOpen, setChangePwOpen] = useState(false);
   // Phone split: store the 10 digits after +63
   const [form, setForm] = useState({
     firstName: '',
@@ -252,30 +139,6 @@ export default function ProfilePage() {
             )}
           </div>
         </div>
-
-        {/* Password section */}
-        <div className="bg-white border border-gray-100 rounded-2xl shadow-sm p-6 space-y-4 mb-6">
-          <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-widest">Password</h2>
-          <div className="flex items-center gap-4">
-            <input
-              type="password"
-              value="password-placeholder"
-              readOnly
-              className="w-64 rounded-lg border border-gray-200 px-3 py-2 text-sm bg-gray-50 text-gray-400 cursor-not-allowed"
-              tabIndex={-1}
-              aria-label="Current password (hidden)"
-            />
-            <button
-              type="button"
-              className="px-4 py-2 rounded-lg bg-primary text-white font-semibold hover:bg-primary/90 transition-colors"
-              onClick={() => setChangePwOpen(true)}
-            >
-              Change Password
-            </button>
-          </div>
-        </div>
-
-        <ChangePasswordModal open={changePwOpen} onClose={() => setChangePwOpen(false)} />
 
         <form onSubmit={handleSave} className="space-y-6">
           {/* Basic Info */}

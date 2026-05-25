@@ -1,9 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import * as bcrypt from 'bcryptjs';
 import { PrismaService } from '../prisma/prisma.service';
 import { UpdateProfileDto } from './update-profile.dto';
-
-const BCRYPT_COST = 12;
 
 @Injectable()
 export class UsersService {
@@ -59,16 +56,6 @@ export class UsersService {
         isVerified: true,
         isAdmin: true,
       },
-    });
-  }
-
-  async changePassword(userId: string, newPassword: string): Promise<void> {
-    const user = await this.prisma.user.findUnique({ where: { id: userId } });
-    if (!user) throw new NotFoundException('User not found');
-    const passwordHash = await bcrypt.hash(newPassword, BCRYPT_COST);
-    await this.prisma.user.update({
-      where: { id: userId },
-      data: { passwordHash },
     });
   }
 }
