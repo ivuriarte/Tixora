@@ -101,7 +101,9 @@ export default function AdminCheckinPage() {
       const reader = new BrowserQRCodeReader();
       readerRef.current = reader;
       setCameraActive(true);
-      reader.decodeFromVideoDevice(undefined, videoRef.current, (result, err) => {
+      // Await the promise so that a NotAllowedError (camera permission denied)
+      // is caught below instead of becoming an unhandled promise rejection.
+      await reader.decodeFromVideoDevice(undefined, videoRef.current, (result, err) => {
         if (result) {
           // Guard: ZXing fires this callback on every frame where a QR is visible.
           // Without the lock, handleCheckin would be called 10-30 times before
@@ -113,12 +115,20 @@ export default function AdminCheckinPage() {
         }
         if (err && !(err.name === 'NotFoundException')) {
           // NotFoundException fires constantly while waiting for QR — suppress it
-          setCameraError('Camera error. Switch to Search to look up by name or transaction ID.');
+          if ((err as any).name === 'NotAllowedError') {
+            setCameraError('Camera access was denied. Please allow camera access in your browser settings, then try again.');
+          } else {
+            setCameraError('Camera error. Switch to Search to look up by name or transaction ID.');
+          }
           stopCamera();
         }
       });
-    } catch {
-      setCameraError('Could not access camera. Make sure you allow camera access.');
+    } catch (err: any) {
+      if (err?.name === 'NotAllowedError') {
+        setCameraError('Camera access was denied. Please allow camera access in your browser settings, then try again.');
+      } else {
+        setCameraError('Could not access camera. Make sure you allow camera access.');
+      }
       setCameraActive(false);
     }
   }, [stopCamera]);
