@@ -2,9 +2,7 @@
 
 import Link from 'next/link';
 import Image from 'next/image';
-import { useRouter } from 'next/navigation';
 import { formatManila, formatShortDate } from '@axon-tickets/utils';
-import { useAuthStore } from '@/store/auth.store';
 
 interface Props {
   event: {
@@ -22,20 +20,8 @@ interface Props {
 }
 
 export default function EventCard({ event }: Props) {
-  const { isAuthenticated, isHydrating } = useAuthStore();
-  const router = useRouter();
-
-  function handleClick(e: React.MouseEvent) {
-    // Let clicks through while hydrating — the session may still be restoring.
-    if (isHydrating) return;
-    if (!isAuthenticated) {
-      e.preventDefault();
-      router.push(`/auth/login?redirect=/events/${event.slug}`);
-    }
-  }
-
   return (
-    <Link href={`/events/${event.slug}`} onClick={handleClick} className="group block rounded-2xl overflow-hidden bg-white shadow hover:shadow-md transition-shadow">
+    <Link href={`/events/${event.slug}`} className="group block rounded-2xl overflow-hidden bg-white shadow hover:shadow-md transition-shadow">
       <div className="relative h-44 bg-gray-200">
         {event.imageUrl ? (
           <Image

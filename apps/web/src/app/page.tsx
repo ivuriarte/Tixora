@@ -260,7 +260,14 @@ export default async function HomePage({ searchParams }: { searchParams: { page?
               {/* CTA + capacity badge */}
               <div className="flex flex-wrap items-center gap-4">
                 <Link
-                  href={`/events/${FEATURED_EVENT.slug}`}
+                  href={(() => {
+                    // Prefer the exact featured slug if present in the events list;
+                    // fall back to the first available event; then scroll anchor.
+                    const match = events.find((e) => e.slug === FEATURED_EVENT.slug);
+                    if (match) return `/events/${match.slug}`;
+                    if (events[0]) return `/events/${events[0].slug}`;
+                    return '#upcoming-events';
+                  })()}
                   className="inline-flex items-center gap-2 bg-amber-500 hover:bg-amber-400 text-black font-bold px-8 py-3.5 rounded-lg text-base transition-colors shadow-lg shadow-amber-900/30"
                 >
                   Reserve Your Seat
