@@ -7,6 +7,7 @@ import HCaptcha from '@hcaptcha/react-hcaptcha';
 import toast from 'react-hot-toast';
 import api from '@/lib/api';
 import Button from '@/components/Button';
+import { useIsInAppBrowser } from '@/lib/useIsInAppBrowser';
 
 const GOOGLE_URL = `${(process.env.NEXT_PUBLIC_API_URL || 'https://api-tau-six-59.vercel.app/api/v1')}/auth/google`;
 
@@ -25,6 +26,7 @@ export default function RegisterPage() {
   const router = useRouter();
   const captchaRef = useRef<HCaptcha>(null);
   const [loading, setLoading] = useState(false);
+  const isInAppBrowser = useIsInAppBrowser();
   const [form, setForm] = useState({
     firstName: '',
     lastName: '',
@@ -86,32 +88,50 @@ export default function RegisterPage() {
           <p className="mt-1 text-sm text-gray-500">Register to attend upcoming events</p>
         </div>
 
-        {/* ── Google — primary CTA ── */}
-        <div className="bg-white shadow-sm rounded-2xl p-6 mb-4 border border-gray-100">
-          <p className="text-center text-[11px] font-semibold text-gray-400 uppercase tracking-widest mb-3">
-            ⚡ Quickest way to join
-          </p>
-          <a
-            href={GOOGLE_URL}
-            className="group flex items-center justify-between w-full rounded-xl border-2 border-gray-200 bg-white px-5 py-3.5 text-sm font-semibold text-gray-800 hover:border-blue-400 hover:shadow-md transition-all duration-200"
-          >
-            <GoogleIcon />
-            <span className="flex-1 text-center">Continue with Google</span>
-            <svg className="w-4 h-4 text-gray-300 group-hover:text-blue-400 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+        {/* ── Google — primary CTA (hidden inside in-app browsers) ── */}
+        {isInAppBrowser ? (
+          <div className="bg-amber-50 border border-amber-200 rounded-2xl p-5 mb-4 flex gap-3">
+            <svg className="w-5 h-5 text-amber-500 mt-0.5 shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" aria-hidden="true">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
             </svg>
-          </a>
-          <p className="mt-2.5 text-center text-xs text-gray-400">
-            Instant setup — no password, no hassle
-          </p>
-        </div>
+            <div>
+              <p className="text-sm font-semibold text-amber-800">Google sign-in isn&apos;t available here</p>
+              <p className="mt-1 text-xs text-amber-700">
+                You&apos;re using an in-app browser (e.g. Messenger, Instagram). Google blocks sign-in in these browsers.
+                Please use email registration below, or{' '}
+                <strong>open this page in Chrome or Safari</strong> to use Google.
+              </p>
+            </div>
+          </div>
+        ) : (
+          <div className="bg-white shadow-sm rounded-2xl p-6 mb-4 border border-gray-100">
+            <p className="text-center text-[11px] font-semibold text-gray-400 uppercase tracking-widest mb-3">
+              ⚡ Quickest way to join
+            </p>
+            <a
+              href={GOOGLE_URL}
+              className="group flex items-center justify-between w-full rounded-xl border-2 border-gray-200 bg-white px-5 py-3.5 text-sm font-semibold text-gray-800 hover:border-blue-400 hover:shadow-md transition-all duration-200"
+            >
+              <GoogleIcon />
+              <span className="flex-1 text-center">Continue with Google</span>
+              <svg className="w-4 h-4 text-gray-300 group-hover:text-blue-400 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+              </svg>
+            </a>
+            <p className="mt-2.5 text-center text-xs text-gray-400">
+              Instant setup — no password, no hassle
+            </p>
+          </div>
+        )}
 
-        {/* ── Divider ── */}
-        <div className="flex items-center gap-3 mb-4">
-          <div className="flex-1 h-px bg-gray-200" />
-          <span className="text-xs font-medium text-gray-400 whitespace-nowrap">or sign up with email</span>
-          <div className="flex-1 h-px bg-gray-200" />
-        </div>
+        {/* ── Divider (only shown when Google option is visible) ── */}
+        {!isInAppBrowser && (
+          <div className="flex items-center gap-3 mb-4">
+            <div className="flex-1 h-px bg-gray-200" />
+            <span className="text-xs font-medium text-gray-400 whitespace-nowrap">or sign up with email</span>
+            <div className="flex-1 h-px bg-gray-200" />
+          </div>
+        )}
 
         {/* ── Email form ── */}
         <form onSubmit={handleSubmit} autoComplete="off" className="bg-white shadow-sm rounded-2xl p-8 space-y-5 border border-gray-100">
