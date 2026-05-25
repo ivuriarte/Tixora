@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import Image from 'next/image';
 import { useEffect, useState } from 'react';
 import { useAuthStore } from '@/store/auth.store';
 import api from '@/lib/api';
@@ -55,8 +56,15 @@ export default function Navbar() {
   return (
     <nav className="sticky top-0 z-50 bg-white border-b border-gray-200 shadow-sm">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-        <Link href="/" className="text-xl font-bold text-primary">
-          Axon Tickets
+        <Link href="/" className="flex items-center shrink-0">
+          <Image
+            src="/axon-logo.svg"
+            alt="Axon Tickets"
+            width={148}
+            height={30}
+            priority
+            unoptimized
+          />
         </Link>
 
         {/* ── Desktop nav (hidden on mobile) ── */}
