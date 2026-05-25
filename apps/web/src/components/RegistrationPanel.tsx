@@ -2,7 +2,6 @@
 
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import Image from 'next/image';
 import { formatPHP, centavosToPeso } from '@axon-tickets/utils';
 
 /** Privacy: keep first letter of each word, mask the rest. "Ian Uriarte" -> "I•• U••••••" */
@@ -142,28 +141,70 @@ export default function RegistrationPanel({
         </div>
       )}
 
-      {/* Payment methods — new card format */}
-      {paymentMethods && paymentMethods.length > 0 && (
-        <div className="space-y-2">
-          <p className="font-semibold text-gray-800 text-sm">Payment Options</p>
-          {paymentMethods.map((pm, i) => (
-            <div key={i} className="bg-violet-50 rounded-xl p-3 text-xs text-gray-600 space-y-1">
-              <span className={`inline-block text-xs font-bold px-2 py-0.5 rounded-full ${
-                pm.type === 'bank' ? 'bg-blue-100 text-blue-700' : 'bg-green-100 text-green-700'
-              }`}>
-                {pm.type === 'bank' ? 'Bank Transfer' : 'E-Wallet'}
-              </span>
-              {pm.name && <p className="font-medium text-gray-800">{pm.name}</p>}
-              {pm.accountName && <p>Account: {maskAccountName(pm.accountName)}</p>}
-              {pm.accountNumber && <p>Number: {maskAccountNumber(pm.accountNumber)}</p>}
-              {pm.qrImageUrl && (
-                <Image src={pm.qrImageUrl} alt="Payment QR" className="mt-1 h-24 w-24 object-contain rounded border border-gray-200" width={96} height={96} />
-              )}
-            </div>
-          ))}
-          <p className="text-xs text-gray-400">Full details shown after registration</p>
+      {/* Group booking — single-receipt policy notice */}
+      {selected && !disabled && qty > 1 && (
+        <div className="flex items-start gap-2.5 rounded-xl border border-amber-200 bg-amber-50 px-3 py-3">
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            className="mt-0.5 h-4 w-4 shrink-0 text-amber-600"
+          >
+            <path d="M14 2H6a2 2 0 0 0-2 2v16l3-2 2 2 2-2 2 2 2-2 3 2V4a2 2 0 0 0-2-2z" />
+            <line x1="12" y1="9" x2="12" y2="13" />
+            <line x1="12" y1="17" x2="12.01" y2="17" />
+          </svg>
+          <div>
+            <p className="text-xs font-semibold text-amber-800">One receipt covers all attendees</p>
+            <p className="mt-0.5 text-xs text-amber-700 leading-relaxed">
+              Pay the full amount in a single transfer and upload{' '}
+              <span className="font-semibold">one receipt only</span>. Multiple receipts per registration are not accepted.
+            </p>
+          </div>
         </div>
       )}
+
+      {/* Payment methods — grouped by type, names only */}
+      {paymentMethods && paymentMethods.length > 0 && (() => {
+        const eWallets = paymentMethods.filter((pm) => pm.type !== 'bank' && pm.name);
+        const bankMethods = paymentMethods.filter((pm) => pm.type === 'bank' && pm.name);
+        return (
+          <div className="space-y-2">
+            <p className="font-semibold text-gray-800 text-sm">Payment Options</p>
+            <div className="bg-violet-50 rounded-xl p-3 space-y-2.5">
+              {eWallets.length > 0 && (
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="shrink-0 text-xs font-bold px-2 py-0.5 rounded-full bg-green-100 text-green-700">
+                    E-Wallet
+                  </span>
+                  {eWallets.map((pm, i) => (
+                    <span key={i} className="text-xs font-medium text-gray-800 bg-white border border-gray-200 px-2 py-0.5 rounded-full">
+                      {pm.name}
+                    </span>
+                  ))}
+                </div>
+              )}
+              {bankMethods.length > 0 && (
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="shrink-0 text-xs font-bold px-2 py-0.5 rounded-full bg-blue-100 text-blue-700">
+                    Bank Transfer
+                  </span>
+                  {bankMethods.map((pm, i) => (
+                    <span key={i} className="text-xs font-medium text-gray-800 bg-white border border-gray-200 px-2 py-0.5 rounded-full">
+                      {pm.name}
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
+            <p className="text-xs text-gray-400">Full details shown after registration</p>
+          </div>
+        );
+      })()}
 
       {/* Legacy flat fields fallback for old events */}
       {(!paymentMethods || paymentMethods.length === 0) && (bankName || gcashNumber) && (

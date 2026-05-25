@@ -56,6 +56,12 @@ interface Props {
   bankAccountName?: string | null;
   bankAccountNumber?: string | null;
   paymentInstructions?: string | null;
+  /** When set, form is in edit mode — PATCH existing registration instead of POST new. */
+  registrationId?: string;
+  /** Pre-filled attendee data for edit mode. */
+  initialAttendees?: AttendeeFields[];
+  /** Pre-filled notes for edit mode. */
+  initialNotes?: string;
 }
 
 export default function RegistrationForm({
@@ -71,16 +77,19 @@ export default function RegistrationForm({
   bankAccountName,
   bankAccountNumber,
   paymentInstructions,
+  registrationId,
+  initialAttendees,
+  initialNotes,
 }: Props) {
   const router = useRouter();
   const currentUser = useAuthStore((s) => s.user);
   const [attendees, setAttendees] = useState<AttendeeFields[]>(() =>
-    Array.from({ length: qty }, emptyAttendee),
+    initialAttendees ?? Array.from({ length: qty }, emptyAttendee),
   );
   const [useMyDetails, setUseMyDetails] = useState(false);
   const [profileData, setProfileData] = useState<ProfileData | null>(null);
   const [profileLoading, setProfileLoading] = useState(false);
-  const [notes, setNotes] = useState('');
+  const [notes, setNotes] = useState(initialNotes ?? '');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -146,24 +155,34 @@ export default function RegistrationForm({
     setLoading(true);
 
     try {
-      const payload: CreateRegistrationDto = {
-        eventId,
-        tierId,
-        attendees: attendees.map((a) => ({
-          firstName: a.firstName.trim(),
-          lastName: a.lastName.trim(),
-          email: a.email.trim(),
-          ...(a.phone.trim() && { phone: a.phone.trim() }),
-          ...(a.company.trim() && { company: a.company.trim() }),
-          ...(a.jobTitle.trim() && { jobTitle: a.jobTitle.trim() }),
-        })),
-        ...(notes.trim() && { notes: notes.trim() }),
-      };
+      const attendeePayload = attendees.map((a) => ({
+        firstName: a.firstName.trim(),
+        lastName: a.lastName.trim(),
+        email: a.email.trim(),
+        ...(a.phone.trim() && { phone: a.phone.trim() }),
+        ...(a.company.trim() && { company: a.company.trim() }),
+        ...(a.jobTitle.trim() && { jobTitle: a.jobTitle.trim() }),
+      }));
 
-      const res = await api.post('/registrations', payload);
-      const reg = res.data?.data ?? res.data;
-      // Send user to Step 2 (Payment & Proof Upload)
-      router.push(`/events/${eventSlug}/register/payment/${reg.id}`);
+      if (registrationId) {
+        // Edit mode: update existing pending_payment registration
+        await api.patch(`/registrations/${registrationId}/attendees`, {
+          attendees: attendeePayload,
+          ...(notes.trim() && { notes: notes.trim() }),
+        });
+        router.push(`/events/${eventSlug}/register/payment/${registrationId}`);
+      } else {
+        const payload: CreateRegistrationDto = {
+          eventId,
+          tierId,
+          attendees: attendeePayload,
+          ...(notes.trim() && { notes: notes.trim() }),
+        };
+        const res = await api.post('/registrations', payload);
+        const reg = res.data?.data ?? res.data;
+        // Send user to Step 2 (Payment & Proof Upload)
+        router.push(`/events/${eventSlug}/register/payment/${reg.id}`);
+      }
     } catch (err: unknown) {
       const msg =
         (err as { response?: { data?: { message?: string } } })?.response?.data?.message ??
@@ -194,6 +213,40 @@ export default function RegistrationForm({
           <span className="text-primary">{formatPHP(totalPesos)}</span>
         </div>
       </div>
+
+      {/* Group booking — single-receipt policy notice */}
+      {qty > 1 && (
+        <div className="flex items-start gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-4">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-amber-100">
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              className="h-5 w-5 text-amber-600"
+            >
+              <path d="M14 2H6a2 2 0 0 0-2 2v16l3-2 2 2 2-2 2 2 2-2 3 2V4a2 2 0 0 0-2-2z" />
+              <line x1="12" y1="9" x2="12" y2="13" />
+              <line x1="12" y1="17" x2="12.01" y2="17" />
+            </svg>
+          </div>
+          <div>
+            <p className="text-sm font-semibold text-amber-900">
+              Group booking &mdash; 1 receipt for the full {formatPHP(totalPesos)}
+            </p>
+            <p className="mt-1 text-xs text-amber-700 leading-relaxed">
+              You&apos;re registering <span className="font-semibold">{qty} attendees</span>. After
+              confirming, transfer the total amount in a{' '}
+              <span className="font-semibold">single transaction</span> and upload{' '}
+              <span className="font-semibold">one receipt</span> as proof of payment. Multiple
+              receipts per order will not be accepted.
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* Payment details */}
       {hasPaymentDetails && (

@@ -103,6 +103,32 @@ export default function PaymentStepPage() {
       <div className="max-w-2xl mx-auto px-4 sm:px-6">
         <CheckoutStepper current={2} />
 
+        {/* Back navigation */}
+        {reg.status === 'pending_payment' && reg.tierId && (
+          <button
+            onClick={() =>
+              router.push(
+                `/events/${slug}/register?registrationId=${registrationId}&tierId=${reg.tierId}&qty=${reg.attendeeCount}`,
+              )
+            }
+            className="mt-4 mb-1 flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-800 transition-colors group"
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              viewBox="0 0 20 20"
+              fill="currentColor"
+              className="h-4 w-4 transition-transform group-hover:-translate-x-0.5"
+            >
+              <path
+                fillRule="evenodd"
+                d="M11.78 5.22a.75.75 0 0 1 0 1.06L8.06 10l3.72 3.72a.75.75 0 1 1-1.06 1.06l-4.25-4.25a.75.75 0 0 1 0-1.06l4.25-4.25a.75.75 0 0 1 1.06 0Z"
+                clipRule="evenodd"
+              />
+            </svg>
+            Back to Attendee Details
+          </button>
+        )}
+
         {/* Header */}
         <div className="mb-6">
           <h1 className="text-2xl font-bold text-gray-900">Complete Your Payment</h1>
@@ -220,6 +246,63 @@ export default function PaymentStepPage() {
             )}
           </div>
         </section>
+
+        {/* Group booking — single-receipt policy (shown only for multi-attendee registrations) */}
+        {reg.attendeeCount > 1 && (
+          <section className="rounded-2xl border border-amber-200 bg-amber-50 p-5 mb-5">
+            <div className="flex items-start gap-4">
+              {/* Icon badge */}
+              <div className="flex h-11 w-11 shrink-0 flex-col items-center justify-center rounded-xl bg-amber-100 gap-0">
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  className="h-5 w-5 text-amber-600"
+                >
+                  <path d="M14 2H6a2 2 0 0 0-2 2v16l3-2 2 2 2-2 2 2 2-2 3 2V4a2 2 0 0 0-2-2z" />
+                  <line x1="9" y1="9" x2="15" y2="9" />
+                  <line x1="9" y1="13" x2="15" y2="13" />
+                  <line x1="9" y1="17" x2="11" y2="17" />
+                </svg>
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="font-semibold text-amber-900 text-sm">
+                  Group booking &mdash; upload exactly 1 receipt
+                </p>
+                <p className="mt-1 text-xs text-amber-800 leading-relaxed">
+                  This registration covers{' '}
+                  <span className="font-semibold">{reg.attendeeCount} attendees</span>. Transfer the
+                  full <span className="font-semibold">{formatPHP(centavosToPeso(reg.total))}</span>{' '}
+                  in a single payment and upload <span className="font-semibold">one receipt</span> below.
+                </p>
+                <ul className="mt-2 space-y-0.5 text-xs text-amber-700">
+                  <li className="flex items-center gap-1.5">
+                    <svg viewBox="0 0 16 16" fill="currentColor" className="h-3 w-3 shrink-0 text-amber-500">
+                      <path d="M8 1a7 7 0 100 14A7 7 0 008 1zm3.03 5.03l-3.5 3.5a.75.75 0 01-1.06 0l-1.5-1.5a.75.75 0 111.06-1.06l.97.97 2.97-2.97a.75.75 0 111.06 1.06z" />
+                    </svg>
+                    One receipt per order — no split payments
+                  </li>
+                  <li className="flex items-center gap-1.5">
+                    <svg viewBox="0 0 16 16" fill="currentColor" className="h-3 w-3 shrink-0 text-amber-500">
+                      <path d="M8 1a7 7 0 100 14A7 7 0 008 1zm3.03 5.03l-3.5 3.5a.75.75 0 01-1.06 0l-1.5-1.5a.75.75 0 111.06-1.06l.97.97 2.97-2.97a.75.75 0 111.06 1.06z" />
+                    </svg>
+                    Amount must match the total shown above exactly
+                  </li>
+                  <li className="flex items-center gap-1.5">
+                    <svg viewBox="0 0 16 16" fill="currentColor" className="h-3 w-3 shrink-0 text-amber-500">
+                      <path d="M8 1a7 7 0 100 14A7 7 0 008 1zm3.03 5.03l-3.5 3.5a.75.75 0 01-1.06 0l-1.5-1.5a.75.75 0 111.06-1.06l.97.97 2.97-2.97a.75.75 0 111.06 1.06z" />
+                    </svg>
+                    Multiple receipts will be rejected
+                  </li>
+                </ul>
+              </div>
+            </div>
+          </section>
+        )}
 
         {/* Upload */}
         <section className="rounded-2xl border border-gray-200 bg-white p-5 mb-5">
