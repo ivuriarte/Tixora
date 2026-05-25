@@ -55,6 +55,7 @@ export interface Registration {
   id: string;
   referenceNumber: string;
   status: RegistrationStatus;
+  tierId: string | null;
   tierName: string | null;
   unitPrice: number | null;
   attendeeCount: number;
