@@ -10,6 +10,18 @@
 
 ---
 
+## ⏳ Audit Log Viewer (Admin UI)
+
+**What:** The `AuditLog` table is being written to (registrations, proof uploads, admin actions, auto-cancellations) but there is no way to read it inside the app. Debugging requires direct DB access.
+
+**What needs to be built:**
+- **API:** `AuditService.findAll()` + `GET /admin/audit-logs` — paginated, filterable by `entityType`, `registrationId`, `performedBy`, and date range
+- **Admin UI:** New page at `/admin/audit-logs` — table showing timestamp, action, entity type/ID, performed by, IP address, and expandable metadata
+
+**Come back here and say: "implement the audit log viewer"** and it will be done in one session.
+
+---
+
 ## ⚠️ NEXT UP — Admin Proof Alert Email
 
 **What:** Right now, when an attendee uploads their payment proof (screenshot of GCash/bank transfer), the system sends an email to the **attendee** only ("We got your proof, we'll review it within 24 hours").
