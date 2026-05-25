@@ -23,13 +23,18 @@ interface EventSummary {
 // The "Register Now" CTA links to /events/{slug} — seed this slug in admin
 // (or update FEATURED_EVENT.slug below) for a working registration flow.
 const FEATURED_EVENT = {
-  slug: 'francis-kong-leadership-talk',
-  speakerName: 'Francis Kong',
-  title: 'Lead With Purpose: A Night With Francis Kong',
-  tagline: 'AN EXCLUSIVE SPEAKING ENGAGEMENT',
+  slug: 'dcv-exclusive-session-with-coach-russ-juson-n0h74',
+  speakerName: 'Coach Russ Juson',
+  title: 'DCV EXCLUSIVE SESSION',
+  subtitle: 'with Coach Russ Juson',
+  tagline: 'AN EXCLUSIVE LEADERSHIP SESSION',
   description:
-    "Spend an inspiring evening with one of the Philippines' most sought-after motivational speakers. Francis Kong shares timeless lessons on leadership, character, and building a life of meaning — drawn from four decades of business and ministry.",
-  imageUrl: '/featured/francis-kong.png',
+    "A powerful and exclusive learning session with one of the country's most respected coaches in leadership and business growth. Learn from experience. Lead with purpose. Build a legacy.",
+  imageUrl: '/featured/russ-juson.png',
+  date: 'Thursday, May 28, 2026',
+  time: '4:00 PM – 7:00 PM',
+  venue: "Seattle's Best Coffee, DGT, Matina",
+  capacity: 'Limited to 40 participants',
 };
 
 async function getEvents(page = 1): Promise<{ data: EventSummary[]; meta: { total: number; totalPages: number } }> {
@@ -191,42 +196,84 @@ export default async function HomePage({ searchParams }: { searchParams: { page?
       <Navbar />
       <main className="bg-gray-50 min-h-screen">
         {/* Netflix-style featured hero */}
-        <section className="relative overflow-hidden bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 text-white">
+        <section className="relative overflow-hidden bg-[#0a0a0a] text-white">
           {/* Background portrait — right side, faded into gradient */}
-          <div className="absolute inset-y-0 right-0 w-full md:w-3/5 lg:w-1/2 opacity-60 md:opacity-90">
+          <div className="absolute inset-y-0 right-0 w-full md:w-3/5 lg:w-1/2 overflow-hidden">
+            {/* Subtle gold glow behind speaker */}
+            <div className="absolute right-8 top-1/2 -translate-y-1/2 w-80 h-80 bg-amber-500/10 rounded-full blur-3xl pointer-events-none" />
             <Image
               src={FEATURED_EVENT.imageUrl}
-              alt={FEATURED_EVENT.speakerName}
+              alt={`${FEATURED_EVENT.speakerName} — ${FEATURED_EVENT.title}`}
               fill
               priority
               sizes="(max-width: 768px) 100vw, 50vw"
-              className="object-cover object-right-top"
+              className="object-cover object-top opacity-60 md:opacity-85"
             />
-            <div className="absolute inset-0 bg-gradient-to-r from-slate-950 via-slate-950/80 to-transparent md:via-slate-950/40" />
+            <div className="absolute inset-0 bg-gradient-to-r from-[#0a0a0a] via-[#0a0a0a]/70 to-transparent md:via-[#0a0a0a]/30" />
           </div>
 
-          <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-14 md:py-20">
+          <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-14 md:py-24">
             <div className="max-w-2xl">
-              <p className="text-amber-400 font-bold uppercase tracking-[0.2em] text-xs md:text-sm mb-5">
-                {FEATURED_EVENT.tagline}
-              </p>
-              <h1 className="text-4xl md:text-6xl lg:text-7xl font-extrabold leading-[1.05] mb-5 tracking-tight">
+              {/* DCV brand chip */}
+              <div className="inline-flex items-center gap-2 bg-amber-500/15 border border-amber-500/30 rounded-full px-4 py-1.5 mb-6">
+                <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
+                <span className="text-amber-400 font-bold uppercase tracking-[0.2em] text-xs">
+                  {FEATURED_EVENT.tagline}
+                </span>
+              </div>
+
+              {/* Title */}
+              <h1 className="text-4xl md:text-5xl lg:text-6xl font-extrabold leading-[1.05] tracking-tight mb-2">
                 {FEATURED_EVENT.title}
               </h1>
-              <p className="text-purple-200 text-lg font-semibold mb-6">
-                Featuring {FEATURED_EVENT.speakerName}
+              <p className="text-amber-400 text-2xl md:text-3xl font-extrabold leading-tight mb-6">
+                {FEATURED_EVENT.subtitle}
               </p>
+
               <p className="text-slate-300 text-base md:text-lg leading-relaxed mb-8 max-w-xl">
                 {FEATURED_EVENT.description}
               </p>
 
-              <div className="flex flex-wrap gap-3">
+              {/* Event details */}
+              <div className="flex flex-col sm:flex-row sm:flex-wrap gap-3 mb-9 text-sm">
+                <div className="flex items-center gap-2 text-slate-300">
+                  <svg className="w-4 h-4 text-amber-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                  </svg>
+                  <time>{FEATURED_EVENT.date}</time>
+                </div>
+                <div className="flex items-center gap-2 text-slate-300">
+                  <svg className="w-4 h-4 text-amber-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <span>{FEATURED_EVENT.time}</span>
+                </div>
+                <div className="flex items-center gap-2 text-slate-300">
+                  <svg className="w-4 h-4 text-amber-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                  </svg>
+                  <span>{FEATURED_EVENT.venue}</span>
+                </div>
+              </div>
+
+              {/* CTA + capacity badge */}
+              <div className="flex flex-wrap items-center gap-4">
                 <Link
-                  href="#upcoming-events"
-                  className="inline-flex items-center gap-2 bg-white/10 backdrop-blur text-white font-semibold px-8 py-3.5 rounded-lg text-base hover:bg-white/20 transition-colors border border-white/20"
+                  href={`/events/${FEATURED_EVENT.slug}`}
+                  className="inline-flex items-center gap-2 bg-amber-500 hover:bg-amber-400 text-black font-bold px-8 py-3.5 rounded-lg text-base transition-colors shadow-lg shadow-amber-900/30"
                 >
-                  More Info
+                  Reserve Your Seat
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M13 7l5 5m0 0l-5 5m5-5H6" />
+                  </svg>
                 </Link>
+                <span className="flex items-center gap-1.5 text-xs text-amber-200/70 border border-amber-400/20 rounded-full px-3 py-1.5">
+                  <svg className="w-3.5 h-3.5 text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
+                  </svg>
+                  {FEATURED_EVENT.capacity}
+                </span>
               </div>
             </div>
           </div>

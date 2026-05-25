@@ -66,7 +66,10 @@ export default function RegisterPage({
 
   useEffect(() => {
     if (!getAccessToken()) {
-      router.replace(`/auth/login?redirect=/events/${params.slug}/register`);
+      const redirectUrl = `/events/${params.slug}/register${
+        searchParams.tierId ? `?tierId=${searchParams.tierId}&qty=${searchParams.qty ?? '1'}` : ''
+      }`;
+      router.replace(`/auth/login?redirect=${encodeURIComponent(redirectUrl)}`);
       return;
     }
 

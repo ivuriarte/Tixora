@@ -157,7 +157,7 @@ export default function AdminRegistrationDetailPage() {
         <main className="max-w-3xl mx-auto px-4 py-10">
           <p className="text-gray-500">{error ?? 'Not found.'}</p>
           <button
-            onClick={() => router.push('/admin/registrations')}
+            onClick={() => router.push('/admin/verifications')}
             className="mt-4 text-sm text-primary hover:underline"
           >
             ← Back
@@ -182,7 +182,7 @@ export default function AdminRegistrationDetailPage() {
             ← Back to Transactions
           </button>
           <button
-            onClick={() => router.push('/admin/registrations')}
+            onClick={() => router.push('/admin/verifications')}
             className="text-sm text-primary hover:underline"
           >
             Verify Registrations →

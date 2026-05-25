@@ -104,12 +104,14 @@ export default function PaymentStepPage() {
         <CheckoutStepper current={2} />
 
         {/* Back navigation */}
-        {reg.status === 'pending_payment' && reg.tierId && (
+        {reg.status === 'pending_payment' && (
           <button
             onClick={() =>
-              router.push(
-                `/events/${slug}/register?registrationId=${registrationId}&tierId=${reg.tierId}&qty=${reg.attendeeCount}`,
-              )
+              reg.tierId
+                ? router.push(
+                    `/events/${slug}/register?registrationId=${registrationId}&tierId=${reg.tierId}&qty=${reg.attendeeCount}`,
+                  )
+                : router.push(`/events/${slug}`)
             }
             className="mt-4 mb-1 flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-800 transition-colors group"
           >
@@ -125,7 +127,7 @@ export default function PaymentStepPage() {
                 clipRule="evenodd"
               />
             </svg>
-            Back to Attendee Details
+            {reg.tierId ? 'Back to Attendee Details' : 'Back to Event'}
           </button>
         )}
 
