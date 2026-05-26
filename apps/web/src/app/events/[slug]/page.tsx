@@ -209,7 +209,7 @@ export default async function EventPage({ params, searchParams }: { params: { sl
                   {sponsors.map((s, i) => (
                     <div key={i} className="text-center">
                       {s.logoUrl ? (
-                        <img src={s.logoUrl} alt={s.name} className="h-10 object-contain" />
+                        <Image src={s.logoUrl} alt={s.name} width={120} height={40} className="h-10 w-auto object-contain" unoptimized />
                       ) : (
                         <span className="inline-block bg-gray-100 text-gray-700 font-medium px-4 py-2 rounded-lg text-sm">{s.name}</span>
                       )}
