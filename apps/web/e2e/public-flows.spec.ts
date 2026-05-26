@@ -74,12 +74,7 @@ test.describe('Auth — Register', () => {
   test('renders registration form', async ({ page }) => {
     await page.goto('/auth/register');
     await expect(page.getByRole('heading', { name: /create your account/i })).toBeVisible();
-    await expect(page.getByRole('button', { name: /create account/i })).toBeVisible();
-  });
-
-  test('hCaptcha iframe loads', async ({ page }) => {
-    await page.goto('/auth/register');
-    await expect(page.locator('iframe[title*="hCaptcha"]').first()).toBeVisible({ timeout: 8000 });
+    await expect(page.getByRole('link', { name: /continue with email/i })).toBeVisible();
   });
 
   test('navigates to login from register', async ({ page }) => {
