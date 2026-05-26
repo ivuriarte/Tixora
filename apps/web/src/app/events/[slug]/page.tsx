@@ -5,6 +5,7 @@ import Image from 'next/image';
 import { formatManila } from '@axon-tickets/utils';
 import RegistrationGuard from '@/components/RegistrationGuard';
 import VenueMap from '@/components/VenueMap';
+import DescriptionSection from '@/components/DescriptionSection';
 
 interface Tier {
   id: string;
@@ -176,6 +177,8 @@ export default async function EventPage({ params, searchParams }: { params: { sl
               )}
             </div>
 
+            {event.description && <DescriptionSection description={event.description} />}
+
             {/* Location map */}
             <div>
               <h2 className="text-lg font-semibold text-gray-900 mb-3">Location</h2>
@@ -186,13 +189,6 @@ export default async function EventPage({ params, searchParams }: { params: { sl
                 city={event.city}
               />
             </div>
-
-            {event.description && (
-              <div>
-                <h2 className="text-lg font-semibold text-gray-900 mb-2">About this event</h2>
-                <p className="text-gray-600 whitespace-pre-wrap leading-relaxed">{event.description}</p>
-              </div>
-            )}
 
             {/* Agenda */}
             {agenda.length > 0 && (
