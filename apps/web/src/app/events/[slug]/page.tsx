@@ -1,8 +1,10 @@
+import { createHmac } from 'node:crypto';
 import Navbar from '@/components/Navbar';
 import { notFound } from 'next/navigation';
 import Image from 'next/image';
 import { formatManila } from '@axon-tickets/utils';
 import RegistrationGuard from '@/components/RegistrationGuard';
+import VenueMap from '@/components/VenueMap';
 
 interface Tier {
   id: string;
@@ -76,6 +78,24 @@ export async function generateMetadata({ params }: { params: { slug: string } })
   };
 }
 
+/**
+ * Build the signed URL for the server-side Mapbox map-image proxy.
+ * The signature (HMAC-SHA256 truncated to 16 hex chars) prevents external parties
+ * from using this endpoint to geocode arbitrary strings at our expense.
+ * When MAP_IMAGE_SIGNING_SECRET is not set the URL is returned unsigned — acceptable
+ * for local dev but not recommended in production.
+ */
+function buildMapSrc(venue: string, city: string): string {
+  const base = `/api/map-image?venue=${encodeURIComponent(venue)}&city=${encodeURIComponent(city)}`;
+  const secret = process.env.MAP_IMAGE_SIGNING_SECRET;
+  if (!secret) return base;
+  const sig = createHmac('sha256', secret)
+    .update(`${venue}:${city}`)
+    .digest('hex')
+    .slice(0, 16);
+  return `${base}&sig=${sig}`;
+}
+
 // Sanitize JSON list fields — DB may contain malformed entries (e.g. arrays-of-arrays
 // from older create flows). Treat each item as a plain object with string fields only.
 function sanitizeList<T extends object>(raw: unknown, requiredKeys: (keyof T)[]): T[] {
@@ -143,7 +163,16 @@ export default async function EventPage({ params, searchParams }: { params: { sl
               )}
             </div>
 
-
+            {/* Location map */}
+            <div>
+              <h2 className="text-lg font-semibold text-gray-900 mb-3">Location</h2>
+              <VenueMap
+                mapSrc={buildMapSrc(event.venue, event.city)}
+                venue={event.venue}
+                address={event.address}
+                city={event.city}
+              />
+            </div>
 
             {event.description && (
               <div>
