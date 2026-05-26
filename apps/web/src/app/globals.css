@@ -6,8 +6,19 @@
   html {
     font-family: 'Inter', ui-sans-serif, system-ui;
     -webkit-tap-highlight-color: transparent;
+    /* Scale base from 16px → 18px. All Tailwind text-* classes use rem,
+       so every size steps up proportionally with no component changes. */
+    font-size: 112.5%;
   }
   body {
     @apply bg-gray-50 text-gray-900;
+  }
+}
+
+@layer utilities {
+  /* Single canonical container for public browsing pages.
+     Form/flow pages (checkout, profile, registration) stay narrow intentionally. */
+  .page-container {
+    @apply max-w-7xl mx-auto px-4 sm:px-6 lg:px-8;
   }
 }

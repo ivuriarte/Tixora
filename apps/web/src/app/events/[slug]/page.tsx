@@ -104,7 +104,7 @@ export default async function EventPage({ params, searchParams }: { params: { sl
   return (
     <>
       <Navbar />
-      <main className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
+      <main className="page-container py-10">
         {isPreview && (
           <div className="mb-6 flex items-center justify-between bg-amber-50 border border-amber-200 rounded-xl px-4 py-3">
             <div className="flex items-center gap-2 text-amber-800">
@@ -143,32 +143,7 @@ export default async function EventPage({ params, searchParams }: { params: { sl
               )}
             </div>
 
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 text-sm">
-              <div>
-                <p className="text-gray-400 uppercase tracking-wide text-xs font-medium">Date</p>
-                <p className="font-medium mt-0.5">{formatManila(new Date(event.startsAt))}</p>
-                {event.endsAt && (
-                  <p className="text-xs text-gray-500 mt-0.5">to {formatManila(new Date(event.endsAt))}</p>
-                )}
-              </div>
-              <div>
-                <p className="text-gray-400 uppercase tracking-wide text-xs font-medium">Venue</p>
-                <p className="font-medium mt-0.5">{event.venue}</p>
-                {event.address && (
-                  <p className="text-xs text-gray-500 mt-0.5">{event.address}</p>
-                )}
-              </div>
-              <div>
-                <p className="text-gray-400 uppercase tracking-wide text-xs font-medium">City</p>
-                <p className="font-medium mt-0.5">{event.city}</p>
-              </div>
-              {event.landmark && (
-                <div>
-                  <p className="text-gray-400 uppercase tracking-wide text-xs font-medium">Landmark</p>
-                  <p className="font-medium mt-0.5">{event.landmark}</p>
-                </div>
-              )}
-            </div>
+
 
             {event.description && (
               <div>
@@ -236,8 +211,37 @@ export default async function EventPage({ params, searchParams }: { params: { sl
             )}
           </div>
 
-          {/* Right: Registration guard (handles duplicate-check, then renders correct panel) */}
-          <div className="mt-8 lg:mt-0">
+          {/* Right: Date/venue info + registration */}
+          <div className="mt-8 lg:mt-0 space-y-4">
+            {/* Date & venue card */}
+            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+              <div className="grid grid-cols-2 gap-x-6 gap-y-4 text-sm">
+                <div>
+                  <p className="text-gray-400 uppercase tracking-wide text-xs font-medium">Date</p>
+                  <p className="font-semibold mt-1">{formatManila(new Date(event.startsAt))}</p>
+                  {event.endsAt && (
+                    <p className="text-xs text-gray-500 mt-0.5">to {formatManila(new Date(event.endsAt))}</p>
+                  )}
+                </div>
+                <div>
+                  <p className="text-gray-400 uppercase tracking-wide text-xs font-medium">City</p>
+                  <p className="font-semibold mt-1">{event.city}</p>
+                </div>
+                <div className="col-span-2">
+                  <p className="text-gray-400 uppercase tracking-wide text-xs font-medium">Venue</p>
+                  <p className="font-semibold mt-1">{event.venue}</p>
+                  {event.address && (
+                    <p className="text-xs text-gray-500 mt-0.5">{event.address}</p>
+                  )}
+                </div>
+                {event.landmark && (
+                  <div className="col-span-2">
+                    <p className="text-gray-400 uppercase tracking-wide text-xs font-medium">Landmark</p>
+                    <p className="font-semibold mt-1">{event.landmark}</p>
+                  </div>
+                )}
+              </div>
+            </div>
             <RegistrationGuard
               eventId={event.id}
               eventSlug={event.slug}
