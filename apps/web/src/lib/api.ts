@@ -31,6 +31,13 @@ api.interceptors.response.use(
       return Promise.reject(error);
     }
 
+    // Auth endpoints returning 401 mean wrong credentials, not an expired
+    // token — skip the refresh cycle and let the caller handle the error.
+    const url = original.url ?? '';
+    if (url.startsWith('/auth/')) {
+      return Promise.reject(error);
+    }
+
     original._retry = true;
 
     if (refreshing) {
