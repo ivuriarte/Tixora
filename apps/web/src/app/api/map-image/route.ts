@@ -69,6 +69,7 @@ export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const venue = (searchParams.get('venue') ?? '').trim().slice(0, MAX_PARAM_LEN);
   const city = (searchParams.get('city') ?? '').trim().slice(0, MAX_PARAM_LEN);
+  const address = (searchParams.get('address') ?? '').trim().slice(0, MAX_PARAM_LEN);
   const sig = (searchParams.get('sig') ?? '').trim();
 
   if (!venue && !city) {
@@ -82,7 +83,7 @@ export async function GET(req: NextRequest) {
 
   try {
     // --- Step 1: Forward geocoding — venue + city → [lng, lat] ---
-    const q = encodeURIComponent(`${venue}, ${city}, Philippines`);
+    const q = encodeURIComponent([venue, address, city, 'Philippines'].filter(Boolean).join(', '));
     const geoRes = await fetch(
       `https://api.mapbox.com/geocoding/v5/mapbox.places/${q}.json?country=PH&limit=1&access_token=${TOKEN}`,
       // Next.js data cache: store this geocoding result for 7 days.
