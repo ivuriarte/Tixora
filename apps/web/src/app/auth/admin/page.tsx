@@ -39,25 +39,29 @@ export default function AdminAuthPage() {
 
     try {
       const { data } = await api.post<{
-        user: {
-          id: string;
-          email: string;
-          firstName: string;
-          lastName: string;
-          isAdmin: boolean;
-          isVerified: boolean;
+        data: {
+          user: {
+            id: string;
+            email: string;
+            firstName: string;
+            lastName: string;
+            isAdmin: boolean;
+            isVerified: boolean;
+          };
+          accessToken: string;
+          refreshToken: string;
         };
-        accessToken: string;
-        refreshToken: string;
       }>('/auth/login', { email: email.trim().toLowerCase(), password });
 
-      if (!data.user.isAdmin) {
+      const { user: loggedInUser, accessToken, refreshToken } = data.data;
+
+      if (!loggedInUser.isAdmin) {
         setError('This account does not have admin access.');
         setLoading(false);
         return;
       }
 
-      setAuth(data.user, data.accessToken, data.refreshToken);
+      setAuth(loggedInUser, accessToken, refreshToken);
       router.replace('/admin');
     } catch (err: unknown) {
       const message =
