@@ -37,34 +37,29 @@ test.describe('Homepage', () => {
 // ── Auth – Login ────────────────────────────────────────────────────────────
 
 test.describe('Auth — Login', () => {
-  test('renders login form with email + password fields', async ({ page }) => {
+  // Login is OTP/OAuth only — no email+password form
+  test('renders login page with entry options', async ({ page }) => {
     await page.goto('/auth/login');
     await expect(page.getByRole('heading', { name: /welcome back/i })).toBeVisible();
-    await expect(page.getByRole('textbox').first()).toBeVisible();
-    await expect(page.getByRole('button', { name: /log in/i })).toBeVisible();
+    await expect(page.getByRole('link', { name: /continue with email/i })).toBeVisible();
   });
 
-  test('empty submit stays on login page', async ({ page }) => {
+  test('unauthenticated user stays on login page', async ({ page }) => {
     await page.goto('/auth/login');
-    await page.getByRole('button', { name: /log in/i }).click();
     await expect(page).toHaveURL(/auth\/login/);
+    await expect(page.getByRole('heading', { name: /welcome back/i })).toBeVisible();
   });
 
-  test('invalid credentials shows error message', async ({ page }) => {
+  test('continue with email navigates to OTP page', async ({ page }) => {
     await page.goto('/auth/login');
-    await page.getByRole('textbox').first().fill('notauser@test.invalid');
-    await page.getByRole('textbox').nth(1).fill('wrongpassword');
-    await page.getByRole('button', { name: /log in/i }).click();
-    // Should stay on login or show an error — not navigate to /admin or /dashboard
-    await page.waitForTimeout(2000);
-    const url = page.url();
-    expect(url).toMatch(/auth\/login/);
+    await page.getByRole('link', { name: /continue with email/i }).click();
+    await expect(page).toHaveURL(/auth\/access/);
   });
 
-  test('link to sign up navigates to register', async ({ page }) => {
+  test('join free link navigates to OTP page', async ({ page }) => {
     await page.goto('/auth/login');
-    await page.getByRole('link', { name: /sign up free/i }).click();
-    await expect(page).toHaveURL(/auth\/register/);
+    await page.getByRole('link', { name: /join free/i }).click();
+    await expect(page).toHaveURL(/auth\/access/);
   });
 });
 
@@ -79,7 +74,7 @@ test.describe('Auth — Register', () => {
 
   test('navigates to login from register', async ({ page }) => {
     await page.goto('/auth/register');
-    await page.getByRole('link', { name: /log in/i }).click();
+    await page.getByRole('link', { name: /sign in/i }).click();
     await expect(page).toHaveURL(/auth\/login/);
   });
 });
@@ -93,12 +88,12 @@ test.describe('Navigation', () => {
     await expect(page).toHaveURL('/');
   });
 
-  test('unauthenticated /admin redirects to login', async ({ page }) => {
+  test('unauthenticated /admin redirects to auth page', async ({ page }) => {
     await page.goto('/admin');
-    // Client-side auth guard redirects — wait up to 10s for the URL to change to the login page
-    await page.waitForURL((url) => url.pathname.includes('login'), { timeout: 10_000 }).catch(() => {});
+    // Client-side auth guard redirects to /auth/admin (dedicated admin login)
+    await page.waitForURL((url) => url.pathname.includes('/auth/'), { timeout: 10_000 }).catch(() => {});
     const currentUrl = page.url();
-    expect(currentUrl).toContain('login');
+    expect(currentUrl).toMatch(/\/auth\/(admin|login)/);
   });
 
   test('404 page renders gracefully', async ({ page }) => {
