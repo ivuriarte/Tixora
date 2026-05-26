@@ -107,11 +107,18 @@ export default function EventPreview({ draft, tiers }: EventPreviewProps) {
         )}
 
         {/* Location detail */}
-        {(draft.address || draft.landmark) && (
+        {(draft.address || draft.landmark || draft.latitude || draft.longitude) && (
           <div>
             <p className="text-[10px] uppercase tracking-wider text-gray-400 mb-1">Location</p>
             {draft.address && <p className="text-xs text-gray-700">{draft.address}</p>}
             {draft.landmark && <p className="text-xs text-gray-500 italic">📍 {draft.landmark}</p>}
+            {(draft.latitude || draft.longitude) && (
+              <p className="text-xs text-gray-500 font-mono mt-1">
+                {draft.latitude && `Lat: ${draft.latitude}`}
+                {draft.latitude && draft.longitude && ' · '}
+                {draft.longitude && `Lng: ${draft.longitude}`}
+              </p>
+            )}
           </div>
         )}
 
