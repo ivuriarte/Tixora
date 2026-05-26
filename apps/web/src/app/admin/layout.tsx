@@ -12,7 +12,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   useEffect(() => {
     // If there's no refresh token at all, redirect immediately — no hydration needed.
     if (!getRefreshToken()) {
-      router.replace('/auth/access?redirect=/admin');
+      router.replace('/auth/admin');
       return;
     }
     // While AuthHydrator is in-flight, do nothing. Once it completes
@@ -22,7 +22,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   useEffect(() => {
     if (isHydrating) return;
     if (!isAuthenticated || !user?.isAdmin) {
-      router.replace('/auth/access?redirect=/admin');
+      router.replace('/auth/admin');
     }
   }, [isHydrating, isAuthenticated, user, router]);
 
