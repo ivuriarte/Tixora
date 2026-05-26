@@ -57,6 +57,8 @@ interface ApiEvent {
   venue: string;
   address: string | null;
   city: string;
+  latitude: number | null;
+  longitude: number | null;
   startsAt: string;
   endsAt: string | null;
   maxPerUser: number;
@@ -140,6 +142,8 @@ export default function AdminEventEditPage() {
       address: event.address ?? '',
       landmark: event.landmark ?? '',
       city: event.city ?? '',
+      latitude: event.latitude != null ? String(event.latitude) : '',
+      longitude: event.longitude != null ? String(event.longitude) : '',
       startDate: start.date,
       startTime: start.time,
       endDate: end.date,
@@ -388,6 +392,8 @@ export default function AdminEventEditPage() {
       venue: draft.venue.trim(),
       address: draft.address.trim() || null,
       city: draft.city.trim(),
+      latitude: draft.latitude.trim() ? parseFloat(draft.latitude) : null,
+      longitude: draft.longitude.trim() ? parseFloat(draft.longitude) : null,
       startsAt: startsAtISO,
       endsAt: endsAtISO ?? null,
       maxCapacity: draft.maxCapacity.trim() === '' ? null : parseInt(draft.maxCapacity, 10),

@@ -37,6 +37,8 @@ export interface EventDraftLocation {
   address: string;
   landmark: string;
   city: string;
+  latitude: string;  // Form input (number as string)
+  longitude: string; // Form input (number as string)
   startDate: string;
   startTime: string;
   endDate: string;
@@ -100,6 +102,8 @@ export function emptyDraft(): EventDraft {
     address: '',
     landmark: '',
     city: '',
+    latitude: '',
+    longitude: '',
     startDate: '',
     startTime: '',
     endDate: '',

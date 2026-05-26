@@ -141,6 +141,16 @@ export class CreateEventDto {
   @MaxLength(100)
   city?: string;
 
+  @ApiProperty({ required: false, description: 'Latitude for map pin (e.g. 7.0644)' })
+  @IsOptional()
+  @IsNumber()
+  latitude?: number;
+
+  @ApiProperty({ required: false, description: 'Longitude for map pin (e.g. 125.6078)' })
+  @IsOptional()
+  @IsNumber()
+  longitude?: number;
+
   @ApiProperty({ example: '2026-08-15T08:00:00+08:00' })
   @IsDateString()
   startsAt: string;
@@ -271,6 +281,14 @@ export class UpdateEventDto {
   @IsString()
   @MaxLength(100)
   city?: string;
+
+  @IsOptional()
+  @IsNumber()
+  latitude?: number;
+
+  @IsOptional()
+  @IsNumber()
+  longitude?: number;
 
   @IsOptional()
   @IsDateString()

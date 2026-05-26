@@ -30,6 +30,8 @@ interface Event {
   address?: string | null;
   landmark?: string | null;
   city: string;
+  latitude?: number | null;
+  longitude?: number | null;
   startsAt: string;
   endsAt?: string | null;
   imageUrl?: string | null;
@@ -85,9 +87,19 @@ export async function generateMetadata({ params }: { params: { slug: string } })
  * When MAP_IMAGE_SIGNING_SECRET is not set the URL is returned unsigned — acceptable
  * for local dev but not recommended in production.
  */
-function buildMapSrc(venue: string, city: string, address?: string | null): string {
+function buildMapSrc(
+  venue: string,
+  city: string,
+  address?: string | null,
+  lat?: number | null,
+  lng?: number | null,
+): string {
   let base = `/api/map-image?venue=${encodeURIComponent(venue)}&city=${encodeURIComponent(city)}`;
   if (address) base += `&address=${encodeURIComponent(address)}`;
+  // If explicit coordinates provided, add them (map route will skip geocoding)
+  if (lat != null && lng != null) {
+    base += `&lat=${lat}&lng=${lng}`;
+  }
   const secret = process.env.MAP_IMAGE_SIGNING_SECRET;
   if (!secret) return base;
   const sig = createHmac('sha256', secret)
@@ -168,7 +180,7 @@ export default async function EventPage({ params, searchParams }: { params: { sl
             <div>
               <h2 className="text-lg font-semibold text-gray-900 mb-3">Location</h2>
               <VenueMap
-                mapSrc={buildMapSrc(event.venue, event.city, event.address)}
+                mapSrc={buildMapSrc(event.venue, event.city, event.address, event.latitude, event.longitude)}
                 venue={event.venue}
                 address={event.address}
                 city={event.city}

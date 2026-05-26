@@ -70,10 +70,12 @@ export async function GET(req: NextRequest) {
   const venue = (searchParams.get('venue') ?? '').trim().slice(0, MAX_PARAM_LEN);
   const city = (searchParams.get('city') ?? '').trim().slice(0, MAX_PARAM_LEN);
   const address = (searchParams.get('address') ?? '').trim().slice(0, MAX_PARAM_LEN);
+  const latParam = searchParams.get('lat');
+  const lngParam = searchParams.get('lng');
   const sig = (searchParams.get('sig') ?? '').trim();
 
-  if (!venue && !city) {
-    return new NextResponse(null, { status: 400, statusText: 'Missing venue or city' });
+  if (!venue && !city && !latParam && !lngParam) {
+    return new NextResponse(null, { status: 400, statusText: 'Missing location params' });
   }
 
   // --- Signature verification (when secret is configured) ---
@@ -82,30 +84,42 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    // --- Step 1: Forward geocoding — venue + city → [lng, lat] ---
-    const q = encodeURIComponent([venue, address, city, 'Philippines'].filter(Boolean).join(', '));
-    const geoRes = await fetch(
-      `https://api.mapbox.com/geocoding/v5/mapbox.places/${q}.json?country=PH&limit=1&access_token=${TOKEN}`,
-      // Next.js data cache: store this geocoding result for 7 days.
-      // Same venue+city combo will not call Mapbox again until the cache expires.
-      { next: { revalidate: 604800 } },
-    );
+    let lng: number;
+    let lat: number;
 
-    if (!geoRes.ok) {
-      return new NextResponse(null, { status: 502, statusText: 'Geocoding failed' });
+    // If explicit coordinates provided, use them (skip geocoding)
+    if (latParam && lngParam) {
+      lat = parseFloat(latParam);
+      lng = parseFloat(lngParam);
+      if (isNaN(lat) || isNaN(lng)) {
+        return new NextResponse(null, { status: 400, statusText: 'Invalid coordinates' });
+      }
+    } else {
+      // --- Step 1: Forward geocoding — venue + city → [lng, lat] ---
+      const q = encodeURIComponent([venue, address, city, 'Philippines'].filter(Boolean).join(', '));
+      const geoRes = await fetch(
+        `https://api.mapbox.com/geocoding/v5/mapbox.places/${q}.json?country=PH&limit=1&access_token=${TOKEN}`,
+        // Next.js data cache: store this geocoding result for 7 days.
+        // Same venue+city combo will not call Mapbox again until the cache expires.
+        { next: { revalidate: 604800 } },
+      );
+
+      if (!geoRes.ok) {
+        return new NextResponse(null, { status: 502, statusText: 'Geocoding failed' });
+      }
+
+      const geoJson = (await geoRes.json()) as {
+        features?: Array<{ center: [number, number] }>;
+      };
+      const center = geoJson.features?.[0]?.center;
+
+      if (!center) {
+        // Venue not found — caller should show a text fallback link.
+        return new NextResponse(null, { status: 404, statusText: 'Venue not found' });
+      }
+
+      [lng, lat] = center;
     }
-
-    const geoJson = (await geoRes.json()) as {
-      features?: Array<{ center: [number, number] }>;
-    };
-    const center = geoJson.features?.[0]?.center;
-
-    if (!center) {
-      // Venue not found — caller should show a text fallback link.
-      return new NextResponse(null, { status: 404, statusText: 'Venue not found' });
-    }
-
-    const [lng, lat] = center;
 
     // --- Step 2: Fetch static map PNG ---
     // 600×300 @2x = 1200×600 physical pixels, rendering crisply on retina screens.

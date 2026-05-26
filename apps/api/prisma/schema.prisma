@@ -106,6 +106,8 @@ model Event {
   address      String?     @map("address")
   landmark     String?     @map("landmark")
   city         String      @default("Manila")
+  latitude     Decimal?    @db.Decimal(10, 7)
+  longitude    Decimal?    @db.Decimal(10, 7)
   startsAt     DateTime    @map("starts_at")
   endsAt       DateTime?   @map("ends_at")
   imageUrl     String?     @map("image_url")

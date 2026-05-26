@@ -58,6 +58,31 @@ export default function LocationStep({ draft, update }: LocationStepProps) {
         />
       </div>
 
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            Latitude <span className="text-gray-400 font-normal text-xs">(optional)</span>
+          </label>
+          <input
+            type="number" step="0.0000001"
+            className={INP} placeholder="e.g. 7.0644"
+            value={draft.latitude} onChange={(e) => update({ latitude: e.target.value })}
+          />
+          <p className="text-xs text-gray-500 mt-1">Right-click on Google Maps → Copy coordinates</p>
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            Longitude <span className="text-gray-400 font-normal text-xs">(optional)</span>
+          </label>
+          <input
+            type="number" step="0.0000001"
+            className={INP} placeholder="e.g. 125.6078"
+            value={draft.longitude} onChange={(e) => update({ longitude: e.target.value })}
+          />
+          <p className="text-xs text-gray-500 mt-1">Exact map pin (skips geocoding)</p>
+        </div>
+      </div>
+
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-1">Starts At{REQ}</label>
         <div className="flex flex-wrap items-center gap-3">
