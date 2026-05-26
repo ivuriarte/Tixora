@@ -37,14 +37,84 @@ export class EmailService {
       attachments,
     });
     if (error) {
-      this.logger.warn({ msg: 'Failed to send email', to, subject, error: error.message });
+      this.logger.warn({ 
+        msg: 'Failed to send email', 
+        to, 
+        subject, 
+        from: this.fromEmail,
+        errorMessage: error.message,
+        errorName: error.name,
+      });
     }
+  }
+
+  /**
+   * Send email with retry logic for critical emails (OTP, tickets).
+   * Retries up to maxRetries times with exponential backoff.
+   */
+  private async sendWithRetry(
+    to: string,
+    subject: string,
+    html: string,
+    maxRetries = 3,
+  ): Promise<boolean> {
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      const { data, error } = await this.resend.emails.send({
+        from: `${this.fromName} <${this.fromEmail}>`,
+        to,
+        subject,
+        html,
+      });
+
+      if (!error) {
+        this.logger.log({ 
+          msg: 'Email sent successfully', 
+          to, 
+          subject, 
+          emailId: data?.id,
+          attempt,
+        });
+        return true;
+      }
+
+      const isLastAttempt = attempt === maxRetries;
+      if (isLastAttempt) {
+        this.logger.error({
+          msg: 'Failed to send email after all retries',
+          to,
+          subject,
+          from: this.fromEmail,
+          attempts: maxRetries,
+          errorMessage: error.message,
+          errorName: error.name,
+        });
+        return false;
+      }
+
+      // Exponential backoff: 1s, 2s, 4s
+      const delay = 1000 * Math.pow(2, attempt - 1);
+      this.logger.warn({
+        msg: 'Email send failed, retrying',
+        to,
+        subject,
+        attempt,
+        nextRetryIn: `${delay}ms`,
+        error: error.message,
+      });
+      await new Promise(resolve => setTimeout(resolve, delay));
+    }
+
+    return false;
   }
 
   // ── Auth emails ────────────────────────────────────────────────────────────
 
-  async sendOtpEmail(to: string, code: string): Promise<void> {
-    await this.send(
+  /**
+   * Send OTP email with retry logic (critical for user registration).
+   * Returns true if sent successfully, false otherwise.
+   */
+  async sendOtpEmail(to: string, code: string): Promise<boolean> {
+    return this.sendWithRetry(
       to,
       'Your Axon Tickets verification code',
       `<div style="font-family:sans-serif;max-width:400px;margin:0 auto">

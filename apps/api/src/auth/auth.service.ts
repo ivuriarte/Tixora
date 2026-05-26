@@ -397,7 +397,18 @@ export class AuthService {
       data: { userId, codeHash, type, expiresAt },
     });
 
-    await this.emailService.sendOtpEmail(email, code);
+    const sent = await this.emailService.sendOtpEmail(email, code);
+    
+    if (!sent) {
+      this.logger.error({
+        msg: 'OTP email failed to send after retries',
+        userId,
+        email,
+        type,
+      });
+      // OTP is saved in DB, user can try resend-otp endpoint
+      // Don't throw - let user attempt verification or resend
+    }
   }
 
   private generateOtpCode(): string {
