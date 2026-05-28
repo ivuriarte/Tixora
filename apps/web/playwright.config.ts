@@ -11,7 +11,7 @@ export default defineConfig({
     timeout: 15000,
   },
   use: {
-    baseURL: process.env.BASE_URL ?? 'https://axon-tickets-app.vercel.app',
+    baseURL: process.env.BASE_URL ?? 'https://tixora-online-ticket-app.vercel.app',
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
   },
