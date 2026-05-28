@@ -241,7 +241,7 @@ export default async function HomePage({ searchParams }: { searchParams: { page?
       <main className="bg-gray-50 min-h-screen">
         {/* Netflix-style featured hero — only rendered when an event is marked featured in admin */}
         {dbHero && (
-        <section className="relative overflow-hidden bg-[#0a0a0a] text-white">
+        <section className="relative overflow-hidden bg-[#0a0a0a] text-white h-screen flex flex-col justify-center">
           {/* Background portrait — right side, faded into gradient */}
           <div className="absolute inset-y-0 right-0 w-full md:w-3/5 lg:w-1/2 overflow-hidden">
             {/* Subtle gold glow behind speaker */}
@@ -259,10 +259,10 @@ export default async function HomePage({ searchParams }: { searchParams: { page?
             <div className="absolute inset-0 bg-gradient-to-r from-[#0a0a0a] via-[#0a0a0a]/70 to-transparent md:via-[#0a0a0a]/30" />
           </div>
 
-          <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-14 md:py-24">
+          <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 md:py-12">
             <div className="max-w-2xl">
               {/* DCV brand chip */}
-              <div className="inline-flex items-center gap-2 bg-amber-500/15 border border-amber-500/30 rounded-full px-4 py-1.5 mb-6">
+              <div className="inline-flex items-center gap-2 bg-amber-500/15 border border-amber-500/30 rounded-full px-4 py-1.5 mb-4">
                 <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
                 <span className="text-amber-400 font-bold uppercase tracking-[0.2em] text-xs">
                   {dbHero.tagline}
@@ -270,21 +270,21 @@ export default async function HomePage({ searchParams }: { searchParams: { page?
               </div>
 
               {/* Title */}
-              <h1 className="text-4xl md:text-5xl lg:text-6xl font-extrabold leading-[1.05] tracking-tight mb-2">
+              <h1 className="text-3xl md:text-4xl lg:text-5xl font-extrabold leading-[1.05] tracking-tight mb-1.5">
                 {dbHero.title}
               </h1>
               {dbHero.speakerName && dbHero.speakerName !== dbHero.title && (
-                <p className="text-amber-400 text-2xl md:text-3xl font-extrabold leading-tight mb-6">
+                <p className="text-amber-400 text-xl md:text-2xl font-extrabold leading-tight mb-4">
                   {dbHero.speakerName}
                 </p>
               )}
 
-              <p className="text-slate-300 text-base md:text-lg leading-relaxed mb-8 max-w-xl line-clamp-3">
+              <p className="text-slate-300 text-sm md:text-base leading-relaxed mb-5 max-w-xl line-clamp-3">
                 {dbHero.description}
               </p>
 
               {/* Event details */}
-              <div className="flex flex-col sm:flex-row sm:flex-wrap gap-3 mb-9 text-sm">
+              <div className="flex flex-col sm:flex-row sm:flex-wrap gap-3 mb-6 text-sm">
                 <div className="flex items-center gap-2 text-slate-300">
                   <svg className="w-4 h-4 text-amber-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
