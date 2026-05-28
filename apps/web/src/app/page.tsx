@@ -23,18 +23,18 @@ interface EventSummary {
 // The "Register Now" CTA links to /events/{slug} — seed this slug in admin
 // (or update FEATURED_EVENT.slug below) for a working registration flow.
 const FEATURED_EVENT = {
-  slug: 'dcv-exclusive-session-with-coach-russ-juson-n0h74',
-  speakerName: 'Coach Russ Juson',
-  title: 'DCV EXCLUSIVE SESSION',
-  subtitle: 'with Coach Russ Juson',
-  tagline: 'AN EXCLUSIVE LEADERSHIP SESSION',
+  slug: 'francis-kong-build-to-lead-davao-2026',
+  speakerName: 'Francis Kong',
+  title: 'FRANCIS KONG',
+  subtitle: 'Build to Lead — Davao 2026',
+  tagline: 'FULL-DAY LEADERSHIP CONFERENCE',
   description:
-    "A powerful and exclusive learning session with one of the country's most respected coaches in leadership and business growth. Learn from experience. Lead with purpose. Build a legacy.",
-  imageUrl: '/featured/russ-juson.png',
-  date: 'Thursday, May 28, 2026',
-  time: '4:00 PM – 7:00 PM',
-  venue: "Seattle's Best Coffee, DGT, Matina",
-  capacity: 'Limited to 40 participants',
+    'Join internationally acclaimed motivational speaker and leadership expert Francis Kong for a full-day conference designed to equip business leaders, entrepreneurs, and professionals with practical tools to build winning organizations. Learn how to lead with purpose, grow your people, and build a resilient business.',
+  imageUrl: '/featured/francis-kong.png',
+  date: 'Sunday, September 20, 2026',
+  time: '8:00 AM – 5:00 PM',
+  venue: 'SMX Convention Center Davao',
+  capacity: 'Limited seats available',
 };
 
 async function getEvents(page = 1): Promise<{ data: EventSummary[]; meta: { total: number; totalPages: number } }> {

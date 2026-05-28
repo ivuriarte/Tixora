@@ -79,8 +79,8 @@ export default function PaymentMethodForm({ initial, onSave, onCancel }: Payment
         <input ref={fileRef} type="file" accept="image/jpeg,image/png" className="hidden" onChange={handleQrFile} />
         {pm.qrPreview ? (
           <div className="flex items-center gap-3">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={pm.qrPreview} alt="QR preview" className="h-16 w-16 object-contain rounded border border-gray-200 bg-white" />
+            {/* eslint-disable-next-line @next/next/no-img-element -- blob: URL from local file picker; next/image cannot handle blob: scheme */}
+            <img src={pm.qrPreview} alt="QR preview" width={64} height={64} loading="lazy" decoding="async" className="h-16 w-16 object-contain rounded border border-gray-200 bg-white" />
             <button type="button"
               onClick={() => { setPm((prev) => ({ ...prev, qrFile: null, qrPreview: '' })); if (fileRef.current) fileRef.current.value = ''; }}
               className="text-xs text-red-500 hover:text-red-700">Remove</button>

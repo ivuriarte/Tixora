@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { centavosToPeso, formatPHP } from '@axon-tickets/utils';
 import api from '@/lib/api';
@@ -92,6 +92,9 @@ export default function RegistrationForm({
   const [notes, setNotes] = useState(initialNotes ?? '');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Synchronous guard — prevents duplicate submissions during the async gap
+  // between the first click and React flushing the loading state update.
+  const submittingRef = useRef(false);
 
   // unitPrice is in centavos (50000 = ₱500). platformFee is in pesos (e.g. 50).
   const subtotalPesos = centavosToPeso(unitPrice * qty);
@@ -151,6 +154,10 @@ export default function RegistrationForm({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    // Synchronous guard — blocks any duplicate event fired before React
+    // has had a chance to re-render with loading=true.
+    if (submittingRef.current) return;
+    submittingRef.current = true;
     setError(null);
     setLoading(true);
 
@@ -190,6 +197,7 @@ export default function RegistrationForm({
       setError(Array.isArray(msg) ? msg.join(', ') : msg);
     } finally {
       setLoading(false);
+      submittingRef.current = false;
     }
   };
 

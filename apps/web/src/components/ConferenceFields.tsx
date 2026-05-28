@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import Image from 'next/image';
 import ImageUploader from './event-wizard/ImageUploader';
 import TimeSelect from './event-wizard/TimeSelect';
 import ReorderButtons, { moveItem } from './ReorderButtons';
@@ -231,9 +232,14 @@ export function SponsorListManager({
                   onMove={(from, to) => onChange(moveItem(sponsors, from, to))}
                 />
                 {s.logoUrl && (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={s.logoUrl} alt={s.name} className="w-8 h-8 object-contain rounded flex-shrink-0"
-                    onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }} />
+                  <Image
+                    src={s.logoUrl}
+                    alt={s.name}
+                    width={32}
+                    height={32}
+                    className="object-contain rounded flex-shrink-0"
+                    onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
+                  />
                 )}
                 <div className="min-w-0">
                   <p className="text-sm font-medium text-gray-800 truncate">{s.name}</p>

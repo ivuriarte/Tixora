@@ -117,10 +117,12 @@ export default function PaymentProofDropzone({ registrationId, onUploaded }: Pro
         />
 
         {preview ? (
-          // eslint-disable-next-line @next/next/no-img-element
+          // eslint-disable-next-line @next/next/no-img-element -- blob: URL from local file picker; next/image does not support blob: scheme
           <img
             src={preview}
             alt="Payment proof preview"
+            loading="lazy"
+            decoding="async"
             className="max-h-64 w-auto rounded-lg shadow-sm object-contain"
           />
         ) : (

@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import Image from 'next/image';
 import toast from 'react-hot-toast';
 import api from '@/lib/api';
 import { formatManila, centavosToPeso, formatPHP } from '@axon-tickets/utils';
@@ -404,12 +405,14 @@ export default function VerificationDrawer({
                       className="block w-full rounded-xl border border-gray-200 bg-gray-50 overflow-hidden hover:ring-2 hover:ring-primary/40 transition"
                       aria-label="Zoom proof image"
                     >
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img
+                      <Image
                         src={latestProof.imageUrl}
                         alt="Payment proof"
+                        width={600}
+                        height={520}
                         loading="lazy"
-                        className="w-full max-h-[520px] object-contain"
+                        className="w-full object-contain"
+                        style={{ maxHeight: '520px' }}
                       />
                     </button>
                     <div className="flex items-center gap-3 text-xs">
@@ -522,12 +525,14 @@ export default function VerificationDrawer({
           className="fixed inset-0 z-[70] bg-black/90 flex items-center justify-center p-4 cursor-zoom-out"
           aria-label="Close zoom"
         >
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={latestProof.imageUrl}
-            alt="Payment proof full size"
-            className="max-w-full max-h-full object-contain"
-          />
+          <div className="relative w-full h-full">
+            <Image
+              src={latestProof.imageUrl}
+              alt="Payment proof full size"
+              fill
+              className="object-contain"
+            />
+          </div>
         </button>
       )}
     </div>

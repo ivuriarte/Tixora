@@ -1,11 +1,15 @@
 'use client';
 
 import { useEffect, useState, useCallback, useMemo } from 'react';
+import dynamic from 'next/dynamic';
 import toast from 'react-hot-toast';
 import api from '@/lib/api';
 import Navbar from '@/components/Navbar';
 import BackButton from '@/components/BackButton';
-import VerificationDrawer from '@/components/admin/VerificationDrawer';
+const VerificationDrawer = dynamic(
+  () => import('@/components/admin/VerificationDrawer'),
+  { ssr: false, loading: () => <div className="animate-pulse h-full bg-gray-50" aria-hidden="true" /> },
+);
 import { formatManila } from '@axon-tickets/utils';
 
 interface VerificationRow {

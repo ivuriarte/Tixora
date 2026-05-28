@@ -80,10 +80,12 @@ export default function PaymentProofUpload({ registrationId, onUploaded }: Props
         className="block w-full text-sm text-gray-700 file:mr-3 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-primary/10 file:text-primary file:font-medium hover:file:bg-primary/20 disabled:opacity-50"
       />
       {preview && (
-        // eslint-disable-next-line @next/next/no-img-element
+        // eslint-disable-next-line @next/next/no-img-element -- blob: URL from local file picker; next/image does not support blob: scheme
         <img
           src={preview}
           alt="Proof preview"
+          loading="lazy"
+          decoding="async"
           className="w-full max-h-72 object-contain rounded-lg border border-gray-200 animate-fade-in"
         />
       )}

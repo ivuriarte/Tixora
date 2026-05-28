@@ -1,5 +1,3 @@
-'use client';
-
 import Link from 'next/link';
 import Image from 'next/image';
 import { formatManila, formatShortDate } from '@axon-tickets/utils';

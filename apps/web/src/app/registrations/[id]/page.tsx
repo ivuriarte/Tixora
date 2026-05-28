@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import Image from 'next/image';
 import { useParams, useRouter } from 'next/navigation';
 import { useQueryClient } from '@tanstack/react-query';
 import { formatManila, centavosToPeso, formatPHP } from '@axon-tickets/utils';
@@ -238,11 +239,13 @@ export default function RegistrationDetailPage() {
               </p>
             </div>
             {reg.proofs?.[0]?.imageUrl && (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
+              <Image
                 src={reg.proofs[0].imageUrl}
                 alt="Submitted proof"
-                className="w-full max-h-72 object-contain rounded-lg border border-blue-200 bg-white"
+                width={600}
+                height={288}
+                className="w-full object-contain rounded-lg border border-blue-200 bg-white"
+                style={{ maxHeight: '18rem' }}
               />
             )}
           </div>

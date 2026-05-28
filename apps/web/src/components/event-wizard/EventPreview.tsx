@@ -1,5 +1,6 @@
 'use client';
 
+import Image from 'next/image';
 import type { EventDraft, LocalTier } from './types';
 import { combineDatetime } from './types';
 
@@ -52,10 +53,11 @@ export default function EventPreview({ draft, tiers }: EventPreviewProps) {
         {/* Event card hero */}
         <div className="rounded-xl overflow-hidden border border-gray-200 bg-white shadow-sm">
           {draft.imageUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
+            <Image
               src={draft.imageUrl}
               alt=""
+              width={400}
+              height={128}
               className="w-full h-32 object-cover"
               onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
             />

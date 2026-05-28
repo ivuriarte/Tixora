@@ -65,8 +65,8 @@ export default function PaymentStep({ paymentMethods, onAdd, onEdit, onRemove, o
                     {pm.accountNumber && <p className="text-xs text-gray-500">{pm.accountNumber}</p>}
                   </div>
                   {pm.qrPreview && (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={pm.qrPreview} alt="QR" className="h-8 w-8 object-contain rounded border border-gray-100" />
+                    // eslint-disable-next-line @next/next/no-img-element -- blob: URL from local file picker; next/image does not support blob: scheme
+                    <img src={pm.qrPreview} alt="QR" width={32} height={32} loading="lazy" decoding="async" className="h-8 w-8 object-contain rounded border border-gray-100" />
                   )}
                 </div>
                 <div className="flex items-center gap-3">

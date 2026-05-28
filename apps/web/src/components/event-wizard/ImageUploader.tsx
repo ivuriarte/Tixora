@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useId, useRef, useState, type DragEvent } from 'react';
+import Image from 'next/image';
 import toast from 'react-hot-toast';
 import api from '@/lib/api';
 
@@ -149,8 +150,7 @@ export default function ImageUploader({
         <div
           className={`relative w-full ${previewAspect} overflow-hidden rounded-xl border border-gray-200 bg-gray-50 ${variant === 'logo' ? 'max-w-[140px]' : ''}`}
         >
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={value} alt="Uploaded preview" className="w-full h-full object-cover" />
+          <Image src={value} alt="Uploaded preview" fill className="object-cover" />
         </div>
         <div className="flex flex-wrap items-center gap-3">
           <button

@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
+import Image from 'next/image';
 import { useParams, useRouter } from 'next/navigation';
 import api from '@/lib/api';
 import Navbar from '@/components/Navbar';
@@ -276,11 +277,13 @@ export default function AdminRegistrationDetailPage() {
                 Submitted {formatManila(new Date(latestProof.createdAt))} · status:{' '}
                 <span className="font-medium">{latestProof.status}</span>
               </p>
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
+              <Image
                 src={latestProof.imageUrl}
                 alt="Payment proof"
-                className="w-full max-h-[600px] object-contain rounded-lg border border-gray-200 bg-gray-50"
+                width={600}
+                height={600}
+                className="w-full object-contain rounded-lg border border-gray-200 bg-gray-50"
+                style={{ maxHeight: '600px' }}
               />
               <a
                 href={latestProof.imageUrl}
