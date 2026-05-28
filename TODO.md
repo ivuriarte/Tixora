@@ -2,6 +2,14 @@
 
 ---
 
+## ✅ Shipped — May 29, 2026 (commits b398b52 · 1ebc068 · a855c69)
+
+- **E2E base URL corrected** (`b398b52`) — Playwright config was pointing at the dead `axon-tickets-app.vercel.app` deployment. Updated to `tixora-online-ticket-app.vercel.app`. All 20 public-flow tests now pass (was 12 failures — all `DEPLOYMENT_NOT_FOUND`).
+- **Homepage hero fits the viewport** (`1ebc068`) — Hero section constrained to `h-screen` with reduced padding (`py-8 md:py-12`), smaller title (`text-3xl/4xl/5xl`), smaller speaker name (`text-xl/2xl`), tighter margins throughout.
+- **TS deprecation warning cleared** (`a855c69`) — Removed deprecated `baseUrl: "./"` from `apps/api/tsconfig.json`. Redundant since TS 4.1; flagged as deprecated in TS 5.9. Zero type errors confirmed post-removal.
+
+---
+
 ## ✅ Shipped — May 28, 2026 (commit 81a363f)
 
 ### UX: 27 notification improvements across 16 files
