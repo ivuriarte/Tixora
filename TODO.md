@@ -2,6 +2,25 @@
 
 ---
 
+## ✅ Shipped — May 28, 2026 (commit 81a363f)
+
+### UX: 27 notification improvements across 16 files
+
+All `alert()` calls, vague toast messages, and bare inline banners replaced with actionable, user-legible copy. Highlights:
+
+| Severity | Count | What changed |
+|---|---|---|
+| Critical | 2 | `alert()` → `toast.error()`; `TierSelector` now branches on HTTP status (409 sold out, 401 session, 422 validation, no-connection) |
+| High | 6 | Checkout payment/expiry, profile load, check-in search, admin registrations not-found + resend + verified banner heading |
+| Medium | 9 | VerificationDrawer approve/reject include outcome; bulk reject is plural-aware; orders resend shows recipient email; event edit shows new status label with `STATUS_LABELS` map |
+| Low | 10 | Admin page errors, Navbar sign-out, WEBP added to QR upload (client + `accept` attr), file-too-large with instructions, E2E test assertion updated |
+
+**Security (no regressions):** 0 TS errors · 68/68 unit tests · No XSS / hardcoded secrets / SQL injection / open redirect · MIME type validation now consistent client ↔ server (JPG/PNG/WEBP)
+
+**Playwright note:** 11 E2E public-flow tests return Vercel `DEPLOYMENT_NOT_FOUND` — Vercel infra issue on `axon-tickets-app.vercel.app`, not a code regression. API health tests (8 tests) all pass. 1 E2E test also fixed: admin redirect assertion updated to include `/auth/access`.
+
+---
+
 ## ✅ Shipped — May 25, 2026 (commit 0b30148 → f26ab7a)
 
 - **Group bundle single-receipt policy notices** — amber callout added to all 3 checkout touchpoints: event page tier selector (RegistrationPanel), attendee details form (RegistrationForm), and payment/proof upload page. Shown when qty > 1 or attendeeCount > 1.
