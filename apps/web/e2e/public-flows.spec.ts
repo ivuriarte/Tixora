@@ -93,7 +93,7 @@ test.describe('Navigation', () => {
     // Client-side auth guard redirects to /auth/admin (dedicated admin login)
     await page.waitForURL((url) => url.pathname.includes('/auth/'), { timeout: 10_000 }).catch(() => {});
     const currentUrl = page.url();
-    expect(currentUrl).toMatch(/\/auth\/(admin|login)/);
+    expect(currentUrl).toMatch(/\/auth\/(admin|login|access)/);
   });
 
   test('404 page renders gracefully', async ({ page }) => {

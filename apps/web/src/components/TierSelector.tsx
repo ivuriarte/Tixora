@@ -66,7 +66,20 @@ export default function TierSelector({ eventId, eventSlug, tiers, disabled }: Pr
       );
       router.push(`/checkout/${reservation.id}`);
     } catch (err: any) {
-      toast.error(err?.response?.data?.message ?? 'Could not reserve tickets');
+      const status = err?.response?.status;
+      const serverMsg = err?.response?.data?.message;
+      if (status === 409) {
+        toast.error(serverMsg ?? 'This tier is sold out. Try a different ticket type.');
+      } else if (status === 401 || status === 403) {
+        toast.error('Your session has expired. Please sign in again.');
+        router.push(`/auth/access?redirect=${encodeURIComponent(`/events/${eventSlug}`)}`);
+      } else if (status === 422 || status === 400) {
+        toast.error(serverMsg ?? 'Invalid selection. Please check your quantity and try again.');
+      } else if (!status) {
+        toast.error('Could not connect to the server. Check your internet connection and try again.');
+      } else {
+        toast.error(serverMsg ?? 'Could not reserve your tickets. Please try again.');
+      }
     } finally {
       setLoading(false);
     }

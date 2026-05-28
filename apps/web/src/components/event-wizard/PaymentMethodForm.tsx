@@ -22,8 +22,8 @@ export default function PaymentMethodForm({ initial, onSave, onCancel }: Payment
   function handleQrFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (!['image/jpeg', 'image/png'].includes(file.type)) {
-      toast.error('Only JPG and PNG files are allowed');
+    if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
+      toast.error('Only JPG, PNG, and WEBP images are allowed for QR codes.');
       e.target.value = '';
       return;
     }
@@ -76,7 +76,7 @@ export default function PaymentMethodForm({ initial, onSave, onCancel }: Payment
         <label className="block text-xs font-medium text-gray-600 mb-1">
           QR Code <span className="text-gray-400">(optional · JPG or PNG only)</span>
         </label>
-        <input ref={fileRef} type="file" accept="image/jpeg,image/png" className="hidden" onChange={handleQrFile} />
+        <input ref={fileRef} type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={handleQrFile} />
         {pm.qrPreview ? (
           <div className="flex items-center gap-3">
             {/* eslint-disable-next-line @next/next/no-img-element -- blob: URL from local file picker; next/image cannot handle blob: scheme */}

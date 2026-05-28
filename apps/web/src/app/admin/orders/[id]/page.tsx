@@ -66,8 +66,8 @@ export default function AdminOrderDetailPage() {
 
   const resendMutation = useMutation({
     mutationFn: () => api.post(`/admin/orders/${id}/resend-ticket`),
-    onSuccess: () => toast.success('Ticket confirmation resent'),
-    onError: () => toast.error('Failed to resend ticket'),
+    onSuccess: () => toast.success(`Confirmation email resent to ${order?.userEmail ?? 'the buyer'}.`),
+    onError: () => toast.error('Could not resend the confirmation email. Please try again.'),
   });
 
   const confirmMutation = useMutation({

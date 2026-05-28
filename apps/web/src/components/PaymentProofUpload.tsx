@@ -32,7 +32,7 @@ export default function PaymentProofUpload({ registrationId, onUploaded }: Props
       return;
     }
     if (f.size > MAX_BYTES) {
-      setError('File is larger than 5 MB.');
+      setError('Your file is too large (max 5 MB). Please compress or resize the image and try again.');
       return;
     }
     setFile(f);

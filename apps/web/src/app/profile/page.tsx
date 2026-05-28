@@ -59,7 +59,7 @@ export default function ProfilePage() {
           city: p.city ?? '',
         });
       })
-      .catch(() => toast.error('Could not load profile.'))
+      .catch(() => toast.error('Could not load your profile. Please refresh the page to try again.'))
       .finally(() => setLoading(false));
   }, [isHydrating, isAuthenticated, router]);
 

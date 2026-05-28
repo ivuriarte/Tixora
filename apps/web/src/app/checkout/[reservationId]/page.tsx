@@ -68,7 +68,7 @@ export default function CheckoutPage() {
       clearCart();
       window.location.href = paymentUrl;
     } catch (err: any) {
-      toast.error(err?.response?.data?.message ?? 'Payment failed');
+      toast.error(err?.response?.data?.message ?? 'Payment could not be completed. Please try again or choose a different method.');
     } finally {
       setLoading(false);
     }
@@ -89,7 +89,7 @@ export default function CheckoutPage() {
         {expiresAt && (
           <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 flex items-center justify-between text-sm">
             <span className="text-amber-800 font-medium">Tickets held for</span>
-            <CountdownTimer expiresAt={expiresAt} onExpire={() => { clearCart(); router.push('/'); toast.error('Reservation expired'); }} />
+            <CountdownTimer expiresAt={expiresAt} onExpire={() => { clearCart(); router.push('/'); toast.error('Your reservation has expired. Please select your tickets again.'); }} />
           </div>
         )}
 

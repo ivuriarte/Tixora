@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import Image from 'next/image';
 import { useParams, useRouter } from 'next/navigation';
 import { useQueryClient } from '@tanstack/react-query';
+import toast from 'react-hot-toast';
 import { formatManila, centavosToPeso, formatPHP } from '@axon-tickets/utils';
 import api from '@/lib/api';
 import PaymentProofUpload from '@/components/PaymentProofUpload';
@@ -60,7 +61,7 @@ export default function RegistrationDetailPage() {
       // immediately reflects the cancellation when the user navigates back.
       void queryClient.invalidateQueries({ queryKey: ['registration-check'] });
     } catch {
-      alert('Failed to cancel registration.');
+      toast.error('Cancellation failed. Please refresh the page and try again.');
     } finally {
       setCancelling(false);
     }

@@ -64,7 +64,7 @@ export default function AdminNewEventPage() {
     setTiers(restorePrompt.tiers);
     setPaymentMethods(restorePrompt.paymentMethods);
     setRestorePrompt(null);
-    toast.success('Draft restored');
+    toast.success('Draft restored. Continue editing and save when ready.');
   }
 
   function discardRestore() {
@@ -199,7 +199,7 @@ export default function AdminNewEventPage() {
       }
 
       clearDraft();
-      toast.success('Event created!');
+      toast.success('Event created! You can now add ticket tiers and publish it for sale.');
       router.push('/admin');
     } catch (err: unknown) {
       const message =

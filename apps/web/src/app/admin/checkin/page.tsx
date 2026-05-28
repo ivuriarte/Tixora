@@ -197,7 +197,7 @@ export default function AdminCheckinPage() {
   }
 
   async function runSearch() {
-    if (!selectedEventId) { toast.error('Select an event first'); return; }
+    if (!selectedEventId) { toast.error('Please select an event from the dropdown above before searching.'); return; }
     setSearching(true);
     try {
       const res = await api.get<{ data: { data: AttendeeRow[] } }>(
@@ -205,7 +205,7 @@ export default function AdminCheckinPage() {
       );
       setSearchResults(res.data?.data?.data ?? []);
     } catch {
-      toast.error('Search failed');
+      toast.error('Attendee search failed. Check your connection and try again.');
     } finally {
       setSearching(false);
     }

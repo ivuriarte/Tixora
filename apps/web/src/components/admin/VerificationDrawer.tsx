@@ -136,7 +136,7 @@ export default function VerificationDrawer({
       setReg(data);
     } catch {
       if (myToken !== fetchTokenRef.current) return;
-      toast.error('Failed to load registration.');
+      toast.error('Could not load registration details. Close the drawer and try again.');
       setReg(null);
     } finally {
       if (myToken === fetchTokenRef.current) setLoading(false);
@@ -198,7 +198,7 @@ export default function VerificationDrawer({
     const tid = toast.loading('Approving…');
     try {
       await api.patch(`/admin/registrations/${reg.id}/approve`);
-      toast.success('Approved', { id: tid });
+      toast.success('Registration approved — QR ticket emailed to the attendee.', { id: tid });
       cacheRef.current.delete(reg.id);
       onActionComplete?.();
       // Auto-advance if there's a next row, else close.
@@ -223,7 +223,7 @@ export default function VerificationDrawer({
     const tid = toast.loading('Rejecting…');
     try {
       await api.patch(`/admin/registrations/${reg.id}/reject`, { reason: finalReason });
-      toast.success('Rejected', { id: tid });
+      toast.success('Registration rejected — reason sent to the attendee by email.', { id: tid });
       cacheRef.current.delete(reg.id);
       setShowReject(false);
       onActionComplete?.();

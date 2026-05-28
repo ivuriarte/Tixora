@@ -266,59 +266,65 @@ export default function AdminEventEditPage() {
   const updateMutation = useMutation({
     mutationFn: (data: Record<string, unknown>) => api.put(`/admin/events/${id}`, data),
     onSuccess: () => {
-      toast.success('Event updated');
+      toast.success('Changes saved successfully.');
       queryClient.invalidateQueries({ queryKey: ['admin-event', id] });
       queryClient.invalidateQueries({ queryKey: ['admin-events'] });
     },
-    onError: () => toast.error('Failed to update event'),
+    onError: () => toast.error('Changes could not be saved. Please try again.'),
   });
 
   const statusMutation = useMutation({
     mutationFn: (newStatus: string) => api.put(`/admin/events/${id}`, { status: newStatus }),
-    onSuccess: () => {
-      toast.success('Status updated');
+    onSuccess: (_, newStatus) => {
+      const labels: Record<string, string> = {
+        draft: 'Draft',
+        on_sale: 'On Sale',
+        sold_out: 'Sold Out',
+        cancelled: 'Cancelled',
+      };
+      toast.success(`Status changed to “${labels[newStatus] ?? newStatus}”.`);
       queryClient.invalidateQueries({ queryKey: ['admin-event', id] });
       queryClient.invalidateQueries({ queryKey: ['admin-events'] });
     },
-    onError: () => toast.error('Failed to update status'),
+    onError: () => toast.error('Status could not be updated. Please try again.'),
   });
 
   const addTierMutation = useMutation({
     mutationFn: (data: Record<string, unknown>) => api.post(`/admin/events/${id}/tiers`, data),
     onSuccess: () => {
-      toast.success('Tier added');
+      toast.success('Ticket tier added.');
       queryClient.invalidateQueries({ queryKey: ['admin-event', id] });
     },
-    onError: () => toast.error('Failed to add tier'),
+    onError: () => toast.error('Could not add the ticket tier. Please try again.'),
   });
 
   const updateTierMutation = useMutation({
     mutationFn: ({ tierId, data }: { tierId: string; data: Record<string, unknown> }) =>
       api.put(`/admin/tiers/${tierId}`, data),
     onSuccess: () => {
-      toast.success('Tier updated');
+      toast.success('Ticket tier updated.');
       queryClient.invalidateQueries({ queryKey: ['admin-event', id] });
     },
-    onError: () => toast.error('Failed to update tier'),
+    onError: () => toast.error('Tier changes could not be saved. Please try again.'),
   });
 
   const deleteTierMutation = useMutation({
     mutationFn: (tierId: string) => api.delete(`/admin/tiers/${tierId}`),
     onSuccess: () => {
-      toast.success('Tier deleted');
+      toast.success('Ticket tier removed.');
       queryClient.invalidateQueries({ queryKey: ['admin-event', id] });
     },
-    onError: () => toast.error('Cannot delete a tier that has sold tickets'),
+    onError: () => toast.error('Cannot delete a tier that has sold tickets.'),
   });
 
   const deleteMutation = useMutation({
     mutationFn: () => api.delete(`/admin/events/${id}`),
     onSuccess: () => {
-      toast.success('Event deleted');
+      toast.success('Event deleted.');
       queryClient.invalidateQueries({ queryKey: ['admin-events'] });
       router.push('/admin');
     },
-    onError: () => toast.error('Failed to delete event'),
+    onError: () => toast.error('Event could not be deleted. Please try again.'),
   });
 
   // ─── Tier handlers (wired to mutations) ───────────────────────────────────
@@ -371,7 +377,7 @@ export default function AdminEventEditPage() {
       );
       queryClient.invalidateQueries({ queryKey: ['admin-event', id] });
     } catch {
-      toast.error('Failed to save tier order');
+      toast.error('Tier order could not be saved. Please try again.');
     }
   }
 

@@ -76,7 +76,7 @@ export default function AdminRegistrationDetailPage() {
       const res = await api.get(`/admin/registrations/${id}`);
       setReg(unwrap<AdminReg>(res));
     } catch {
-      setError('Registration not found.');
+      setError('This registration could not be found. The URL may be incorrect or the record has been deleted.');
     } finally {
       setLoading(false);
     }
@@ -131,10 +131,10 @@ export default function AdminRegistrationDetailPage() {
     setError(null);
     try {
       await api.post(`/admin/registrations/${id}/resend`);
-      setResendStatus('QR email resent.');
+      setResendStatus('QR tickets emailed to all attendees on this registration.');
     } catch (e: unknown) {
       const err = e as { response?: { data?: { message?: string } } };
-      setError(err.response?.data?.message ?? 'Resend failed.');
+      setError(err.response?.data?.message ?? 'Could not resend QR emails. Please try again.');
     } finally {
       setActing(false);
     }
@@ -307,8 +307,9 @@ export default function AdminRegistrationDetailPage() {
 
         {reg.verifiedBy && reg.verifiedAt && (
           <div className="bg-green-50 border border-green-200 rounded-2xl p-5 text-sm text-green-800">
-            Verified by {reg.verifiedBy.firstName} {reg.verifiedBy.lastName} on{' '}
-            {formatManila(new Date(reg.verifiedAt))}
+            <p className="font-semibold mb-1">Payment Verified</p>
+            <p>Verified by {reg.verifiedBy.firstName} {reg.verifiedBy.lastName} on{' '}
+            {formatManila(new Date(reg.verifiedAt))}</p>
           </div>
         )}
 

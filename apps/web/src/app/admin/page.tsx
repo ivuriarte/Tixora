@@ -96,7 +96,7 @@ export default function AdminDashboardPage() {
     },
     onError: (_, __, ctx) => {
       if (ctx?.previous) queryClient.setQueryData(['admin-events'], ctx.previous);
-      toast.error('Failed to update status');
+      toast.error('Status could not be updated. The change has been rolled back.');
     },
     onSettled: () => queryClient.invalidateQueries({ queryKey: ['admin-events'] }),
   });
@@ -107,7 +107,7 @@ export default function AdminDashboardPage() {
       queryClient.setQueryData<Event[]>(['admin-events'], (old) => old?.filter((e) => e.id !== id) ?? []);
       toast.success('Event deleted');
     },
-    onError: () => toast.error('Failed to delete event'),
+    onError: () => toast.error('Event could not be deleted. Please try again.'),
   });
 
   const fmtRevenue = (n: number) =>

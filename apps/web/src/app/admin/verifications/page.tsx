@@ -220,7 +220,7 @@ export default function VerificationsQueuePage() {
     const ids = Array.from(selected);
     if (!ids.length) return;
     if (ids.length > 20) {
-      toast.error('Maximum 20 per bulk action.');
+      toast.error('Bulk actions are limited to 20 registrations at a time. Deselect some and try again.');
       return;
     }
     const finalReason = bulkRejectChoice === 'Other' ? bulkRejectCustom.trim() : bulkRejectChoice;
@@ -236,9 +236,9 @@ export default function VerificationsQueuePage() {
       const succeeded = body.results.filter((r) => r.ok).length;
       const failed = body.results.length - succeeded;
       if (failed === 0) {
-        toast.success(`Rejected ${succeeded}`, { id: tid });
+        toast.success(`${succeeded} registration${succeeded === 1 ? '' : 's'} rejected — notification emails sent.`, { id: tid });
       } else {
-        toast.error(`Rejected ${succeeded} · ${failed} failed`, { id: tid });
+        toast.error(`Partial: ${succeeded} rejected, ${failed} could not be processed. Retry the failed items.`, { id: tid });
       }
       setBulkRejectOpen(false);
       setBulkRejectChoice(REJECT_REASONS[0]);

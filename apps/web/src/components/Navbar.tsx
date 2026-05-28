@@ -50,7 +50,7 @@ export default function Navbar() {
       logout();
       router.push('/');
     }
-    toast.success('Logged out');
+    toast.success('You have been signed out.');
   }
 
   return (
