@@ -11,6 +11,13 @@ export class EventsController {
   constructor(private readonly eventsService: EventsService) {}
 
   @Public()
+  @Get('featured')
+  @ApiOperation({ summary: 'List currently-featured events for the homepage hero' })
+  findFeatured() {
+    return this.eventsService.findFeatured();
+  }
+
+  @Public()
   @Get()
   @ApiOperation({ summary: 'List published events' })
   @ApiQuery({ name: 'page', required: false })

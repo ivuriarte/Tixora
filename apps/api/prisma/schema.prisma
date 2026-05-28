@@ -119,6 +119,11 @@ model Event {
   agenda       Json?       // Array of { time: string, title: string, description?: string }
   sponsors     Json?       // Array of { name: string, logoUrl?: string, tier?: string }
   faqs         Json?       // Array of { question: string, answer: string }
+  // Featured hero fields
+  tagline      String?     @map("tagline")          // Badge text e.g. "FULL-DAY LEADERSHIP CONFERENCE"
+  isFeatured   Boolean     @default(false) @map("is_featured")
+  featuredOrder Int?       @map("featured_order")   // 1 = first slot; null = not featured
+  featuredUntil DateTime?  @map("featured_until")   // auto-expiry; null = no expiry
   platformFee         Decimal     @default(50) @db.Decimal(10, 2) @map("platform_fee")
   // Payment configuration
   paymentMethods      Json?       @map("payment_methods")  // Array of PaymentMethod objects

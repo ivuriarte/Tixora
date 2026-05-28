@@ -231,6 +231,10 @@ export class EventsService {
         ...(dto.gcashNumber !== undefined && { gcashNumber: dto.gcashNumber }),
         ...(dto.landmark !== undefined && { landmark: dto.landmark }),
         ...(dto.paymentMethods !== undefined && { paymentMethods: (dto.paymentMethods as unknown as Prisma.InputJsonValue | null) ?? Prisma.JsonNull }),
+        ...(dto.tagline !== undefined && { tagline: dto.tagline }),
+        ...(dto.isFeatured !== undefined && { isFeatured: dto.isFeatured }),
+        ...(dto.featuredOrder !== undefined && { featuredOrder: dto.featuredOrder }),
+        ...(dto.featuredUntil !== undefined && { featuredUntil: dto.featuredUntil ? new Date(dto.featuredUntil) : null }),
       },
     });
   }
@@ -239,6 +243,58 @@ export class EventsService {
     const event = await this.prisma.event.findUnique({ where: { id } });
     if (!event) throw new NotFoundException('Event not found');
     return event;
+  }
+
+  /**
+   * Returns up to 10 currently-featured events ordered by featuredOrder ASC.
+   * Excludes events where featuredUntil is set and in the past.
+   */
+  async findFeatured() {
+    const now = new Date();
+    const events = await this.prisma.event.findMany({
+      where: {
+        isFeatured: true,
+        status: { in: ['on_sale', 'sold_out'] as any[] },
+        OR: [
+          { featuredUntil: null },
+          { featuredUntil: { gt: now } },
+        ],
+      },
+      orderBy: [
+        { featuredOrder: { sort: 'asc', nulls: 'last' } },
+        { startsAt: 'asc' },
+      ],
+      take: 10,
+      include: {
+        tiers: {
+          where: { isVisible: true },
+          select: { price: true, soldQuantity: true, totalQuantity: true },
+          orderBy: { price: 'asc' },
+        },
+      },
+    });
+
+    return events.map((e) => ({
+      id: e.id,
+      slug: e.slug,
+      title: e.title,
+      description: e.description,
+      speakerName: e.speakerName,
+      tagline: e.tagline,
+      venue: e.venue,
+      city: e.city,
+      startsAt: e.startsAt.toISOString(),
+      endsAt: e.endsAt ? e.endsAt.toISOString() : null,
+      imageUrl: e.imageUrl,
+      status: e.status,
+      maxCapacity: e.maxCapacity,
+      featuredOrder: e.featuredOrder,
+      lowestPrice: e.tiers[0] ? Number(e.tiers[0].price) : null,
+      totalAvailable: e.tiers.reduce(
+        (sum: number, t) => sum + Math.max(0, t.totalQuantity - t.soldQuantity),
+        0,
+      ),
+    }));
   }
 
   /** Seed Redis inventory for a tier when it goes on sale */

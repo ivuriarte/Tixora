@@ -86,8 +86,18 @@ export class AdminService {
     return event;
   }
 
-  async updateEvent(id: string, dto: UpdateEventDto) {
-    return this.eventsService.update(id, dto);
+  async updateEvent(id: string, dto: UpdateEventDto, adminId: string) {
+    const updated = await this.eventsService.update(id, dto);
+    await this.audit.log({
+      action: 'EVENT_UPDATED',
+      entityType: 'Event',
+      entityId: id,
+      performedById: adminId,
+      metadata: Object.fromEntries(
+        Object.entries(dto).filter(([, v]) => v !== undefined),
+      ) as Record<string, unknown>,
+    });
+    return updated;
   }
 
   async deleteEvent(id: string) {

@@ -1,6 +1,8 @@
 import { Module } from '@nestjs/common';
+import { APP_GUARD } from '@nestjs/core';
 import { ConfigModule } from '@nestjs/config';
 import { ThrottlerModule } from '@nestjs/throttler';
+import { CustomThrottlerGuard } from './common/guards/throttler.guard';
 import { ScheduleModule } from '@nestjs/schedule';
 import { LoggerModule } from 'nestjs-pino';
 import configuration from './config/configuration';
@@ -76,6 +78,9 @@ import { CronModule } from './cron/cron.module';
     PaymentProofsModule,
     SchedulerModule,
     CronModule,
+  ],
+  providers: [
+    { provide: APP_GUARD, useClass: CustomThrottlerGuard },
   ],
 })
 export class AppModule {}

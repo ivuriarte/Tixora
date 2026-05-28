@@ -62,8 +62,8 @@ export class AdminController {
 
   @Put('events/:id')
   @ApiOperation({ summary: 'Update event' })
-  updateEvent(@Param('id') id: string, @Body() dto: UpdateEventDto) {
-    return this.adminService.updateEvent(id, dto);
+  updateEvent(@Param('id') id: string, @Body() dto: UpdateEventDto, @CurrentUser() user: JwtPayload) {
+    return this.adminService.updateEvent(id, dto, user.sub);
   }
 
   @Delete('events/:id')

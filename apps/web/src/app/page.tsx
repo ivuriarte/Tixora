@@ -19,23 +19,6 @@ interface EventSummary {
   sponsors?: Array<{ name: string; logoUrl?: string; tier?: string }> | null;
 }
 
-// Hardcoded default featured event (Netflix-style hero).
-// The "Register Now" CTA links to /events/{slug} — seed this slug in admin
-// (or update FEATURED_EVENT.slug below) for a working registration flow.
-const FEATURED_EVENT = {
-  slug: 'francis-kong-build-to-lead-davao-2026',
-  speakerName: 'Francis Kong',
-  title: 'FRANCIS KONG',
-  subtitle: 'Build to Lead — Davao 2026',
-  tagline: 'FULL-DAY LEADERSHIP CONFERENCE',
-  description:
-    'Join internationally acclaimed motivational speaker and leadership expert Francis Kong for a full-day conference designed to equip business leaders, entrepreneurs, and professionals with practical tools to build winning organizations. Learn how to lead with purpose, grow your people, and build a resilient business.',
-  imageUrl: '/featured/francis-kong.png',
-  date: 'Sunday, September 20, 2026',
-  time: '8:00 AM – 5:00 PM',
-  venue: 'SMX Convention Center Davao',
-  capacity: 'Limited seats available',
-};
 
 async function getEvents(page = 1): Promise<{ data: EventSummary[]; meta: { total: number; totalPages: number } }> {
   const baseUrl = (process.env.NEXT_PUBLIC_API_URL || 'https://api-tau-six-59.vercel.app/api/v1');
@@ -59,6 +42,41 @@ async function getFeaturedEvent(slug: string): Promise<EventSummary | null> {
     return json.data;
   } catch {
     return null;
+  }
+}
+
+interface FeaturedApiEvent {
+  id: string;
+  slug: string;
+  title: string;
+  description: string | null;
+  speakerName?: string | null;
+  tagline?: string | null;
+  venue: string;
+  city: string;
+  startsAt: string;
+  endsAt: string | null;
+  imageUrl?: string | null;
+  status: string;
+  lowestPrice?: number | null;
+  totalAvailable?: number;
+  featuredOrder?: number | null;
+}
+
+async function getFeaturedEvents(): Promise<FeaturedApiEvent[]> {
+  const baseUrl = (process.env.NEXT_PUBLIC_API_URL || 'https://api-tau-six-59.vercel.app/api/v1');
+  try {
+    const res = await fetch(`${baseUrl}/events/featured`, {
+      next: { revalidate: 30 },
+      signal: AbortSignal.timeout(8000),
+    });
+    if (!res.ok) return [];
+    const json = await res.json();
+    // TransformInterceptor wraps: { success, data: [...] }
+    const data = json.data ?? json;
+    return Array.isArray(data) ? data : [];
+  } catch {
+    return [];
   }
 }
 
@@ -186,29 +204,58 @@ export default async function HomePage({ searchParams }: { searchParams: { page?
 
   // Marketplace mode (Netflix-style: featured hero + event rows)
   const page = parseInt(searchParams.page ?? '1', 10) || 1;
-  const { data: events, meta } = enableMarketplace
-    ? await getEvents(page)
-    : { data: [], meta: { total: 0, totalPages: 0 } };
+  const [{ data: events, meta }, featuredEvents] = await Promise.all([
+    enableMarketplace ? getEvents(page) : Promise.resolve({ data: [], meta: { total: 0, totalPages: 0 } }),
+    getFeaturedEvents(),
+  ]);
+
+  // Pick the first DB-driven featured event
+  const dbHero: FeaturedApiEvent | null = featuredEvents[0] ?? null;
+
+  const heroDate = dbHero
+    ? new Date(dbHero.startsAt).toLocaleDateString('en-PH', {
+        weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', timeZone: 'Asia/Manila',
+      })
+    : null;
+  const heroTime = dbHero
+    ? (() => {
+        const start = new Date(dbHero.startsAt).toLocaleTimeString('en-PH', {
+          hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Manila',
+        });
+        const end = dbHero.endsAt
+          ? new Date(dbHero.endsAt).toLocaleTimeString('en-PH', {
+              hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Manila',
+            })
+          : null;
+        return end ? `${start} – ${end}` : start;
+      })()
+    : null;
+  const heroCapacity = dbHero?.totalAvailable != null
+    ? dbHero.totalAvailable > 0 ? `${dbHero.totalAvailable} seats remaining` : 'Sold out'
+    : null;
 
   return (
     <>
       <AdminRedirect />
       <Navbar />
       <main className="bg-gray-50 min-h-screen">
-        {/* Netflix-style featured hero */}
+        {/* Netflix-style featured hero — only rendered when an event is marked featured in admin */}
+        {dbHero && (
         <section className="relative overflow-hidden bg-[#0a0a0a] text-white">
           {/* Background portrait — right side, faded into gradient */}
           <div className="absolute inset-y-0 right-0 w-full md:w-3/5 lg:w-1/2 overflow-hidden">
             {/* Subtle gold glow behind speaker */}
             <div className="absolute right-8 top-1/2 -translate-y-1/2 w-80 h-80 bg-amber-500/10 rounded-full blur-3xl pointer-events-none" />
-            <Image
-              src={FEATURED_EVENT.imageUrl}
-              alt={`${FEATURED_EVENT.speakerName} — ${FEATURED_EVENT.title}`}
-              fill
-              priority
-              sizes="(max-width: 768px) 100vw, 50vw"
-              className="object-cover object-top opacity-60 md:opacity-85"
-            />
+            {dbHero.imageUrl && (
+              <Image
+                src={dbHero.imageUrl}
+                alt={[dbHero.speakerName, dbHero.title].filter(Boolean).join(' — ')}
+                fill
+                priority
+                sizes="(max-width: 768px) 100vw, 50vw"
+                className="object-cover object-top opacity-60 md:opacity-85"
+              />
+            )}
             <div className="absolute inset-0 bg-gradient-to-r from-[#0a0a0a] via-[#0a0a0a]/70 to-transparent md:via-[#0a0a0a]/30" />
           </div>
 
@@ -218,20 +265,22 @@ export default async function HomePage({ searchParams }: { searchParams: { page?
               <div className="inline-flex items-center gap-2 bg-amber-500/15 border border-amber-500/30 rounded-full px-4 py-1.5 mb-6">
                 <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
                 <span className="text-amber-400 font-bold uppercase tracking-[0.2em] text-xs">
-                  {FEATURED_EVENT.tagline}
+                  {dbHero.tagline}
                 </span>
               </div>
 
               {/* Title */}
               <h1 className="text-4xl md:text-5xl lg:text-6xl font-extrabold leading-[1.05] tracking-tight mb-2">
-                {FEATURED_EVENT.title}
+                {dbHero.title}
               </h1>
-              <p className="text-amber-400 text-2xl md:text-3xl font-extrabold leading-tight mb-6">
-                {FEATURED_EVENT.subtitle}
-              </p>
+              {dbHero.speakerName && dbHero.speakerName !== dbHero.title && (
+                <p className="text-amber-400 text-2xl md:text-3xl font-extrabold leading-tight mb-6">
+                  {dbHero.speakerName}
+                </p>
+              )}
 
               <p className="text-slate-300 text-base md:text-lg leading-relaxed mb-8 max-w-xl">
-                {FEATURED_EVENT.description}
+                {dbHero.description}
               </p>
 
               {/* Event details */}
@@ -240,34 +289,27 @@ export default async function HomePage({ searchParams }: { searchParams: { page?
                   <svg className="w-4 h-4 text-amber-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                   </svg>
-                  <time>{FEATURED_EVENT.date}</time>
+                  <time>{heroDate}</time>
                 </div>
                 <div className="flex items-center gap-2 text-slate-300">
                   <svg className="w-4 h-4 text-amber-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                   </svg>
-                  <span>{FEATURED_EVENT.time}</span>
+                  <span>{heroTime}</span>
                 </div>
                 <div className="flex items-center gap-2 text-slate-300">
                   <svg className="w-4 h-4 text-amber-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
                   </svg>
-                  <span>{FEATURED_EVENT.venue}</span>
+                  <span>{`${dbHero.venue}, ${dbHero.city}`}</span>
                 </div>
               </div>
 
               {/* CTA + capacity badge */}
               <div className="flex flex-wrap items-center gap-4">
                 <Link
-                  href={(() => {
-                    // Prefer the exact featured slug if present in the events list;
-                    // fall back to the first available event; then scroll anchor.
-                    const match = events.find((e) => e.slug === FEATURED_EVENT.slug);
-                    if (match) return `/events/${match.slug}`;
-                    if (events[0]) return `/events/${events[0].slug}`;
-                    return '#upcoming-events';
-                  })()}
+                  href={`/events/${dbHero.slug}`}
                   className="inline-flex items-center gap-2 bg-amber-500 hover:bg-amber-400 text-black font-bold px-8 py-3.5 rounded-lg text-base transition-colors shadow-lg shadow-amber-900/30"
                 >
                   Reserve Your Seat
@@ -279,12 +321,13 @@ export default async function HomePage({ searchParams }: { searchParams: { page?
                   <svg className="w-3.5 h-3.5 text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
                   </svg>
-                  {FEATURED_EVENT.capacity}
+                  {heroCapacity}
                 </span>
               </div>
             </div>
           </div>
         </section>
+        )}
 
         {/* Upcoming events */}
         <section id="upcoming-events" className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 md:py-16">

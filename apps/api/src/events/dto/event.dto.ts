@@ -248,6 +248,30 @@ export class CreateEventDto {
   @ValidateNested({ each: true })
   @Type(() => PaymentMethodItemDto)
   paymentMethods?: PaymentMethodItemDto[];
+
+  // ── Featured hero fields ────────────────────────────────────────────────
+  @ApiProperty({ required: false, example: 'FULL-DAY LEADERSHIP CONFERENCE', description: 'Badge text shown above the event title in the homepage hero' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  tagline?: string;
+
+  @ApiProperty({ required: false, default: false, description: 'Pin this event as a featured hero on the homepage' })
+  @IsOptional()
+  @IsBoolean()
+  isFeatured?: boolean;
+
+  @ApiProperty({ required: false, description: '1 = first hero slot; null = unordered' })
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(99)
+  featuredOrder?: number;
+
+  @ApiProperty({ required: false, description: 'ISO date after which the event is automatically removed from the featured hero' })
+  @IsOptional()
+  @IsDateString()
+  featuredUntil?: string;
 }
 
 export class UpdateEventDto {
@@ -374,4 +398,24 @@ export class UpdateEventDto {
   @ValidateNested({ each: true })
   @Type(() => PaymentMethodItemDto)
   paymentMethods?: PaymentMethodItemDto[];
+
+  // ── Featured hero fields ────────────────────────────────────────────────
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  tagline?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  isFeatured?: boolean;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(99)
+  featuredOrder?: number;
+
+  @IsOptional()
+  @IsDateString()
+  featuredUntil?: string;
 }

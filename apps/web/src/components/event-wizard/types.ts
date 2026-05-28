@@ -30,6 +30,7 @@ export interface EventDraftBasics {
   description: string;
   imageUrl: string;
   speakerName: string;
+  tagline: string;
 }
 
 export interface EventDraftLocation {
@@ -58,6 +59,9 @@ export interface EventDraft
   agenda: AgendaItem[];
   sponsors: SponsorItem[];
   faqs: FaqItem[];
+  isFeatured: boolean;
+  featuredOrder: string;
+  featuredUntil: string;
 }
 
 export interface StepMeta {
@@ -98,6 +102,7 @@ export function emptyDraft(): EventDraft {
     description: '',
     imageUrl: '',
     speakerName: '',
+    tagline: '',
     venue: '',
     address: '',
     landmark: '',
@@ -113,6 +118,9 @@ export function emptyDraft(): EventDraft {
     agenda: [],
     sponsors: [],
     faqs: [],
+    isFeatured: false,
+    featuredOrder: '',
+    featuredUntil: '',
   };
 }
 
