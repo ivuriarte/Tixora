@@ -279,7 +279,7 @@ export default async function HomePage({ searchParams }: { searchParams: { page?
                 </p>
               )}
 
-              <p className="text-slate-300 text-base md:text-lg leading-relaxed mb-8 max-w-xl">
+              <p className="text-slate-300 text-base md:text-lg leading-relaxed mb-8 max-w-xl line-clamp-3">
                 {dbHero.description}
               </p>
 
