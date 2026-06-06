@@ -341,7 +341,7 @@ export default function PaymentStepPage() {
           </button>
           <span>
             Need help?{' '}
-            <a href="mailto:support@axontickets.com" className="text-primary hover:underline">
+            <a href="mailto:support@axontickets.online" className="text-primary hover:underline">
               Contact support
             </a>
           </span>

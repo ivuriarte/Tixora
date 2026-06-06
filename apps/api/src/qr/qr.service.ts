@@ -90,7 +90,7 @@ export class QrService {
   <!-- Footer -->
   <line x1="20" y1="452" x2="380" y2="452" stroke="#e5e7eb" stroke-width="1"/>
   <text x="200" y="469" text-anchor="middle"
-        font-family="Arial,Helvetica,sans-serif" font-size="10" fill="#94a3b8">© ${new Date().getFullYear()} Axon Tickets · axontickets.com</text>
+        font-family="Arial,Helvetica,sans-serif" font-size="10" fill="#94a3b8">© ${new Date().getFullYear()} Axon Tickets · axontickets.online</text>
 </svg>`;
 
     return Buffer.from(svg, 'utf-8');
