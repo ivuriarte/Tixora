@@ -59,7 +59,8 @@ const nextConfig = {
 export default withSentryConfig(nextConfig, {
   // Suppress Sentry CLI output during builds
   silent: !process.env.CI,
-  // Upload source maps only when SENTRY_AUTH_TOKEN is present (CI/production)
+  // Upload source maps only when SENTRY_AUTH_TOKEN is present — skip silently otherwise
+  disableSourceMapsUpload: !process.env.SENTRY_AUTH_TOKEN,
   authToken: process.env.SENTRY_AUTH_TOKEN,
   org: process.env.SENTRY_ORG,
   project: process.env.SENTRY_PROJECT,
