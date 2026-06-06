@@ -15,12 +15,11 @@ import { CreateTierDto, UpdateTierDto } from '../ticket-tiers/dto/tier.dto';
 import { verifyQrToken, verifyAttendeeQrToken } from '@axon-tickets/utils';
 import { ConfigService } from '@nestjs/config';
 import { AuditService } from '../audit/audit.service';
-import { Resend } from 'resend';
+import { EmailService } from '../email/email.service';
 
 @Injectable()
 export class AdminService {
   private readonly logger = new Logger(AdminService.name);
-  private readonly resend: Resend;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -29,9 +28,8 @@ export class AdminService {
     private readonly ordersService: OrdersService,
     private readonly config: ConfigService,
     private readonly audit: AuditService,
-  ) {
-    this.resend = new Resend(this.config.get<string>('resend.apiKey'));
-  }
+    private readonly emailService: EmailService,
+  ) {}
 
   // ── User Management ────────────────────────────────────────────────────
 
@@ -389,9 +387,6 @@ export class AdminService {
     event: { title: string; startsAt: string; venue: string },
     tickets: Array<{ id: string; tierName: string; qrCode: string }>,
   ) {
-    const fromName = this.config.get<string>('resend.fromName') ?? 'Axon Tickets';
-    const fromEmail = this.config.get<string>('resend.fromEmail') ?? '';
-
     const ticketRows = tickets
       .map(
         (t) =>
@@ -406,12 +401,10 @@ export class AdminService {
       )
       .join('');
 
-    const { error } = await this.resend.emails.send({
-      from: `${fromName} <${fromEmail}>`,
-      to: toEmail,
-      subject: `Your tickets for ${event.title}`,
-      html: `
-        <div style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:24px">
+    await this.emailService.send(
+      toEmail,
+      `Your tickets for ${event.title}`,
+      `<div style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:24px">
           <h1 style="color:#7c3aed;margin-bottom:4px">You're going!</h1>
           <h2 style="margin-top:0">${event.title}</h2>
           <p style="color:#6b7280">${new Date(event.startsAt).toLocaleDateString('en-PH', { dateStyle: 'full' })} · ${event.venue}</p>
@@ -426,13 +419,8 @@ export class AdminService {
             <tbody>${ticketRows}</tbody>
           </table>
           <p style="margin-top:24px;color:#9ca3af;font-size:12px">Axon Tickets · Online Ticketing Platform</p>
-        </div>
-      `,
-    });
-
-    if (error) {
-      this.logger.warn({ msg: 'Failed to send ticket confirmation', toEmail, error: error.message });
-    }
+        </div>`,
+    );
   }
 
   async checkIn(qrToken: string, adminId: string) {

@@ -24,10 +24,13 @@ export default () => ({
     hmacSecret: process.env.QR_HMAC_SECRET ?? '',
   },
 
-  resend: {
-    apiKey: process.env.RESEND_API_KEY ?? '',
-    fromEmail: process.env.RESEND_FROM_EMAIL ?? '',
-    fromName: process.env.RESEND_FROM_NAME ?? 'Axon Tickets',
+  smtp: {
+    host: process.env.SMTP_HOST ?? 'smtp-relay.brevo.com',
+    port: parseInt(process.env.SMTP_PORT ?? '587', 10),
+    user: process.env.SMTP_USER ?? '',
+    pass: process.env.SMTP_PASS ?? '',
+    fromEmail: process.env.SMTP_FROM_EMAIL ?? '',
+    fromName: process.env.SMTP_FROM_NAME ?? 'Axon Tickets',
   },
 
   cloudinary: {

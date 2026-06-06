@@ -1,12 +1,13 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, OnModuleDestroy } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { Resend } from 'resend';
+import * as nodemailer from 'nodemailer';
+import Mail from 'nodemailer/lib/mailer';
 import { QrService } from '../qr/qr.service';
 
 @Injectable()
-export class EmailService {
+export class EmailService implements OnModuleDestroy {
   private readonly logger = new Logger(EmailService.name);
-  private readonly resend: Resend;
+  private readonly transporter: nodemailer.Transporter;
   private readonly fromName: string;
   private readonly fromEmail: string;
 
@@ -14,9 +15,22 @@ export class EmailService {
     private readonly config: ConfigService,
     private readonly qrService: QrService,
   ) {
-    this.resend = new Resend(config.get<string>('resend.apiKey'));
-    this.fromName = config.get<string>('resend.fromName') ?? 'Axon Tickets';
-    this.fromEmail = config.get<string>('resend.fromEmail') ?? '';
+    this.fromName = config.get<string>('smtp.fromName') ?? 'Axon Tickets';
+    this.fromEmail = config.get<string>('smtp.fromEmail') ?? '';
+
+    this.transporter = nodemailer.createTransport({
+      host: config.get<string>('smtp.host'),
+      port: config.get<number>('smtp.port') ?? 587,
+      secure: false, // STARTTLS on port 587
+      auth: {
+        user: config.get<string>('smtp.user'),
+        pass: config.get<string>('smtp.pass'),
+      },
+    });
+  }
+
+  onModuleDestroy(): void {
+    this.transporter.close();
   }
 
   /**
@@ -29,21 +43,28 @@ export class EmailService {
     html: string,
     attachments?: { content: string | Buffer; filename: string; content_type: string }[],
   ): Promise<void> {
-    const { error } = await this.resend.emails.send({
+    const mailOptions: Mail.Options = {
       from: `${this.fromName} <${this.fromEmail}>`,
       to,
       subject,
       html,
-      attachments,
-    });
-    if (error) {
-      this.logger.warn({ 
-        msg: 'Failed to send email', 
-        to, 
-        subject, 
+      attachments: attachments?.map((a) => ({
+        content: a.content,
+        filename: a.filename,
+        contentType: a.content_type,
+      })),
+    };
+
+    try {
+      await this.transporter.sendMail(mailOptions);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      this.logger.warn({
+        msg: 'Failed to send email',
+        to,
+        subject,
         from: this.fromEmail,
-        errorMessage: error.message,
-        errorName: error.name,
+        errorMessage: message,
       });
     }
   }
@@ -59,49 +80,50 @@ export class EmailService {
     maxRetries = 3,
   ): Promise<boolean> {
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
-      const { data, error } = await this.resend.emails.send({
-        from: `${this.fromName} <${this.fromEmail}>`,
-        to,
-        subject,
-        html,
-      });
+      try {
+        const info = await this.transporter.sendMail({
+          from: `${this.fromName} <${this.fromEmail}>`,
+          to,
+          subject,
+          html,
+        });
 
-      if (!error) {
-        this.logger.log({ 
-          msg: 'Email sent successfully', 
-          to, 
-          subject, 
-          emailId: data?.id,
+        this.logger.log({
+          msg: 'Email sent successfully',
+          to,
+          subject,
+          messageId: info.messageId,
           attempt,
         });
         return true;
-      }
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : String(err);
+        const isLastAttempt = attempt === maxRetries;
 
-      const isLastAttempt = attempt === maxRetries;
-      if (isLastAttempt) {
-        this.logger.error({
-          msg: 'Failed to send email after all retries',
+        if (isLastAttempt) {
+          this.logger.error({
+            msg: 'Failed to send email after all retries',
+            to,
+            subject,
+            from: this.fromEmail,
+            attempts: maxRetries,
+            errorMessage: message,
+          });
+          return false;
+        }
+
+        // Exponential backoff: 1s, 2s, 4s
+        const delay = 1000 * Math.pow(2, attempt - 1);
+        this.logger.warn({
+          msg: 'Email send failed, retrying',
           to,
           subject,
-          from: this.fromEmail,
-          attempts: maxRetries,
-          errorMessage: error.message,
-          errorName: error.name,
+          attempt,
+          nextRetryIn: `${delay}ms`,
+          errorMessage: message,
         });
-        return false;
+        await new Promise(resolve => setTimeout(resolve, delay));
       }
-
-      // Exponential backoff: 1s, 2s, 4s
-      const delay = 1000 * Math.pow(2, attempt - 1);
-      this.logger.warn({
-        msg: 'Email send failed, retrying',
-        to,
-        subject,
-        attempt,
-        nextRetryIn: `${delay}ms`,
-        error: error.message,
-      });
-      await new Promise(resolve => setTimeout(resolve, delay));
     }
 
     return false;

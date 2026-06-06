@@ -19,9 +19,12 @@ export const validationSchema = Joi.object({
 
   QR_HMAC_SECRET: Joi.string().min(32).required(),
 
-  RESEND_API_KEY: Joi.string().required(),
-  RESEND_FROM_EMAIL: Joi.string().email().required(),
-  RESEND_FROM_NAME: Joi.string().default('Axon Tickets'),
+  SMTP_HOST: Joi.string().hostname().default('smtp-relay.brevo.com'),
+  SMTP_PORT: Joi.number().default(587),
+  SMTP_USER: Joi.string().required(),
+  SMTP_PASS: Joi.string().required(),
+  SMTP_FROM_EMAIL: Joi.string().email().required(),
+  SMTP_FROM_NAME: Joi.string().default('Axon Tickets'),
 
   CLOUDINARY_CLOUD_NAME: Joi.string().required(),
   CLOUDINARY_API_KEY: Joi.string().required(),
