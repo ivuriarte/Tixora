@@ -84,14 +84,17 @@ function AccessForm() {
     e.preventDefault();
     setLoading(true);
     try {
-      const res = await api.post<{ data: { userId: string } }>('/auth/request-access', { email });
+      // 15 s timeout — shorter than the global 30 s so users get a clear error
+      // message rather than a blank loading screen if the API is slow/unreachable
+      const res = await api.post<{ data: { userId: string } }>('/auth/request-access', { email }, { timeout: 15_000 });
       const { userId } = res.data.data;
       setPendingAuth({ userId, accessToken: '', refreshToken: '' });
       setStep('code');
       startResendTimer();
       setTimeout(() => otpInputRef.current?.focus(), 50);
     } catch (err: any) {
-      const msg = err?.response?.data?.message ?? 'Could not send code';
+      const isTimeout = err?.code === 'ECONNABORTED' || err?.code === 'ERR_NETWORK';
+      const msg = err?.response?.data?.message ?? (isTimeout ? 'Request timed out. Please try again.' : 'Could not send code. Please try again.');
       toast.error(Array.isArray(msg) ? msg.join(', ') : msg);
     } finally {
       setLoading(false);

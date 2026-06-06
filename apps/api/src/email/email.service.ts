@@ -22,10 +22,23 @@ export class EmailService implements OnModuleDestroy {
       host: config.get<string>('smtp.host'),
       port: config.get<number>('smtp.port') ?? 587,
       secure: false, // STARTTLS on port 587
+      // Hard limits so a slow/unreachable SMTP server never hangs the Vercel function
+      connectionTimeout: 5_000,  // 5 s to establish TCP connection
+      greetingTimeout: 5_000,    // 5 s for SMTP greeting after connection
+      socketTimeout: 10_000,     // 10 s idle socket before giving up
       auth: {
         user: config.get<string>('smtp.user'),
         pass: config.get<string>('smtp.pass'),
       },
+    });
+
+    // Log SMTP config on startup so misconfiguration is immediately visible
+    this.logger.log({
+      msg: 'SMTP transporter initialised',
+      host: config.get<string>('smtp.host'),
+      port: config.get<number>('smtp.port') ?? 587,
+      user: config.get<string>('smtp.user'),
+      fromEmail: this.fromEmail,
     });
   }
 
@@ -133,6 +146,8 @@ export class EmailService implements OnModuleDestroy {
 
   /**
    * Send OTP email with retry logic (critical for user registration).
+   * Uses maxRetries=2 so worst-case time stays within Vercel's 30 s function limit:
+   *   attempt 1 (up to 20 s) → 1 s backoff → attempt 2 (up to 20 s) → done
    * Returns true if sent successfully, false otherwise.
    */
   async sendOtpEmail(to: string, code: string): Promise<boolean> {
@@ -145,6 +160,7 @@ export class EmailService implements OnModuleDestroy {
         <p style="font-size:36px;font-weight:bold;letter-spacing:8px;color:#EA6C00">${code}</p>
         <p style="color:#64748b;font-size:14px">This code expires in 5 minutes. Do not share it with anyone.</p>
       </div>`,
+      2, // maxRetries — keep total time < 30 s (Vercel function limit)
     );
   }
 
