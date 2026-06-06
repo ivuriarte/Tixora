@@ -1,5 +1,4 @@
 // @ts-check
-import { withSentryConfig } from '@sentry/nextjs';
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
@@ -56,21 +55,4 @@ const nextConfig = {
   },
 };
 
-const sentryBuildEnabled = !!process.env.SENTRY_AUTH_TOKEN &&
-  !!process.env.SENTRY_ORG &&
-  !!process.env.SENTRY_PROJECT;
-
-export default sentryBuildEnabled
-  ? withSentryConfig(nextConfig, {
-      silent: !process.env.CI,
-      authToken: process.env.SENTRY_AUTH_TOKEN,
-      org: process.env.SENTRY_ORG,
-      project: process.env.SENTRY_PROJECT,
-      // Route browser Sentry requests through Next.js to avoid ad-blockers
-      tunnelRoute: '/monitoring',
-      autoInstrumentClientSide: true,
-      automaticVercelMonitors: false,
-      hideSourceMaps: true,
-      disableLogger: true,
-    })
-  : nextConfig;
+export default nextConfig;
