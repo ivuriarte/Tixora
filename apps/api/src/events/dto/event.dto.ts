@@ -102,6 +102,12 @@ export class PaymentMethodItemDto {
   @IsString()
   @MaxLength(500)
   qrImageUrl?: string;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  @MaxLength(1000)
+  instructions?: string;
 }
 
 export class CreateEventDto {

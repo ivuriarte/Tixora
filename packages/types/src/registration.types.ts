@@ -47,6 +47,7 @@ export interface RegistrationEvent {
     type?: string;
     accountName?: string;
     accountNumber?: string;
+    qrImageUrl?: string;
     instructions?: string;
   }> | null;
 }

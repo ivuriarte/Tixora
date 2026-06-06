@@ -94,6 +94,7 @@ export default function PaymentStepPage() {
     type?: string;
     accountName?: string;
     accountNumber?: string;
+    qrImageUrl?: string;
     instructions?: string;
   }>;
   const hasBank = ev.bankName || ev.bankAccountNumber;
@@ -213,6 +214,17 @@ export default function PaymentStepPage() {
                 )}
                 {m.instructions && (
                   <p className="mt-1 text-xs text-gray-500">{m.instructions}</p>
+                )}
+                {m.qrImageUrl && (
+                  <div className="mt-3 flex justify-center">
+                    <div className="inline-block rounded-lg border-2 border-gray-200 bg-white p-2 shadow-sm">
+                      <img
+                        src={m.qrImageUrl}
+                        alt={`${m.name} QR Code`}
+                        className="h-48 w-48 object-contain"
+                      />
+                    </div>
+                  </div>
                 )}
               </div>
             ))}
