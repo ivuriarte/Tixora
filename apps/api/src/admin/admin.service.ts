@@ -820,8 +820,8 @@ export class AdminService {
       }),
       // Count valid tickets per tier (legacy flow)
       this.prisma.ticket.groupBy({
-        by: ['tierId'],
-        where: { eventId, status: { in: ['valid', 'used'] }, tierId: { not: null } },
+        by: ['ticketTierId'],
+        where: { eventId, status: { in: ['valid', 'used'] } },
         _count: { id: true },
       }),
     ]);
@@ -841,13 +841,14 @@ export class AdminService {
     const tierSoldMap = new Map<string, number>();
     for (const item of verifiedAttendeesPerTier) {
       if (item.tierId) {
-        tierSoldMap.set(item.tierId, Number(item._sum.attendeeCount ?? 0));
+        tierSoldMap.set(item.tierId, Number(item._sum?.attendeeCount ?? 0));
       }
     }
     for (const item of validTicketsPerTier) {
-      if (item.tierId) {
-        const current = tierSoldMap.get(item.tierId) ?? 0;
-        tierSoldMap.set(item.tierId, current + item._count.id);
+      if (item.ticketTierId && item._count) {
+        const current = tierSoldMap.get(item.ticketTierId) ?? 0;
+        const ticketCount = typeof item._count === 'object' ? (item._count.id ?? 0) : 0;
+        tierSoldMap.set(item.ticketTierId, current + ticketCount);
       }
     }
 
