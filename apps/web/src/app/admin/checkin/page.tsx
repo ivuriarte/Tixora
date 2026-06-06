@@ -90,6 +90,8 @@ export default function AdminCheckinPage() {
       readerRef.current = null;
     }
     setCameraActive(false);
+    // Always clear errors when stopping camera to prevent stale messages
+    setCameraError('');
   }, []);
 
   const startCamera = useCallback(async () => {
@@ -114,6 +116,8 @@ export default function AdminCheckinPage() {
           handleCheckin(result.getText());
         }
         if (err && !(err.name === 'NotFoundException')) {
+          // Ignore errors after scan lock is engaged (scan succeeded, camera stopping)
+          if (scanLockRef.current) return;
           // NotFoundException fires constantly while waiting for QR — suppress it
           if ((err as any).name === 'NotAllowedError') {
             setCameraError('Camera access was denied. Please allow camera access in your browser settings, then try again.');
@@ -270,7 +274,18 @@ export default function AdminCheckinPage() {
                 </div>
               )}
             </div>
-            {cameraError && <p className="text-sm text-red-600">{cameraError}</p>}
+            {cameraError && (
+              <div className="bg-red-50 border border-red-200 rounded-lg p-3 flex items-start gap-2">
+                <span className="text-red-600 text-sm flex-1">{cameraError}</span>
+                <button
+                  onClick={() => setCameraError('')}
+                  className="text-red-400 hover:text-red-600 font-bold text-lg leading-none -mt-0.5"
+                  aria-label="Dismiss error"
+                >
+                  ×
+                </button>
+              </div>
+            )}
             <div className="flex gap-3">
               <Button
                 onClick={startCamera}
@@ -353,8 +368,8 @@ export default function AdminCheckinPage() {
 
         {/* Result card */}
         {result && (
-          <div className="bg-green-50 border border-green-200 rounded-2xl p-6 space-y-2 animate-fade-in-up" role="status" aria-live="polite">
-            <p className="text-2xl text-center">✅</p>
+          <div className="bg-green-50 border-2 border-green-400 rounded-2xl p-6 space-y-2 shadow-lg animate-fade-in-up" role="status" aria-live="polite">
+            <p className="text-4xl text-center">✅</p>
             <p className="font-bold text-gray-900 text-center text-lg">{result.attendeeName}</p>
             <div className="text-sm text-gray-600 text-center space-y-0.5">
               {result.tierName && <p>{result.tierName}</p>}
