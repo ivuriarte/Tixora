@@ -169,7 +169,9 @@ export default async function HomePage({ searchParams }: { searchParams: { page?
                     {featured.sponsors.map((s, i) => (
                       <div key={i} className="text-center">
                         {s.logoUrl ? (
-                          <Image src={s.logoUrl} alt={s.name} width={120} height={40} className="h-10 w-auto object-contain mx-auto" />
+                          <div className="flex items-center justify-center bg-white border border-gray-200 rounded-xl px-5 py-3 shadow-sm h-16 min-w-[100px]">
+                            <Image src={s.logoUrl} alt={s.name} width={120} height={40} className="h-10 w-auto object-contain mx-auto" />
+                          </div>
                         ) : (
                           <span className="text-gray-700 font-semibold text-lg">{s.name}</span>
                         )}
