@@ -241,91 +241,98 @@ export default async function HomePage({ searchParams }: { searchParams: { page?
       <AdminRedirect />
       <Navbar />
       <main className="bg-gray-50 min-h-screen">
-        {/* Netflix-style featured hero — only rendered when an event is marked featured in admin */}
+        {/* Featured hero — two-column on desktop, stacked on mobile */}
         {dbHero && (
-        <section className="relative overflow-hidden bg-[#0a0a0a] text-white h-screen flex flex-col justify-center">
-          {/* Background portrait — right side, faded into gradient */}
-          <div className="absolute inset-y-0 right-0 w-full md:w-3/5 lg:w-1/2 overflow-hidden">
-            {/* Subtle gold glow behind speaker */}
-            <div className="absolute right-8 top-1/2 -translate-y-1/2 w-80 h-80 bg-amber-500/10 rounded-full blur-3xl pointer-events-none" />
-            {dbHero.imageUrl && (
-              <Image
-                src={dbHero.imageUrl}
-                alt={[dbHero.speakerName, dbHero.title].filter(Boolean).join(' — ')}
-                fill
-                priority
-                sizes="(max-width: 768px) 100vw, 50vw"
-                className="object-cover object-top opacity-60 md:opacity-85"
-              />
-            )}
-            <div className="absolute inset-0 bg-gradient-to-r from-[#0a0a0a] via-[#0a0a0a]/70 to-transparent md:via-[#0a0a0a]/30" />
+        <section className="bg-[#0a0a0a] text-white overflow-hidden">
+          {/* Ambient glow */}
+          <div className="pointer-events-none absolute inset-0 overflow-hidden">
+            <div className="absolute -top-40 left-1/3 w-[600px] h-[600px] bg-amber-500/5 rounded-full blur-3xl" />
           </div>
 
-          <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 md:py-12">
-            <div className="max-w-2xl">
-              {/* DCV brand chip */}
-              <div className="inline-flex items-center gap-2 bg-amber-500/15 border border-amber-500/30 rounded-full px-4 py-1.5 mb-4">
-                <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
-                <span className="text-amber-400 font-bold uppercase tracking-[0.2em] text-xs">
-                  {dbHero.tagline}
-                </span>
+          <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 lg:py-16">
+            <div className="flex flex-col lg:flex-row lg:items-center lg:gap-14">
+
+              {/* Left — content (order-2 on mobile so image shows first) */}
+              <div className="order-2 lg:order-1 lg:flex-1 pt-8 lg:pt-0">
+                {dbHero.tagline && (
+                  <div className="inline-flex items-center gap-2 bg-amber-500/15 border border-amber-500/30 rounded-full px-4 py-1.5 mb-5">
+                    <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
+                    <span className="text-amber-400 font-bold uppercase tracking-[0.2em] text-xs">{dbHero.tagline}</span>
+                  </div>
+                )}
+
+                <h1 className="text-3xl sm:text-4xl lg:text-5xl font-extrabold leading-[1.05] tracking-tight mb-2">
+                  {dbHero.title}
+                </h1>
+                {dbHero.speakerName && dbHero.speakerName !== dbHero.title && (
+                  <p className="text-amber-400 text-xl md:text-2xl font-extrabold leading-tight mb-4">
+                    {dbHero.speakerName}
+                  </p>
+                )}
+
+                <p className="text-slate-300 text-sm md:text-base leading-relaxed mb-6 line-clamp-3 max-w-xl">
+                  {dbHero.description}
+                </p>
+
+                <div className="flex flex-col gap-2.5 mb-7 text-sm">
+                  <div className="flex items-center gap-2.5 text-slate-300">
+                    <svg className="w-4 h-4 text-amber-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                    </svg>
+                    <time>{heroDate}</time>
+                  </div>
+                  <div className="flex items-center gap-2.5 text-slate-300">
+                    <svg className="w-4 h-4 text-amber-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    <span>{heroTime}</span>
+                  </div>
+                  <div className="flex items-center gap-2.5 text-slate-300">
+                    <svg className="w-4 h-4 text-amber-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                    </svg>
+                    <span>{dbHero.venue}, {dbHero.city}</span>
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-4">
+                  <Link
+                    href={`/events/${dbHero.slug}`}
+                    className="inline-flex items-center gap-2 bg-amber-500 hover:bg-amber-400 text-black font-bold px-8 py-3.5 rounded-lg text-base transition-colors shadow-lg shadow-amber-900/30"
+                  >
+                    Reserve Your Seat
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M13 7l5 5m0 0l-5 5m5-5H6" />
+                    </svg>
+                  </Link>
+                  {heroCapacity && (
+                    <span className="flex items-center gap-1.5 text-xs text-amber-200/70 border border-amber-400/20 rounded-full px-3 py-1.5">
+                      <svg className="w-3.5 h-3.5 text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
+                      </svg>
+                      {heroCapacity}
+                    </span>
+                  )}
+                </div>
               </div>
 
-              {/* Title */}
-              <h1 className="text-3xl md:text-4xl lg:text-5xl font-extrabold leading-[1.05] tracking-tight mb-1.5">
-                {dbHero.title}
-              </h1>
-              {dbHero.speakerName && dbHero.speakerName !== dbHero.title && (
-                <p className="text-amber-400 text-xl md:text-2xl font-extrabold leading-tight mb-4">
-                  {dbHero.speakerName}
-                </p>
+              {/* Right — event image card (order-1 on mobile so it shows at top) */}
+              {dbHero.imageUrl && (
+                <div className="order-1 lg:order-2 lg:w-[48%] lg:flex-shrink-0">
+                  <div className="relative w-full aspect-video lg:aspect-[4/3] rounded-2xl overflow-hidden shadow-2xl shadow-black/70 ring-1 ring-white/10 bg-[#111]">
+                    <Image
+                      src={dbHero.imageUrl}
+                      alt={[dbHero.speakerName, dbHero.title].filter(Boolean).join(' — ')}
+                      fill
+                      priority
+                      sizes="(max-width: 1024px) 100vw, 48vw"
+                      className="object-contain"
+                    />
+                  </div>
+                </div>
               )}
 
-              <p className="text-slate-300 text-sm md:text-base leading-relaxed mb-5 max-w-xl line-clamp-3">
-                {dbHero.description}
-              </p>
-
-              {/* Event details */}
-              <div className="flex flex-col sm:flex-row sm:flex-wrap gap-3 mb-6 text-sm">
-                <div className="flex items-center gap-2 text-slate-300">
-                  <svg className="w-4 h-4 text-amber-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                  </svg>
-                  <time>{heroDate}</time>
-                </div>
-                <div className="flex items-center gap-2 text-slate-300">
-                  <svg className="w-4 h-4 text-amber-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                  <span>{heroTime}</span>
-                </div>
-                <div className="flex items-center gap-2 text-slate-300">
-                  <svg className="w-4 h-4 text-amber-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-                  </svg>
-                  <span>{`${dbHero.venue}, ${dbHero.city}`}</span>
-                </div>
-              </div>
-
-              {/* CTA + capacity badge */}
-              <div className="flex flex-wrap items-center gap-4">
-                <Link
-                  href={`/events/${dbHero.slug}`}
-                  className="inline-flex items-center gap-2 bg-amber-500 hover:bg-amber-400 text-black font-bold px-8 py-3.5 rounded-lg text-base transition-colors shadow-lg shadow-amber-900/30"
-                >
-                  Reserve Your Seat
-                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M13 7l5 5m0 0l-5 5m5-5H6" />
-                  </svg>
-                </Link>
-                <span className="flex items-center gap-1.5 text-xs text-amber-200/70 border border-amber-400/20 rounded-full px-3 py-1.5">
-                  <svg className="w-3.5 h-3.5 text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
-                  </svg>
-                  {heroCapacity}
-                </span>
-              </div>
             </div>
           </div>
         </section>
