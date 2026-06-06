@@ -21,9 +21,9 @@ export const validationSchema = Joi.object({
 
   SMTP_HOST: Joi.string().hostname().default('smtp-relay.brevo.com'),
   SMTP_PORT: Joi.number().default(587),
-  SMTP_USER: Joi.string().required(),
-  SMTP_PASS: Joi.string().required(),
-  SMTP_FROM_EMAIL: Joi.string().email().required(),
+  SMTP_USER: Joi.string().optional().allow(''),
+  SMTP_PASS: Joi.string().optional().allow(''),
+  SMTP_FROM_EMAIL: Joi.string().email().optional().allow(''),
   SMTP_FROM_NAME: Joi.string().default('Axon Tickets'),
 
   CLOUDINARY_CLOUD_NAME: Joi.string().required(),

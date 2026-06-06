@@ -7,9 +7,10 @@ import { QrService } from '../qr/qr.service';
 @Injectable()
 export class EmailService implements OnModuleDestroy {
   private readonly logger = new Logger(EmailService.name);
-  private readonly transporter: nodemailer.Transporter;
+  private readonly transporter: nodemailer.Transporter | null;
   private readonly fromName: string;
   private readonly fromEmail: string;
+  private readonly enabled: boolean;
 
   constructor(
     private readonly config: ConfigService,
@@ -17,33 +18,32 @@ export class EmailService implements OnModuleDestroy {
   ) {
     this.fromName = config.get<string>('smtp.fromName') ?? 'Axon Tickets';
     this.fromEmail = config.get<string>('smtp.fromEmail') ?? '';
+    const user = config.get<string>('smtp.user');
+    const pass = config.get<string>('smtp.pass');
+
+    this.enabled = Boolean(user && pass && this.fromEmail);
+
+    if (!this.enabled) {
+      this.transporter = null;
+      this.logger.warn({
+        msg: 'SMTP not configured — email sending disabled. Set SMTP_USER, SMTP_PASS, SMTP_FROM_EMAIL to enable.',
+      });
+      return;
+    }
 
     this.transporter = nodemailer.createTransport({
       host: config.get<string>('smtp.host'),
       port: config.get<number>('smtp.port') ?? 587,
       secure: false, // STARTTLS on port 587
-      // Hard limits so a slow/unreachable SMTP server never hangs the Vercel function
-      connectionTimeout: 5_000,  // 5 s to establish TCP connection
-      greetingTimeout: 5_000,    // 5 s for SMTP greeting after connection
-      socketTimeout: 10_000,     // 10 s idle socket before giving up
-      auth: {
-        user: config.get<string>('smtp.user'),
-        pass: config.get<string>('smtp.pass'),
-      },
-    });
-
-    // Log SMTP config on startup so misconfiguration is immediately visible
-    this.logger.log({
-      msg: 'SMTP transporter initialised',
-      host: config.get<string>('smtp.host'),
-      port: config.get<number>('smtp.port') ?? 587,
-      user: config.get<string>('smtp.user'),
-      fromEmail: this.fromEmail,
+      connectionTimeout: 5_000,
+      greetingTimeout: 5_000,
+      socketTimeout: 10_000,
+      auth: { user, pass },
     });
   }
 
   onModuleDestroy(): void {
-    this.transporter.close();
+    this.transporter?.close();
   }
 
   /**
@@ -56,6 +56,10 @@ export class EmailService implements OnModuleDestroy {
     html: string,
     attachments?: { content: string | Buffer; filename: string; content_type: string }[],
   ): Promise<void> {
+    if (!this.transporter) {
+      this.logger.warn({ msg: 'Email skipped (SMTP disabled)', to, subject });
+      return;
+    }
     const mailOptions: Mail.Options = {
       from: `${this.fromName} <${this.fromEmail}>`,
       to,
@@ -92,6 +96,10 @@ export class EmailService implements OnModuleDestroy {
     html: string,
     maxRetries = 3,
   ): Promise<boolean> {
+    if (!this.transporter) {
+      this.logger.warn({ msg: 'OTP/critical email skipped (SMTP disabled)', to, subject });
+      return false;
+    }
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       try {
         const info = await this.transporter.sendMail({
