@@ -147,6 +147,8 @@ export default function AdminCheckinPage() {
     const t = token.trim();
     if (!t) return;
     setResult(null);
+    // Clear any previous camera error on successful scan
+    setCameraError('');
     try {
       const res = await api.post<{ data: CheckinResult }>('/admin/checkin', { qrToken: t });
       const r = res.data.data;
@@ -156,6 +158,7 @@ export default function AdminCheckinPage() {
       // Auto-restart camera after 2.5 s so staff can scan the next attendee immediately
       autoRestartRef.current = setTimeout(() => {
         setResult(null);
+        setCameraError(''); // Clear any error before restarting
         startCamera();
       }, 2500);
     } catch (err: any) {
@@ -169,6 +172,7 @@ export default function AdminCheckinPage() {
       // Auto-restart on error too — scanner should stay ready
       autoRestartRef.current = setTimeout(() => {
         setResult(null);
+        setCameraError(''); // Clear any error before restarting
         startCamera();
       }, 3500);
     } finally {
