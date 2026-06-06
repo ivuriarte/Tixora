@@ -56,22 +56,21 @@ const nextConfig = {
   },
 };
 
-export default withSentryConfig(nextConfig, {
-  // Suppress Sentry CLI output during builds
-  silent: !process.env.CI,
-  // Upload source maps only when SENTRY_AUTH_TOKEN is present — skip silently otherwise
-  disableSourceMapsUpload: !process.env.SENTRY_AUTH_TOKEN,
-  authToken: process.env.SENTRY_AUTH_TOKEN,
-  org: process.env.SENTRY_ORG,
-  project: process.env.SENTRY_PROJECT,
-  // Route browser Sentry requests through Next.js to avoid ad-blockers
-  tunnelRoute: '/monitoring',
-  // Explicitly enable client-side auto-instrumentation (injects sentry.client.config.ts)
-  autoInstrumentClientSide: true,
-  // Don't open browser on upload
-  automaticVercelMonitors: false,
-  // Hide source maps from client bundle
-  hideSourceMaps: true,
-  // Strip Sentry's debug logger from the production bundle (reduces bundle size)
-  disableLogger: true,
-});
+const sentryBuildEnabled = !!process.env.SENTRY_AUTH_TOKEN &&
+  !!process.env.SENTRY_ORG &&
+  !!process.env.SENTRY_PROJECT;
+
+export default sentryBuildEnabled
+  ? withSentryConfig(nextConfig, {
+      silent: !process.env.CI,
+      authToken: process.env.SENTRY_AUTH_TOKEN,
+      org: process.env.SENTRY_ORG,
+      project: process.env.SENTRY_PROJECT,
+      // Route browser Sentry requests through Next.js to avoid ad-blockers
+      tunnelRoute: '/monitoring',
+      autoInstrumentClientSide: true,
+      automaticVercelMonitors: false,
+      hideSourceMaps: true,
+      disableLogger: true,
+    })
+  : nextConfig;
