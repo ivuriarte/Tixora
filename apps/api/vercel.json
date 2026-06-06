@@ -5,7 +5,8 @@
   "functions": {
     "api/index.js": {
       "memory": 1024,
-      "maxDuration": 30
+      "maxDuration": 30,
+      "includeFiles": "api/{libquery_engine*.node,schema.prisma,client/libquery_engine*.node}"
     }
   },
   "rewrites": [
