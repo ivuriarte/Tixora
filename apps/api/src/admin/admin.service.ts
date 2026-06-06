@@ -777,6 +777,8 @@ export class AdminService {
       checkedInAttendees,
       verifiedAttendees,
       pendingRegistrations,
+      verifiedAttendeesPerTier,
+      validTicketsPerTier,
     ] = await Promise.all([
       this.prisma.event.findUnique({
         where: { id: eventId },
@@ -810,6 +812,18 @@ export class AdminService {
       this.prisma.registration.count({
         where: { eventId, status: 'pending_payment' },
       }),
+      // Count verified attendees per tier (for tier breakdown)
+      this.prisma.registration.groupBy({
+        by: ['tierId'],
+        where: { eventId, status: 'verified', tierId: { not: null } },
+        _sum: { attendeeCount: true },
+      }),
+      // Count valid tickets per tier (legacy flow)
+      this.prisma.ticket.groupBy({
+        by: ['tierId'],
+        where: { eventId, status: { in: ['valid', 'used'] }, tierId: { not: null } },
+        _count: { id: true },
+      }),
     ]);
 
     if (!event) throw new NotFoundException('Event not found');
@@ -822,6 +836,20 @@ export class AdminService {
     const totalFees =
       Number(orderRevenueStats._sum.fees ?? 0) +
       Number(registrationRevenueStats._sum.fees ?? 0);
+
+    // Build a map of tierId -> soldCount (verified only)
+    const tierSoldMap = new Map<string, number>();
+    for (const item of verifiedAttendeesPerTier) {
+      if (item.tierId) {
+        tierSoldMap.set(item.tierId, Number(item._sum.attendeeCount ?? 0));
+      }
+    }
+    for (const item of validTicketsPerTier) {
+      if (item.tierId) {
+        const current = tierSoldMap.get(item.tierId) ?? 0;
+        tierSoldMap.set(item.tierId, current + item._count.id);
+      }
+    }
 
     return {
       eventId,
@@ -841,18 +869,23 @@ export class AdminService {
       totalSold,
       totalCheckedIn,
       checkInRate: totalSold > 0 ? Math.round((totalCheckedIn / totalSold) * 100) : 0,
-      tierBreakdown: event.tiers.map((tier: (typeof event.tiers)[number]) => ({
-        tierId: tier.id,
-        tierName: tier.name,
-        totalQuantity: tier.totalQuantity,
-        soldQuantity: tier.soldQuantity,
-        available: Math.max(0, tier.totalQuantity - tier.soldQuantity),
-        price: Number(tier.price),
-        revenue: Number(tier.price) * tier.soldQuantity,
-        fillRate: tier.totalQuantity > 0
-          ? Math.round((tier.soldQuantity / tier.totalQuantity) * 100)
-          : 0,
-      })),
+      tierBreakdown: event.tiers.map((tier: (typeof event.tiers)[number]) => {
+        const soldQuantity = tierSoldMap.get(tier.id) ?? 0;
+        const available = Math.max(0, tier.totalQuantity - soldQuantity);
+        const revenue = Number(tier.price) * soldQuantity;
+        const fillRate =
+          tier.totalQuantity > 0 ? Math.round((soldQuantity / tier.totalQuantity) * 100) : 0;
+        return {
+          tierId: tier.id,
+          tierName: tier.name,
+          totalQuantity: tier.totalQuantity,
+          soldQuantity,
+          available,
+          price: Number(tier.price),
+          revenue,
+          fillRate,
+        };
+      }),
     };
   }
 
