@@ -9,11 +9,9 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "qrcode": "^1.5.3"
-  },
-  "devDependencies": {
     "@types/node": "^20.0.0",
     "@types/qrcode": "^1.5.5",
+    "qrcode": "^1.5.3",
     "typescript": "^5.5.0"
   }
 }

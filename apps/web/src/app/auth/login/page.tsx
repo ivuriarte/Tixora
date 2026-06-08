@@ -6,7 +6,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuthStore } from '@/store/auth.store';
 import { useIsInAppBrowser } from '@/lib/useIsInAppBrowser';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api-tau-six-59.vercel.app/api/v1';
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api-ivvuriarte-5014s-projects.vercel.app/api/v1';
 
 function LoginForm() {
   const router = useRouter();

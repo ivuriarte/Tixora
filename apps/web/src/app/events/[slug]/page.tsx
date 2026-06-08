@@ -60,7 +60,7 @@ interface Event {
 }
 
 async function getEvent(slug: string): Promise<Event | null> {
-  const baseUrl = (process.env.NEXT_PUBLIC_API_URL || 'https://api-tau-six-59.vercel.app/api/v1');
+  const baseUrl = (process.env.NEXT_PUBLIC_API_URL || 'https://api-ivvuriarte-5014s-projects.vercel.app/api/v1');
   try {
     const res = await fetch(`${baseUrl}/events/${slug}`, { next: { revalidate: 30 }, signal: AbortSignal.timeout(8000) });
     if (!res.ok) return null;

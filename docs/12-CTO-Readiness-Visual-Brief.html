@@ -1,0 +1,585 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Axon Tickets - CTO Readiness Visual Brief</title>
+    <style>
+      :root {
+        --bg: #f4f7fb;
+        --card: #ffffff;
+        --text: #172033;
+        --muted: #5f6b7a;
+        --line: #d9e1ec;
+        --primary: #1a3a5c;
+        --accent: #ea6c00;
+        --good: #166534;
+        --warn: #9a3412;
+        --risk: #991b1b;
+      }
+
+      * { box-sizing: border-box; }
+
+      body {
+        margin: 0;
+        font-family: "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        background: linear-gradient(180deg, #eef3fa 0%, var(--bg) 100%);
+        color: var(--text);
+        line-height: 1.45;
+      }
+
+      .page {
+        max-width: 1100px;
+        margin: 0 auto;
+        padding: 28px 20px 50px;
+      }
+
+      .hero {
+        background: linear-gradient(125deg, #17314d 0%, #264f79 100%);
+        color: #ffffff;
+        border-radius: 18px;
+        padding: 24px;
+        margin-bottom: 18px;
+      }
+
+      .hero h1 {
+        margin: 0 0 8px;
+        font-size: 30px;
+      }
+
+      .hero p {
+        margin: 0;
+        color: #d5e2f3;
+      }
+
+      .grid {
+        display: grid;
+        gap: 12px;
+      }
+
+      .grid.scores {
+        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+        margin-bottom: 16px;
+      }
+
+      .card {
+        background: var(--card);
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        padding: 14px;
+      }
+
+      .score-title {
+        color: var(--muted);
+        font-size: 12px;
+        text-transform: uppercase;
+        letter-spacing: 0.6px;
+      }
+
+      .score-value {
+        font-size: 30px;
+        margin-top: 6px;
+        font-weight: 700;
+      }
+
+      .meter {
+        margin-top: 8px;
+        height: 8px;
+        background: #edf2f8;
+        border-radius: 99px;
+        overflow: hidden;
+      }
+
+      .meter > span {
+        display: block;
+        height: 100%;
+        background: linear-gradient(90deg, #f2a24f 0%, #2a7ac0 60%, #1f8f4a 100%);
+      }
+
+      h2 {
+        font-size: 20px;
+        margin: 0 0 10px;
+        color: var(--primary);
+      }
+
+      h3 {
+        font-size: 15px;
+        margin: 0 0 8px;
+        color: var(--primary);
+      }
+
+      .two-col {
+        display: grid;
+        gap: 12px;
+        grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+        margin-bottom: 16px;
+      }
+
+      .status-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 14px;
+      }
+
+      .status-table th,
+      .status-table td {
+        border: 1px solid var(--line);
+        padding: 8px 10px;
+        text-align: left;
+        vertical-align: top;
+      }
+
+      .status-table th {
+        background: #f1f6fc;
+      }
+
+      .tag {
+        display: inline-block;
+        font-size: 12px;
+        font-weight: 600;
+        padding: 3px 8px;
+        border-radius: 999px;
+      }
+
+      .done { background: #dcfce7; color: var(--good); }
+      .partial { background: #fff7ed; color: var(--warn); }
+      .missing { background: #fee2e2; color: var(--risk); }
+      .risk-high { background: #fee2e2; color: var(--risk); }
+      .risk-med { background: #fff7ed; color: var(--warn); }
+
+      ul {
+        margin: 8px 0 0;
+        padding-left: 18px;
+      }
+
+      li { margin-bottom: 7px; }
+
+      .timeline {
+        display: grid;
+        gap: 12px;
+        grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      }
+
+      .timeline .card {
+        border-top: 4px solid var(--accent);
+      }
+
+      .plain-note {
+        font-size: 14px;
+        color: var(--muted);
+      }
+
+      .footer {
+        margin-top: 16px;
+        font-size: 13px;
+        color: var(--muted);
+      }
+
+      @media print {
+        body { background: #fff; }
+        .page { max-width: none; padding: 0; }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="page">
+      <section class="hero">
+        <h1>Axon Tickets - Readiness Visual Brief</h1>
+        <p>
+          Beginner-friendly summary of the CTO code-freeze assessment. Focus: what is working,
+          what is risky, and what to prioritize in the next 90 days.
+        </p>
+      </section>
+
+      <section class="grid scores">
+        <article class="card">
+          <div class="score-title">Platform Maturity</div>
+          <div class="score-value">74/100</div>
+          <div class="meter"><span style="width:74%"></span></div>
+        </article>
+        <article class="card">
+          <div class="score-title">Production Readiness</div>
+          <div class="score-value">69/100</div>
+          <div class="meter"><span style="width:69%"></span></div>
+        </article>
+        <article class="card">
+          <div class="score-title">Security Readiness</div>
+          <div class="score-value">75/100</div>
+          <div class="meter"><span style="width:75%"></span></div>
+        </article>
+        <article class="card">
+          <div class="score-title">Operational Readiness</div>
+          <div class="score-value">72/100</div>
+          <div class="meter"><span style="width:72%"></span></div>
+        </article>
+        <article class="card">
+          <div class="score-title">Architecture Maturity</div>
+          <div class="score-value">76/100</div>
+          <div class="meter"><span style="width:76%"></span></div>
+        </article>
+        <article class="card">
+          <div class="score-title">Data Maturity</div>
+          <div class="score-value">61/100</div>
+          <div class="meter"><span style="width:61%"></span></div>
+        </article>
+        <article class="card">
+          <div class="score-title">Observability Maturity</div>
+          <div class="score-value">66/100</div>
+          <div class="meter"><span style="width:66%"></span></div>
+        </article>
+      </section>
+
+      <section class="card" style="margin-bottom:16px">
+        <h2>What This Means In Plain English</h2>
+        <p class="plain-note">
+          The platform is already useful for real events and can handle core event operations.
+          The biggest gap is visibility: the system can execute many tasks, but it still lacks
+          full funnel insight, deep historical analytics, and incident-level monitoring confidence
+          needed for larger scale.
+        </p>
+      </section>
+
+      <section class="two-col">
+        <article class="card">
+          <h3>Top Strengths</h3>
+          <ul>
+            <li>Full registration to approval to QR delivery flow is live.</li>
+            <li>Manual and online payment paths are both present.</li>
+            <li>Admin controls cover events, verifications, users, and check-in.</li>
+            <li>QR duplicate-entry prevention is active.</li>
+            <li>Health checks include both database and Redis.</li>
+            <li>Security layers include JWT, guards, validation, throttling, and webhook checks.</li>
+            <li>Audit logging is implemented on key operational actions.</li>
+          </ul>
+        </article>
+
+        <article class="card">
+          <h3>Top Risks</h3>
+          <ul>
+            <li>Behavior tracking is not deep enough for full funnel analytics.</li>
+            <li>Email and payment exceptions are not yet easy to monitor in one place.</li>
+            <li>Some known dependency/security upgrades are still deferred.</li>
+            <li>Live-event diagnosis confidence is moderate, not high.</li>
+            <li>Historical benchmarking and executive reporting are still immature.</li>
+            <li>Scale confidence above 1,000 attendees is not strongly evidenced yet.</li>
+            <li>Data completeness for future intelligence is still partial.</li>
+          </ul>
+        </article>
+      </section>
+
+      <section class="card" style="margin-bottom:16px">
+        <h2>P0 / P1 / P2 Alignment Snapshot</h2>
+        <table class="status-table">
+          <thead>
+            <tr>
+              <th>Roadmap Area</th>
+              <th>Status</th>
+              <th>Simple Reading</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>P0 - QR Ticketing</td>
+              <td><span class="tag done">Completed</span></td>
+              <td>Core check-in flow is operational.</td>
+            </tr>
+            <tr>
+              <td>P0 - Payment Stability</td>
+              <td><span class="tag partial">Partially Complete</span></td>
+              <td>Core flows exist, but reconciliation visibility is limited.</td>
+            </tr>
+            <tr>
+              <td>P0 - Email Delivery</td>
+              <td><span class="tag partial">Partially Complete</span></td>
+              <td>Delivery works, but operational tracking is not mature.</td>
+            </tr>
+            <tr>
+              <td>P0 - Admin Dashboard</td>
+              <td><span class="tag done">Completed</span></td>
+              <td>Operational admin controls are broad and practical.</td>
+            </tr>
+            <tr>
+              <td>P0 - Event Analytics</td>
+              <td><span class="tag partial">Partially Complete</span></td>
+              <td>Useful metrics exist, but funnel depth is limited.</td>
+            </tr>
+            <tr>
+              <td>P1 - Funnel Analytics & Monitoring</td>
+              <td><span class="tag missing">Missing / Partial</span></td>
+              <td>Main blocker for moving from execution to visibility.</td>
+            </tr>
+            <tr>
+              <td>P2 - Benchmarking & Executive Reporting</td>
+              <td><span class="tag missing">Mostly Missing</span></td>
+              <td>Not enough historical and standardized data yet.</td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section class="card" style="margin-bottom:16px">
+        <h2>Production Scale Confidence</h2>
+        <table class="status-table">
+          <thead>
+            <tr>
+              <th>Event Size</th>
+              <th>Readiness</th>
+              <th>Risk Level</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>100 attendees</td>
+              <td><span class="tag done">Good</span></td>
+              <td><span class="tag risk-med">Low-Medium</span></td>
+            </tr>
+            <tr>
+              <td>500 attendees</td>
+              <td><span class="tag partial">Acceptable</span></td>
+              <td><span class="tag risk-med">Medium</span></td>
+            </tr>
+            <tr>
+              <td>1,000 attendees</td>
+              <td><span class="tag partial">Conditional</span></td>
+              <td><span class="tag risk-high">Medium-High</span></td>
+            </tr>
+            <tr>
+              <td>5,000 attendees</td>
+              <td><span class="tag missing">Not Ready</span></td>
+              <td><span class="tag risk-high">High</span></td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section>
+        <h2 style="margin-bottom:10px">90-Day Focus Timeline (No Rebuild Required)</h2>
+        <div class="timeline">
+          <article class="card">
+            <h3>Days 1-30: Stabilize and De-risk</h3>
+            <ul>
+              <li>Close deferred high-impact security/dependency items.</li>
+              <li>Increase confidence in payment and email operational reliability.</li>
+              <li>Harden live-event runbook and incident response discipline.</li>
+            </ul>
+          </article>
+
+          <article class="card">
+            <h3>Days 31-60: Build Visibility Layer</h3>
+            <ul>
+              <li>Establish funnel visibility from view to attendance.</li>
+              <li>Strengthen support and failure monitoring views.</li>
+              <li>Improve event health and alerting clarity for operations.</li>
+            </ul>
+          </article>
+
+          <article class="card">
+            <h3>Days 61-90: Prepare Intelligence Foundation</h3>
+            <ul>
+              <li>Standardize data quality and reporting definitions.</li>
+              <li>Expand historical reporting and trend confidence.</li>
+              <li>Validate readiness gates before moving into P2 benchmarking.</li>
+            </ul>
+          </article>
+        </div>
+      </section>
+
+      <section class="card" style="margin-top:16px; margin-bottom:16px">
+        <h2>What Makes This "Complete"</h2>
+        <p class="plain-note">
+          These are the remaining features and functions that would move Axon Tickets from
+          "working" to "complete" in a CTO sense. The first group changes the status fastest.
+        </p>
+        <div class="two-col" style="margin-top:12px">
+          <article class="card" style="margin:0; border-top:4px solid #166534">
+            <h3>Must-Have To Call It Complete</h3>
+            <ul>
+              <li>Funnel analytics and monitoring from visit to check-in.</li>
+              <li>Audit log viewer inside the admin app.</li>
+              <li>Admin proof alert email so payment proof reviews are not manual.</li>
+              <li>Structured alerting or on-call webhook for production errors.</li>
+              <li>Centralized log drain for faster incident diagnosis.</li>
+              <li>Benchmarking and executive reporting with historical trends.</li>
+            </ul>
+          </article>
+
+          <article class="card" style="margin:0; border-top:4px solid #9a3412">
+            <h3>Should-Have Before Scaling Hard</h3>
+            <ul>
+              <li>Cloudflare Turnstile or hCaptcha on bundle checkout.</li>
+              <li>KYC for bundle buyers with attendee names and emails required up front.</li>
+              <li>Payment-method binding to reduce repeat bundle abuse.</li>
+              <li>Detection signals for suspicious or automated purchases.</li>
+              <li>Virtual waiting room or staged release for high-demand events.</li>
+              <li>Upstash Redis Global for stronger multi-region resilience.</li>
+            </ul>
+          </article>
+        </div>
+        <div class="two-col" style="margin-top:12px">
+          <article class="card" style="margin:0; border-top:4px solid #0f4c81">
+            <h3>Existing Items That Help the Most</h3>
+            <ul>
+              <li>QR ticketing and admin dashboard are already completed.</li>
+              <li>Payment stability and email delivery are already partially working.</li>
+              <li>Security controls already include JWT, guards, validation, and throttling.</li>
+              <li>Health checks already cover database and Redis.</li>
+              <li>Anti-scalper basics like named tickets and per-account caps are already shipped.</li>
+            </ul>
+          </article>
+
+          <article class="card" style="margin:0; border-top:4px solid #b45309">
+            <h3>Todo Items That Most Directly Change Status</h3>
+            <ul>
+              <li>Audit Log Viewer.</li>
+              <li>Admin Proof Alert Email.</li>
+              <li>Structured alerting / on-call webhook for production errors.</li>
+              <li>Structured log drain.</li>
+              <li>P1 Funnel Analytics & Monitoring.</li>
+              <li>P2 Benchmarking & Executive Reporting.</li>
+              <li>Next.js 14 → 15 and NestJS 10 → 11 upgrades.</li>
+            </ul>
+          </article>
+        </div>
+      </section>
+
+      <section class="card" style="margin-top:16px; margin-bottom:16px">
+        <h2>Infrastructure and Performance Optimization Plan</h2>
+        <p class="plain-note">
+          This section combines the latest CTO review and recent conversations into a concrete,
+          execution-focused plan for performance improvement.
+        </p>
+
+        <h3 style="margin-top:14px">Performance Targets (Definition of Better)</h3>
+        <table class="status-table">
+          <thead>
+            <tr>
+              <th>Area</th>
+              <th>Current Reading</th>
+              <th>Target</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>API p95 latency</td>
+              <td>Moderate confidence</td>
+              <td>&lt; 350 ms for core registration and check-in APIs</td>
+            </tr>
+            <tr>
+              <td>API error rate</td>
+              <td>No single live SLO panel</td>
+              <td>&lt; 1% 5xx over rolling 15 minutes</td>
+            </tr>
+            <tr>
+              <td>Admin check-in response</td>
+              <td>Operational but event-day sensitive</td>
+              <td>&lt; 500 ms p95 during peak scanning windows</td>
+            </tr>
+            <tr>
+              <td>Web Core Web Vitals</td>
+              <td>Not fully governed</td>
+              <td>LCP &lt; 2.5 s, INP &lt; 200 ms, CLS &lt; 0.1 on key pages</td>
+            </tr>
+            <tr>
+              <td>Incident detection</td>
+              <td>Mostly manual</td>
+              <td>Automated alert in &lt; 2 minutes for high-severity failures</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <h3 style="margin-top:14px">Phase 1: Immediate (Week 1-2)</h3>
+        <ul>
+          <li>Enable structured alerting and on-call webhook for production failures (API and web).</li>
+          <li>Implement structured log drain for centralized queryable logs and faster RCA.</li>
+          <li>Create one operations dashboard for health, 5xx rates, payment failures, and email failures.</li>
+          <li>Add event-day runbook metrics: warmup checks, response thresholds, and fallback timing.</li>
+          <li>Define SLOs and error budgets for registration, proof upload, and check-in endpoints.</li>
+        </ul>
+
+        <h3 style="margin-top:14px">Phase 2: Stability and Throughput (Week 3-6)</h3>
+        <ul>
+          <li>Complete Audit Log Viewer so operations can diagnose without direct database access.</li>
+          <li>Complete Admin Proof Alert Email to remove manual polling delays.</li>
+          <li>Add queue-depth and processing-time visibility for proof review and registration workflows.</li>
+          <li>Instrument full funnel analytics: page view, register start, payment attempt, payment success, check-in.</li>
+          <li>Run controlled load tests for 100, 500, and 1,000 attendee scenarios with pass/fail gates.</li>
+        </ul>
+
+        <h3 style="margin-top:14px">Phase 3: Scale Hardening (Week 7-12)</h3>
+        <ul>
+          <li>Upgrade Next.js 14 to 15 and NestJS 10 to 11 in dedicated regression windows.</li>
+          <li>Move Redis to global or multi-region setup when budget allows to reduce cross-region latency risk.</li>
+          <li>Add anti-scalper controls on bundle checkout: Turnstile, behavioral signals, and method binding.</li>
+          <li>Introduce staged release or waiting-room controls for high-demand events.</li>
+          <li>Publish monthly benchmarking reports across events for forecast and capacity planning.</li>
+        </ul>
+
+        <h3 style="margin-top:14px">Engineering Checklist (Execution Order)</h3>
+        <table class="status-table">
+          <thead>
+            <tr>
+              <th>Priority</th>
+              <th>Work Item</th>
+              <th>Completion Signal</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>P0</td>
+              <td>Structured alerts and on-call webhook</td>
+              <td>Critical errors page the team automatically</td>
+            </tr>
+            <tr>
+              <td>P0</td>
+              <td>Structured log drain</td>
+              <td>Unified searchable logs for API and web</td>
+            </tr>
+            <tr>
+              <td>P0</td>
+              <td>Audit Log Viewer</td>
+              <td>Admin can trace operational incidents in-app</td>
+            </tr>
+            <tr>
+              <td>P0</td>
+              <td>Admin Proof Alert Email</td>
+              <td>Proof uploads trigger immediate reviewer notifications</td>
+            </tr>
+            <tr>
+              <td>P1</td>
+              <td>Funnel analytics and monitoring</td>
+              <td>Dashboard shows conversion and drop-off per event</td>
+            </tr>
+            <tr>
+              <td>P1</td>
+              <td>Load test gates for event sizes</td>
+              <td>Documented pass at 100 and 500, conditional pass at 1,000</td>
+            </tr>
+            <tr>
+              <td>P1</td>
+              <td>Security and platform upgrades</td>
+              <td>Next.js 15 and NestJS 11 released with no major regressions</td>
+            </tr>
+            <tr>
+              <td>P2</td>
+              <td>Benchmarking and executive reporting</td>
+              <td>Monthly trend pack used for planning and readiness reviews</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <h3 style="margin-top:14px">What to Do First This Week</h3>
+        <ul>
+          <li>Finish the two operational blockers already in TODO: Audit Log Viewer and Admin Proof Alert Email.</li>
+          <li>Turn on automated alert routing for production incidents.</li>
+          <li>Stand up one shared dashboard with latency, error rate, payment failures, and email failures.</li>
+          <li>Run one peak-hour load simulation and record bottlenecks before the next major event.</li>
+        </ul>
+      </section>
+
+      <p class="footer">
+        Final board-level reading: Axon Tickets is commercially usable now for controlled event volumes,
+        but should prioritize visibility and risk reduction before aggressive scaling.
+      </p>
+    </main>
+  </body>
+</html>
