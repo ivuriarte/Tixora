@@ -2,7 +2,7 @@ import axios, { AxiosError, InternalAxiosRequestConfig } from 'axios';
 import { getAccessToken, setAccessToken, clearAuth, getRefreshToken } from './auth';
 
 const api = axios.create({
-  baseURL: (process.env.NEXT_PUBLIC_API_URL || 'https://api-ivvuriarte-5014s-projects.vercel.app/api/v1'),
+  baseURL: (process.env.NEXT_PUBLIC_API_URL || 'https://api.axontickets.online/api/v1'),
   timeout: 30_000,
   // NOTE: do NOT set a global `Content-Type` header. Axios v1 sets it
   // automatically per request: `application/json` for plain objects,
@@ -60,7 +60,7 @@ api.interceptors.response.use(
       if (!refreshToken) throw new Error('No refresh token');
 
       const res = await axios.post<{ data: { accessToken: string } }>(
-        `${(process.env.NEXT_PUBLIC_API_URL || 'https://api-ivvuriarte-5014s-projects.vercel.app/api/v1')}/auth/refresh`,
+        `${(process.env.NEXT_PUBLIC_API_URL || 'https://api.axontickets.online/api/v1')}/auth/refresh`,
         { refreshToken },
       );
 

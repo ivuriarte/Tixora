@@ -73,7 +73,7 @@ export default function RegisterPage({
       return;
     }
 
-    const baseUrl = (process.env.NEXT_PUBLIC_API_URL || 'https://api-ivvuriarte-5014s-projects.vercel.app/api/v1');
+    const baseUrl = (process.env.NEXT_PUBLIC_API_URL || 'https://api.axontickets.online/api/v1');
 
     const eventFetch = fetch(`${baseUrl}/events/${params.slug}`)
       .then((r) => (r.ok ? r.json() : null));

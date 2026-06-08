@@ -21,7 +21,7 @@ interface EventSummary {
 
 
 async function getEvents(page = 1): Promise<{ data: EventSummary[]; meta: { total: number; totalPages: number } }> {
-  const baseUrl = (process.env.NEXT_PUBLIC_API_URL || 'https://api-ivvuriarte-5014s-projects.vercel.app/api/v1');
+  const baseUrl = (process.env.NEXT_PUBLIC_API_URL || 'https://api.axontickets.online/api/v1');
   try {
     const res = await fetch(`${baseUrl}/events?page=${page}&limit=12`, { cache: 'no-store', signal: AbortSignal.timeout(8000) });
     if (!res.ok) return { data: [], meta: { total: 0, totalPages: 0 } };
@@ -34,7 +34,7 @@ async function getEvents(page = 1): Promise<{ data: EventSummary[]; meta: { tota
 }
 
 async function getFeaturedEvent(slug: string): Promise<EventSummary | null> {
-  const baseUrl = (process.env.NEXT_PUBLIC_API_URL || 'https://api-ivvuriarte-5014s-projects.vercel.app/api/v1');
+  const baseUrl = (process.env.NEXT_PUBLIC_API_URL || 'https://api.axontickets.online/api/v1');
   try {
     const res = await fetch(`${baseUrl}/events/${slug}`, { cache: 'no-store', signal: AbortSignal.timeout(8000) });
     if (!res.ok) return null;
@@ -64,7 +64,7 @@ interface FeaturedApiEvent {
 }
 
 async function getFeaturedEvents(): Promise<FeaturedApiEvent[]> {
-  const baseUrl = (process.env.NEXT_PUBLIC_API_URL || 'https://api-ivvuriarte-5014s-projects.vercel.app/api/v1');
+  const baseUrl = (process.env.NEXT_PUBLIC_API_URL || 'https://api.axontickets.online/api/v1');
   try {
     const res = await fetch(`${baseUrl}/events/featured`, {
       next: { revalidate: 30 },

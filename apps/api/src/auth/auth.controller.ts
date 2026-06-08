@@ -151,7 +151,7 @@ export class AuthController {
 
     const { user, accessToken, refreshToken } = await this.authService.loginWithGoogle(profile);
     const webUrl = (req as any).app?.get?.('webUrl') as string | undefined;
-    const base = this.config.get<string>('webUrl') ?? webUrl ?? 'http://localhost:3000';
+    const base = this.config.get<string>('webUrl') ?? webUrl ?? 'https://axontickets.online';
 
     const params = new URLSearchParams({
       accessToken,

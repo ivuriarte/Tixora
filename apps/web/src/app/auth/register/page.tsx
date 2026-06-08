@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useIsInAppBrowser } from '@/lib/useIsInAppBrowser';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api-ivvuriarte-5014s-projects.vercel.app/api/v1';
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.axontickets.online/api/v1';
 
 export default function RegisterPage() {
   const isInAppBrowser = useIsInAppBrowser();

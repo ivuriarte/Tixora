@@ -172,7 +172,7 @@ export class RegistrationsService {
 
     const lead = registration.attendees.find((a) => a.isLead) ?? registration.attendees[0];
     if (lead && event.bankName && event.bankAccountNumber && event.bankAccountName) {
-      const webBase = this.config.get<string>('webUrl') ?? 'https://axon-tickets-app.vercel.app';
+      const webBase = this.config.get<string>('webUrl') ?? 'https://axontickets.online';
       try {
         await this.emailService.sendRegistrationConfirmation(
           lead.email,
@@ -477,7 +477,7 @@ export class RegistrationsService {
     const lead = reg.attendees[0];
     if (lead) {
       const webBase =
-        this.config.get<string>('webUrl') ?? 'https://axon-tickets-app.vercel.app';
+        this.config.get<string>('webUrl') ?? 'https://axontickets.online';
       try {
         await this.emailService.sendCancellationEmail(
           lead.email,
@@ -708,7 +708,7 @@ export class RegistrationsService {
     if (lead) {
       const webBase =
         this.config.get<string>('web.baseUrl') ??
-        'https://axon-tickets-app.vercel.app';
+        'https://axontickets.online';
       try {
         await this.emailService.sendRejectionEmail(
           lead.email,

@@ -8,7 +8,7 @@ import toast from 'react-hot-toast';
 import api from '@/lib/api';
 import { useAuthStore } from '@/store/auth.store';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api-ivvuriarte-5014s-projects.vercel.app/api/v1';
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.axontickets.online/api/v1';
 const RESEND_COOLDOWN = 60;
 
 type Step = 'email' | 'code' | 'profile';

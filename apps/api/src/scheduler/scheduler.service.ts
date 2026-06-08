@@ -43,7 +43,7 @@ export class SchedulerService {
     this.logger.log({ msg: 'Auto-cancel: found expired registrations', count: expired.length });
 
     const webBase =
-      this.config.get<string>('webUrl') ?? 'https://axon-tickets-app.vercel.app';
+      this.config.get<string>('webUrl') ?? 'https://axontickets.online';
 
     for (const reg of expired) {
       try {
