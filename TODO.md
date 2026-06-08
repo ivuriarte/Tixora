@@ -138,19 +138,24 @@ The DB schema already supports #1 and #3 — `Ticket` rows hold per-seat attende
 
 ### Pre-event API Warmup (do 30 min before doors open)
 
-Vercel Hobby serverless containers sleep after ~10 min of inactivity. BetterStack pings every 3 min keep them warm once the event is live, but you should manually warm before doors open:
+Vercel Hobby serverless containers sleep after ~10 min of inactivity. BetterStack should ping the canonical API health endpoint every 3 min to keep it warm once the event is live, but you should manually warm before doors open:
 
 1. Open a terminal (or just run these in your browser dev console via `fetch`)
 2. Make 3 requests to the health endpoint, 30 seconds apart:
    ```
-   curl https://api-ivvuriarte-5014s-projects.vercel.app/api/v1/health
+   curl https://api.axontickets.online/api/v1/health
    ```
    Each should return: `{"status":"ok","checks":{"database":"ok","redis":"ok"}}`
 3. Have a team member open the admin check-in page in their browser to warm the web container:
    ```
-   https://tixora-online-ticket-app.vercel.app/admin/checkin
+   https://axontickets.online/admin/checkin
    ```
-4. After warmup, BetterStack pings every 3 min will keep both containers warm for the duration.
+4. After warmup, BetterStack pings every 3 min should keep both containers warm for the duration.
+5. BetterStack production monitor must point to:
+   ```
+   https://api.axontickets.online/api/v1/health
+   ```
+   Do not monitor temporary or project-scoped `*.vercel.app` API aliases for production alerts.
 
 ### Event-Day CSV Backup (download before doors open)
 
