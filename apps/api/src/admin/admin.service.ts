@@ -16,6 +16,15 @@ import { verifyQrToken, verifyAttendeeQrToken } from '@axon-tickets/utils';
 import { ConfigService } from '@nestjs/config';
 import { AuditService } from '../audit/audit.service';
 import { EmailService } from '../email/email.service';
+import PDFDocument = require('pdfkit');
+
+interface NametagRow {
+  id: string;
+  name: string;
+  company: string;
+  position: string;
+  createdAt: Date;
+}
 
 @Injectable()
 export class AdminService {
@@ -1255,6 +1264,240 @@ export class AdminService {
     ].join(','));
 
     return header + [...attendeeRows, ...ticketRows].join('\n');
+  }
+
+  async generateNametagsPdf(eventId: string, attendeeIds?: string[]): Promise<Buffer> {
+    const event = await this.prisma.event.findUnique({
+      where: { id: eventId },
+      select: { title: true },
+    });
+    if (!event) throw new NotFoundException('Event not found');
+
+    const selectedIds = [...new Set((attendeeIds ?? []).map((id) => id.trim()).filter(Boolean))];
+    const idFilter = selectedIds.length > 0 ? { id: { in: selectedIds } } : {};
+
+    const [attendees, tickets] = await Promise.all([
+      this.prisma.attendee.findMany({
+        where: {
+          ...idFilter,
+          registration: { eventId, status: 'verified' },
+        },
+        orderBy: { createdAt: 'asc' },
+      }),
+      this.prisma.ticket.findMany({
+        where: {
+          ...idFilter,
+          eventId,
+          status: { in: ['valid', 'used'] },
+        },
+        orderBy: { createdAt: 'asc' },
+        include: {
+          user: {
+            select: {
+              firstName: true,
+              lastName: true,
+              company: true,
+              jobTitle: true,
+            },
+          },
+        },
+      }),
+    ]);
+
+    const rows: NametagRow[] = [
+      ...attendees.map((a) => ({
+        id: a.id,
+        name: this.compactName(a.firstName, a.lastName),
+        company: a.company?.trim() ?? '',
+        position: a.jobTitle?.trim() ?? '',
+        createdAt: a.createdAt,
+      })),
+      ...tickets.map((t) => ({
+        id: t.id,
+        name: this.compactName(t.user.firstName, t.user.lastName),
+        company: t.user.company?.trim() ?? '',
+        position: t.user.jobTitle?.trim() ?? '',
+        createdAt: t.createdAt,
+      })),
+    ].sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
+
+    if (selectedIds.length > 0 && rows.length === 0) {
+      throw new BadRequestException('No matching attendees found for this event');
+    }
+
+    return this.renderNametagsPdf(event.title, rows);
+  }
+
+  private renderNametagsPdf(eventTitle: string, rows: NametagRow[]): Promise<Buffer> {
+    return new Promise((resolve, reject) => {
+      const doc = new PDFDocument({
+        size: 'A4',
+        margin: 30,
+        info: {
+          Title: `${eventTitle} Nametags`,
+          Author: 'Axon Tickets',
+          Subject: 'Printable attendee nametags',
+        },
+      });
+      const chunks: Buffer[] = [];
+
+      doc.on('data', (chunk: Buffer) => chunks.push(chunk));
+      doc.on('end', () => resolve(Buffer.concat(chunks)));
+      doc.on('error', reject);
+
+      const margin = 30;
+      const gutter = 14;
+      const rowGap = 12;
+      const columns = 2;
+      const rowsPerPage = 4;
+      const tagWidth = (doc.page.width - margin * 2 - gutter) / columns;
+      const tagHeight = (doc.page.height - margin * 2 - rowGap * (rowsPerPage - 1)) / rowsPerPage;
+
+      if (rows.length === 0) {
+        this.drawNametag(doc, {
+          x: margin,
+          y: margin,
+          width: tagWidth,
+          height: tagHeight,
+          eventTitle,
+          attendeeName: '',
+          company: '',
+          position: '',
+        });
+      }
+
+      rows.forEach((row, index) => {
+        if (index > 0 && index % (columns * rowsPerPage) === 0) {
+          doc.addPage();
+        }
+
+        const pageIndex = index % (columns * rowsPerPage);
+        const column = pageIndex % columns;
+        const gridRow = Math.floor(pageIndex / columns);
+        const x = margin + column * (tagWidth + gutter);
+        const y = margin + gridRow * (tagHeight + rowGap);
+
+        this.drawNametag(doc, {
+          x,
+          y,
+          width: tagWidth,
+          height: tagHeight,
+          eventTitle,
+          attendeeName: row.name,
+          company: row.company,
+          position: row.position,
+        });
+      });
+
+      doc.end();
+    });
+  }
+
+  private drawNametag(
+    doc: PDFKit.PDFDocument,
+    options: {
+      x: number;
+      y: number;
+      width: number;
+      height: number;
+      eventTitle: string;
+      attendeeName: string;
+      company: string;
+      position: string;
+    },
+  ) {
+    const { x, y, width, height, eventTitle, attendeeName, company, position } = options;
+    const padding = 14;
+    const nameBandY = y + height * 0.34;
+    const nameBandHeight = 54;
+    const name = attendeeName.trim().toUpperCase();
+    const detailTop = nameBandY + nameBandHeight + 13;
+
+    doc
+      .roundedRect(x, y, width, height, 8)
+      .lineWidth(1)
+      .strokeColor('#D1D5DB')
+      .stroke();
+
+    doc
+      .font('Helvetica-Bold')
+      .fontSize(10)
+      .fillColor('#111827')
+      .text(eventTitle, x + padding, y + 13, {
+        width: width - padding * 2,
+        align: 'center',
+        lineGap: 1,
+        height: 30,
+        ellipsis: true,
+      });
+
+    doc
+      .rect(x + padding, nameBandY, width - padding * 2, nameBandHeight)
+      .fillColor('#F3F4F6')
+      .fill();
+
+    doc
+      .moveTo(x + padding, nameBandY)
+      .lineTo(x + width - padding, nameBandY)
+      .moveTo(x + padding, nameBandY + nameBandHeight)
+      .lineTo(x + width - padding, nameBandY + nameBandHeight)
+      .lineWidth(1.4)
+      .strokeColor('#111827')
+      .stroke();
+
+    doc
+      .font('Helvetica-Bold')
+      .fontSize(this.fitFontSize(doc, name, width - padding * 3, 25, 14))
+      .fillColor('#030712')
+      .text(name, x + padding * 1.5, nameBandY + 16, {
+        width: width - padding * 3,
+        align: 'center',
+        ellipsis: true,
+      });
+
+    doc
+      .font('Helvetica')
+      .fontSize(10)
+      .fillColor('#374151')
+      .text(position, x + padding, detailTop, {
+        width: width - padding * 2,
+        align: 'center',
+        height: 13,
+        ellipsis: true,
+      })
+      .text(company, x + padding, detailTop + 15, {
+        width: width - padding * 2,
+        align: 'center',
+        height: 13,
+        ellipsis: true,
+      });
+
+    doc
+      .font('Helvetica-Bold')
+      .fontSize(8)
+      .fillColor('#6B7280')
+      .text('Powered by Axon Tickets', x + padding, y + height - 23, {
+        width: width - padding * 2,
+        align: 'center',
+      });
+  }
+
+  private fitFontSize(
+    doc: PDFKit.PDFDocument,
+    text: string,
+    maxWidth: number,
+    startSize: number,
+    minSize: number,
+  ) {
+    for (let size = startSize; size >= minSize; size -= 1) {
+      doc.fontSize(size);
+      if (doc.widthOfString(text) <= maxWidth) return size;
+    }
+    return minSize;
+  }
+
+  private compactName(firstName: string | null, lastName: string | null) {
+    return [firstName, lastName].map((part) => part?.trim()).filter(Boolean).join(' ');
   }
 
   /**

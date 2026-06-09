@@ -178,6 +178,31 @@ export class AdminController {
     res.send(csv);
   }
 
+  @Post('events/:eventId/attendees/nametags')
+  @ApiOperation({ summary: 'Generate printable attendee nametags as PDF' })
+  async generateAttendeeNametags(
+    @Param('eventId') eventId: string,
+    @Body() body: { attendeeIds?: unknown },
+    @Res() res: Response,
+  ) {
+    if (
+      body?.attendeeIds !== undefined &&
+      (!Array.isArray(body.attendeeIds) || body.attendeeIds.some((id) => typeof id !== 'string'))
+    ) {
+      throw new BadRequestException('attendeeIds must be an array of strings');
+    }
+
+    const pdf = await this.adminService.generateNametagsPdf(
+      eventId,
+      body?.attendeeIds as string[] | undefined,
+    );
+    const date = new Date().toISOString().slice(0, 10);
+
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="nametags-${eventId}-${date}.pdf"`);
+    res.send(pdf);
+  }
+
   // ── Analytics ────────────────────────────────────────────────────────────
 
   @Get('analytics/events/:eventId')

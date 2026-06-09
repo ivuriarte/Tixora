@@ -1,8 +1,9 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
+import { Download, Printer } from 'lucide-react';
 import api from '@/lib/api';
 import Navbar from '@/components/Navbar';
 import BackButton from '@/components/BackButton';
@@ -54,12 +55,18 @@ export default function AdminAttendeesPage() {
   const [searchQ, setSearchQ] = useState('');
   const [page, setPage] = useState(1);
   const [exporting, setExporting] = useState(false);
+  const [printing, setPrinting] = useState(false);
+  const [selectedAttendeeIds, setSelectedAttendeeIds] = useState<Set<string>>(() => new Set());
 
   useEffect(() => {
     if (initialEvent && initialEvent !== selectedEventId) {
       setSelectedEventId(initialEvent);
     }
   }, [initialEvent, selectedEventId]);
+
+  useEffect(() => {
+    setSelectedAttendeeIds(new Set());
+  }, [selectedEventId, searchQ]);
 
   const { data: events } = useQuery<Event[]>({
     queryKey: ['admin-events-select'],
@@ -78,6 +85,36 @@ export default function AdminAttendeesPage() {
     },
     enabled: !!selectedEventId,
   });
+
+  const visibleAttendeeIds = useMemo(() => data?.data.map((a) => a.id) ?? [], [data]);
+  const selectedVisibleCount = visibleAttendeeIds.filter((id) => selectedAttendeeIds.has(id)).length;
+  const allVisibleSelected = visibleAttendeeIds.length > 0 && selectedVisibleCount === visibleAttendeeIds.length;
+  const partiallySelected = selectedVisibleCount > 0 && !allVisibleSelected;
+  const selectedCount = selectedAttendeeIds.size;
+
+  const toggleVisibleSelection = () => {
+    setSelectedAttendeeIds((current) => {
+      const next = new Set(current);
+      if (allVisibleSelected) {
+        visibleAttendeeIds.forEach((id) => next.delete(id));
+      } else {
+        visibleAttendeeIds.forEach((id) => next.add(id));
+      }
+      return next;
+    });
+  };
+
+  const toggleAttendeeSelection = (attendeeId: string) => {
+    setSelectedAttendeeIds((current) => {
+      const next = new Set(current);
+      if (next.has(attendeeId)) {
+        next.delete(attendeeId);
+      } else {
+        next.add(attendeeId);
+      }
+      return next;
+    });
+  };
 
   const handleExport = async () => {
     if (!selectedEventId) return;
@@ -100,6 +137,30 @@ export default function AdminAttendeesPage() {
     }
   };
 
+  const handlePrintNametags = async () => {
+    if (!selectedEventId) return;
+    setPrinting(true);
+    try {
+      const attendeeIds = Array.from(selectedAttendeeIds);
+      const res = await api.post<Blob>(
+        `/admin/events/${selectedEventId}/attendees/nametags`,
+        { attendeeIds },
+        { responseType: 'blob' },
+      );
+      const safeTitle = (selectedEventTitle || events?.find((e) => e.id === selectedEventId)?.title || 'Event').replace(/[<>:"/\\|?*]/g, '').trim();
+      const date = new Date().toISOString().slice(0, 10);
+      const scope = attendeeIds.length > 0 ? `Selected-${attendeeIds.length}` : 'All';
+      const url = URL.createObjectURL(res.data);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `[Nametags]${safeTitle}-${scope}(${date}).pdf`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } finally {
+      setPrinting(false);
+    }
+  };
+
   return (
     <>
       <Navbar />
@@ -113,13 +174,24 @@ export default function AdminAttendeesPage() {
             </p>
           </div>
           {selectedEventId && (
-            <button
-              onClick={handleExport}
-              disabled={exporting}
-              className="text-sm font-semibold text-primary hover:underline border border-primary px-4 py-2 rounded-xl disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {exporting ? 'Exporting…' : '↓ Export CSV'}
-            </button>
+            <div className="flex flex-wrap items-center justify-end gap-2">
+              <button
+                onClick={handlePrintNametags}
+                disabled={printing || isLoading || !data?.meta.total}
+                className="inline-flex items-center gap-2 text-sm font-semibold text-gray-900 hover:bg-gray-50 border border-gray-300 px-4 py-2 rounded-xl disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <Printer className="h-4 w-4" aria-hidden="true" />
+                {printing ? 'Preparing…' : 'Print Nametags'}
+              </button>
+              <button
+                onClick={handleExport}
+                disabled={exporting}
+                className="inline-flex items-center gap-2 text-sm font-semibold text-primary hover:bg-primary/5 border border-primary px-4 py-2 rounded-xl disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <Download className="h-4 w-4" aria-hidden="true" />
+                {exporting ? 'Exporting…' : 'Export CSV'}
+              </button>
+            </div>
           )}
         </div>
 
@@ -155,12 +227,35 @@ export default function AdminAttendeesPage() {
         {selectedEventId && !isLoading && (
           <>
             {data && (
-              <p className="text-sm text-gray-500 mb-3">{data.meta.total} attendees</p>
+              <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                <p className="text-sm text-gray-500">{data.meta.total} attendees</p>
+                {selectedCount > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setSelectedAttendeeIds(new Set())}
+                    className="text-xs font-semibold text-gray-500 hover:text-gray-900"
+                  >
+                    {selectedCount} selected · Clear
+                  </button>
+                )}
+              </div>
             )}
             <div className="bg-white shadow rounded-2xl overflow-x-auto">
               <table className="w-full text-sm min-w-[800px]">
                 <thead>
                   <tr className="bg-gray-50 text-left text-gray-500 text-xs uppercase tracking-wide">
+                    <th className="px-4 py-3 w-12">
+                      <input
+                        type="checkbox"
+                        aria-label="Select visible attendees"
+                        checked={allVisibleSelected}
+                        ref={(input) => {
+                          if (input) input.indeterminate = partiallySelected;
+                        }}
+                        onChange={toggleVisibleSelection}
+                        className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+                      />
+                    </th>
                     <th className="px-4 py-3">Name</th>
                     <th className="px-4 py-3">Email</th>
                     <th className="px-4 py-3">Company</th>
@@ -174,6 +269,15 @@ export default function AdminAttendeesPage() {
                 <tbody className="divide-y divide-gray-100">
                   {data?.data.map((a) => (
                     <tr key={a.id} className="hover:bg-gray-50 transition-colors">
+                      <td className="px-4 py-3">
+                        <input
+                          type="checkbox"
+                          aria-label={`Select ${a.userName}`}
+                          checked={selectedAttendeeIds.has(a.id)}
+                          onChange={() => toggleAttendeeSelection(a.id)}
+                          className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+                        />
+                      </td>
                       <td className="px-4 py-3 font-medium text-gray-900 whitespace-nowrap">{a.userName}</td>
                       <td className="px-4 py-3 text-gray-600 text-xs">{a.userEmail}</td>
                       <td className="px-4 py-3 text-gray-600 text-xs">{a.userCompany ?? '—'}</td>
@@ -200,7 +304,7 @@ export default function AdminAttendeesPage() {
                   ))}
                   {data?.data.length === 0 && (
                     <tr>
-                      <td colSpan={8} className="px-4 py-8 text-center text-gray-400">No attendees found</td>
+                      <td colSpan={9} className="px-4 py-8 text-center text-gray-400">No attendees found</td>
                     </tr>
                   )}
                 </tbody>
