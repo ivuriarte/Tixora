@@ -75,8 +75,8 @@ export class AuthController {
   @HttpCode(HttpStatus.OK)
   @Throttle({ default: { ttl: 60000, limit: 5 } })
   @ApiOperation({ summary: 'Request a passwordless access code (OTP) by email' })
-  async requestAccess(@Body() dto: RequestAccessDto) {
-    return this.authService.requestAccess(dto);
+  async requestAccess(@Body() dto: RequestAccessDto, @Req() req: Request) {
+    return this.authService.requestAccess(dto, req);
   }
 
   @Public()
@@ -84,8 +84,8 @@ export class AuthController {
   @HttpCode(HttpStatus.OK)
   @Throttle({ default: { ttl: 60000, limit: 10 } })
   @ApiOperation({ summary: 'Verify the access code and receive a JWT pair' })
-  async verifyAccess(@Body() dto: VerifyAccessDto) {
-    return this.authService.verifyAccess(dto);
+  async verifyAccess(@Body() dto: VerifyAccessDto, @Req() req: Request) {
+    return this.authService.verifyAccess(dto, req);
   }
 
   @Public()

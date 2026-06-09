@@ -962,6 +962,80 @@ export class AdminService {
     };
   }
 
+  async getEventFunnel(eventId: string) {
+    const event = await this.prisma.event.findUnique({
+      where: { id: eventId },
+      select: { id: true, title: true, slug: true },
+    });
+    if (!event) throw new NotFoundException('Event not found');
+
+    const [grouped, failures] = await Promise.all([
+      this.prisma.registrationFunnelEvent.groupBy({
+        by: ['step', 'status'],
+        where: { eventId },
+        _count: { _all: true },
+      }),
+      this.prisma.registrationFunnelEvent.findMany({
+        where: { eventId, status: 'failed' },
+        orderBy: { createdAt: 'desc' },
+        take: 25,
+        select: {
+          step: true,
+          status: true,
+          email: true,
+          sessionId: true,
+          createdAt: true,
+          metadata: true,
+          referrer: true,
+        },
+      }),
+    ]);
+
+    const trackedSteps = [
+      'event_page_viewed',
+      'register_cta_clicked',
+      'email_submitted',
+      'otp_send_requested',
+      'otp_sent',
+      'otp_verified',
+      'profile_completed',
+      'ticket_selection_started',
+      'payment_started',
+      'payment_submitted',
+      'registration_submitted_for_review',
+      'ticket_issued',
+    ];
+
+    const counts = trackedSteps.map((step) => {
+      const rows = grouped.filter((g) => g.step === step);
+      const total = rows.reduce((sum, row) => sum + row._count._all, 0);
+      const success = rows
+        .filter((r) => r.status === 'success')
+        .reduce((sum, row) => sum + row._count._all, 0);
+      const started = rows
+        .filter((r) => r.status === 'started')
+        .reduce((sum, row) => sum + row._count._all, 0);
+      const failed = rows
+        .filter((r) => r.status === 'failed' || r.status === 'blocked')
+        .reduce((sum, row) => sum + row._count._all, 0);
+      return { step, total, success, started, failed };
+    });
+
+    return {
+      event: { id: event.id, title: event.title, slug: event.slug },
+      counts,
+      failures: failures.map((f) => ({
+        step: f.step,
+        status: f.status,
+        email: f.email,
+        sessionId: f.sessionId,
+        referrer: f.referrer,
+        metadata: f.metadata,
+        createdAt: f.createdAt.toISOString(),
+      })),
+    };
+  }
+
   // ── Fraud Flags ────────────────────────────────────────────────────────
 
   async getFraudFlags(page = 1, limit = 20) {

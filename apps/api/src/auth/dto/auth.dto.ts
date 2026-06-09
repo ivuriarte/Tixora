@@ -1,6 +1,6 @@
-import { IsEmail, IsString, MinLength, MaxLength, Matches } from 'class-validator';
+import { IsEmail, IsOptional, IsString, MinLength, MaxLength, Matches } from 'class-validator';
 import { Transform } from 'class-transformer';
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class LoginDto {
   @ApiProperty({ example: 'admin' })
@@ -39,6 +39,31 @@ export class RequestAccessDto {
   @IsEmail()
   @Transform(({ value }: { value: string }) => value?.toLowerCase().trim())
   email: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  eventId?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  eventSlug?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  eventName?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  sessionId?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  returnUrl?: string;
 }
 
 export class VerifyAccessDto {
@@ -52,4 +77,29 @@ export class VerifyAccessDto {
   @MaxLength(6)
   @Matches(/^\d{6}$/, { message: 'OTP must be exactly 6 digits' })
   otp: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  eventId?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  eventSlug?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  eventName?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  sessionId?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  returnUrl?: string;
 }

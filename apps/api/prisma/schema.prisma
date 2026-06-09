@@ -93,6 +93,7 @@ model User {
   verifiedRegistrations Registration[]  @relation("VerifiedBy")
   reviewedProofs        PaymentProof[]  @relation("ReviewedBy")
   auditLogs             AuditLog[]      @relation("AuditPerformedBy")
+  funnelEvents          RegistrationFunnelEvent[]
 
   @@map("users")
 }
@@ -143,6 +144,7 @@ model Event {
   tickets       Ticket[]
   registrations Registration[]
   eventViews    EventView[]
+  funnelEvents  RegistrationFunnelEvent[]
 
   @@index([status, startsAt])
   @@index([slug])
@@ -427,4 +429,26 @@ model EventView {
   @@index([eventId])
   @@index([createdAt])
   @@map("event_views")
+}
+
+model RegistrationFunnelEvent {
+  id        String   @id @default(uuid())
+  eventId   String?  @map("event_id")
+  sessionId String?  @map("session_id")
+  userId    String?  @map("user_id")
+  email     String?
+  step      String
+  status    String
+  metadata  Json?
+  userAgent String?  @map("user_agent")
+  referrer  String?
+  createdAt DateTime @default(now()) @map("created_at")
+
+  event Event? @relation(fields: [eventId], references: [id], onDelete: SetNull)
+  user  User?  @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([eventId, step])
+  @@index([step, status])
+  @@index([createdAt])
+  @@map("registration_funnel_events")
 }

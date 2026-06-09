@@ -58,6 +58,8 @@ export class PaymentProofsController {
       file.buffer,
       file.mimetype,
       req.ip,
+      req.headers['user-agent'] as string | undefined,
+      req.headers['referer'] as string | undefined,
     );
   }
 }

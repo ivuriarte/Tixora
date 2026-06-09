@@ -26,6 +26,7 @@ import { RegistrationsModule } from './registrations/registrations.module';
 import { PaymentProofsModule } from './payment-proofs/payment-proofs.module';
 import { SchedulerModule } from './scheduler/scheduler.module';
 import { CronModule } from './cron/cron.module';
+import { FunnelModule } from './funnel/funnel.module';
 
 @Module({
   imports: [
@@ -76,6 +77,7 @@ import { CronModule } from './cron/cron.module';
     UploadModule,
     RegistrationsModule,
     PaymentProofsModule,
+    FunnelModule,
     SchedulerModule,
     CronModule,
   ],

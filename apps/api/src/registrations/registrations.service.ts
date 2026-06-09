@@ -9,6 +9,7 @@ import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { EmailService } from '../email/email.service';
 import { AuditService } from '../audit/audit.service';
+import { FunnelService } from '../funnel/funnel.service';
 import {
   generateReferenceNumber,
   generateAttendeeQrToken,
@@ -25,6 +26,7 @@ export class RegistrationsService {
     private readonly emailService: EmailService,
     private readonly audit: AuditService,
     private readonly config: ConfigService,
+    private readonly funnel: FunnelService,
   ) {}
 
   async create(dto: CreateRegistrationDto, userId: string, ip?: string) {
@@ -204,6 +206,13 @@ export class RegistrationsService {
       ipAddress: ip,
     });
 
+    this.logger.log({
+      msg: 'Registration created',
+      registrationId: registration.id,
+      eventId: registration.eventId,
+      userId,
+    });
+
     return {
       id: registration.id,
       referenceNumber: registration.referenceNumber,
@@ -345,6 +354,7 @@ export class RegistrationsService {
 
     return {
       id: reg.id,
+      eventId: reg.eventId,
       referenceNumber: reg.referenceNumber,
       status: reg.status,
       tierName: reg.tierName,
@@ -626,6 +636,17 @@ export class RegistrationsService {
       performedById: adminUserId,
       ipAddress: ip,
       metadata: { proofId: latestProof.id, attendeeCount: reg.attendees.length },
+    });
+
+    await this.funnel.track({
+      eventId: reg.event.id,
+      userId: reg.userId,
+      step: 'ticket_issued',
+      status: 'success',
+      metadata: {
+        registrationId: reg.id,
+        attendeeCount: reg.attendees.length,
+      },
     });
 
     // Send QR delivery email to lead attendee.

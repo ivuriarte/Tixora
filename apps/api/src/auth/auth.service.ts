@@ -13,9 +13,11 @@ import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcryptjs';
 import { randomInt } from 'crypto';
 import { v4 as uuidv4 } from 'uuid';
+import type { Request } from 'express';
 import { PrismaService } from '../prisma/prisma.service';
 import { RedisService } from '../redis/redis.service';
 import { EmailService } from '../email/email.service';
+import { FunnelService } from '../funnel/funnel.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto, VerifyOtpDto, RequestAccessDto, VerifyAccessDto } from './dto/auth.dto';
 import { JwtPayload } from '@axon-tickets/types';
@@ -37,6 +39,7 @@ export class AuthService {
     private readonly jwt: JwtService,
     private readonly config: ConfigService,
     private readonly emailService: EmailService,
+    private readonly funnel: FunnelService,
   ) {}
 
   async register(dto: RegisterDto, ip: string): Promise<{ userId: string; message: string }> {
@@ -294,8 +297,12 @@ export class AuthService {
    * Finds or creates a stub user by email, then sends a 6-digit OTP.
    * Always returns { userId } — never distinguishes new vs existing (prevents enumeration).
    */
-  async requestAccess(dto: RequestAccessDto): Promise<{ userId: string }> {
+  async requestAccess(dto: RequestAccessDto, req?: Request): Promise<{ userId: string }> {
     const email = dto.email.toLowerCase().trim();
+    const userAgent = req?.headers['user-agent'] as string | undefined;
+    const referrer = (req?.headers['referer'] as string | undefined) ?? undefined;
+
+    this.logger.log({ msg: 'OTP send requested', email, eventId: dto.eventId ?? null });
 
     let user = await this.prisma.user.findUnique({ where: { email } });
 
@@ -315,10 +322,80 @@ export class AuthService {
       },
     });
     if (recentOtp) {
+      await this.funnel.track(
+        {
+          eventId: dto.eventId,
+          sessionId: dto.sessionId,
+          userId: user.id,
+          email,
+          step: 'otp_send_failed',
+          status: 'blocked',
+          metadata: {
+            reason: 'cooldown_active',
+            eventSlug: dto.eventSlug ?? null,
+            returnUrl: dto.returnUrl ?? null,
+          },
+        },
+        { userAgent, referrer },
+      );
       throw new BadRequestException('Please wait 60 seconds before requesting a new code');
     }
 
-    await this.sendOtp(user.id, email, 'email_verify');
+    await this.funnel.track(
+      {
+        eventId: dto.eventId,
+        sessionId: dto.sessionId,
+        userId: user.id,
+        email,
+        step: 'otp_send_requested',
+        status: 'started',
+        metadata: {
+          eventSlug: dto.eventSlug ?? null,
+          eventName: dto.eventName ?? null,
+          returnUrl: dto.returnUrl ?? null,
+        },
+      },
+      { userAgent, referrer },
+    );
+
+    const sent = await this.sendOtp(user.id, email, 'email_verify');
+    if (!sent) {
+      await this.funnel.track(
+        {
+          eventId: dto.eventId,
+          sessionId: dto.sessionId,
+          userId: user.id,
+          email,
+          step: 'otp_send_failed',
+          status: 'failed',
+          metadata: {
+            reason: 'provider_send_failed',
+            eventSlug: dto.eventSlug ?? null,
+            returnUrl: dto.returnUrl ?? null,
+          },
+        },
+        { userAgent, referrer },
+      );
+      throw new BadRequestException('Could not send code right now. Please try again.');
+    }
+
+    await this.funnel.track(
+      {
+        eventId: dto.eventId,
+        sessionId: dto.sessionId,
+        userId: user.id,
+        email,
+        step: 'otp_sent',
+        status: 'success',
+        metadata: {
+          eventSlug: dto.eventSlug ?? null,
+          returnUrl: dto.returnUrl ?? null,
+        },
+      },
+      { userAgent, referrer },
+    );
+
+    this.logger.log({ msg: 'OTP send success', userId: user.id, eventId: dto.eventId ?? null });
     return { userId: user.id };
   }
 
@@ -327,12 +404,15 @@ export class AuthService {
    * Verifies the OTP, marks the user as verified, and returns a JWT pair.
    * isNewUser = true when the account was created via requestAccess and has no profile yet.
    */
-  async verifyAccess(dto: VerifyAccessDto): Promise<{
+  async verifyAccess(dto: VerifyAccessDto, req?: Request): Promise<{
     user: { id: string; email: string; firstName: string | null; lastName: string | null; isAdmin: boolean; isVerified: boolean };
     accessToken: string;
     refreshToken: string;
     isNewUser: boolean;
   }> {
+    const userAgent = req?.headers['user-agent'] as string | undefined;
+    const referrer = (req?.headers['referer'] as string | undefined) ?? undefined;
+
     const user = await this.prisma.user.findUnique({ where: { id: dto.userId } });
     if (!user) throw new BadRequestException('Invalid request');
 
@@ -340,6 +420,18 @@ export class AuthService {
     const attemptsKey = `otp:attempts:${dto.userId}`;
     const attempts = parseInt((await this.redis.get(attemptsKey)) ?? '0', 10);
     if (attempts >= OTP_MAX_ATTEMPTS) {
+      await this.funnel.track(
+        {
+          eventId: dto.eventId,
+          sessionId: dto.sessionId,
+          userId: dto.userId,
+          email: user.email,
+          step: 'otp_verification_failed',
+          status: 'blocked',
+          metadata: { reason: 'too_many_attempts' },
+        },
+        { userAgent, referrer },
+      );
       throw new BadRequestException('Too many failed attempts. Request a new code.');
     }
 
@@ -353,12 +445,38 @@ export class AuthService {
       orderBy: { createdAt: 'desc' },
     });
 
-    if (!otpRecord) throw new BadRequestException('Code expired or invalid. Request a new one.');
+    if (!otpRecord) {
+      await this.funnel.track(
+        {
+          eventId: dto.eventId,
+          sessionId: dto.sessionId,
+          userId: dto.userId,
+          email: user.email,
+          step: 'otp_verification_failed',
+          status: 'failed',
+          metadata: { reason: 'otp_expired_or_missing' },
+        },
+        { userAgent, referrer },
+      );
+      throw new BadRequestException('Code expired or invalid. Request a new one.');
+    }
 
     const match = await bcrypt.compare(dto.otp, otpRecord.codeHash);
     if (!match) {
       const newCount = attempts + 1;
       await this.redis.set(attemptsKey, String(newCount), OTP_ATTEMPT_TTL);
+      await this.funnel.track(
+        {
+          eventId: dto.eventId,
+          sessionId: dto.sessionId,
+          userId: dto.userId,
+          email: user.email,
+          step: 'otp_verification_failed',
+          status: 'failed',
+          metadata: { reason: 'incorrect_code', attemptCount: newCount },
+        },
+        { userAgent, referrer },
+      );
       if (newCount >= OTP_MAX_ATTEMPTS) {
         await this.prisma.otpCode.update({ where: { id: otpRecord.id }, data: { used: true } });
         throw new BadRequestException('Too many failed attempts. Request a new code.');
@@ -380,6 +498,25 @@ export class AuthService {
       this.generateRefreshToken(user.id),
     ]);
 
+    await this.funnel.track(
+      {
+        eventId: dto.eventId,
+        sessionId: dto.sessionId,
+        userId: user.id,
+        email: user.email,
+        step: 'otp_verified',
+        status: 'success',
+        metadata: {
+          isNewUser,
+          eventSlug: dto.eventSlug ?? null,
+          returnUrl: dto.returnUrl ?? null,
+        },
+      },
+      { userAgent, referrer },
+    );
+
+    this.logger.log({ msg: 'OTP verify success', userId: user.id, isNewUser });
+
     return {
       user: { id: user.id, email: user.email, firstName: user.firstName, lastName: user.lastName, isAdmin: user.isAdmin, isVerified: true },
       accessToken,
@@ -388,7 +525,7 @@ export class AuthService {
     };
   }
 
-  private async sendOtp(userId: string, email: string, type: 'email_verify'): Promise<void> {
+  private async sendOtp(userId: string, email: string, type: 'email_verify'): Promise<boolean> {
     const code = this.generateOtpCode();
     const codeHash = await bcrypt.hash(code, 10);
     const expiresAt = new Date(Date.now() + OTP_TTL_SECONDS * 1000);
@@ -398,7 +535,7 @@ export class AuthService {
     });
 
     const sent = await this.emailService.sendOtpEmail(email, code);
-    
+
     if (!sent) {
       this.logger.error({
         msg: 'OTP email failed to send after retries',
@@ -406,9 +543,9 @@ export class AuthService {
         email,
         type,
       });
-      // OTP is saved in DB, user can try resend-otp endpoint
-      // Don't throw - let user attempt verification or resend
     }
+
+    return sent;
   }
 
   private generateOtpCode(): string {

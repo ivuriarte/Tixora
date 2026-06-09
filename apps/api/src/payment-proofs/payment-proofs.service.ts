@@ -8,6 +8,7 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 import { UploadService } from '../upload/upload.service';
 import { AuditService } from '../audit/audit.service';
+import { FunnelService } from '../funnel/funnel.service';
 
 @Injectable()
 export class PaymentProofsService {
@@ -17,6 +18,7 @@ export class PaymentProofsService {
     private readonly prisma: PrismaService,
     private readonly upload: UploadService,
     private readonly audit: AuditService,
+    private readonly funnel: FunnelService,
   ) {}
 
   async create(
@@ -25,10 +27,14 @@ export class PaymentProofsService {
     buffer: Buffer,
     mimeType: string,
     ip?: string,
+    userAgent?: string,
+    referrer?: string,
   ) {
+    this.logger.log({ msg: 'Payment proof submission requested', registrationId, userId });
+
     const reg = await this.prisma.registration.findUnique({
       where: { id: registrationId },
-      select: { id: true, userId: true, status: true },
+      select: { id: true, userId: true, status: true, eventId: true, total: true, attendeeCount: true },
     });
     if (!reg) throw new NotFoundException('Registration not found');
     if (reg.userId !== userId) {
@@ -68,6 +74,35 @@ export class PaymentProofsService {
       ipAddress: ip,
       metadata: { imageUrl },
     });
+
+    await this.funnel.track(
+      {
+        eventId: reg.eventId,
+        userId,
+        step: 'payment_submitted',
+        status: 'success',
+        metadata: {
+          registrationId,
+          amount: Number(reg.total),
+          attendeeCount: reg.attendeeCount,
+        },
+      },
+      { userAgent, referrer },
+    );
+
+    await this.funnel.track(
+      {
+        eventId: reg.eventId,
+        userId,
+        step: 'registration_submitted_for_review',
+        status: 'success',
+        metadata: {
+          registrationId,
+          amount: Number(reg.total),
+        },
+      },
+      { userAgent, referrer },
+    );
 
     this.logger.log({
       msg: 'Payment proof submitted',

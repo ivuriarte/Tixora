@@ -7,6 +7,9 @@ import axios from 'axios';
 import toast from 'react-hot-toast';
 import api from '@/lib/api';
 import { useAuthStore } from '@/store/auth.store';
+import { useIsInAppBrowser } from '@/lib/useIsInAppBrowser';
+import { getOrCreateFunnelSessionId, trackInternalFunnelEvent } from '@/lib/funnel';
+import { trackPixelCustomEvent, trackPixelEvent } from '@/lib/metaPixel';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.axontickets.online/api/v1';
 const RESEND_COOLDOWN = 60;
@@ -23,6 +26,7 @@ function AccessForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { setAuth, isAuthenticated, isHydrating, user } = useAuthStore();
+  const isInAppBrowser = useIsInAppBrowser();
 
   const [step, setStep] = useState<Step>('email');
   const [email, setEmail] = useState('');
@@ -33,6 +37,12 @@ function AccessForm() {
   const [secondsLeft, setSecondsLeft] = useState(0);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const otpInputRef = useRef<HTMLInputElement>(null);
+
+  const eventId = searchParams.get('eventId') ?? undefined;
+  const eventSlug = searchParams.get('eventSlug') ?? undefined;
+  const eventName = searchParams.get('eventName') ?? undefined;
+  const redirectUrl = searchParams.get('redirect') ?? undefined;
+  const funnelSessionId = getOrCreateFunnelSessionId();
 
   // Redirect already-authenticated users
   useEffect(() => {
@@ -82,20 +92,80 @@ function AccessForm() {
   // ── Step 1: Send OTP ────────────────────────────────────────────────────────
   async function handleRequestAccess(e: React.FormEvent) {
     e.preventDefault();
+    const normalizedEmail = email.trim().toLowerCase();
+    const validEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail);
+    if (!validEmail) {
+      toast.error('Please enter a valid email address.');
+      void trackInternalFunnelEvent({
+        eventId,
+        email: normalizedEmail,
+        step: 'otp_send_failed',
+        status: 'failed',
+        metadata: { reason: 'invalid_email', eventSlug, eventName },
+      });
+      return;
+    }
+
+    void trackInternalFunnelEvent({
+      eventId,
+      email: normalizedEmail,
+      step: 'email_submitted',
+      status: 'started',
+      metadata: { eventSlug, eventName, returnUrl: redirectUrl ?? null },
+    });
+
+    trackPixelEvent('Lead', {
+      content_name: eventName ?? eventSlug ?? 'Event Registration',
+      content_category: 'ticket_registration',
+      event_id: eventId ?? null,
+    });
+    trackPixelCustomEvent('OTP_Requested', {
+      event_id: eventId ?? null,
+      event_name: eventName ?? eventSlug ?? 'Unknown Event',
+    });
+
     setLoading(true);
     try {
       // 15 s timeout — shorter than the global 30 s so users get a clear error
       // message rather than a blank loading screen if the API is slow/unreachable
-      const res = await api.post<{ data: { userId: string } }>('/auth/request-access', { email }, { timeout: 15_000 });
+      const res = await api.post<{ data: { userId: string } }>(
+        '/auth/request-access',
+        {
+          email: normalizedEmail,
+          eventId,
+          eventSlug,
+          eventName,
+          sessionId: funnelSessionId,
+          returnUrl: redirectUrl,
+        },
+        { timeout: 15_000 },
+      );
       const { userId } = res.data.data;
       setPendingAuth({ userId, accessToken: '', refreshToken: '' });
       setStep('code');
       startResendTimer();
       setTimeout(() => otpInputRef.current?.focus(), 50);
+
+      trackPixelCustomEvent('OTP_Sent', {
+        event_id: eventId ?? null,
+        event_name: eventName ?? eventSlug ?? 'Unknown Event',
+      });
     } catch (err: any) {
       const isTimeout = err?.code === 'ECONNABORTED' || err?.code === 'ERR_NETWORK';
       const msg = err?.response?.data?.message ?? (isTimeout ? 'Request timed out. Please try again.' : 'Could not send code. Please try again.');
       toast.error(Array.isArray(msg) ? msg.join(', ') : msg);
+
+      void trackInternalFunnelEvent({
+        eventId,
+        email: normalizedEmail,
+        step: 'otp_send_failed',
+        status: 'failed',
+        metadata: {
+          reason: Array.isArray(msg) ? msg.join(', ') : msg,
+          networkError: !err?.response,
+          eventSlug,
+        },
+      });
     } finally {
       setLoading(false);
     }
@@ -113,14 +183,41 @@ function AccessForm() {
           refreshToken: string;
           isNewUser: boolean;
         };
-      }>('/auth/verify-access', { userId: pendingAuth.userId, otp });
+      }>(
+        '/auth/verify-access',
+        {
+          userId: pendingAuth.userId,
+          otp,
+          eventId,
+          eventSlug,
+          eventName,
+          sessionId: funnelSessionId,
+          returnUrl: redirectUrl,
+        },
+      );
 
       const { user: verifiedUser, accessToken, refreshToken, isNewUser } = res.data.data;
+
+      trackPixelEvent('CompleteRegistration', {
+        content_name: eventName ?? eventSlug ?? 'Event Registration',
+        status: true,
+      });
+      trackPixelCustomEvent('OTP_Verified', {
+        event_id: eventId ?? null,
+        event_name: eventName ?? eventSlug ?? 'Unknown Event',
+      });
 
       if (isNewUser) {
         // Hold tokens in state — don't set global auth until profile is complete
         setPendingAuth({ userId: verifiedUser.id, accessToken, refreshToken });
         setStep('profile');
+        void trackInternalFunnelEvent({
+          eventId,
+          email: verifiedUser.email,
+          step: 'profile_started',
+          status: 'started',
+          metadata: { eventSlug, eventName, userId: verifiedUser.id },
+        });
       } else {
         setAuth(
           {
@@ -140,6 +237,15 @@ function AccessForm() {
     } catch (err: any) {
       const msg = err?.response?.data?.message ?? 'Verification failed';
       toast.error(Array.isArray(msg) ? msg.join(', ') : msg);
+      if (!err?.response) {
+        void trackInternalFunnelEvent({
+          eventId,
+          email,
+          step: 'otp_verification_failed',
+          status: 'failed',
+          metadata: { reason: 'network_error', eventSlug },
+        });
+      }
       setOtp('');
       otpInputRef.current?.focus();
     } finally {
@@ -152,7 +258,14 @@ function AccessForm() {
     if (secondsLeft > 0 || !pendingAuth) return;
     setLoading(true);
     try {
-      await api.post('/auth/request-access', { email });
+      await api.post('/auth/request-access', {
+        email: email.trim().toLowerCase(),
+        eventId,
+        eventSlug,
+        eventName,
+        sessionId: funnelSessionId,
+        returnUrl: redirectUrl,
+      });
       setOtp('');
       startResendTimer();
       toast.success('A new code has been sent.');
@@ -183,6 +296,15 @@ function AccessForm() {
       );
 
       const updatedUser = res.data.data;
+
+      void trackInternalFunnelEvent({
+        eventId,
+        email: updatedUser.email,
+        step: 'profile_completed',
+        status: 'success',
+        metadata: { eventSlug, eventName, userId: updatedUser.id },
+      });
+
       setAuth(
         {
           id: updatedUser.id,
@@ -284,6 +406,18 @@ function AccessForm() {
                 </>
               )}
             </button>
+
+            <div className="space-y-1 rounded-xl border border-gray-100 bg-gray-50 px-3 py-3 text-xs text-gray-600">
+              <p>We use your email to send your QR ticket and receipt.</p>
+              <p>No password needed.</p>
+              <p>Check your spam or promotions folder if the code does not arrive.</p>
+              <p>You can request a new code after the cooldown.</p>
+              {isInAppBrowser && (
+                <p className="text-amber-700">
+                  If this in-app browser blocks email autofill, open this page in Safari or Chrome.
+                </p>
+              )}
+            </div>
 
           </form>
         )}

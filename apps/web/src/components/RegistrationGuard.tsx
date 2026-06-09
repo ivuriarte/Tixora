@@ -38,6 +38,7 @@ const STATUS_LABELS: Record<string, string> = {
 
 interface Props {
   eventId: string;
+  eventTitle: string;
   eventSlug: string;
   tiers: Tier[];
   maxPerUser: number;
@@ -57,6 +58,7 @@ interface Props {
 
 export default function RegistrationGuard({
   eventId,
+  eventTitle,
   eventSlug,
   tiers,
   maxPerUser,
@@ -182,6 +184,8 @@ export default function RegistrationGuard({
   if (useManualPayment) {
     return (
       <RegistrationPanel
+        eventId={eventId}
+        eventTitle={eventTitle}
         eventSlug={eventSlug}
         tiers={tiers}
         bankName={bankName ?? null}

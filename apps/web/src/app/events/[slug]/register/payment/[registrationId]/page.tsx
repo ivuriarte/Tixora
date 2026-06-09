@@ -8,6 +8,8 @@ import CheckoutStepper from '@/components/CheckoutStepper';
 import PaymentProofDropzone from '@/components/PaymentProofDropzone';
 import type { Registration } from '@axon-tickets/types';
 import { centavosToPeso, formatPHP } from '@axon-tickets/utils';
+import { trackPixelCustomEvent, trackPixelEvent } from '@/lib/metaPixel';
+import { trackInternalFunnelEvent } from '@/lib/funnel';
 
 export default function PaymentStepPage() {
   const router = useRouter();
@@ -37,7 +39,53 @@ export default function PaymentStepPage() {
     })();
   }, [registrationId, router, slug]);
 
+  useEffect(() => {
+    if (!reg) return;
+    const trackedEventId = (reg as Registration & { eventId?: string }).eventId;
+
+    const totalPesos = centavosToPeso(reg.total);
+    trackPixelEvent(
+      'InitiateCheckout',
+      {
+        content_type: 'event_ticket',
+        content_ids: trackedEventId ? [trackedEventId] : [],
+        content_name: reg.event.title,
+        currency: reg.currency || 'PHP',
+        value: totalPesos,
+        num_items: reg.attendeeCount || 1,
+      },
+      `initiate-checkout:${reg.id}`,
+    );
+
+    void trackInternalFunnelEvent({
+      eventId: trackedEventId,
+      step: 'payment_started',
+      status: 'success',
+      metadata: {
+        registrationId: reg.id,
+        eventSlug: reg.event.slug,
+        attendeeCount: reg.attendeeCount,
+        total: reg.total,
+      },
+    });
+  }, [reg]);
+
   const handleUploaded = () => {
+    if (reg) {
+      const trackedEventId = (reg as Registration & { eventId?: string }).eventId;
+      const totalPesos = centavosToPeso(reg.total);
+      trackPixelEvent('AddPaymentInfo', {
+        content_name: reg.event.title,
+        currency: reg.currency || 'PHP',
+        value: totalPesos,
+      });
+      trackPixelCustomEvent('Registration_Submitted_For_Review', {
+        event_id: trackedEventId ?? null,
+        event_name: reg.event.title,
+        currency: reg.currency || 'PHP',
+        value: totalPesos,
+      });
+    }
     router.push('/account/tickets?tab=registrations');
   };
 

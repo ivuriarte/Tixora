@@ -58,6 +58,30 @@ interface TimelineData {
   series: TimelinePoint[];
 }
 
+interface FunnelCount {
+  step: string;
+  total: number;
+  success: number;
+  started: number;
+  failed: number;
+}
+
+interface FunnelFailure {
+  step: string;
+  status: string;
+  email: string | null;
+  sessionId: string | null;
+  referrer: string | null;
+  metadata: Record<string, unknown> | null;
+  createdAt: string;
+}
+
+interface FunnelData {
+  event: { id: string; title: string; slug: string };
+  counts: FunnelCount[];
+  failures: FunnelFailure[];
+}
+
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
 function fmtRevenue(n: number) {
@@ -66,6 +90,24 @@ function fmtRevenue(n: number) {
 
 function fmtPct(n: number) {
   return `${n}%`;
+}
+
+function labelForStep(step: string) {
+  const map: Record<string, string> = {
+    event_page_viewed: 'Event page viewed',
+    register_cta_clicked: 'Register clicked',
+    email_submitted: 'Email submitted',
+    otp_send_requested: 'OTP requested',
+    otp_sent: 'OTP sent',
+    otp_verified: 'OTP verified',
+    profile_completed: 'Profile completed',
+    ticket_selection_started: 'Ticket selection started',
+    payment_started: 'Checkout started',
+    payment_submitted: 'Payment submitted',
+    registration_submitted_for_review: 'Submitted for review',
+    ticket_issued: 'Ticket issued',
+  };
+  return map[step] ?? step;
 }
 
 // ── Sparkline (pure SVG — no deps) ─────────────────────────────────────────────
@@ -183,6 +225,19 @@ export default function AdminAnalyticsPage() {
         )
         .then((r) => r.data.data),
     enabled: !!selectedEventId,
+  });
+
+  const { data: funnel } = useQuery<FunnelData>({
+    queryKey: ['event-funnel', selectedEventId],
+    queryFn: () =>
+      api
+        .get<{ data: FunnelData }>(`/admin/analytics/events/${selectedEventId}/funnel`)
+        .then((r) => r.data.data),
+    enabled: !!selectedEventId,
+    refetchInterval: 60_000,
+    refetchIntervalInBackground: false,
+    staleTime: 30_000,
+    refetchOnWindowFocus: false,
   });
 
   const revenueData = timeline?.series.map((p) => p.revenue) ?? [];
@@ -321,6 +376,49 @@ export default function AdminAnalyticsPage() {
                 Peak day: {Math.max(...salesData)} sales ·{' '}
                 Total: {salesData.reduce((s, v) => s + v, 0)}
               </p>
+            </div>
+          </div>
+        )}
+
+        {funnel && (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <div className="bg-white shadow rounded-2xl p-6 space-y-4">
+              <h2 className="font-semibold text-gray-900">Registration Funnel</h2>
+              <div className="space-y-3">
+                {funnel.counts.map((row) => (
+                  <div key={row.step} className="rounded-xl border border-gray-100 px-3 py-2">
+                    <div className="flex items-center justify-between">
+                      <p className="text-sm font-medium text-gray-800">{labelForStep(row.step)}</p>
+                      <p className="text-sm font-semibold text-gray-900">{row.total}</p>
+                    </div>
+                    <div className="mt-1 text-[11px] text-gray-500 flex items-center gap-3">
+                      <span>success: {row.success}</span>
+                      <span>started: {row.started}</span>
+                      <span>failed: {row.failed}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="bg-white shadow rounded-2xl p-6 space-y-4">
+              <h2 className="font-semibold text-gray-900">Recent Failed Funnel Events</h2>
+              {funnel.failures.length === 0 ? (
+                <p className="text-sm text-gray-400">No failed funnel events yet.</p>
+              ) : (
+                <div className="space-y-2 max-h-[420px] overflow-auto pr-1">
+                  {funnel.failures.map((f, index) => (
+                    <div key={`${f.createdAt}-${index}`} className="rounded-xl border border-red-100 bg-red-50/40 px-3 py-2">
+                      <p className="text-xs font-semibold text-red-700">{labelForStep(f.step)}</p>
+                      <p className="text-xs text-gray-600 mt-0.5">{new Date(f.createdAt).toLocaleString('en-PH')}</p>
+                      {f.email && <p className="text-xs text-gray-700 mt-0.5">{f.email}</p>}
+                      {typeof f.metadata?.reason === 'string' && (
+                        <p className="text-xs text-red-700 mt-0.5">Reason: {f.metadata.reason}</p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         )}

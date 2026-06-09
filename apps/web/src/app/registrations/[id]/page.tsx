@@ -9,6 +9,7 @@ import { formatManila, centavosToPeso, formatPHP } from '@axon-tickets/utils';
 import api from '@/lib/api';
 import PaymentProofUpload from '@/components/PaymentProofUpload';
 import type { Registration, RegistrationStatus } from '@axon-tickets/types';
+import { trackPixelCustomEvent, trackPixelEvent } from '@/lib/metaPixel';
 
 const STATUS_LABELS: Record<RegistrationStatus, string> = {
   pending_payment: 'Pending Payment',
@@ -51,6 +52,24 @@ export default function RegistrationDetailPage() {
     void fetchReg();
   }, [fetchReg]);
 
+  useEffect(() => {
+    if (!reg || reg.status !== 'verified') return;
+
+    const trackedEventId = (reg as Registration & { eventId?: string }).eventId;
+    trackPixelEvent(
+      'Purchase',
+      {
+        content_type: 'event_ticket',
+        content_ids: trackedEventId ? [trackedEventId] : [],
+        content_name: reg.event.title,
+        currency: reg.currency || 'PHP',
+        value: centavosToPeso(reg.total),
+        num_items: reg.attendeeCount,
+      },
+      `purchase-registration:${reg.id}`,
+    );
+  }, [reg]);
+
   const handleCancel = async () => {
     if (!confirm('Cancel this registration? This cannot be undone.')) return;
     setCancelling(true);
@@ -65,6 +84,24 @@ export default function RegistrationDetailPage() {
     } finally {
       setCancelling(false);
     }
+  };
+
+  const handleProofUploaded = async () => {
+    if (reg) {
+      const trackedEventId = (reg as Registration & { eventId?: string }).eventId;
+      trackPixelEvent('AddPaymentInfo', {
+        content_name: reg.event.title,
+        currency: reg.currency || 'PHP',
+        value: centavosToPeso(reg.total),
+      });
+      trackPixelCustomEvent('Registration_Submitted_For_Review', {
+        event_id: trackedEventId ?? null,
+        event_name: reg.event.title,
+        currency: reg.currency || 'PHP',
+        value: centavosToPeso(reg.total),
+      }, `reg-submitted-review:${reg.id}`);
+    }
+    await fetchReg();
   };
 
   if (loading) {
@@ -225,7 +262,7 @@ export default function RegistrationDetailPage() {
             <h2 className="font-semibold text-gray-900">
               {reg.status === 'rejected' ? 'Re-upload Payment Proof' : 'Upload Payment Proof'}
             </h2>
-            <PaymentProofUpload registrationId={reg.id} onUploaded={fetchReg} />
+            <PaymentProofUpload registrationId={reg.id} onUploaded={handleProofUploaded} />
           </div>
         )}
 

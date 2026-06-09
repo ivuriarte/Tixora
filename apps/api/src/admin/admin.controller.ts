@@ -195,6 +195,12 @@ export class AdminController {
     return this.adminService.getEventTimeline(eventId, days);
   }
 
+  @Get('analytics/events/:eventId/funnel')
+  @ApiOperation({ summary: 'Get registration funnel counts and recent failures for an event' })
+  getEventFunnel(@Param('eventId') eventId: string) {
+    return this.adminService.getEventFunnel(eventId);
+  }
+
   @Get('analytics/dashboard')
   @ApiOperation({ summary: 'Get dashboard-level aggregate stats' })
   getDashboardStats(@Query('eventId') eventId?: string) {

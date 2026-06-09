@@ -6,6 +6,8 @@ import { getAccessToken } from '@/lib/auth';
 import api from '@/lib/api';
 import RegistrationForm from '@/components/RegistrationForm';
 import CheckoutStepper from '@/components/CheckoutStepper';
+import { trackPixelCustomEvent } from '@/lib/metaPixel';
+import { trackInternalFunnelEvent } from '@/lib/funnel';
 
 interface Tier {
   id: string;
@@ -53,7 +55,14 @@ export default function RegisterPage({
   searchParams,
 }: {
   params: { slug: string };
-  searchParams: { tierId?: string; qty?: string; registrationId?: string };
+  searchParams: {
+    tierId?: string;
+    qty?: string;
+    registrationId?: string;
+    eventId?: string;
+    eventSlug?: string;
+    eventName?: string;
+  };
 }) {
   const router = useRouter();
   const [event, setEvent] = useState<EventData | null>(null);
@@ -67,9 +76,17 @@ export default function RegisterPage({
   useEffect(() => {
     if (!getAccessToken()) {
       const redirectUrl = `/events/${params.slug}/register${
-        searchParams.tierId ? `?tierId=${searchParams.tierId}&qty=${searchParams.qty ?? '1'}` : ''
+        searchParams.tierId
+          ? `?tierId=${searchParams.tierId}&qty=${searchParams.qty ?? '1'}&eventId=${encodeURIComponent(searchParams.eventId ?? '')}&eventSlug=${encodeURIComponent(searchParams.eventSlug ?? params.slug)}&eventName=${encodeURIComponent(searchParams.eventName ?? '')}`
+          : ''
       }`;
-      router.replace(`/auth/access?redirect=${encodeURIComponent(redirectUrl)}`);
+      const authParams = new URLSearchParams({
+        redirect: redirectUrl,
+        eventId: searchParams.eventId ?? '',
+        eventSlug: searchParams.eventSlug ?? params.slug,
+        eventName: searchParams.eventName ?? '',
+      });
+      router.replace(`/auth/access?${authParams.toString()}`);
       return;
     }
 
@@ -108,6 +125,31 @@ export default function RegisterPage({
       .catch(() => router.replace(`/events/${params.slug}`))
       .finally(() => setLoading(false));
   }, [params.slug, existingRegistrationId, router]);
+
+  useEffect(() => {
+    if (!event) return;
+
+    trackPixelCustomEvent(
+      'TicketSelection_Started',
+      {
+        event_id: event.id,
+        event_name: event.title,
+      },
+      `ticket-selection:${event.id}:${searchParams.tierId ?? ''}:${searchParams.qty ?? '1'}`,
+    );
+
+    void trackInternalFunnelEvent({
+      eventId: event.id,
+      step: 'ticket_selection_started',
+      status: 'success',
+      metadata: {
+        eventSlug: event.slug,
+        eventTitle: event.title,
+        tierId: searchParams.tierId ?? null,
+        qty,
+      },
+    });
+  }, [event, qty, searchParams.qty, searchParams.tierId]);
 
   if (loading || !event) {
     return (

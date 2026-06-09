@@ -3,6 +3,8 @@
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { formatPHP, centavosToPeso } from '@axon-tickets/utils';
+import { trackPixelCustomEvent } from '@/lib/metaPixel';
+import { trackInternalFunnelEvent } from '@/lib/funnel';
 
 /** Privacy: keep first letter of each word, mask the rest. "Ian Uriarte" -> "I•• U••••••" */
 function maskAccountName(name: string): string {
@@ -32,6 +34,8 @@ interface Tier {
 }
 
 interface Props {
+  eventId: string;
+  eventTitle: string;
   eventSlug: string;
   tiers: Tier[];
   bankName: string | null;
@@ -47,6 +51,8 @@ interface Props {
 }
 
 export default function RegistrationPanel({
+  eventId,
+  eventTitle,
   eventSlug,
   tiers,
   bankName,
@@ -68,8 +74,34 @@ export default function RegistrationPanel({
 
   const handleRegister = () => {
     if (!selectedId) return;
+
+    const nextUrl = `/events/${eventSlug}/register?tierId=${selectedId}&qty=${qty}&eventId=${encodeURIComponent(eventId)}&eventSlug=${encodeURIComponent(eventSlug)}&eventName=${encodeURIComponent(eventTitle)}`;
+
+    trackPixelCustomEvent(
+      'RegisterCTA_Clicked',
+      {
+        event_id: eventId,
+        event_name: eventTitle,
+        event_slug: eventSlug,
+      },
+      `register-cta:${eventId}:${selectedId}:${qty}`,
+    );
+
+    void trackInternalFunnelEvent({
+      eventId,
+      step: 'register_cta_clicked',
+      status: 'success',
+      metadata: {
+        eventSlug,
+        eventTitle,
+        tierId: selectedId,
+        qty,
+        returnUrl: nextUrl,
+      },
+    });
+
     startTransition(() => {
-      router.push(`/events/${eventSlug}/register?tierId=${selectedId}&qty=${qty}`);
+      router.push(nextUrl);
     });
   };
 

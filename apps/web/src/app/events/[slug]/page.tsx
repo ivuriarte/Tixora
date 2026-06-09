@@ -6,6 +6,7 @@ import { formatManila } from '@axon-tickets/utils';
 import RegistrationGuard from '@/components/RegistrationGuard';
 import VenueMap from '@/components/VenueMap';
 import DescriptionSection from '@/components/DescriptionSection';
+import EventFunnelTracker from '@/components/EventFunnelTracker';
 
 interface Tier {
   id: string;
@@ -139,6 +140,7 @@ export default async function EventPage({ params, searchParams }: { params: { sl
     <>
       <Navbar />
       <main className="page-container py-10">
+        <EventFunnelTracker eventId={event.id} eventSlug={event.slug} eventTitle={event.title} />
         {isPreview && (
           <div className="mb-6 flex items-center justify-between bg-amber-50 border border-amber-200 rounded-xl px-4 py-3">
             <div className="flex items-center gap-2 text-amber-800">
@@ -284,6 +286,7 @@ export default async function EventPage({ params, searchParams }: { params: { sl
             </div>
             <RegistrationGuard
               eventId={event.id}
+              eventTitle={event.title}
               eventSlug={event.slug}
               tiers={event.tiers}
               maxPerUser={event.maxPerUser}
