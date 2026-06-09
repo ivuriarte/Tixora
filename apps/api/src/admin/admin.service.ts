@@ -16,7 +16,7 @@ import { verifyQrToken, verifyAttendeeQrToken } from '@axon-tickets/utils';
 import { ConfigService } from '@nestjs/config';
 import { AuditService } from '../audit/audit.service';
 import { EmailService } from '../email/email.service';
-import PDFDocument = require('pdfkit');
+import { PDFDocument, PDFFont, PDFPage, StandardFonts, rgb } from 'pdf-lib';
 
 interface NametagRow {
   id: string;
@@ -1325,76 +1325,68 @@ export class AdminService {
       throw new BadRequestException('No matching attendees found for this event');
     }
 
-    return this.renderNametagsPdf(event.title, rows);
+    try {
+      return await this.renderNametagsPdf(event.title, rows);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      const stack = error instanceof Error ? error.stack : undefined;
+      this.logger.error(`Nametag PDF generation failed: ${message}`, stack);
+      throw error;
+    }
   }
 
-  private renderNametagsPdf(eventTitle: string, rows: NametagRow[]): Promise<Buffer> {
-    return new Promise((resolve, reject) => {
-      const doc = new PDFDocument({
-        size: 'A4',
-        margin: 30,
-        info: {
-          Title: `${eventTitle} Nametags`,
-          Author: 'Axon Tickets',
-          Subject: 'Printable attendee nametags',
-        },
+  private async renderNametagsPdf(eventTitle: string, rows: NametagRow[]): Promise<Buffer> {
+    const pdf = await PDFDocument.create();
+    pdf.setTitle(`${eventTitle} Nametags`);
+    pdf.setAuthor('Axon Tickets');
+    pdf.setSubject('Printable attendee nametags');
+
+    const regularFont = await pdf.embedFont(StandardFonts.Helvetica);
+    const boldFont = await pdf.embedFont(StandardFonts.HelveticaBold);
+    const pageSize: [number, number] = [595.28, 841.89]; // A4 in points
+    const margin = 30;
+    const gutter = 14;
+    const rowGap = 12;
+    const columns = 2;
+    const rowsPerPage = 4;
+    const tagsPerPage = columns * rowsPerPage;
+    const tagWidth = (pageSize[0] - margin * 2 - gutter) / columns;
+    const tagHeight = (pageSize[1] - margin * 2 - rowGap * (rowsPerPage - 1)) / rowsPerPage;
+    const printableRows = rows.length > 0 ? rows : [
+      { id: 'blank', name: '', company: '', position: '', createdAt: new Date() },
+    ];
+
+    printableRows.forEach((row, index) => {
+      const pages = pdf.getPages();
+      const page = index % tagsPerPage === 0 ? pdf.addPage(pageSize) : pages[pages.length - 1];
+      if (!page) return;
+
+      const pageIndex = index % tagsPerPage;
+      const column = pageIndex % columns;
+      const gridRow = Math.floor(pageIndex / columns);
+      const x = margin + column * (tagWidth + gutter);
+      const topY = pageSize[1] - margin - gridRow * (tagHeight + rowGap);
+      const y = topY - tagHeight;
+
+      this.drawNametag(page, {
+        x,
+        y,
+        width: tagWidth,
+        height: tagHeight,
+        eventTitle,
+        attendeeName: row.name,
+        company: row.company,
+        position: row.position,
+        regularFont,
+        boldFont,
       });
-      const chunks: Buffer[] = [];
-
-      doc.on('data', (chunk: Buffer) => chunks.push(chunk));
-      doc.on('end', () => resolve(Buffer.concat(chunks)));
-      doc.on('error', reject);
-
-      const margin = 30;
-      const gutter = 14;
-      const rowGap = 12;
-      const columns = 2;
-      const rowsPerPage = 4;
-      const tagWidth = (doc.page.width - margin * 2 - gutter) / columns;
-      const tagHeight = (doc.page.height - margin * 2 - rowGap * (rowsPerPage - 1)) / rowsPerPage;
-
-      if (rows.length === 0) {
-        this.drawNametag(doc, {
-          x: margin,
-          y: margin,
-          width: tagWidth,
-          height: tagHeight,
-          eventTitle,
-          attendeeName: '',
-          company: '',
-          position: '',
-        });
-      }
-
-      rows.forEach((row, index) => {
-        if (index > 0 && index % (columns * rowsPerPage) === 0) {
-          doc.addPage();
-        }
-
-        const pageIndex = index % (columns * rowsPerPage);
-        const column = pageIndex % columns;
-        const gridRow = Math.floor(pageIndex / columns);
-        const x = margin + column * (tagWidth + gutter);
-        const y = margin + gridRow * (tagHeight + rowGap);
-
-        this.drawNametag(doc, {
-          x,
-          y,
-          width: tagWidth,
-          height: tagHeight,
-          eventTitle,
-          attendeeName: row.name,
-          company: row.company,
-          position: row.position,
-        });
-      });
-
-      doc.end();
     });
+
+    return Buffer.from(await pdf.save());
   }
 
   private drawNametag(
-    doc: PDFKit.PDFDocument,
+    page: PDFPage,
     options: {
       x: number;
       y: number;
@@ -1404,96 +1396,201 @@ export class AdminService {
       attendeeName: string;
       company: string;
       position: string;
+      regularFont: PDFFont;
+      boldFont: PDFFont;
     },
   ) {
-    const { x, y, width, height, eventTitle, attendeeName, company, position } = options;
+    const {
+      x,
+      y,
+      width,
+      height,
+      eventTitle,
+      attendeeName,
+      company,
+      position,
+      regularFont,
+      boldFont,
+    } = options;
     const padding = 14;
-    const nameBandY = y + height * 0.34;
+    const nameBandY = y + height * 0.44;
     const nameBandHeight = 54;
     const name = attendeeName.trim().toUpperCase();
-    const detailTop = nameBandY + nameBandHeight + 13;
+    const detailTop = nameBandY - 22;
 
-    doc
-      .roundedRect(x, y, width, height, 8)
-      .lineWidth(1)
-      .strokeColor('#D1D5DB')
-      .stroke();
+    page.drawRectangle({
+      x,
+      y,
+      width,
+      height,
+      borderColor: rgb(0.82, 0.84, 0.87),
+      borderWidth: 1,
+      color: rgb(1, 1, 1),
+    });
 
-    doc
-      .font('Helvetica-Bold')
-      .fontSize(10)
-      .fillColor('#111827')
-      .text(eventTitle, x + padding, y + 13, {
-        width: width - padding * 2,
-        align: 'center',
-        lineGap: 1,
-        height: 30,
-        ellipsis: true,
-      });
+    this.drawCenteredWrappedText(page, eventTitle, {
+      x: x + padding,
+      y: y + height - 26,
+      width: width - padding * 2,
+      maxLines: 2,
+      font: boldFont,
+      size: 10,
+      color: rgb(0.07, 0.09, 0.15),
+      lineHeight: 12,
+    });
 
-    doc
-      .rect(x + padding, nameBandY, width - padding * 2, nameBandHeight)
-      .fillColor('#F3F4F6')
-      .fill();
+    page.drawRectangle({
+      x: x + padding,
+      y: nameBandY,
+      width: width - padding * 2,
+      height: nameBandHeight,
+      color: rgb(0.95, 0.96, 0.97),
+    });
 
-    doc
-      .moveTo(x + padding, nameBandY)
-      .lineTo(x + width - padding, nameBandY)
-      .moveTo(x + padding, nameBandY + nameBandHeight)
-      .lineTo(x + width - padding, nameBandY + nameBandHeight)
-      .lineWidth(1.4)
-      .strokeColor('#111827')
-      .stroke();
+    page.drawLine({
+      start: { x: x + padding, y: nameBandY + nameBandHeight },
+      end: { x: x + width - padding, y: nameBandY + nameBandHeight },
+      color: rgb(0.07, 0.09, 0.15),
+      thickness: 1.4,
+    });
+    page.drawLine({
+      start: { x: x + padding, y: nameBandY },
+      end: { x: x + width - padding, y: nameBandY },
+      color: rgb(0.07, 0.09, 0.15),
+      thickness: 1.4,
+    });
 
-    doc
-      .font('Helvetica-Bold')
-      .fontSize(this.fitFontSize(doc, name, width - padding * 3, 25, 14))
-      .fillColor('#030712')
-      .text(name, x + padding * 1.5, nameBandY + 16, {
-        width: width - padding * 3,
-        align: 'center',
-        ellipsis: true,
-      });
+    const nameSize = this.fitFontSize(boldFont, name, width - padding * 3, 25, 14);
+    this.drawCenteredText(page, name, {
+      x: x + padding * 1.5,
+      y: nameBandY + (nameBandHeight - nameSize) / 2,
+      width: width - padding * 3,
+      font: boldFont,
+      size: nameSize,
+      color: rgb(0.01, 0.03, 0.07),
+    });
 
-    doc
-      .font('Helvetica')
-      .fontSize(10)
-      .fillColor('#374151')
-      .text(position, x + padding, detailTop, {
-        width: width - padding * 2,
-        align: 'center',
-        height: 13,
-        ellipsis: true,
-      })
-      .text(company, x + padding, detailTop + 15, {
-        width: width - padding * 2,
-        align: 'center',
-        height: 13,
-        ellipsis: true,
-      });
+    this.drawCenteredText(page, position, {
+      x: x + padding,
+      y: detailTop,
+      width: width - padding * 2,
+      font: regularFont,
+      size: 10,
+      color: rgb(0.22, 0.26, 0.32),
+    });
+    this.drawCenteredText(page, company, {
+      x: x + padding,
+      y: detailTop - 15,
+      width: width - padding * 2,
+      font: regularFont,
+      size: 10,
+      color: rgb(0.22, 0.26, 0.32),
+    });
 
-    doc
-      .font('Helvetica-Bold')
-      .fontSize(8)
-      .fillColor('#6B7280')
-      .text('Powered by Axon Tickets', x + padding, y + height - 23, {
-        width: width - padding * 2,
-        align: 'center',
-      });
+    this.drawCenteredText(page, 'Powered by Axon Tickets', {
+      x: x + padding,
+      y: y + 16,
+      width: width - padding * 2,
+      font: boldFont,
+      size: 8,
+      color: rgb(0.42, 0.45, 0.5),
+    });
   }
 
   private fitFontSize(
-    doc: PDFKit.PDFDocument,
+    font: PDFFont,
     text: string,
     maxWidth: number,
     startSize: number,
     minSize: number,
   ) {
     for (let size = startSize; size >= minSize; size -= 1) {
-      doc.fontSize(size);
-      if (doc.widthOfString(text) <= maxWidth) return size;
+      if (font.widthOfTextAtSize(text, size) <= maxWidth) return size;
     }
     return minSize;
+  }
+
+  private drawCenteredText(
+    page: PDFPage,
+    text: string,
+    options: {
+      x: number;
+      y: number;
+      width: number;
+      font: PDFFont;
+      size: number;
+      color: ReturnType<typeof rgb>;
+    },
+  ) {
+    const trimmed = this.truncateToWidth(text.trim(), options.font, options.size, options.width);
+    const textWidth = options.font.widthOfTextAtSize(trimmed, options.size);
+    page.drawText(trimmed, {
+      x: options.x + Math.max((options.width - textWidth) / 2, 0),
+      y: options.y,
+      font: options.font,
+      size: options.size,
+      color: options.color,
+    });
+  }
+
+  private drawCenteredWrappedText(
+    page: PDFPage,
+    text: string,
+    options: {
+      x: number;
+      y: number;
+      width: number;
+      maxLines: number;
+      font: PDFFont;
+      size: number;
+      color: ReturnType<typeof rgb>;
+      lineHeight: number;
+    },
+  ) {
+    const lines = this.wrapText(text.trim(), options.font, options.size, options.width, options.maxLines);
+    lines.forEach((line, index) => {
+      this.drawCenteredText(page, line, {
+        x: options.x,
+        y: options.y - index * options.lineHeight,
+        width: options.width,
+        font: options.font,
+        size: options.size,
+        color: options.color,
+      });
+    });
+  }
+
+  private wrapText(text: string, font: PDFFont, size: number, maxWidth: number, maxLines: number) {
+    if (!text) return [''];
+    const words = text.split(/\s+/);
+    const lines: string[] = [];
+    let line = '';
+
+    words.forEach((word) => {
+      const candidate = line ? `${line} ${word}` : word;
+      if (font.widthOfTextAtSize(candidate, size) <= maxWidth) {
+        line = candidate;
+        return;
+      }
+      if (line) lines.push(line);
+      line = word;
+    });
+
+    if (line) lines.push(line);
+    const visible = lines.slice(0, maxLines);
+    if (lines.length > maxLines) {
+      visible[maxLines - 1] = this.truncateToWidth(`${visible[maxLines - 1]}...`, font, size, maxWidth);
+    }
+    return visible;
+  }
+
+  private truncateToWidth(text: string, font: PDFFont, size: number, maxWidth: number) {
+    if (font.widthOfTextAtSize(text, size) <= maxWidth) return text;
+    let truncated = text;
+    while (truncated.length > 1 && font.widthOfTextAtSize(`${truncated}...`, size) > maxWidth) {
+      truncated = truncated.slice(0, -1);
+    }
+    return `${truncated.trim()}...`;
   }
 
   private compactName(firstName: string | null, lastName: string | null) {

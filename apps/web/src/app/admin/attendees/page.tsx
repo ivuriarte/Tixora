@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
 import { Download, Printer } from 'lucide-react';
+import toast from 'react-hot-toast';
 import api from '@/lib/api';
 import Navbar from '@/components/Navbar';
 import BackButton from '@/components/BackButton';
@@ -154,8 +155,14 @@ export default function AdminAttendeesPage() {
       const a = document.createElement('a');
       a.href = url;
       a.download = `[Nametags]${safeTitle}-${scope}(${date}).pdf`;
+      document.body.appendChild(a);
       a.click();
-      URL.revokeObjectURL(url);
+      a.remove();
+      window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+      toast.success('Nametag PDF downloaded.');
+    } catch (error: any) {
+      const message = error?.response?.data?.message ?? 'Nametag PDF could not be generated. Please try again.';
+      toast.error(message);
     } finally {
       setPrinting(false);
     }
