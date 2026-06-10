@@ -103,39 +103,68 @@ export default function AdminCheckinPage() {
       const reader = new BrowserQRCodeReader();
       readerRef.current = reader;
       setCameraActive(true);
+      // Use decodeFromConstraints with ideal back-camera so tablets use their
+      // rear camera (better for QR) rather than the front-facing camera.
       // Await the promise so that a NotAllowedError (camera permission denied)
       // is caught below instead of becoming an unhandled promise rejection.
-      await reader.decodeFromVideoDevice(undefined, videoRef.current, (result, err) => {
-        if (result) {
-          // Guard: ZXing fires this callback on every frame where a QR is visible.
-          // Without the lock, handleCheckin would be called 10-30 times before
-          // stopCamera() can reset the reader, flooding the UI with toasts.
-          if (scanLockRef.current) return;
-          scanLockRef.current = true;
-          stopCamera();
-          handleCheckin(result.getText());
-        }
-        if (err && !(err.name === 'NotFoundException')) {
-          // Ignore errors after scan lock is engaged (scan succeeded, camera stopping)
-          if (scanLockRef.current) return;
-          // NotFoundException fires constantly while waiting for QR — suppress it
-          if ((err as any).name === 'NotAllowedError') {
-            setCameraError('Camera access was denied. Please allow camera access in your browser settings, then try again.');
-          } else {
-            setCameraError('Camera error. Switch to Search to look up by name or transaction ID.');
+      await reader.decodeFromConstraints(
+        { video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } } },
+        videoRef.current,
+        (result, err) => {
+          if (result) {
+            // Guard: ZXing fires this callback on every frame where a QR is visible.
+            // Without the lock, handleCheckin would be called 10-30 times before
+            // stopCamera() can reset the reader, flooding the UI with toasts.
+            if (scanLockRef.current) return;
+            scanLockRef.current = true;
+            stopCamera();
+            handleCheckin(result.getText());
           }
-          stopCamera();
-        }
-      });
+          if (err && !(err.name === 'NotFoundException')) {
+            // Ignore errors after scan lock is engaged (scan succeeded, camera stopping)
+            if (scanLockRef.current) return;
+            // NotFoundException fires constantly while waiting for QR — suppress it.
+            // IMPORTANT: call stopCamera() BEFORE setCameraError() so that
+            // stopCamera's own setCameraError('') does not overwrite our message
+            // (React 18 batches these — last setter wins).
+            if ((err as any).name === 'NotAllowedError') {
+              stopCamera();
+              setCameraError('permission_denied');
+            } else {
+              stopCamera();
+              setCameraError('Camera error. Switch to Search to look up by name or transaction ID.');
+            }
+          }
+        },
+      );
     } catch (err: any) {
       if (err?.name === 'NotAllowedError') {
-        setCameraError('Camera access was denied. Please allow camera access in your browser settings, then try again.');
+        setCameraError('permission_denied');
       } else {
         setCameraError('Could not access camera. Make sure you allow camera access.');
       }
       setCameraActive(false);
     }
   }, [stopCamera]);
+
+  // Re-trigger the browser camera permission prompt. Works when Chrome shows
+  // a soft-deny (the lock icon in the address bar). If permanently blocked, the
+  // prompt won't appear and we show more specific instructions.
+  const requestCameraAccess = useCallback(async () => {
+    setCameraError('');
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' } } });
+      stream.getTracks().forEach((t) => t.stop());
+      // Permission granted — launch the QR reader
+      startCamera();
+    } catch (err: any) {
+      if (err?.name === 'NotAllowedError') {
+        setCameraError('permission_denied');
+      } else {
+        setCameraError('Could not access camera: ' + (err?.message ?? 'Unknown error'));
+      }
+    }
+  }, [startCamera]);
 
   // Stop camera when switching tabs
   useEffect(() => {
@@ -275,15 +304,29 @@ export default function AdminCheckinPage() {
               )}
             </div>
             {cameraError && (
-              <div className="bg-red-50 border border-red-200 rounded-lg p-3 flex items-start gap-2">
-                <span className="text-red-600 text-sm flex-1">{cameraError}</span>
-                <button
-                  onClick={() => setCameraError('')}
-                  className="text-red-400 hover:text-red-600 font-bold text-lg leading-none -mt-0.5"
-                  aria-label="Dismiss error"
-                >
-                  ×
-                </button>
+              <div className="bg-red-50 border border-red-200 rounded-lg p-4 space-y-3">
+                <div className="flex items-start gap-2">
+                  <span className="text-red-600 text-sm flex-1">
+                    {cameraError === 'permission_denied'
+                      ? 'Camera access was denied. Tap \"Request Camera Access\" below — or open Chrome → Settings → Site Settings → Camera and allow this site.'
+                      : cameraError}
+                  </span>
+                  <button
+                    onClick={() => setCameraError('')}
+                    className="text-red-400 hover:text-red-600 font-bold text-lg leading-none -mt-0.5 flex-shrink-0"
+                    aria-label="Dismiss error"
+                  >
+                    ×
+                  </button>
+                </div>
+                {cameraError === 'permission_denied' && (
+                  <button
+                    onClick={requestCameraAccess}
+                    className="w-full bg-red-600 hover:bg-red-700 text-white text-sm font-medium rounded-lg py-2 px-4 transition-colors"
+                  >
+                    Request Camera Access
+                  </button>
+                )}
               </div>
             )}
             <div className="flex gap-3">
