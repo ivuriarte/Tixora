@@ -1343,15 +1343,19 @@ export class AdminService {
 
     const regularFont = await pdf.embedFont(StandardFonts.Helvetica);
     const boldFont = await pdf.embedFont(StandardFonts.HelveticaBold);
-    const pageSize: [number, number] = [595.28, 841.89]; // A4 in points
-    const margin = 30;
-    const gutter = 14;
-    const rowGap = 12;
+    const mmToPt = (mm: number) => (mm * 72) / 25.4;
+    const pageSize: [number, number] = [841.89, 595.28]; // A4 landscape in points
     const columns = 2;
     const rowsPerPage = 4;
     const tagsPerPage = columns * rowsPerPage;
-    const tagWidth = (pageSize[0] - margin * 2 - gutter) / columns;
-    const tagHeight = (pageSize[1] - margin * 2 - rowGap * (rowsPerPage - 1)) / rowsPerPage;
+    const tagWidth = mmToPt(100);
+    const tagHeight = mmToPt(40);
+    const columnGap = mmToPt(10);
+    const rowGap = mmToPt(5);
+    const gridWidth = columns * tagWidth + (columns - 1) * columnGap;
+    const gridHeight = rowsPerPage * tagHeight + (rowsPerPage - 1) * rowGap;
+    const marginX = (pageSize[0] - gridWidth) / 2;
+    const marginY = (pageSize[1] - gridHeight) / 2;
     const printableRows = rows.length > 0 ? rows : [
       { id: 'blank', name: '', company: '', position: '', createdAt: new Date() },
     ];
@@ -1364,8 +1368,8 @@ export class AdminService {
       const pageIndex = index % tagsPerPage;
       const column = pageIndex % columns;
       const gridRow = Math.floor(pageIndex / columns);
-      const x = margin + column * (tagWidth + gutter);
-      const topY = pageSize[1] - margin - gridRow * (tagHeight + rowGap);
+      const x = marginX + column * (tagWidth + columnGap);
+      const topY = pageSize[1] - marginY - gridRow * (tagHeight + rowGap);
       const y = topY - tagHeight;
 
       this.drawNametag(page, {
@@ -1412,87 +1416,91 @@ export class AdminService {
       regularFont,
       boldFont,
     } = options;
-    const padding = 14;
-    const nameBandY = y + height * 0.44;
-    const nameBandHeight = 54;
+    const safeMargin = (4 * 72) / 25.4;
+    const contentX = x + safeMargin;
+    const contentWidth = width - safeMargin * 2;
     const name = attendeeName.trim().toUpperCase();
-    const detailTop = nameBandY - 22;
+    const detailText = [position.trim(), company.trim()].filter(Boolean).join(' - ');
+    const eventBaseline = y + height - safeMargin - 6;
+    const nameBandY = y + 41;
+    const nameBandHeight = 34;
+    const detailBaseline = y + 27;
+    const footerBaseline = y + safeMargin - 1;
 
     page.drawRectangle({
       x,
       y,
       width,
       height,
-      borderColor: rgb(0.82, 0.84, 0.87),
-      borderWidth: 1,
+      borderColor: rgb(0.64, 0.67, 0.72),
+      borderWidth: 0.75,
       color: rgb(1, 1, 1),
     });
 
-    this.drawCenteredWrappedText(page, eventTitle, {
-      x: x + padding,
-      y: y + height - 26,
-      width: width - padding * 2,
-      maxLines: 2,
+    page.drawRectangle({
+      x: contentX,
+      y: y + safeMargin,
+      width: contentWidth,
+      height: height - safeMargin * 2,
+      borderColor: rgb(0.9, 0.92, 0.94),
+      borderWidth: 0.35,
+    });
+
+    this.drawCenteredText(page, eventTitle, {
+      x: contentX,
+      y: eventBaseline,
+      width: contentWidth,
       font: boldFont,
-      size: 10,
-      color: rgb(0.07, 0.09, 0.15),
-      lineHeight: 12,
+      size: 7.5,
+      color: rgb(0.2, 0.24, 0.3),
     });
 
     page.drawRectangle({
-      x: x + padding,
+      x: contentX,
       y: nameBandY,
-      width: width - padding * 2,
+      width: contentWidth,
       height: nameBandHeight,
-      color: rgb(0.95, 0.96, 0.97),
+      color: rgb(0.96, 0.97, 0.98),
     });
 
     page.drawLine({
-      start: { x: x + padding, y: nameBandY + nameBandHeight },
-      end: { x: x + width - padding, y: nameBandY + nameBandHeight },
+      start: { x: contentX, y: nameBandY + nameBandHeight },
+      end: { x: x + width - safeMargin, y: nameBandY + nameBandHeight },
       color: rgb(0.07, 0.09, 0.15),
-      thickness: 1.4,
+      thickness: 1,
     });
     page.drawLine({
-      start: { x: x + padding, y: nameBandY },
-      end: { x: x + width - padding, y: nameBandY },
+      start: { x: contentX, y: nameBandY },
+      end: { x: x + width - safeMargin, y: nameBandY },
       color: rgb(0.07, 0.09, 0.15),
-      thickness: 1.4,
+      thickness: 1,
     });
 
-    const nameSize = this.fitFontSize(boldFont, name, width - padding * 3, 25, 14);
+    const nameSize = this.fitFontSize(boldFont, name, contentWidth - 8, 20, 12);
     this.drawCenteredText(page, name, {
-      x: x + padding * 1.5,
-      y: nameBandY + (nameBandHeight - nameSize) / 2,
-      width: width - padding * 3,
+      x: contentX + 4,
+      y: nameBandY + (nameBandHeight - nameSize) / 2 + 1,
+      width: contentWidth - 8,
       font: boldFont,
       size: nameSize,
       color: rgb(0.01, 0.03, 0.07),
     });
 
-    this.drawCenteredText(page, position, {
-      x: x + padding,
-      y: detailTop,
-      width: width - padding * 2,
+    this.drawCenteredText(page, detailText, {
+      x: contentX,
+      y: detailBaseline,
+      width: contentWidth,
       font: regularFont,
-      size: 10,
-      color: rgb(0.22, 0.26, 0.32),
-    });
-    this.drawCenteredText(page, company, {
-      x: x + padding,
-      y: detailTop - 15,
-      width: width - padding * 2,
-      font: regularFont,
-      size: 10,
+      size: 8,
       color: rgb(0.22, 0.26, 0.32),
     });
 
     this.drawCenteredText(page, 'Powered by Axon Tickets', {
-      x: x + padding,
-      y: y + 16,
-      width: width - padding * 2,
+      x: contentX,
+      y: footerBaseline,
+      width: contentWidth,
       font: boldFont,
-      size: 8,
+      size: 6,
       color: rgb(0.42, 0.45, 0.5),
     });
   }
