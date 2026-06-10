@@ -49,6 +49,8 @@ export default function AdminCheckinPage() {
   // Camera
   const videoRef = useRef<HTMLVideoElement>(null);
   const readerRef = useRef<any>(null);
+  // Holds the live MediaStream so we can stop tracks explicitly on teardown
+  const streamRef = useRef<MediaStream | null>(null);
   const [cameraActive, setCameraActive] = useState(false);
   const [cameraError, setCameraError] = useState('');
   // Scan lock: prevents the ZXing per-frame callback from firing handleCheckin multiple times
@@ -89,76 +91,94 @@ export default function AdminCheckinPage() {
       try { readerRef.current.reset(); } catch {}
       readerRef.current = null;
     }
+    // Stop all media tracks so the camera LED turns off and the device releases
+    // the camera — critical on Android so the next getUserMedia call succeeds.
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((t) => t.stop());
+      streamRef.current = null;
+    }
+    if (videoRef.current) videoRef.current.srcObject = null;
     setCameraActive(false);
     // Always clear errors when stopping camera to prevent stale messages
     setCameraError('');
   }, []);
 
-  const startCamera = useCallback(async () => {
+  // startCamera optionally accepts a pre-acquired MediaStream (from requestCameraAccess)
+  // so we never open the camera twice in a row — a common failure mode on Android Chrome.
+  const startCamera = useCallback(async (preAcquiredStream?: MediaStream) => {
     setCameraError('');
     if (!videoRef.current) return;
+
+    // Step 1: Acquire the MediaStream ourselves so we fully control permission
+    // prompting and track lifecycle. Re-use a pre-acquired stream when provided.
+    let stream = preAcquiredStream ?? null;
+    if (!stream) {
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: { ideal: 'environment' } },
+        });
+      } catch (permErr: any) {
+        const name = (permErr?.name ?? '') as string;
+        if (name === 'NotAllowedError' || name === 'PermissionDeniedError') {
+          setCameraError('permission_denied');
+        } else {
+          setCameraError('Could not access camera: ' + (permErr?.message ?? 'Unknown error'));
+        }
+        return;
+      }
+    }
+
+    streamRef.current = stream;
+    // Assign srcObject immediately so the video preview appears while ZXing loads
+    videoRef.current.srcObject = stream;
+    setCameraActive(true);
+
     try {
-      // Dynamically import to avoid SSR issues
+      // Step 2: Hand the live stream to ZXing for QR frame detection.
       const { BrowserQRCodeReader } = await import('@zxing/browser');
       const reader = new BrowserQRCodeReader();
       readerRef.current = reader;
-      setCameraActive(true);
-      // Use decodeFromConstraints with ideal back-camera so tablets use their
-      // rear camera (better for QR) rather than the front-facing camera.
-      // Await the promise so that a NotAllowedError (camera permission denied)
-      // is caught below instead of becoming an unhandled promise rejection.
-      await reader.decodeFromConstraints(
-        { video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } } },
-        videoRef.current,
-        (result, err) => {
-          if (result) {
-            // Guard: ZXing fires this callback on every frame where a QR is visible.
-            // Without the lock, handleCheckin would be called 10-30 times before
-            // stopCamera() can reset the reader, flooding the UI with toasts.
-            if (scanLockRef.current) return;
-            scanLockRef.current = true;
-            stopCamera();
-            handleCheckin(result.getText());
-          }
-          if (err && !(err.name === 'NotFoundException')) {
-            // Ignore errors after scan lock is engaged (scan succeeded, camera stopping)
-            if (scanLockRef.current) return;
-            // NotFoundException fires constantly while waiting for QR — suppress it.
-            // IMPORTANT: call stopCamera() BEFORE setCameraError() so that
-            // stopCamera's own setCameraError('') does not overwrite our message
-            // (React 18 batches these — last setter wins).
-            if ((err as any).name === 'NotAllowedError') {
-              stopCamera();
-              setCameraError('permission_denied');
-            } else {
-              stopCamera();
-              setCameraError('Camera error. Switch to Search to look up by name or transaction ID.');
-            }
-          }
-        },
-      );
+
+      await reader.decodeFromStream(stream, videoRef.current, (result, err) => {
+        if (result) {
+          // Guard: ZXing fires this callback on every frame where a QR is visible.
+          // Without the lock, handleCheckin would be called 10-30 times before
+          // stopCamera() can reset the reader, flooding the UI with toasts.
+          if (scanLockRef.current) return;
+          scanLockRef.current = true;
+          stopCamera();
+          handleCheckin(result.getText());
+        }
+        if (err && err.name !== 'NotFoundException') {
+          // Ignore errors after scan lock is engaged (scan succeeded, camera stopping)
+          if (scanLockRef.current) return;
+          // IMPORTANT: call stopCamera() BEFORE setCameraError() so that
+          // stopCamera's own setCameraError('') does not overwrite our message
+          // (React 18 batches these — last setter wins).
+          stopCamera();
+          setCameraError('Camera error. Switch to Search to look up by name or transaction ID.');
+        }
+      });
     } catch (err: any) {
-      if (err?.name === 'NotAllowedError') {
-        setCameraError('permission_denied');
-      } else {
-        setCameraError('Could not access camera. Make sure you allow camera access.');
-      }
-      setCameraActive(false);
+      stopCamera();
+      setCameraError('Could not start QR scanner: ' + (err?.message ?? 'Unknown error'));
     }
   }, [stopCamera]);
 
-  // Re-trigger the browser camera permission prompt. Works when Chrome shows
-  // a soft-deny (the lock icon in the address bar). If permanently blocked, the
-  // prompt won't appear and we show more specific instructions.
+  // Triggers getUserMedia to (re-)prompt the browser permission dialog, then
+  // passes the already-acquired stream straight into startCamera so the camera
+  // is only opened once — avoids the double-open failure on Android Chrome.
   const requestCameraAccess = useCallback(async () => {
     setCameraError('');
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' } } });
-      stream.getTracks().forEach((t) => t.stop());
-      // Permission granted — launch the QR reader
-      startCamera();
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: { ideal: 'environment' } },
+      });
+      // Pass stream directly — do NOT stop tracks here, startCamera will use them
+      startCamera(stream);
     } catch (err: any) {
-      if (err?.name === 'NotAllowedError') {
+      const name = (err?.name ?? '') as string;
+      if (name === 'NotAllowedError' || name === 'PermissionDeniedError') {
         setCameraError('permission_denied');
       } else {
         setCameraError('Could not access camera: ' + (err?.message ?? 'Unknown error'));
@@ -331,7 +351,7 @@ export default function AdminCheckinPage() {
             )}
             <div className="flex gap-3">
               <Button
-                onClick={startCamera}
+                onClick={() => startCamera()}
                 disabled={!selectedEventId || cameraActive}
                 className="flex-1"
               >
