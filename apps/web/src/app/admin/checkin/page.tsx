@@ -51,6 +51,9 @@ export default function AdminCheckinPage() {
   const readerRef = useRef<any>(null);
   // Holds the live MediaStream so we can stop tracks explicitly on teardown
   const streamRef = useRef<MediaStream | null>(null);
+  // Set to true the moment stopCamera() is called so in-flight ZXing frame
+  // callbacks immediately bail out and don't re-show errors or re-call stopCamera.
+  const stoppingRef = useRef(false);
   const [cameraActive, setCameraActive] = useState(false);
   const [cameraError, setCameraError] = useState('');
   // Scan lock: prevents the ZXing per-frame callback from firing handleCheckin multiple times
@@ -80,6 +83,9 @@ export default function AdminCheckinPage() {
   // ── Camera (ZXing) ─────────────────────────────────────────────────────────
 
   const stopCamera = useCallback(() => {
+    // Signal immediately so any in-flight ZXing frame callback exits at the top
+    // before it can call stopCamera() or setCameraError() a second time.
+    stoppingRef.current = true;
     // Clear any pending auto-restart timer
     if (autoRestartRef.current) {
       clearTimeout(autoRestartRef.current);
@@ -106,6 +112,7 @@ export default function AdminCheckinPage() {
   // startCamera optionally accepts a pre-acquired MediaStream (from requestCameraAccess)
   // so we never open the camera twice in a row — a common failure mode on Android Chrome.
   const startCamera = useCallback(async (preAcquiredStream?: MediaStream) => {
+    stoppingRef.current = false; // New session — allow callbacks to fire again
     setCameraError('');
     if (!videoRef.current) return;
 
@@ -140,6 +147,9 @@ export default function AdminCheckinPage() {
       readerRef.current = reader;
 
       await reader.decodeFromStream(stream, videoRef.current, (result, err) => {
+        // Camera is being torn down — ignore every in-flight callback unconditionally.
+        if (stoppingRef.current) return;
+
         if (result) {
           // Guard: ZXing fires this callback on every frame where a QR is visible.
           // Without the lock, handleCheckin would be called 10-30 times before
@@ -149,14 +159,28 @@ export default function AdminCheckinPage() {
           stopCamera();
           handleCheckin(result.getText());
         }
-        if (err && err.name !== 'NotFoundException') {
-          // Ignore errors after scan lock is engaged (scan succeeded, camera stopping)
-          if (scanLockRef.current) return;
-          // IMPORTANT: call stopCamera() BEFORE setCameraError() so that
-          // stopCamera's own setCameraError('') does not overwrite our message
-          // (React 18 batches these — last setter wins).
+
+        if (err) {
+          // ZXing fires NotFoundException, ChecksumException, FormatException, and
+          // ReedSolomonException on every frame where no valid QR code is visible.
+          // These are normal scanning behaviour — NOT errors to show the user.
+          // Only surface genuine device/permission failures (DOMExceptions).
+          const isDeviceError = err instanceof DOMException ||
+            ['NotAllowedError', 'PermissionDeniedError', 'NotFoundError',
+             'NotReadableError', 'OverconstrainedError', 'AbortError'].includes((err as any).name ?? '');
+          if (!isDeviceError) return; // silently ignore frame-level decode misses
+
+          if (scanLockRef.current) return; // scan already succeeded, camera stopping
+          // IMPORTANT: set stoppingRef then call stopCamera() BEFORE setCameraError()
+          // so stopCamera's own setCameraError('') does not overwrite our message.
+          stoppingRef.current = true;
           stopCamera();
-          setCameraError('Camera error. Switch to Search to look up by name or transaction ID.');
+          const errName = (err as any).name ?? '';
+          if (errName === 'NotAllowedError' || errName === 'PermissionDeniedError') {
+            setCameraError('permission_denied');
+          } else {
+            setCameraError('Camera device error (' + errName + '). Try refreshing the page.');
+          }
         }
       });
     } catch (err: any) {
@@ -362,7 +386,7 @@ export default function AdminCheckinPage() {
                 disabled={!cameraActive}
                 className="flex-1 !bg-gray-200 !text-gray-700 hover:!bg-gray-300"
               >
-                Stop
+                Stop Camera
               </Button>
             </div>
             <p className="text-xs text-gray-400 text-center">
