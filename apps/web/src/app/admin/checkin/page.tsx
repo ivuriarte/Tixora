@@ -49,6 +49,10 @@ export default function AdminCheckinPage() {
   // Camera
   const videoRef = useRef<HTMLVideoElement>(null);
   const scannerControlsRef = useRef<{ stop: () => void } | null>(null);
+  const cameraActiveRef = useRef(false);
+  const cameraStartingRef = useRef(false);
+  const scannerSessionRef = useRef(0);
+  const selectedEventIdRef = useRef('');
   // Set to true the moment stopCamera() is called so in-flight ZXing frame
   // callbacks immediately bail out and don't re-show errors or re-call stopCamera.
   const stoppingRef = useRef(false);
@@ -83,10 +87,17 @@ export default function AdminCheckinPage() {
 
   // ── Camera (ZXing) ─────────────────────────────────────────────────────────
 
+  useEffect(() => {
+    selectedEventIdRef.current = selectedEventId;
+  }, [selectedEventId]);
+
   const stopCamera = useCallback(() => {
+    scannerSessionRef.current += 1;
     // Signal immediately so any in-flight ZXing frame callback exits at the top
     // before it can call stopCamera() or setCameraError() a second time.
     stoppingRef.current = true;
+    cameraStartingRef.current = false;
+    cameraActiveRef.current = false;
     // Clear any pending scan cooldown timer
     if (scanCooldownRef.current) {
       clearTimeout(scanCooldownRef.current);
@@ -106,10 +117,16 @@ export default function AdminCheckinPage() {
   }, []);
 
   const startCamera = useCallback(async () => {
+    const eventId = selectedEventIdRef.current;
     stoppingRef.current = false; // New session — allow callbacks to fire again
     setCameraError('');
-    if (!videoRef.current || cameraActive || cameraStarting) return;
-    if (!selectedEventId) {
+    if (!videoRef.current) {
+      setCameraError('Camera preview is not ready. Try again in a moment.');
+      return;
+    }
+    if (cameraStartingRef.current) return;
+    if (cameraActiveRef.current && scannerControlsRef.current) return;
+    if (!eventId) {
       setCameraError('Select an event before starting the camera.');
       return;
     }
@@ -119,7 +136,11 @@ export default function AdminCheckinPage() {
     }
 
     stopCamera();
+    const sessionId = scannerSessionRef.current + 1;
+    scannerSessionRef.current = sessionId;
     stoppingRef.current = false;
+    cameraStartingRef.current = true;
+    cameraActiveRef.current = false;
     setCameraStarting(true);
 
     try {
@@ -135,7 +156,7 @@ export default function AdminCheckinPage() {
         audio: false,
       }, videoRef.current, (result, err) => {
         // Camera is being torn down — ignore every in-flight callback unconditionally.
-        if (stoppingRef.current) return;
+        if (stoppingRef.current || scannerSessionRef.current !== sessionId) return;
 
         if (result) {
           // Guard: ZXing fires this callback on every frame where a QR is visible.
@@ -169,10 +190,19 @@ export default function AdminCheckinPage() {
           }
         }
       });
+
+      if (stoppingRef.current || scannerSessionRef.current !== sessionId) {
+        try { controls.stop(); } catch {}
+        return;
+      }
       scannerControlsRef.current = controls;
+      cameraActiveRef.current = true;
+      cameraStartingRef.current = false;
       setCameraActive(true);
       setCameraStarting(false);
     } catch (err: any) {
+      const isCurrentSession = scannerSessionRef.current === sessionId;
+      if (!isCurrentSession) return;
       stopCamera();
       const name = (err?.name ?? '') as string;
       if (name === 'NotAllowedError' || name === 'PermissionDeniedError') {
@@ -185,7 +215,7 @@ export default function AdminCheckinPage() {
         setCameraError(`Could not start QR scanner${name ? ` (${name})` : ''}: ${err?.message ?? 'Unknown error'}`);
       }
     }
-  }, [cameraActive, cameraStarting, selectedEventId, stopCamera]);
+  }, [stopCamera]);
 
   // Runs the same user-gesture camera start path Chrome uses for permission prompts.
   const requestCameraAccess = useCallback(async () => {
@@ -196,13 +226,6 @@ export default function AdminCheckinPage() {
   useEffect(() => {
     if (tab !== 'camera') stopCamera();
   }, [tab, stopCamera]);
-
-  useEffect(() => {
-    stopCamera();
-    setResult(null);
-    setSearchResults([]);
-    setCheckingInId(null);
-  }, [selectedEventId, stopCamera]);
 
   // Stop camera on unmount
   useEffect(() => () => stopCamera(), [stopCamera]);
@@ -218,6 +241,7 @@ export default function AdminCheckinPage() {
     try {
       if (!selectedEventId) {
         toast.error('Select an event before scanning.');
+        scanLockRef.current = false;
         return;
       }
       const res = await api.post<{ data: CheckinResult }>('/admin/checkin', {
@@ -287,6 +311,15 @@ export default function AdminCheckinPage() {
     }
   }
 
+  function handleEventChange(eventId: string) {
+    stopCamera();
+    selectedEventIdRef.current = eventId;
+    setSelectedEventId(eventId);
+    setResult(null);
+    setSearchResults([]);
+    setCheckingInId(null);
+  }
+
   // ── Render ─────────────────────────────────────────────────────────────────
 
   return (
@@ -301,7 +334,7 @@ export default function AdminCheckinPage() {
           <label className="block text-sm font-medium text-gray-700 mb-1">Event</label>
           <select
             value={selectedEventId}
-            onChange={(e) => setSelectedEventId(e.target.value)}
+            onChange={(e) => handleEventChange(e.target.value)}
             className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
           >
             <option value="">— Select an event —</option>
