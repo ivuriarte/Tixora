@@ -1344,18 +1344,16 @@ export class AdminService {
     const regularFont = await pdf.embedFont(StandardFonts.Helvetica);
     const boldFont = await pdf.embedFont(StandardFonts.HelveticaBold);
     const mmToPt = (mm: number) => (mm * 72) / 25.4;
-    const pageSize: [number, number] = [841.89, 595.28]; // A4 landscape in points
+    const pageSize: [number, number] = [595.28, 841.89]; // A4 portrait in points
     const columns = 2;
-    const rowsPerPage = 4;
+    const rowsPerPage = 6;
     const tagsPerPage = columns * rowsPerPage;
     const tagWidth = mmToPt(100);
     const tagHeight = mmToPt(40);
-    const columnGap = mmToPt(10);
+    const columnGap = mmToPt(5);
     const rowGap = mmToPt(5);
-    const gridWidth = columns * tagWidth + (columns - 1) * columnGap;
-    const gridHeight = rowsPerPage * tagHeight + (rowsPerPage - 1) * rowGap;
-    const marginX = (pageSize[0] - gridWidth) / 2;
-    const marginY = (pageSize[1] - gridHeight) / 2;
+    const marginX = 0;
+    const marginTop = 0;
     const printableRows = rows.length > 0 ? rows : [
       { id: 'blank', name: '', company: '', position: '', createdAt: new Date() },
     ];
@@ -1369,7 +1367,7 @@ export class AdminService {
       const column = pageIndex % columns;
       const gridRow = Math.floor(pageIndex / columns);
       const x = marginX + column * (tagWidth + columnGap);
-      const topY = pageSize[1] - marginY - gridRow * (tagHeight + rowGap);
+      const topY = pageSize[1] - marginTop - gridRow * (tagHeight + rowGap);
       const y = topY - tagHeight;
 
       this.drawNametag(page, {
