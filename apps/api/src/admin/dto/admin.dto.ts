@@ -5,6 +5,10 @@ export class CheckinDto {
   @ApiProperty({ description: 'Raw QR token scanned from ticket' })
   @IsString()
   qrToken: string;
+
+  @ApiProperty({ description: 'Event selected by the check-in staff' })
+  @IsUUID()
+  eventId: string;
 }
 
 export class RejectRegistrationDto {

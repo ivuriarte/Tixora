@@ -48,16 +48,16 @@ export default function AdminCheckinPage() {
 
   // Camera
   const videoRef = useRef<HTMLVideoElement>(null);
-  const readerRef = useRef<any>(null);
-  // Holds the live MediaStream so we can stop tracks explicitly on teardown
-  const streamRef = useRef<MediaStream | null>(null);
+  const scannerControlsRef = useRef<{ stop: () => void } | null>(null);
   // Set to true the moment stopCamera() is called so in-flight ZXing frame
   // callbacks immediately bail out and don't re-show errors or re-call stopCamera.
   const stoppingRef = useRef(false);
   const [cameraActive, setCameraActive] = useState(false);
+  const [cameraStarting, setCameraStarting] = useState(false);
   const [cameraError, setCameraError] = useState('');
   // Scan lock: prevents the ZXing per-frame callback from firing handleCheckin multiple times
   const scanLockRef = useRef(false);
+  const handleCheckinRef = useRef<(token: string) => void>(() => {});
   // Auto-restart timer: after a result is shown, restart the camera for the next scan
   const autoRestartRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -93,60 +93,46 @@ export default function AdminCheckinPage() {
     }
     // Reset scan lock so the next camera session starts fresh
     scanLockRef.current = false;
-    if (readerRef.current) {
-      try { readerRef.current.reset(); } catch {}
-      readerRef.current = null;
-    }
-    // Stop all media tracks so the camera LED turns off and the device releases
-    // the camera — critical on Android so the next getUserMedia call succeeds.
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach((t) => t.stop());
-      streamRef.current = null;
+    if (scannerControlsRef.current) {
+      try { scannerControlsRef.current.stop(); } catch {}
+      scannerControlsRef.current = null;
     }
     if (videoRef.current) videoRef.current.srcObject = null;
+    setCameraStarting(false);
     setCameraActive(false);
     // Always clear errors when stopping camera to prevent stale messages
     setCameraError('');
   }, []);
 
-  // startCamera optionally accepts a pre-acquired MediaStream (from requestCameraAccess)
-  // so we never open the camera twice in a row — a common failure mode on Android Chrome.
-  const startCamera = useCallback(async (preAcquiredStream?: MediaStream) => {
+  const startCamera = useCallback(async () => {
     stoppingRef.current = false; // New session — allow callbacks to fire again
     setCameraError('');
-    if (!videoRef.current) return;
-
-    // Step 1: Acquire the MediaStream ourselves so we fully control permission
-    // prompting and track lifecycle. Re-use a pre-acquired stream when provided.
-    let stream = preAcquiredStream ?? null;
-    if (!stream) {
-      try {
-        stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: { ideal: 'environment' } },
-        });
-      } catch (permErr: any) {
-        const name = (permErr?.name ?? '') as string;
-        if (name === 'NotAllowedError' || name === 'PermissionDeniedError') {
-          setCameraError('permission_denied');
-        } else {
-          setCameraError('Could not access camera: ' + (permErr?.message ?? 'Unknown error'));
-        }
-        return;
-      }
+    if (!videoRef.current || cameraActive || cameraStarting) return;
+    if (!selectedEventId) {
+      setCameraError('Select an event before starting the camera.');
+      return;
+    }
+    if (!navigator.mediaDevices?.getUserMedia) {
+      setCameraError('Camera is unavailable in this browser. Open this page in Chrome over HTTPS.');
+      return;
     }
 
-    streamRef.current = stream;
-    // Assign srcObject immediately so the video preview appears while ZXing loads
-    videoRef.current.srcObject = stream;
-    setCameraActive(true);
+    stopCamera();
+    stoppingRef.current = false;
+    setCameraStarting(true);
 
     try {
-      // Step 2: Hand the live stream to ZXing for QR frame detection.
       const { BrowserQRCodeReader } = await import('@zxing/browser');
       const reader = new BrowserQRCodeReader();
-      readerRef.current = reader;
 
-      await reader.decodeFromStream(stream, videoRef.current, (result, err) => {
+      const controls = await reader.decodeFromConstraints({
+        video: {
+          facingMode: { ideal: 'environment' },
+          width: { ideal: 1280 },
+          height: { ideal: 720 },
+        },
+        audio: false,
+      }, videoRef.current, (result, err) => {
         // Camera is being torn down — ignore every in-flight callback unconditionally.
         if (stoppingRef.current) return;
 
@@ -157,7 +143,7 @@ export default function AdminCheckinPage() {
           if (scanLockRef.current) return;
           scanLockRef.current = true;
           stopCamera();
-          handleCheckin(result.getText());
+          handleCheckinRef.current(result.getText());
         }
 
         if (err) {
@@ -183,37 +169,40 @@ export default function AdminCheckinPage() {
           }
         }
       });
+      scannerControlsRef.current = controls;
+      setCameraActive(true);
+      setCameraStarting(false);
     } catch (err: any) {
       stopCamera();
-      setCameraError('Could not start QR scanner: ' + (err?.message ?? 'Unknown error'));
-    }
-  }, [stopCamera]);
-
-  // Triggers getUserMedia to (re-)prompt the browser permission dialog, then
-  // passes the already-acquired stream straight into startCamera so the camera
-  // is only opened once — avoids the double-open failure on Android Chrome.
-  const requestCameraAccess = useCallback(async () => {
-    setCameraError('');
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: { ideal: 'environment' } },
-      });
-      // Pass stream directly — do NOT stop tracks here, startCamera will use them
-      startCamera(stream);
-    } catch (err: any) {
       const name = (err?.name ?? '') as string;
       if (name === 'NotAllowedError' || name === 'PermissionDeniedError') {
         setCameraError('permission_denied');
+      } else if (name === 'NotFoundError' || name === 'DevicesNotFoundError') {
+        setCameraError('No camera was found on this device.');
+      } else if (name === 'NotReadableError' || name === 'TrackStartError') {
+        setCameraError('Chrome could not start the camera. Close other apps using the camera, then try again.');
       } else {
-        setCameraError('Could not access camera: ' + (err?.message ?? 'Unknown error'));
+        setCameraError(`Could not start QR scanner${name ? ` (${name})` : ''}: ${err?.message ?? 'Unknown error'}`);
       }
     }
+  }, [cameraActive, cameraStarting, selectedEventId, stopCamera]);
+
+  // Runs the same user-gesture camera start path Chrome uses for permission prompts.
+  const requestCameraAccess = useCallback(async () => {
+    await startCamera();
   }, [startCamera]);
 
   // Stop camera when switching tabs
   useEffect(() => {
     if (tab !== 'camera') stopCamera();
   }, [tab, stopCamera]);
+
+  useEffect(() => {
+    stopCamera();
+    setResult(null);
+    setSearchResults([]);
+    setCheckingInId(null);
+  }, [selectedEventId, stopCamera]);
 
   // Stop camera on unmount
   useEffect(() => () => stopCamera(), [stopCamera]);
@@ -227,7 +216,14 @@ export default function AdminCheckinPage() {
     // Clear any previous camera error on successful scan
     setCameraError('');
     try {
-      const res = await api.post<{ data: CheckinResult }>('/admin/checkin', { qrToken: t });
+      if (!selectedEventId) {
+        toast.error('Select an event before scanning.');
+        return;
+      }
+      const res = await api.post<{ data: CheckinResult }>('/admin/checkin', {
+        qrToken: t,
+        eventId: selectedEventId,
+      });
       const r = res.data.data;
       setResult(r);
       // Use a fixed toast ID so rapid duplicate calls replace the toast instead of stacking
@@ -258,10 +254,14 @@ export default function AdminCheckinPage() {
     }
   }
 
+  handleCheckinRef.current = handleCheckin;
+
   async function handleManualCheckin(attendeeId: string) {
     setCheckingInId(attendeeId);
     try {
-      const res = await api.post<{ data: CheckinResult }>(`/admin/checkin/manual/${attendeeId}`);
+      const res = await api.post<{ data: CheckinResult }>(`/admin/checkin/manual/${attendeeId}`, {
+        eventId: selectedEventId,
+      });
       const r = res.data.data;
       setResult(r);
       toast.success(`✅ ${r.attendeeName} checked in!`, { id: 'checkin', duration: 2500 });
@@ -340,7 +340,7 @@ export default function AdminCheckinPage() {
               </p>
             )}
             <div className="relative bg-black rounded-xl overflow-hidden aspect-square">
-              <video ref={videoRef} className="w-full h-full object-cover" />
+              <video ref={videoRef} className="w-full h-full object-cover" playsInline muted />
               {!cameraActive && (
                 <div className="absolute inset-0 flex items-center justify-center">
                   <span className="text-white/60 text-sm">Camera off</span>
@@ -376,10 +376,10 @@ export default function AdminCheckinPage() {
             <div className="flex gap-3">
               <Button
                 onClick={() => startCamera()}
-                disabled={!selectedEventId || cameraActive}
+                disabled={!selectedEventId || cameraActive || cameraStarting}
                 className="flex-1"
               >
-                Start Camera
+                {cameraStarting ? 'Starting…' : 'Start Camera'}
               </Button>
               <Button
                 onClick={stopCamera}

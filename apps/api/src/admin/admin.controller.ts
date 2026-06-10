@@ -145,7 +145,7 @@ export class AdminController {
   @Post('checkin')
   @ApiOperation({ summary: 'Scan QR code and check in attendee' })
   checkIn(@Body() dto: CheckinDto, @CurrentUser() user: JwtPayload) {
-    return this.adminService.checkIn(dto.qrToken, user.sub);
+    return this.adminService.checkIn(dto.qrToken, dto.eventId, user.sub);
   }
 
   // ── Attendees ────────────────────────────────────────────────────────────
@@ -384,9 +384,10 @@ export class AdminController {
   @ApiOperation({ summary: 'Manually check in an attendee by ID (no QR scan)' })
   checkinManual(
     @Param('attendeeId') attendeeId: string,
+    @Body('eventId') eventId: string,
     @CurrentUser() user: JwtPayload,
   ) {
-    return this.adminService.checkinManual(attendeeId, user.sub);
+    return this.adminService.checkinManual(attendeeId, eventId, user.sub);
   }
 
   // ── User Management ──────────────────────────────────────────────────────

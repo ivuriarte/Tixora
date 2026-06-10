@@ -432,7 +432,9 @@ export class AdminService {
     );
   }
 
-  async checkIn(qrToken: string, adminId: string) {
+  async checkIn(qrToken: string, eventId: string, adminId: string) {
+    if (!eventId) throw new BadRequestException('Event is required for check-in');
+
     const qrSecret = this.config.get<string>('qr.hmacSecret') ?? '';
 
     // ── Path A: Attendee QR token (registration / manual-payment flow) ──────
@@ -460,6 +462,12 @@ export class AdminService {
         attendee.registrationId !== attendeePayload.registrationId
       ) {
         throw new BadRequestException('QR token mismatch');
+      }
+
+      if (attendee.registration.event.id !== eventId) {
+        throw new BadRequestException(
+          `This QR is for ${attendee.registration.event.title}, not the selected event.`,
+        );
       }
 
       if (attendee.registration.status !== 'verified') {
@@ -508,12 +516,22 @@ export class AdminService {
       include: {
         user: { select: { firstName: true, lastName: true } },
         ticketTier: { select: { name: true } },
-        event: { select: { title: true } },
+        event: { select: { id: true, title: true } },
         order: { select: { status: true, paymentMethod: true } },
       },
     });
 
     if (!ticket) throw new NotFoundException('Ticket not found');
+    if (ticket.userId !== payload.userId || ticket.eventId !== payload.eventId) {
+      throw new BadRequestException('QR token mismatch');
+    }
+
+    if (ticket.eventId !== eventId) {
+      throw new BadRequestException(
+        `This QR is for ${ticket.event.title}, not the selected event.`,
+      );
+    }
+
     if (ticket.status === 'used') {
       throw new ConflictException(
         `Already checked in at ${ticket.checkedInAt?.toISOString()}`,
@@ -521,10 +539,6 @@ export class AdminService {
     }
     if (ticket.status !== 'valid') {
       throw new BadRequestException(`Ticket is ${ticket.status}`);
-    }
-
-    if (ticket.userId !== payload.userId || ticket.eventId !== payload.eventId) {
-      throw new BadRequestException('QR token mismatch');
     }
 
     const now = new Date();
@@ -618,7 +632,9 @@ export class AdminService {
   /**
    * P6-05 (manual path) — Check in an attendee by ID (manual lookup, no QR scan).
    */
-  async checkinManual(attendeeId: string, adminId: string) {
+  async checkinManual(attendeeId: string, eventId: string, adminId: string) {
+    if (!eventId) throw new BadRequestException('Event is required for check-in');
+
     const attendee = await this.prisma.attendee.findUnique({
       where: { id: attendeeId },
       include: {
@@ -627,13 +643,18 @@ export class AdminService {
             id: true,
             status: true,
             tierName: true,
-            event: { select: { title: true } },
+            event: { select: { id: true, title: true } },
           },
         },
       },
     });
 
     if (!attendee) throw new NotFoundException('Attendee not found');
+    if (attendee.registration.event.id !== eventId) {
+      throw new BadRequestException(
+        `This attendee belongs to ${attendee.registration.event.title}, not the selected event.`,
+      );
+    }
     if (attendee.registration.status !== 'verified') {
       throw new BadRequestException(
         `Registration is not verified (status: ${attendee.registration.status})`,
