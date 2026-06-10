@@ -58,8 +58,9 @@ export default function AdminCheckinPage() {
   // Scan lock: prevents the ZXing per-frame callback from firing handleCheckin multiple times
   const scanLockRef = useRef(false);
   const handleCheckinRef = useRef<(token: string) => void>(() => {});
-  // Auto-restart timer: after a result is shown, restart the camera for the next scan
-  const autoRestartRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Cooldown timer: keeps the camera running while preventing repeat reads of
+  // the same QR frame while the phone is still pointed at it.
+  const scanCooldownRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Search
   const [searchQ, setSearchQ] = useState('');
@@ -86,10 +87,10 @@ export default function AdminCheckinPage() {
     // Signal immediately so any in-flight ZXing frame callback exits at the top
     // before it can call stopCamera() or setCameraError() a second time.
     stoppingRef.current = true;
-    // Clear any pending auto-restart timer
-    if (autoRestartRef.current) {
-      clearTimeout(autoRestartRef.current);
-      autoRestartRef.current = null;
+    // Clear any pending scan cooldown timer
+    if (scanCooldownRef.current) {
+      clearTimeout(scanCooldownRef.current);
+      scanCooldownRef.current = null;
     }
     // Reset scan lock so the next camera session starts fresh
     scanLockRef.current = false;
@@ -139,10 +140,9 @@ export default function AdminCheckinPage() {
         if (result) {
           // Guard: ZXing fires this callback on every frame where a QR is visible.
           // Without the lock, handleCheckin would be called 10-30 times before
-          // stopCamera() can reset the reader, flooding the UI with toasts.
+          // the backend returns, flooding the UI with toasts.
           if (scanLockRef.current) return;
           scanLockRef.current = true;
-          stopCamera();
           handleCheckinRef.current(result.getText());
         }
 
@@ -228,11 +228,10 @@ export default function AdminCheckinPage() {
       setResult(r);
       // Use a fixed toast ID so rapid duplicate calls replace the toast instead of stacking
       toast.success(`✅ ${r.attendeeName} checked in!`, { id: 'checkin', duration: 2500 });
-      // Auto-restart camera after 2.5 s so staff can scan the next attendee immediately
-      autoRestartRef.current = setTimeout(() => {
+      scanCooldownRef.current = setTimeout(() => {
         setResult(null);
-        setCameraError(''); // Clear any error before restarting
-        startCamera();
+        scanLockRef.current = false;
+        scanCooldownRef.current = null;
       }, 2500);
     } catch (err: any) {
       const status = err?.response?.status;
@@ -242,15 +241,11 @@ export default function AdminCheckinPage() {
       } else {
         toast.error(msg, { id: 'checkin', duration: 3500 });
       }
-      // Auto-restart on error too — scanner should stay ready
-      autoRestartRef.current = setTimeout(() => {
+      scanCooldownRef.current = setTimeout(() => {
         setResult(null);
-        setCameraError(''); // Clear any error before restarting
-        startCamera();
+        scanLockRef.current = false;
+        scanCooldownRef.current = null;
       }, 3500);
-    } finally {
-      // Always release the scan lock so the next scan session can proceed
-      scanLockRef.current = false;
     }
   }
 
@@ -477,11 +472,12 @@ export default function AdminCheckinPage() {
             </div>
             <button
               onClick={() => {
-                // Cancel auto-restart when user explicitly dismisses — they control the pace
-                if (autoRestartRef.current) {
-                  clearTimeout(autoRestartRef.current);
-                  autoRestartRef.current = null;
+                // Keep the camera running; only dismiss the result/cooldown.
+                if (scanCooldownRef.current) {
+                  clearTimeout(scanCooldownRef.current);
+                  scanCooldownRef.current = null;
                 }
+                scanLockRef.current = false;
                 setResult(null);
               }}
               className="block mx-auto text-xs text-gray-400 hover:text-gray-600 mt-2"
