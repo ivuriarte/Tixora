@@ -90,7 +90,8 @@ export class AdminService {
       },
     });
     if (!event) throw new NotFoundException('Event not found');
-    return event;
+    const tiers = await this.eventsService.withLiveInventory(event.tiers);
+    return { ...event, tiers };
   }
 
   async updateEvent(id: string, dto: UpdateEventDto, adminId: string) {
@@ -132,13 +133,17 @@ export class AdminService {
         orderBy: { createdAt: 'desc' },
         include: {
           _count: { select: { tickets: true, orders: true } },
-          tiers: { select: { name: true, price: true, totalQuantity: true, soldQuantity: true } },
+          tiers: { select: { id: true, name: true, price: true, totalQuantity: true, soldQuantity: true } },
         },
       }),
     ]);
 
+    const tiersByEvent = await Promise.all(
+      events.map((e) => this.eventsService.withLiveInventory(e.tiers)),
+    );
+
     return {
-      data: events.map((e: (typeof events)[number]) => ({
+      data: events.map((e: (typeof events)[number], index) => ({
         id: e.id,
         slug: e.slug,
         title: e.title,
@@ -149,15 +154,16 @@ export class AdminService {
         startsAt: e.startsAt.toISOString(),
         status: e.status,
         maxCapacity: (e as any).maxCapacity ?? null,
-        ticketsSold: e._count.tickets,
+        ticketsSold: tiersByEvent[index].reduce((sum, tier) => sum + tier.soldQuantity, 0),
         ordersCount: e._count.orders,
         lowestPrice: e.tiers.length > 0
           ? Math.min(...e.tiers.map((t: (typeof e.tiers)[number]) => Number(t.price)))
           : null,
-        tiers: e.tiers.map((t: (typeof e.tiers)[number]) => ({
+        tiers: tiersByEvent[index].map((t) => ({
           name: t.name,
           totalQuantity: t.totalQuantity,
           soldQuantity: t.soldQuantity,
+          availableQuantity: t.availableQuantity,
         })),
       })),
       meta: {

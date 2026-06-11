@@ -17,6 +17,9 @@ import {
 import { CreateRegistrationDto } from './dto/create-registration.dto';
 import { UpdateRegistrationAttendeesDto } from './dto/update-registration-attendees.dto';
 
+const ACTIVE_REGISTRATION_STATUSES = ['pending_payment', 'proof_submitted', 'verified'] as const;
+const VALID_TICKET_STATUSES = ['valid', 'used'] as const;
+
 @Injectable()
 export class RegistrationsService {
   private readonly logger = new Logger(RegistrationsService.name);
@@ -128,7 +131,21 @@ export class RegistrationsService {
         `;
 
         if (!locked[0]) throw new NotFoundException('Ticket tier not found');
-        const available = locked[0].total_quantity - locked[0].sold_quantity;
+        const registrationUsage = await tx.registration.aggregate({
+          where: {
+            tierId: dto.tierId,
+            status: { in: [...ACTIVE_REGISTRATION_STATUSES] as any[] },
+          },
+          _sum: { attendeeCount: true },
+        });
+        const ticketUsage = await tx.ticket.count({
+          where: {
+            ticketTierId: dto.tierId,
+            status: { in: [...VALID_TICKET_STATUSES] as any[] },
+          },
+        });
+        const occupied = Number(registrationUsage._sum.attendeeCount ?? 0) + ticketUsage;
+        const available = locked[0].total_quantity - occupied;
         if (available < attendeeCount) {
           throw new BadRequestException(
             `Only ${available} seat(s) available — requested ${attendeeCount}`,
@@ -137,7 +154,7 @@ export class RegistrationsService {
 
         await tx.ticketTier.update({
           where: { id: dto.tierId },
-          data: { soldQuantity: { increment: attendeeCount } },
+          data: { soldQuantity: occupied + attendeeCount },
         });
 
         return tx.registration.create({
@@ -959,4 +976,3 @@ export class RegistrationsService {
     });
   }
 }
-

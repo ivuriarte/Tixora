@@ -68,7 +68,7 @@ async function getFeaturedEvents(): Promise<FeaturedApiEvent[]> {
   const baseUrl = (process.env.NEXT_PUBLIC_API_URL || 'https://api.axontickets.online/api/v1');
   try {
     const res = await fetch(`${baseUrl}/events/featured`, {
-      next: { revalidate: 30 },
+      cache: 'no-store',
       signal: AbortSignal.timeout(8000),
     });
     if (!res.ok) return [];

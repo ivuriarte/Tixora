@@ -63,7 +63,7 @@ interface Event {
 async function getEvent(slug: string): Promise<Event | null> {
   const baseUrl = (process.env.NEXT_PUBLIC_API_URL || 'https://api.axontickets.online/api/v1');
   try {
-    const res = await fetch(`${baseUrl}/events/${slug}`, { next: { revalidate: 30 }, signal: AbortSignal.timeout(8000) });
+    const res = await fetch(`${baseUrl}/events/${slug}`, { cache: 'no-store', signal: AbortSignal.timeout(8000) });
     if (!res.ok) return null;
     const json = await res.json();
     return json.data;
@@ -302,4 +302,3 @@ export default async function EventPage({ params, searchParams }: { params: { sl
     </>
   );
 }
-

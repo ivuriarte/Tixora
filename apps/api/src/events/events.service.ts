@@ -7,6 +7,14 @@ import { uniqueSlug } from '@axon-tickets/utils';
 
 const TIER_INVENTORY_PREFIX = 'ticket_tier:';
 const INVENTORY_SUFFIX = ':available';
+const ACTIVE_REGISTRATION_STATUSES = ['pending_payment', 'proof_submitted', 'verified'] as const;
+const VALID_TICKET_STATUSES = ['valid', 'used'] as const;
+
+type TierInventory = {
+  id: string;
+  totalQuantity: number;
+  soldQuantity?: number;
+};
 
 @Injectable()
 export class EventsService {
@@ -55,28 +63,35 @@ export class EventsService {
         include: {
           tiers: {
             where: { isVisible: true },
-            select: { price: true, soldQuantity: true, totalQuantity: true },
+            select: { id: true, price: true, soldQuantity: true, totalQuantity: true },
             orderBy: { price: 'asc' },
           },
         },
       }),
     ]);
 
-    const data = events.map((e) => ({
-      id: e.id,
-      slug: e.slug,
-      title: e.title,
-      venue: e.venue,
-      city: e.city,
-      startsAt: e.startsAt.toISOString(),
-      imageUrl: e.imageUrl,
-      status: e.status,
-      lowestPrice: e.tiers[0] ? Number(e.tiers[0].price) : null,
-      totalAvailable: e.tiers.reduce(
-        (sum: number, t) => sum + Math.max(0, t.totalQuantity - t.soldQuantity),
-        0,
-      ),
-    }));
+    const tiersByEvent = await Promise.all(
+      events.map((e) => this.withLiveInventory(e.tiers)),
+    );
+
+    const data = events.map((e, index) => {
+      const tiers = tiersByEvent[index];
+      return {
+        id: e.id,
+        slug: e.slug,
+        title: e.title,
+        venue: e.venue,
+        city: e.city,
+        startsAt: e.startsAt.toISOString(),
+        imageUrl: e.imageUrl,
+        status: e.status,
+        lowestPrice: e.tiers[0] ? Number(e.tiers[0].price) : null,
+        totalAvailable: tiers.reduce(
+          (sum: number, t) => sum + t.availableQuantity,
+          0,
+        ),
+      };
+    });
 
     return {
       data,
@@ -103,18 +118,8 @@ export class EventsService {
     });
     if (!event) throw new NotFoundException('Event not found');
 
-    // Batch fetch all tier inventory counts in a single Redis MGET round-trip
-    const inventoryKeys = event.tiers.map((t) => `${TIER_INVENTORY_PREFIX}${t.id}${INVENTORY_SUFFIX}`);
-    const cachedValues = await this.redis.mget(inventoryKeys);
-
-    const tiersWithAvailable = event.tiers.map((tier, i) => {
-      const cached = cachedValues[i];
-      const availableQuantity =
-        cached !== null
-          ? parseInt(cached, 10)
-          : Math.max(0, tier.totalQuantity - tier.soldQuantity);
-
-      return {
+    const tiersWithAvailable = (await this.withLiveInventory(event.tiers)).map(
+      (tier) => ({
         id: tier.id,
         eventId: tier.eventId,
         name: tier.name,
@@ -123,15 +128,15 @@ export class EventsService {
         currency: tier.currency,
         totalQuantity: tier.totalQuantity,
         soldQuantity: tier.soldQuantity,
-        availableQuantity,
+        availableQuantity: tier.availableQuantity,
         maxPerOrder: tier.maxPerOrder,
         saleStartsAt: tier.saleStartsAt?.toISOString() ?? null,
         saleEndsAt: tier.saleEndsAt?.toISOString() ?? null,
         isVisible: tier.isVisible,
         sortOrder: tier.sortOrder,
-        isSoldOut: availableQuantity <= 0,
-      };
-    });
+        isSoldOut: tier.availableQuantity <= 0,
+      }),
+    );
 
     return {
       id: event.id,
@@ -268,38 +273,107 @@ export class EventsService {
       include: {
         tiers: {
           where: { isVisible: true },
-          select: { price: true, soldQuantity: true, totalQuantity: true },
+          select: { id: true, price: true, soldQuantity: true, totalQuantity: true },
           orderBy: { price: 'asc' },
         },
       },
     });
 
-    return events.map((e) => ({
-      id: e.id,
-      slug: e.slug,
-      title: e.title,
-      description: e.description,
-      speakerName: e.speakerName,
-      tagline: e.tagline,
-      venue: e.venue,
-      city: e.city,
-      startsAt: e.startsAt.toISOString(),
-      endsAt: e.endsAt ? e.endsAt.toISOString() : null,
-      imageUrl: e.imageUrl,
-      status: e.status,
-      maxCapacity: e.maxCapacity,
-      featuredOrder: e.featuredOrder,
-      lowestPrice: e.tiers[0] ? Number(e.tiers[0].price) : null,
-      totalAvailable: e.tiers.reduce(
-        (sum: number, t) => sum + Math.max(0, t.totalQuantity - t.soldQuantity),
-        0,
-      ),
-    }));
+    const tiersByEvent = await Promise.all(
+      events.map((e) => this.withLiveInventory(e.tiers)),
+    );
+
+    return events.map((e, index) => {
+      const tiers = tiersByEvent[index];
+      return {
+        id: e.id,
+        slug: e.slug,
+        title: e.title,
+        description: e.description,
+        speakerName: e.speakerName,
+        tagline: e.tagline,
+        venue: e.venue,
+        city: e.city,
+        startsAt: e.startsAt.toISOString(),
+        endsAt: e.endsAt ? e.endsAt.toISOString() : null,
+        imageUrl: e.imageUrl,
+        status: e.status,
+        maxCapacity: e.maxCapacity,
+        featuredOrder: e.featuredOrder,
+        lowestPrice: e.tiers[0] ? Number(e.tiers[0].price) : null,
+        totalAvailable: tiers.reduce(
+          (sum: number, t) => sum + t.availableQuantity,
+          0,
+        ),
+      };
+    });
   }
 
   /** Seed Redis inventory for a tier when it goes on sale */
   async seedTierInventory(tierId: string, quantity: number): Promise<void> {
     const key = `${TIER_INVENTORY_PREFIX}${tierId}${INVENTORY_SUFFIX}`;
     await this.redis.set(key, quantity.toString());
+  }
+
+  async withLiveInventory<T extends TierInventory>(tiers: T[]): Promise<Array<T & {
+    soldQuantity: number;
+    availableQuantity: number;
+    isSoldOut: boolean;
+  }>> {
+    if (tiers.length === 0) return [];
+
+    const tierIds = tiers.map((tier) => tier.id);
+    const usage = await this.getTierUsage(tierIds);
+
+    return tiers.map((tier) => {
+      const soldQuantity = usage.get(tier.id) ?? 0;
+      const availableQuantity = Math.max(0, tier.totalQuantity - soldQuantity);
+      return {
+        ...tier,
+        soldQuantity,
+        availableQuantity,
+        isSoldOut: availableQuantity <= 0,
+      };
+    });
+  }
+
+  async getTierUsage(tierIds: string[]): Promise<Map<string, number>> {
+    const usage = new Map<string, number>();
+    if (tierIds.length === 0) return usage;
+
+    const [registrations, tickets] = await Promise.all([
+      this.prisma.registration.groupBy({
+        by: ['tierId'],
+        where: {
+          tierId: { in: tierIds },
+          status: { in: [...ACTIVE_REGISTRATION_STATUSES] as any[] },
+        },
+        _sum: { attendeeCount: true },
+      }),
+      this.prisma.ticket.groupBy({
+        by: ['ticketTierId'],
+        where: {
+          ticketTierId: { in: tierIds },
+          status: { in: [...VALID_TICKET_STATUSES] as any[] },
+        },
+        _count: { id: true },
+      }),
+    ]);
+
+    for (const row of registrations) {
+      if (row.tierId) {
+        usage.set(row.tierId, Number(row._sum.attendeeCount ?? 0));
+      }
+    }
+
+    for (const row of tickets) {
+      if (row.ticketTierId) {
+        const current = usage.get(row.ticketTierId) ?? 0;
+        const count = typeof row._count === 'object' ? (row._count.id ?? 0) : 0;
+        usage.set(row.ticketTierId, current + count);
+      }
+    }
+
+    return usage;
   }
 }

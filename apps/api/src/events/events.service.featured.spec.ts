@@ -19,8 +19,12 @@ import { EventsService } from './events.service';
 // ── minimal stub for PrismaService ─────────────────────────────────────────
 
 const mockFindMany = jest.fn();
+const mockRegistrationGroupBy = jest.fn();
+const mockTicketGroupBy = jest.fn();
 const mockPrisma = {
   event: { findMany: mockFindMany },
+  registration: { groupBy: mockRegistrationGroupBy },
+  ticket: { groupBy: mockTicketGroupBy },
 } as any;
 
 const mockRedis = {} as any;
@@ -37,9 +41,9 @@ function makeDbEvent(overrides: {
   featuredOrder?: number | null;
   startsAt?: Date;
   tagline?: string | null;
-  tiers?: Array<{ price: number | { toNumber: () => number }; soldQuantity: number; totalQuantity: number }>;
+  tiers?: Array<{ id?: string; price: number | { toNumber: () => number }; soldQuantity: number; totalQuantity: number }>;
 } = {}) {
-  const tiers = overrides.tiers ?? [{ price: 50000, soldQuantity: 0, totalQuantity: 100 }];
+  const tiers = overrides.tiers ?? [{ id: 'tier_1', price: 50000, soldQuantity: 0, totalQuantity: 100 }];
   return {
     id: overrides.id ?? 'evt_1',
     slug: overrides.slug ?? 'test-event',
@@ -68,6 +72,10 @@ describe('EventsService.findFeatured()', () => {
 
   beforeEach(() => {
     mockFindMany.mockReset();
+    mockRegistrationGroupBy.mockReset();
+    mockTicketGroupBy.mockReset();
+    mockRegistrationGroupBy.mockResolvedValue([]);
+    mockTicketGroupBy.mockResolvedValue([]);
     service = new EventsService(mockPrisma, mockRedis);
   });
 
@@ -160,16 +168,21 @@ describe('EventsService.findFeatured()', () => {
   });
 
   // U-68
-  it('maps lowestPrice and totalAvailable from tiers', async () => {
+  it('maps lowestPrice and totalAvailable from live tier usage', async () => {
     const evt = makeDbEvent({
+      id: 'evt_1',
       tiers: [
-        { price: 50000, soldQuantity: 10, totalQuantity: 50 },
-        { price: 30000, soldQuantity: 5, totalQuantity: 30 },
+        { id: 'tier_1', price: 50000, soldQuantity: 10, totalQuantity: 50 },
+        { id: 'tier_2', price: 30000, soldQuantity: 5, totalQuantity: 30 },
       ],
     });
+    mockRegistrationGroupBy.mockResolvedValue([
+      { tierId: 'tier_1', _sum: { attendeeCount: 11 } },
+      { tierId: 'tier_2', _sum: { attendeeCount: 6 } },
+    ]);
     mockFindMany.mockResolvedValue([evt]);
     const result = await service.findFeatured();
     expect(result[0].lowestPrice).toBe(50000);      // first tier (already ordered by price ASC by Prisma)
-    expect(result[0].totalAvailable).toBe(65);       // (50-10) + (30-5)
+    expect(result[0].totalAvailable).toBe(63);       // (50-11) + (30-6)
   });
 });
