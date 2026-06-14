@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { centavosToPeso, formatPHP } from '@axon-tickets/utils';
 import api from '@/lib/api';
@@ -86,7 +86,8 @@ export default function RegistrationForm({
   const [attendees, setAttendees] = useState<AttendeeFields[]>(() =>
     initialAttendees ?? Array.from({ length: qty }, emptyAttendee),
   );
-  const [useMyDetails, setUseMyDetails] = useState(false);
+  // Default ON unless we're in edit mode (initialAttendees already provides the data)
+  const [useMyDetails, setUseMyDetails] = useState(!initialAttendees);
   const [profileData, setProfileData] = useState<ProfileData | null>(null);
   const [profileLoading, setProfileLoading] = useState(false);
   const [notes, setNotes] = useState(initialNotes ?? '');
@@ -95,6 +96,14 @@ export default function RegistrationForm({
   // Synchronous guard — prevents duplicate submissions during the async gap
   // between the first click and React flushing the loading state update.
   const submittingRef = useRef(false);
+
+  // Auto-fetch profile on mount when the toggle is ON (new registrations only)
+  useEffect(() => {
+    if (!initialAttendees && currentUser) {
+      void handleToggleMyDetails(true);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // unitPrice is in centavos (50000 = ₱500). platformFee is in pesos (e.g. 50).
   const subtotalPesos = centavosToPeso(unitPrice * qty);
@@ -320,9 +329,9 @@ export default function RegistrationForm({
       {currentUser && (
         <div className="bg-white border border-gray-200 rounded-2xl p-4 flex items-center justify-between gap-3">
           <div>
-            <p className="text-sm font-medium text-gray-900">Fill in my details for Attendee 1</p>
+            <p className="text-sm font-medium text-gray-900">Use my account details for Attendee 1</p>
             <p className="text-xs text-gray-500 mt-0.5">
-              We will use the info saved in your account ({currentUser.email}).
+              Pre-filled from your account ({currentUser.email}). Fields highlighted in amber are missing — please fill them in.
             </p>
           </div>
           <button
@@ -359,83 +368,101 @@ export default function RegistrationForm({
             )}
           </h3>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">First Name *</label>
-              <input
-                required
-                value={att.firstName}
-                onChange={(e) => updateAttendee(i, 'firstName', e.target.value)}
-                readOnly={useMyDetails && i === 0}
-                className={`w-full border rounded-lg px-3 py-2 text-sm focus:outline-none ${
-                  useMyDetails && i === 0
-                    ? 'border-gray-200 bg-gray-50 text-gray-500 cursor-not-allowed'
-                    : 'border-gray-300 focus:ring-2 focus:ring-primary/30 focus:border-primary'
-                }`}
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">Last Name *</label>
-              <input
-                required
-                value={att.lastName}
-                onChange={(e) => updateAttendee(i, 'lastName', e.target.value)}
-                readOnly={useMyDetails && i === 0}
-                className={`w-full border rounded-lg px-3 py-2 text-sm focus:outline-none ${
-                  useMyDetails && i === 0
-                    ? 'border-gray-200 bg-gray-50 text-gray-500 cursor-not-allowed'
-                    : 'border-gray-300 focus:ring-2 focus:ring-primary/30 focus:border-primary'
-                }`}
-              />
-            </div>
-          </div>
+          {(() => {
+            // For Attendee 1 with toggle ON:
+            // — field has a value from profile → lock it (read-only, gray)
+            // — field is empty → keep editable + amber highlight so user knows it needs filling
+            const auto = useMyDetails && i === 0;
+            const lockedCls = 'border-gray-200 bg-gray-50 text-gray-500 cursor-not-allowed';
+            const missingCls = 'border-amber-400 bg-amber-50 focus:outline-none focus:ring-2 focus:ring-amber-300 focus:border-amber-400';
+            const normalCls = 'border-gray-300 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary';
 
-          <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">Email *</label>
-            <input
-              type="email"
-              required
-              value={att.email}
-              onChange={(e) => updateAttendee(i, 'email', e.target.value)}
-              readOnly={useMyDetails && i === 0}
-              className={`w-full border rounded-lg px-3 py-2 text-sm focus:outline-none ${
-                useMyDetails && i === 0
-                  ? 'border-gray-200 bg-gray-50 text-gray-500 cursor-not-allowed'
-                  : 'border-gray-300 focus:ring-2 focus:ring-primary/30 focus:border-primary'
-              }`}
-            />
-          </div>
+            const cls = (val: string) =>
+              !auto ? normalCls : val.trim() ? lockedCls : missingCls;
 
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">Mobile Number *</label>
-              <input
-                type="tel"
-                required
-                value={att.phone}
-                onChange={(e) => updateAttendee(i, 'phone', e.target.value)}
-                placeholder="+639171234567"
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">Company</label>
-              <input
-                value={att.company}
-                onChange={(e) => updateAttendee(i, 'company', e.target.value)}
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
-              />
-            </div>
-          </div>
+            const MissingHint = () => (
+              <p className="mt-1 text-[11px] text-amber-600 font-medium">
+                ⚠ Missing from your profile — please fill this in
+              </p>
+            );
 
-          <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">Job Title</label>
-            <input
-              value={att.jobTitle}
-              onChange={(e) => updateAttendee(i, 'jobTitle', e.target.value)}
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
-            />
-          </div>
+            return (
+              <>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">First Name *</label>
+                    <input
+                      required
+                      value={att.firstName}
+                      onChange={(e) => updateAttendee(i, 'firstName', e.target.value)}
+                      readOnly={auto && !!att.firstName.trim()}
+                      className={`w-full border rounded-lg px-3 py-2 text-sm ${cls(att.firstName)}`}
+                    />
+                    {auto && !att.firstName.trim() && <MissingHint />}
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">Last Name *</label>
+                    <input
+                      required
+                      value={att.lastName}
+                      onChange={(e) => updateAttendee(i, 'lastName', e.target.value)}
+                      readOnly={auto && !!att.lastName.trim()}
+                      className={`w-full border rounded-lg px-3 py-2 text-sm ${cls(att.lastName)}`}
+                    />
+                    {auto && !att.lastName.trim() && <MissingHint />}
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Email *</label>
+                  <input
+                    type="email"
+                    required
+                    value={att.email}
+                    onChange={(e) => updateAttendee(i, 'email', e.target.value)}
+                    readOnly={auto && !!att.email.trim()}
+                    className={`w-full border rounded-lg px-3 py-2 text-sm ${cls(att.email)}`}
+                  />
+                  {auto && !att.email.trim() && <MissingHint />}
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">Mobile Number *</label>
+                    <input
+                      type="tel"
+                      required
+                      value={att.phone}
+                      onChange={(e) => updateAttendee(i, 'phone', e.target.value)}
+                      placeholder="+639171234567"
+                      readOnly={auto && !!att.phone.trim()}
+                      className={`w-full border rounded-lg px-3 py-2 text-sm ${cls(att.phone)}`}
+                    />
+                    {auto && !att.phone.trim() && <MissingHint />}
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">Company</label>
+                    <input
+                      value={att.company}
+                      onChange={(e) => updateAttendee(i, 'company', e.target.value)}
+                      readOnly={auto && !!att.company.trim()}
+                      className={`w-full border rounded-lg px-3 py-2 text-sm ${cls(att.company)}`}
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Job Title</label>
+                  <input
+                    value={att.jobTitle}
+                    onChange={(e) => updateAttendee(i, 'jobTitle', e.target.value)}
+                    readOnly={auto && !!att.jobTitle.trim()}
+                    className={`w-full border rounded-lg px-3 py-2 text-sm ${cls(att.jobTitle)}`}
+                  />
+                </div>
+              </>
+            );
+          })()}
         </div>
       ))}
 
