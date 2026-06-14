@@ -55,7 +55,7 @@ interface AttendeeFields {
   jobTitle: string;
 }
 
-type WizardStep = 'details' | 'verify';
+type WizardStep = 'gate' | 'details' | 'verify';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.axontickets.online/api/v1';
 const RESEND_COOLDOWN = 60;
@@ -89,7 +89,7 @@ function GuestWizard({ event, tier, qty, existingRegistrationId }: GuestWizardPr
   const { setAuth } = useAuthStore();
   const funnelSessionId = getOrCreateFunnelSessionId();
 
-  const [step, setStep] = useState<WizardStep>('details');
+  const [step, setStep] = useState<WizardStep>('gate');
 
   // Step 1 — contact / attendee details
   const [email, setEmail] = useState('');
@@ -316,6 +316,73 @@ function GuestWizard({ event, tier, qty, existingRegistrationId }: GuestWizardPr
 
   const inputCls =
     'w-full rounded-xl border border-gray-300 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary bg-white';
+
+  // ── Render: Gate — New or returning? ────────────────────────────────────────
+  if (step === 'gate') {
+    const returnUrl = `/events/${event.slug}/register?tierId=${tier.id}&qty=${qty}`;
+    return (
+      <div className="space-y-4">
+        <div className="bg-white border border-gray-200 rounded-2xl p-6 space-y-1">
+          <h2 className="font-bold text-gray-900 text-lg">Do you already have an account?</h2>
+          <p className="text-sm text-gray-500">
+            If you have registered for an Axon Tickets event before, you already have an account.
+          </p>
+        </div>
+
+        {/* Returning user */}
+        <button
+          type="button"
+          onClick={() => router.push(`/auth/access?redirect=${encodeURIComponent(returnUrl)}`)}
+          className="w-full bg-primary text-white rounded-2xl p-5 text-left hover:bg-primary/90 transition-colors group"
+        >
+          <div className="flex items-start gap-4">
+            <div className="flex-shrink-0 w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center mt-0.5">
+              <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+              </svg>
+            </div>
+            <div className="flex-1">
+              <p className="font-semibold text-white">Yes, I have an account</p>
+              <p className="text-sm text-white/75 mt-0.5">
+                Sign in with your email — no password needed.
+              </p>
+            </div>
+            <svg className="w-5 h-5 text-white/60 mt-2.5 group-hover:translate-x-0.5 transition-transform" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+            </svg>
+          </div>
+        </button>
+
+        {/* New user */}
+        <button
+          type="button"
+          onClick={() => setStep('details')}
+          className="w-full bg-white border-2 border-gray-200 hover:border-primary/40 rounded-2xl p-5 text-left transition-colors group"
+        >
+          <div className="flex items-start gap-4">
+            <div className="flex-shrink-0 w-10 h-10 rounded-xl bg-gray-100 flex items-center justify-center mt-0.5">
+              <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
+              </svg>
+            </div>
+            <div className="flex-1">
+              <p className="font-semibold text-gray-900">No, I&apos;m new here</p>
+              <p className="text-sm text-gray-500 mt-0.5">
+                Create your account in seconds — just fill in your details.
+              </p>
+            </div>
+            <svg className="w-5 h-5 text-gray-400 mt-2.5 group-hover:translate-x-0.5 transition-transform" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+            </svg>
+          </div>
+        </button>
+
+        <p className="text-center text-xs text-gray-400 pt-1">
+          Not sure? Try &ldquo;Yes, I have an account&rdquo; first — if your email is not found, you can register fresh.
+        </p>
+      </div>
+    );
+  }
 
   // ── Render: Step 1 — Your Details ───────────────────────────────────────────
   if (step === 'details') {
@@ -561,7 +628,7 @@ function GuestWizard({ event, tier, qty, existingRegistrationId }: GuestWizardPr
               onClick={() => { setStep('details'); setOtp(''); setFieldError(null); }}
               className="text-xs text-gray-400 hover:text-gray-600"
             >
-              Go back and change my details
+              ← Go back and change my details
             </button>
           </div>
         </div>
