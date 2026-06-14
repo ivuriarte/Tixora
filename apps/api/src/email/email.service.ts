@@ -161,14 +161,18 @@ export class EmailService implements OnModuleDestroy {
   async sendOtpEmail(to: string, code: string): Promise<boolean> {
     return this.sendWithRetry(
       to,
-      'Your Axon Tickets verification code',
-      `<div style="font-family:sans-serif;max-width:400px;margin:0 auto">
-        <h2 style="color:#1A3A5C">Verify your email</h2>
-        <p>Your verification code is:</p>
-        <p style="font-size:36px;font-weight:bold;letter-spacing:8px;color:#EA6C00">${code}</p>
-        <p style="color:#64748b;font-size:14px">This code expires in 5 minutes. Do not share it with anyone.</p>
+      `${code} is your Axon Tickets code`,
+      `<div style="font-family:sans-serif;max-width:420px;margin:0 auto;padding:24px">
+        <h2 style="color:#1A3A5C;margin-bottom:4px">Your one-time code</h2>
+        <p style="color:#374151;margin-top:0">Enter this code to continue. It only works once and expires in 5 minutes.</p>
+        <div style="background:#f7f9fc;border-radius:12px;padding:20px;text-align:center;margin:20px 0">
+          <p style="font-size:42px;font-weight:bold;letter-spacing:10px;color:#7C3AED;margin:0">${code}</p>
+        </div>
+        <p style="color:#64748b;font-size:13px">Did not ask for this code? You can ignore this email. Someone may have typed your email by mistake.</p>
+        <p style="color:#64748b;font-size:13px"><strong>Never share this code with anyone</strong>, including Axon Tickets staff.</p>
+        <p style="margin-top:24px;color:#9ca3af;font-size:12px">Axon Tickets · Online Ticketing Platform</p>
       </div>`,
-      2, // maxRetries — keep total time < 30 s (Vercel function limit)
+      2,
     );
   }
 
@@ -191,30 +195,40 @@ export class EmailService implements OnModuleDestroy {
       : '';
     await this.send(
       to,
-      `Registration confirmed — ${eventTitle}`,
+      `Your spot is saved — ${eventTitle}`,
       `<div style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:24px">
-        <h1 style="color:#EA6C00;margin-bottom:4px">You're registered!</h1>
+        <h1 style="color:#7C3AED;margin-bottom:4px">Your spot is saved!</h1>
         <h2 style="margin-top:0;color:#1A3A5C">${eventTitle}</h2>
-        <p>Hi ${firstName}, your registration has been received.</p>
-        <div style="background:#f7f9fc;border-radius:8px;padding:16px;margin:16px 0">
-          <p style="margin:0 0 8px"><strong>Reference Number:</strong>
-            <span style="font-size:18px;font-weight:bold;color:#EA6C00">${referenceNumber}</span>
-          </p>
-          <p style="margin:0;color:#64748b;font-size:14px">
-            Use this reference number when making your payment.
+        <p style="color:#374151">Hi ${firstName}, we got your registration. Here is what to do next.</p>
+
+        <div style="background:#f7f9fc;border-radius:12px;padding:16px;margin:20px 0;border-left:4px solid #7C3AED">
+          <p style="margin:0 0 4px;font-size:12px;color:#6b7280;text-transform:uppercase;letter-spacing:0.05em">Your Reference Number</p>
+          <p style="font-size:24px;font-weight:bold;color:#7C3AED;margin:0;letter-spacing:2px">${referenceNumber}</p>
+          <p style="margin:8px 0 0;color:#64748b;font-size:13px">
+            Write this number in the transfer note or remarks when you pay.
           </p>
         </div>
-        <h3 style="color:#1A3A5C">Payment Instructions</h3>
-        <table style="border-collapse:collapse;width:100%">
-          <tr><td style="padding:8px 0;color:#64748b">Bank</td><td style="padding:8px 0;font-weight:600">${bankName}</td></tr>
-          <tr><td style="padding:8px 0;color:#64748b">Account Number</td><td style="padding:8px 0;font-weight:600">${bankAccountNumber}</td></tr>
-          <tr><td style="padding:8px 0;color:#64748b">Account Name</td><td style="padding:8px 0;font-weight:600">${bankAccountName}</td></tr>
+
+        <h3 style="color:#1A3A5C">Step 1 — Send your payment</h3>
+        <p style="color:#374151;font-size:14px">Transfer the exact amount to this bank account:</p>
+        <table style="border-collapse:collapse;width:100%;background:#f9fafb;border-radius:8px">
+          <tr><td style="padding:10px 12px;color:#64748b;font-size:14px;width:40%">Bank</td><td style="padding:10px 12px;font-weight:600;font-size:14px">${bankName}</td></tr>
+          <tr style="border-top:1px solid #e5e7eb"><td style="padding:10px 12px;color:#64748b;font-size:14px">Account Number</td><td style="padding:10px 12px;font-weight:600;font-size:14px">${bankAccountNumber}</td></tr>
+          <tr style="border-top:1px solid #e5e7eb"><td style="padding:10px 12px;color:#64748b;font-size:14px">Account Name</td><td style="padding:10px 12px;font-weight:600;font-size:14px">${bankAccountName}</td></tr>
         </table>
-        <p style="color:#64748b;font-size:14px;margin-top:16px">
-          After payment, upload your proof of payment via the link below.
-          Our team reviews proofs within <strong>24 hours</strong>.
-          Your QR code will be emailed to you once payment is verified.
+
+        <h3 style="color:#1A3A5C">Step 2 — Upload your payment screenshot</h3>
+        <p style="color:#374151;font-size:14px">
+          After sending the money, take a screenshot of your payment confirmation and upload it using the button below.
+          Our team checks it within <strong>24 hours</strong>.
         </p>
+
+        <h3 style="color:#1A3A5C">Step 3 — Get your QR ticket</h3>
+        <p style="color:#374151;font-size:14px">
+          Once we approve your payment, we will send your QR ticket to this email.
+          Show the QR code at the entrance on the day of the event.
+        </p>
+
         ${viewLink}
         <p style="margin-top:24px;color:#9ca3af;font-size:12px">Axon Tickets · Online Ticketing Platform</p>
       </div>`,
@@ -229,12 +243,12 @@ export class EmailService implements OnModuleDestroy {
   ): Promise<void> {
     await this.send(
       to,
-      `Payment proof received — ${eventTitle}`,
+      `We got your payment screenshot — ${eventTitle}`,
       `<div style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:24px">
         <h2 style="color:#1A3A5C">${eventTitle}</h2>
-        <p>Hi ${firstName}, we have received your payment proof for reference <strong>${referenceNumber}</strong>.</p>
-        <p>Our team will verify your payment within <strong>24 hours</strong>.
-           You will receive another email with your QR code once approved.</p>
+        <p style="color:#374151">Hi ${firstName}, we received your payment screenshot for reference <strong style="color:#7C3AED">${referenceNumber}</strong>.</p>
+        <p style="color:#374151">Our team is checking it now. This usually takes up to <strong>24 hours</strong>.</p>
+        <p style="color:#374151">Once approved, we will send your QR ticket to this email. You just need to show it at the door — no printing needed!</p>
         <p style="margin-top:24px;color:#9ca3af;font-size:12px">Axon Tickets · Online Ticketing Platform</p>
       </div>`,
     );
@@ -285,12 +299,17 @@ export class EmailService implements OnModuleDestroy {
       to,
       `Your QR code is ready — ${eventTitle}`,
       `<div style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:24px">
-        <h1 style="color:#EA6C00;margin-bottom:4px">Payment verified!</h1>
+        <h1 style="color:#7C3AED;margin-bottom:4px">Your ticket is ready!</h1>
         <h2 style="margin-top:0;color:#1A3A5C">${eventTitle}</h2>
         <p style="color:#64748b">${eventDate} · ${eventVenue}</p>
-        <p>Hi ${firstName}, ${attendees.length === 1 ? 'here is your QR code. Show it at the door.' : 'here are your QR codes. Show them at the door.'}</p>
+        <p style="color:#374151">Hi ${firstName}, your payment has been approved!</p>
+        <p style="color:#374151">${attendees.length === 1 ? 'Here is your QR ticket. Just show this to the staff at the entrance — no printing needed.' : 'Here are your QR tickets. Each attendee should show their own QR code at the entrance.'}</p>
+        <p style="background:#fef3c7;border-radius:8px;padding:12px 16px;color:#92400e;font-size:13px">
+          <strong>Save a screenshot of your QR code</strong> so you can find it easily on event day.
+          You can also view your ticket anytime under My Tickets on the Axon Tickets website.
+        </p>
         <p style="color:#64748b;font-size:13px">
-          Your branded ticket card(s) are also attached to this email.
+          Your ticket card is also attached to this email as a file you can save.
         </p>
         <table style="width:100%;border-collapse:collapse;margin-top:16px">
           <thead>
@@ -325,11 +344,12 @@ export class EmailService implements OnModuleDestroy {
       `Registration cancelled — ${eventTitle}`,
       `<div style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:24px">
         <h2 style="color:#1A3A5C">${eventTitle}</h2>
-        <p>Hi ${firstName},</p>
-        <p>Your registration <strong>${referenceNumber}</strong> has been cancelled.</p>
-        <div style="background:#fef9f0;border-left:4px solid #EA6C00;padding:12px 16px;margin:16px 0;color:#92400e">
+        <p style="color:#374151">Hi ${firstName},</p>
+        <p style="color:#374151">Your registration <strong style="color:#7C3AED">${referenceNumber}</strong> has been cancelled.</p>
+        <div style="background:#fef9f0;border-left:4px solid #EA6C00;padding:12px 16px;margin:16px 0;color:#92400e;border-radius:0 8px 8px 0">
           <strong>Reason:</strong> ${reason}
         </div>
+        <p style="color:#374151">If this was a mistake or if you want to register again, use the button below.</p>
         ${reRegisterBlock}
         <p style="margin-top:24px;color:#9ca3af;font-size:12px">Axon Tickets · Online Ticketing Platform</p>
       </div>`,
@@ -346,18 +366,24 @@ export class EmailService implements OnModuleDestroy {
   ): Promise<void> {
     await this.send(
       to,
-      `Payment proof needs attention — ${eventTitle}`,
+      `We could not verify your payment — ${eventTitle}`,
       `<div style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:24px">
         <h2 style="color:#1A3A5C">${eventTitle}</h2>
-        <p>Hi ${firstName},</p>
-        <p>We reviewed your payment proof for reference <strong>${referenceNumber}</strong> and could not verify it.</p>
-        <div style="background:#fef2f2;border-left:4px solid #dc2626;padding:12px 16px;margin:16px 0;color:#991b1b">
+        <p style="color:#374151">Hi ${firstName},</p>
+        <p style="color:#374151">We checked your payment screenshot for reference <strong style="color:#7C3AED">${referenceNumber}</strong>, but we could not approve it.</p>
+        <div style="background:#fef2f2;border-left:4px solid #dc2626;padding:12px 16px;margin:16px 0;color:#991b1b;border-radius:0 8px 8px 0">
           <strong>Reason:</strong> ${reason}
         </div>
-        <p>Please re-upload a clearer proof of payment using the link below.</p>
+        <p style="color:#374151">Please upload a new, clearer screenshot of your payment. Make sure it shows:</p>
+        <ul style="color:#374151;font-size:14px;padding-left:20px">
+          <li>The amount transferred</li>
+          <li>The date and time of the transfer</li>
+          <li>The recipient's name or account number</li>
+        </ul>
         <p style="margin:24px 0">
-          <a href="${registrationUrl}" style="background:#EA6C00;color:white;padding:12px 24px;text-decoration:none;border-radius:8px;display:inline-block">Re-upload Proof</a>
+          <a href="${registrationUrl}" style="background:#7C3AED;color:white;padding:12px 24px;text-decoration:none;border-radius:8px;display:inline-block;font-weight:600">Upload a New Screenshot</a>
         </p>
+        <p style="color:#64748b;font-size:13px">If you need help, reply to this email or contact our support team.</p>
         <p style="margin-top:24px;color:#9ca3af;font-size:12px">Axon Tickets · Online Ticketing Platform</p>
       </div>`,
     );

@@ -23,10 +23,10 @@ interface Ticket {
 }
 
 const REG_STATUS_LABELS: Record<RegistrationStatus, string> = {
-  pending_payment: 'Pending Payment',
-  proof_submitted: 'Under Review',
-  verified: 'Verified',
-  rejected: 'Rejected',
+  pending_payment: 'Waiting for Payment',
+  proof_submitted: 'Being Reviewed',
+  verified: 'Approved',
+  rejected: 'Needs Attention',
   cancelled: 'Cancelled',
 };
 
@@ -233,7 +233,7 @@ export default function MyEventsPage() {
                 <EmptyState
                   icon={<svg className="w-7 h-7" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M3 9a2 2 0 012-2h14a2 2 0 012 2v1.5a2 2 0 100 4V16a2 2 0 01-2 2H5a2 2 0 01-2-2v-1.5a2 2 0 100-4V9z"/></svg>}
                   title="No tickets yet"
-                  body="When you complete a checkout, your QR tickets will appear here, ready to scan at the gate."
+                  body="Once your registration is approved, your QR tickets will appear here. Just show the QR code at the entrance."
                   cta={{ href: '/', label: 'Browse events' }}
                 />
               )}
@@ -277,7 +277,7 @@ export default function MyEventsPage() {
                 <EmptyState
                   icon={<svg className="w-7 h-7" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/></svg>}
                   title="No registrations yet"
-                  body="Reserve a seat for an event to track its payment and verification status here."
+                  body="When you register for an event, your registration status and payment will appear here."
                   cta={{ href: '/', label: 'Browse events' }}
                 />
               )}

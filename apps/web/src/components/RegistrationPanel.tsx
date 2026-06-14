@@ -115,7 +115,7 @@ export default function RegistrationPanel({
 
   return (
     <div className="sticky top-6 bg-white border border-gray-200 rounded-2xl shadow-sm p-6 space-y-4">
-      <h3 className="font-semibold text-gray-900">Register</h3>
+      <h3 className="font-semibold text-gray-900">Get Tickets</h3>
 
       {/* Tier picker */}
       <div className="space-y-2">
@@ -244,7 +244,7 @@ export default function RegistrationPanel({
           <p className="font-semibold text-gray-800 text-sm">Payment via bank transfer</p>
           {bankName && <p>{bankName}</p>}
           {gcashNumber && <p>GCash: {gcashNumber}</p>}
-          <p className="text-gray-400">Details shown after registration</p>
+          <p className="text-gray-400">Full payment details shown after you register</p>
         </div>
       )}
 
@@ -260,7 +260,7 @@ export default function RegistrationPanel({
             <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
           </svg>
         )}
-        {isPending ? 'Loading…' : disabled ? 'Unavailable' : 'Register Now'}
+        {isPending ? 'Loading…' : disabled ? 'Unavailable' : 'Reserve Tickets'}
       </button>
     </div>
   );

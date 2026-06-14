@@ -320,9 +320,9 @@ export default function RegistrationForm({
       {currentUser && (
         <div className="bg-white border border-gray-200 rounded-2xl p-4 flex items-center justify-between gap-3">
           <div>
-            <p className="text-sm font-medium text-gray-900">Use my account details for Attendee 1</p>
+            <p className="text-sm font-medium text-gray-900">Fill in my details for Attendee 1</p>
             <p className="text-xs text-gray-500 mt-0.5">
-              Auto-fill all profile details ({currentUser.email}).
+              We will use the info saved in your account ({currentUser.email}).
             </p>
           </div>
           <button
@@ -408,11 +408,13 @@ export default function RegistrationForm({
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">Phone</label>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Mobile Number *</label>
               <input
                 type="tel"
+                required
                 value={att.phone}
                 onChange={(e) => updateAttendee(i, 'phone', e.target.value)}
+                placeholder="+639171234567"
                 className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
               />
             </div>
@@ -444,7 +446,7 @@ export default function RegistrationForm({
           rows={3}
           value={notes}
           onChange={(e) => setNotes(e.target.value)}
-          placeholder="Dietary restrictions, accessibility needs, etc."
+          placeholder="Anything we should know? e.g. food allergies, wheelchair access needed, etc."
           className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary resize-none"
         />
       </div>
@@ -460,7 +462,7 @@ export default function RegistrationForm({
         disabled={loading}
         className="w-full py-3 rounded-xl bg-primary text-white font-semibold text-sm hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
       >
-        {loading ? 'Submitting…' : `Confirm Registration — ${formatPHP(totalPesos)}`}
+        {loading ? 'Saving your spot…' : `Confirm My Registration — ${formatPHP(totalPesos)}`}
       </button>
     </form>
   );

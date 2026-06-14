@@ -284,14 +284,13 @@ function AccessForm() {
     if (!pendingAuth) return;
     setLoading(true);
     try {
-      const phone =
-        profile.phoneDigits.length === 10 ? `+63${profile.phoneDigits}` : undefined;
+      const phone = `+63${profile.phoneDigits}`;
 
       const res = await axios.patch<{
         data: { id: string; email: string; firstName: string; lastName: string; isAdmin: boolean; isVerified: boolean };
       }>(
         `${API_URL}/users/me`,
-        { firstName: profile.firstName, lastName: profile.lastName, ...(phone && { phone }) },
+        { firstName: profile.firstName, lastName: profile.lastName, phone },
         { headers: { Authorization: `Bearer ${pendingAuth.accessToken}` } },
       );
 
@@ -340,26 +339,26 @@ function AccessForm() {
           </Link>
           {step === 'email' && (
             <>
-              <h1 className="mt-4 text-2xl font-bold text-gray-900">Sign in or join</h1>
+              <h1 className="mt-4 text-2xl font-bold text-gray-900">Sign in</h1>
               <p className="mt-1 text-sm text-gray-500">
-                Enter your email — no password needed
+                Enter your email. No password needed.
               </p>
             </>
           )}
           {step === 'code' && (
             <>
-              <h1 className="mt-4 text-2xl font-bold text-gray-900">Check your inbox</h1>
+              <h1 className="mt-4 text-2xl font-bold text-gray-900">Check your email</h1>
               <p className="mt-1 text-sm text-gray-500">
-                Sent a 6-digit code to{' '}
+                We sent a 6-digit code to{' '}
                 <span className="font-medium text-gray-700">{email}</span>
               </p>
             </>
           )}
           {step === 'profile' && (
             <>
-              <h1 className="mt-4 text-2xl font-bold text-gray-900">One last thing</h1>
+              <h1 className="mt-4 text-2xl font-bold text-gray-900">Almost done!</h1>
               <p className="mt-1 text-sm text-gray-500">
-                Tell us your name so we can personalise your tickets
+                Tell us your name so we can put it on your ticket.
               </p>
             </>
           )}
@@ -408,13 +407,12 @@ function AccessForm() {
             </button>
 
             <div className="space-y-1 rounded-xl border border-gray-100 bg-gray-50 px-3 py-3 text-xs text-gray-600">
-              <p>We use your email to send your QR ticket and receipt.</p>
-              <p>No password needed.</p>
-              <p>Check your spam or promotions folder if the code does not arrive.</p>
-              <p>You can request a new code after the cooldown.</p>
+              <p>We send a 6-digit code to your email. Enter the code to sign in.</p>
+              <p>No password needed — ever.</p>
+              <p>If the code does not arrive, check your spam or promotions folder.</p>
               {isInAppBrowser && (
-                <p className="text-amber-700">
-                  If this in-app browser blocks email autofill, open this page in Safari or Chrome.
+                <p className="text-amber-700 font-medium">
+                  Tip: Open this page in Safari or Chrome for the best experience.
                 </p>
               )}
             </div>
@@ -468,7 +466,7 @@ function AccessForm() {
                   disabled={loading}
                   className="text-xs text-primary font-medium hover:underline disabled:opacity-50"
                 >
-                  Didn&apos;t receive it? Resend code
+                  Did not get the code? Send it again
                 </button>
               )}
               <div>
@@ -480,7 +478,7 @@ function AccessForm() {
                   }}
                   className="text-xs text-gray-400 hover:text-gray-600"
                 >
-                  Use a different email
+                  Use a different email address
                 </button>
               </div>
             </div>
@@ -525,8 +523,7 @@ function AccessForm() {
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Mobile number{' '}
-                <span className="text-gray-400 font-normal">(optional)</span>
+                Mobile Number <span className="text-red-500">*</span>
               </label>
               <div className="flex">
                 <span className="inline-flex items-center px-3 rounded-l-lg border border-r-0 border-gray-300 bg-gray-50 text-sm text-gray-500 select-none">
@@ -552,7 +549,7 @@ function AccessForm() {
 
             <button
               type="submit"
-              disabled={loading || !profile.firstName || !profile.lastName}
+              disabled={loading || !profile.firstName || !profile.lastName || profile.phoneDigits.length < 10}
               className="w-full py-2.5 rounded-xl bg-primary text-white text-sm font-semibold hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
             >
               {loading ? (

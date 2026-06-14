@@ -215,9 +215,9 @@ export default function PaymentStepPage() {
         {/* Payment methods */}
         <section className="rounded-2xl border border-gray-200 bg-white p-5 mb-5 space-y-3">
           <header>
-            <h2 className="font-semibold text-gray-900">Pay using any of these methods</h2>
+            <h2 className="font-semibold text-gray-900">Choose how to pay</h2>
             <p className="text-xs text-gray-500 mt-0.5">
-              Send the payment, screenshot the confirmation, then upload it below.
+              Send the exact amount using one of the options below, then take a screenshot and upload it.
             </p>
           </header>
 
@@ -369,9 +369,10 @@ export default function PaymentStepPage() {
         {/* Upload */}
         <section className="rounded-2xl border border-gray-200 bg-white p-5 mb-5">
           <header className="mb-3">
-            <h2 className="font-semibold text-gray-900">Upload Proof of Payment</h2>
+            <h2 className="font-semibold text-gray-900">Upload Your Payment Screenshot</h2>
             <p className="text-xs text-gray-500 mt-0.5">
-              Once submitted, the organizer will verify your payment and email your tickets.
+              Take a screenshot of your transfer confirmation and upload it here.
+              Once we check and approve it, your QR ticket will be emailed to you.
             </p>
           </header>
           <PaymentProofDropzone
@@ -385,12 +386,12 @@ export default function PaymentStepPage() {
             onClick={() => router.push(`/registrations/${registrationId}`)}
             className="hover:text-gray-700"
           >
-            I&apos;ll pay later
+            I will pay later
           </button>
           <span>
             Need help?{' '}
             <a href="mailto:support@axontickets.online" className="text-primary hover:underline">
-              Contact support
+              Contact us
             </a>
           </span>
         </div>

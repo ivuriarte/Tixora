@@ -9,6 +9,7 @@ import {
   ArrayMaxSize,
   MinLength,
   MaxLength,
+  Matches,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 
@@ -26,10 +27,12 @@ export class AttendeeDto {
   @IsEmail()
   email!: string;
 
-  @IsOptional()
+  /** Mobile number is required for event contact and gate verification purposes.
+   *  Accepts Philippine format (+639XXXXXXXXX) or international format (+XXXXXXXXXXX). */
   @IsString()
+  @MinLength(7)
   @MaxLength(20)
-  phone?: string;
+  phone!: string;
 
   @IsOptional()
   @IsString()

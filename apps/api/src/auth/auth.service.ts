@@ -307,8 +307,27 @@ export class AuthService {
     let user = await this.prisma.user.findUnique({ where: { email } });
 
     if (!user) {
+      // New user: create stub with whatever profile fields were provided.
+      // When firstName is set here, verifyAccess() will return isNewUser=false
+      // so the registration wizard never shows the separate profile step.
       user = await this.prisma.user.create({
-        data: { email, isVerified: false },
+        data: {
+          email,
+          isVerified: false,
+          firstName: dto.firstName?.trim() ?? null,
+          lastName: dto.lastName?.trim() ?? null,
+          phone: dto.phone?.trim() || null,
+        },
+      });
+    } else if (user.firstName === null && dto.firstName) {
+      // Existing stub user with no profile yet — fill it in now.
+      user = await this.prisma.user.update({
+        where: { email },
+        data: {
+          firstName: dto.firstName.trim(),
+          lastName: dto.lastName?.trim() ?? null,
+          phone: dto.phone?.trim() || null,
+        },
       });
     }
 

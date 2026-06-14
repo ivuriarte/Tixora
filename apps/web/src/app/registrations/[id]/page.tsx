@@ -12,10 +12,10 @@ import type { Registration, RegistrationStatus } from '@axon-tickets/types';
 import { trackPixelCustomEvent, trackPixelEvent } from '@/lib/metaPixel';
 
 const STATUS_LABELS: Record<RegistrationStatus, string> = {
-  pending_payment: 'Pending Payment',
-  proof_submitted: 'Proof Submitted',
-  verified: 'Verified',
-  rejected: 'Rejected',
+  pending_payment: 'Waiting for Payment',
+  proof_submitted: 'Being Reviewed',
+  verified: 'Approved',
+  rejected: 'Needs Attention',
   cancelled: 'Cancelled',
 };
 
@@ -195,7 +195,7 @@ export default function RegistrationDetailPage() {
               )}
             </div>
             <p className="text-xs text-gray-500">
-              Transfer exactly <span className="font-semibold text-primary">{formatPHP(centavosToPeso(reg.total))}</span> and include your reference number in the transfer remarks.
+              Send exactly <span className="font-semibold text-primary">{formatPHP(centavosToPeso(reg.total))}</span> and write your reference number in the transfer note or remarks box.
             </p>
           </div>
         )}
@@ -239,11 +239,12 @@ export default function RegistrationDetailPage() {
             ))}
           </div>
           <div className="mt-4 flex items-start gap-2 rounded-lg bg-amber-50 border border-amber-200 px-3 py-2 text-xs text-amber-800">
-            <span aria-hidden className="mt-0.5">🔒</span>
+            <svg className="w-4 h-4 mt-0.5 shrink-0 text-amber-600" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+            </svg>
             <p>
-              <span className="font-semibold">Non-transferable.</span> Each
-              ticket is bound to the attendee named above. A valid government
-              or company ID matching the name will be required at the door.
+              <span className="font-semibold">Tickets cannot be transferred.</span> Each ticket belongs to the person named above.
+              Please bring a valid ID with the same name to the entrance.
             </p>
           </div>
         </div>
@@ -269,11 +270,11 @@ export default function RegistrationDetailPage() {
         {reg.status === 'proof_submitted' && (
           <div className="bg-blue-50 border border-blue-200 rounded-2xl p-5 space-y-3">
             <div>
-              <p className="font-semibold text-gray-900">Awaiting verification</p>
+              <p className="font-semibold text-gray-900">We got your payment screenshot!</p>
               <p className="text-sm text-gray-600 mt-0.5">
-                We&apos;ve received your proof. Our team reviews within{' '}
-                <span className="font-semibold text-blue-700">24 hours</span> — you&apos;ll
-                get an email with your QR code once approved.
+                Our team is checking it now. This usually takes up to{' '}
+                <span className="font-semibold text-blue-700">24 hours</span>.
+                Once approved, we will send your QR ticket to your email.
               </p>
             </div>
             {reg.proofs?.[0]?.imageUrl && (
@@ -290,10 +291,13 @@ export default function RegistrationDetailPage() {
         )}
 
         {reg.status === 'verified' && (
-          <div className="bg-green-50 border border-green-200 rounded-2xl p-5 text-sm text-green-800">
-            <p className="font-semibold">Payment verified ✓</p>
-            <p className="text-green-700 mt-0.5">
-              Your tickets and QR code will be emailed shortly.
+          <div className="bg-green-50 border border-green-200 rounded-2xl p-5 text-sm text-green-800 space-y-2">
+            <p className="font-semibold">Payment approved!</p>
+            <p className="text-green-700">
+              Your QR ticket has been sent to your email. Open My Tickets to view it anytime.
+            </p>
+            <p className="text-green-700 text-xs">
+              Can&apos;t find the email? Check your spam or promotions folder.
             </p>
           </div>
         )}
@@ -305,7 +309,7 @@ export default function RegistrationDetailPage() {
             disabled={cancelling}
             className="w-full py-3 rounded-xl border border-red-300 text-red-600 text-sm font-medium hover:bg-red-50 disabled:opacity-50 transition-colors"
           >
-            {cancelling ? 'Cancelling…' : 'Cancel Registration'}
+            {cancelling ? 'Cancelling…' : 'Cancel My Registration'}
           </button>
         )}
       </div>
