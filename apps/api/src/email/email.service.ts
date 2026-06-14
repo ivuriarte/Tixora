@@ -48,13 +48,14 @@ export class EmailService implements OnModuleDestroy {
 
   /**
    * Send a raw email with optional attachments.
+   * Supports inline CID attachments (set cid to reference from HTML as cid:...).
    * Errors are logged and swallowed so callers never throw.
    */
   async send(
     to: string,
     subject: string,
     html: string,
-    attachments?: { content: string | Buffer; filename: string; content_type: string }[],
+    attachments?: { content: string | Buffer; filename: string; content_type: string; cid?: string }[],
   ): Promise<void> {
     if (!this.transporter) {
       this.logger.warn({ msg: 'Email skipped (SMTP disabled)', to, subject });
@@ -69,6 +70,7 @@ export class EmailService implements OnModuleDestroy {
         content: a.content,
         filename: a.filename,
         contentType: a.content_type,
+        ...(a.cid ? { cid: a.cid } : {}),
       })),
     };
 
@@ -262,65 +264,125 @@ export class EmailService implements OnModuleDestroy {
     eventVenue: string,
     attendees: { firstName: string; lastName: string; email: string; qrToken: string | null }[],
   ): Promise<void> {
-    const apiUrl = this.config.get<string>('apiUrl') ?? '';
+    // Build one PNG attachment per attendee.
+    // Each QR is embedded inline (via CID) so it displays directly in the email body
+    // on every device — Android, iPhone, desktop — without loading any external URL.
+    // The same buffer is also attached as a .png file the user can download and open.
+    const attachments: { content: Buffer; filename: string; content_type: string; cid?: string }[] = [];
 
-    const attachments: { content: Buffer; filename: string; content_type: string }[] = [];
     const rows = await Promise.all(
-      attendees.map(async (a) => {
-        if (a.qrToken) {
-          const svgBuffer = await this.qrService.generateBrandedTicketSvg(
-            a.qrToken,
-            a.firstName,
-            a.lastName,
-          );
-          const safeName = `${a.firstName}-${a.lastName}`.toLowerCase().replace(/[^a-z0-9-]/g, '_');
-          attachments.push({
-            content: svgBuffer,
-            filename: `axon-tickets-${safeName}.svg`,
-            content_type: 'image/svg+xml',
-          });
+      attendees.map(async (a, index) => {
+        if (!a.qrToken) {
+          return `<tr style="border-bottom:1px solid #e5e7eb">
+            <td style="padding:16px;vertical-align:top">
+              <strong style="color:#1A3A5C">${a.firstName} ${a.lastName}</strong><br/>
+              <span style="color:#64748b;font-size:13px">${a.email}</span>
+            </td>
+            <td style="padding:16px;text-align:center;color:#dc2626;font-size:13px">
+              QR not generated yet
+            </td>
+          </tr>`;
         }
 
-        const qrCell = a.qrToken
-          ? `<img src="${apiUrl}/qr/${encodeURIComponent(a.qrToken)}" alt="QR Code" width="180" height="180" style="display:block" />`
-          : '<span style="color:#dc2626">No QR generated</span>';
+        const pngBuffer = await this.qrService.generateQrPng(a.qrToken);
+        const safeName = `${a.firstName}-${a.lastName}`.toLowerCase().replace(/[^a-z0-9-]/g, '_');
+        const cid = `qr-${index}-${safeName}@axontickets`;
+
+        // Inline attachment: rendered directly in the email body
+        attachments.push({
+          content: pngBuffer,
+          filename: `ticket-qr-${safeName}.png`,
+          content_type: 'image/png',
+          cid,
+        });
 
         return `<tr style="border-bottom:1px solid #e5e7eb">
-          <td style="padding:12px;vertical-align:top">
-            <strong>${a.firstName} ${a.lastName}</strong><br />
+          <td style="padding:16px;vertical-align:middle">
+            <strong style="color:#1A3A5C;font-size:16px">${a.firstName} ${a.lastName}</strong><br/>
             <span style="color:#64748b;font-size:13px">${a.email}</span>
           </td>
-          <td style="padding:12px;text-align:center">${qrCell}</td>
+          <td style="padding:16px;text-align:center">
+            <img src="cid:${cid}" alt="QR Code for ${a.firstName} ${a.lastName}"
+                 width="200" height="200"
+                 style="display:block;margin:0 auto;border:1px solid #e5e7eb;border-radius:8px" />
+          </td>
         </tr>`;
       }),
     );
 
+    const isSingle = attendees.length === 1;
+
     await this.send(
       to,
-      `Your QR code is ready — ${eventTitle}`,
-      `<div style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:24px">
-        <h1 style="color:#7C3AED;margin-bottom:4px">Your ticket is ready!</h1>
-        <h2 style="margin-top:0;color:#1A3A5C">${eventTitle}</h2>
-        <p style="color:#64748b">${eventDate} · ${eventVenue}</p>
-        <p style="color:#374151">Hi ${firstName}, your payment has been approved!</p>
-        <p style="color:#374151">${attendees.length === 1 ? 'Here is your QR ticket. Just show this to the staff at the entrance — no printing needed.' : 'Here are your QR tickets. Each attendee should show their own QR code at the entrance.'}</p>
-        <p style="background:#fef3c7;border-radius:8px;padding:12px 16px;color:#92400e;font-size:13px">
-          <strong>Save a screenshot of your QR code</strong> so you can find it easily on event day.
-          You can also view your ticket anytime under My Tickets on the Axon Tickets website.
-        </p>
-        <p style="color:#64748b;font-size:13px">
-          Your ticket card is also attached to this email as a file you can save.
-        </p>
-        <table style="width:100%;border-collapse:collapse;margin-top:16px">
-          <thead>
-            <tr style="background:#f7f9fc">
-              <th style="padding:12px;text-align:left;color:#1A3A5C">Attendee</th>
-              <th style="padding:12px;text-align:center;color:#1A3A5C">QR Code</th>
-            </tr>
-          </thead>
-          <tbody>${rows.join('')}</tbody>
-        </table>
-        <p style="margin-top:24px;color:#9ca3af;font-size:12px">Axon Tickets · Online Ticketing Platform</p>
+      `✅ Your ticket is ready! — ${eventTitle}`,
+      `<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:0;background:#f8fafc">
+
+        <!-- Header -->
+        <div style="background:#1A3A5C;padding:28px 32px;text-align:center">
+          <p style="margin:0;font-size:13px;color:#93c5fd;letter-spacing:1px;text-transform:uppercase">Axon Tickets</p>
+          <h1 style="margin:8px 0 0;font-size:28px;color:#ffffff">🎉 Your ticket is ready!</h1>
+        </div>
+
+        <!-- Body -->
+        <div style="background:#ffffff;padding:32px">
+
+          <p style="font-size:16px;color:#1A3A5C;margin-top:0">
+            Hi <strong>${firstName}</strong>, your payment was approved!
+          </p>
+          <p style="font-size:15px;color:#374151;margin-top:0">
+            Your ${isSingle ? 'ticket' : 'tickets'} for <strong>${eventTitle}</strong> ${isSingle ? 'is' : 'are'} below.
+          </p>
+          <p style="color:#64748b;font-size:14px;margin-top:0">
+            📅 ${eventDate} &nbsp;|&nbsp; 📍 ${eventVenue}
+          </p>
+
+          <!-- What to do box -->
+          <div style="background:#f0fdf4;border:2px solid #86efac;border-radius:12px;padding:20px;margin:24px 0">
+            <p style="margin:0 0 12px;font-size:15px;font-weight:bold;color:#166534">
+              What do I do with this ticket?
+            </p>
+            <ol style="margin:0;padding-left:20px;color:#15803d;font-size:14px;line-height:1.8">
+              <li>Find your QR code below in this email.</li>
+              <li><strong>Screenshot or save</strong> the QR code to your phone's photo gallery.</li>
+              <li>On event day, <strong>show the QR code to the staff at the entrance.</strong></li>
+              <li>No printing needed — your phone screen is enough!</li>
+            </ol>
+          </div>
+
+          <!-- QR table -->
+          <table style="width:100%;border-collapse:collapse;margin-top:8px;border:1px solid #e5e7eb;border-radius:12px;overflow:hidden">
+            <thead>
+              <tr style="background:#f7f9fc">
+                <th style="padding:12px 16px;text-align:left;color:#1A3A5C;font-size:13px;font-weight:600">Attendee Name</th>
+                <th style="padding:12px 16px;text-align:center;color:#1A3A5C;font-size:13px;font-weight:600">QR Code (show at entrance)</th>
+              </tr>
+            </thead>
+            <tbody>${rows.join('')}</tbody>
+          </table>
+
+          <!-- Tip box -->
+          <div style="background:#fffbeb;border-left:4px solid #f59e0b;padding:14px 16px;margin-top:24px;border-radius:0 8px 8px 0">
+            <p style="margin:0;font-size:13px;color:#92400e">
+              <strong>💡 Tip:</strong> Can't see the QR code above?
+              The QR code is also saved as a <strong>.png image file</strong> attached to this email.
+              Open the attachment to view and save it to your phone.
+              If you still can't find it, check your <strong>Spam</strong> or <strong>Promotions</strong> folder.
+            </p>
+          </div>
+
+          <p style="font-size:13px;color:#64748b;margin-top:24px">
+            You can also view your ticket anytime by logging in to
+            <a href="https://axontickets.online/account/tickets" style="color:#7C3AED">axontickets.online</a>
+            and going to <strong>My Events</strong>.
+          </p>
+
+        </div>
+
+        <!-- Footer -->
+        <div style="background:#f1f5f9;padding:16px 32px;text-align:center">
+          <p style="margin:0;font-size:12px;color:#94a3b8">Axon Tickets · Online Ticketing Platform · axontickets.online</p>
+        </div>
+
       </div>`,
       attachments,
     );

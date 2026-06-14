@@ -180,8 +180,13 @@ export default function RegistrationGuard({
     );
   }
 
-  // No active registration — render the correct panel
-  if (useManualPayment) {
+  // No active registration — render the correct panel.
+  // TierSelector is only shown when the online-payment gateway is explicitly
+  // enabled via the env flag. Without it, ALL events use RegistrationPanel
+  // (manual bank transfer / GCash proof-of-payment flow).
+  const onlinePaymentEnabled = process.env.NEXT_PUBLIC_ENABLE_ONLINE_PAYMENT === 'true';
+
+  if (useManualPayment || !onlinePaymentEnabled) {
     return (
       <RegistrationPanel
         eventId={eventId}
