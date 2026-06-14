@@ -62,6 +62,7 @@ export interface SponsorItem {
   name: string;
   logoUrl: string;
   tier: string;
+  websiteUrl: string;
 }
 
 export interface FaqItem {
@@ -118,6 +119,18 @@ function SponsorForm({
       </div>
       <div>
         <label className="block text-xs font-medium text-gray-600 mb-1">
+          Website / Social Link <span className="text-gray-400 font-normal">(optional)</span>
+        </label>
+        <input
+          type="url"
+          className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+          placeholder="e.g. https://globebusiness.com"
+          value={value.websiteUrl}
+          onChange={(e) => onChange({ ...value, websiteUrl: e.target.value })}
+        />
+      </div>
+      <div>
+        <label className="block text-xs font-medium text-gray-600 mb-1">
           Logo <span className="text-gray-400 font-normal">(optional)</span>
         </label>
         <ImageUploader
@@ -163,7 +176,7 @@ export function SponsorListManager({
 }) {
   const [editingIdx, setEditingIdx] = useState<number | null>(null);
   const [showAdd, setShowAdd] = useState(false);
-  const [draft, setDraft] = useState<SponsorItem>({ name: '', logoUrl: '', tier: '' });
+  const [draft, setDraft] = useState<SponsorItem>({ name: '', logoUrl: '', tier: '', websiteUrl: '' });
 
   useFlushPendingDraft<SponsorItem>({
     showAdd,
@@ -189,7 +202,7 @@ export function SponsorListManager({
   function addSponsor() {
     if (!draft.name.trim()) return;
     onChange([...sponsors, { ...draft, name: draft.name.trim() }]);
-    setDraft({ name: '', logoUrl: '', tier: '' });
+    setDraft({ name: '', logoUrl: '', tier: '', websiteUrl: '' });
     // keep panel open so user can immediately add another
   }
 
@@ -200,7 +213,7 @@ export function SponsorListManager({
         {!showAdd && editingIdx === null && (
           <button
             type="button"
-            onClick={() => { setShowAdd(true); setDraft({ name: '', logoUrl: '', tier: '' }); }}
+            onClick={() => { setShowAdd(true); setDraft({ name: '', logoUrl: '', tier: '', websiteUrl: '' }); }}
             className="text-xs text-primary hover:underline font-medium"
           >
             + Add Sponsor

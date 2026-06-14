@@ -20,7 +20,7 @@ interface Tier {
 }
 
 interface AgendaItem { time: string; title: string; description?: string; }
-interface Sponsor { name: string; logoUrl?: string; tier?: string; }
+interface Sponsor { name: string; logoUrl?: string; tier?: string; websiteUrl?: string; }
 interface Faq { question: string; answer: string; }
 
 interface Event {
@@ -217,17 +217,24 @@ export default async function EventPage({ params, searchParams }: { params: { sl
               <div>
                 <h2 className="text-lg font-semibold text-gray-900 mb-4">Sponsors &amp; Partners</h2>
                 <div className="flex flex-wrap gap-6 items-center">
-                  {sponsors.map((s, i) => (
-                    <div key={i} className="text-center">
-                      {s.logoUrl ? (
-                        <div className="flex items-center justify-center bg-white border border-gray-200 rounded-xl px-5 py-3 shadow-sm h-16 min-w-[100px]">
-                          <Image src={s.logoUrl} alt={s.name} width={120} height={40} className="h-10 w-auto object-contain" unoptimized />
-                        </div>
-                      ) : (
-                        <span className="inline-block bg-gray-100 text-gray-700 font-medium px-4 py-2 rounded-lg text-sm">{s.name}</span>
-                      )}
-                    </div>
-                  ))}
+                  {sponsors.map((s, i) => {
+                    const inner = s.logoUrl ? (
+                      <div className="flex items-center justify-center bg-white border border-gray-200 rounded-xl px-5 py-3 shadow-sm h-16 min-w-[100px] transition-opacity hover:opacity-80">
+                        <Image src={s.logoUrl} alt={s.name} width={120} height={40} className="h-10 w-auto object-contain" unoptimized />
+                      </div>
+                    ) : (
+                      <span className="inline-block bg-gray-100 text-gray-700 font-medium px-4 py-2 rounded-lg text-sm hover:bg-gray-200 transition-colors">{s.name}</span>
+                    );
+                    return (
+                      <div key={i} className="text-center">
+                        {s.websiteUrl ? (
+                          <a href={s.websiteUrl} target="_blank" rel="noopener noreferrer" aria-label={`Visit ${s.name}`}>
+                            {inner}
+                          </a>
+                        ) : inner}
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             )}

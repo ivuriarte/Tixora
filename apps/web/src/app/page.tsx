@@ -17,7 +17,7 @@ interface EventSummary {
   lowestPrice?: number | null;
   status: string;
   speakerName?: string | null;
-  sponsors?: Array<{ name: string; logoUrl?: string; tier?: string }> | null;
+  sponsors?: Array<{ name: string; logoUrl?: string; tier?: string; websiteUrl?: string }> | null;
 }
 
 
@@ -167,17 +167,24 @@ export default async function HomePage({ searchParams }: { searchParams: { page?
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                   <p className="text-center text-sm font-medium text-gray-400 uppercase tracking-widest mb-6">Presented by</p>
                   <div className="flex flex-wrap justify-center items-center gap-8">
-                    {featured.sponsors.map((s, i) => (
-                      <div key={i} className="text-center">
-                        {s.logoUrl ? (
-                          <div className="flex items-center justify-center bg-white border border-gray-200 rounded-xl px-5 py-3 shadow-sm h-16 min-w-[100px]">
-                            <Image src={s.logoUrl} alt={s.name} width={120} height={40} className="h-10 w-auto object-contain mx-auto" />
-                          </div>
-                        ) : (
-                          <span className="text-gray-700 font-semibold text-lg">{s.name}</span>
-                        )}
-                      </div>
-                    ))}
+                    {featured.sponsors.map((s, i) => {
+                      const inner = s.logoUrl ? (
+                        <div className="flex items-center justify-center bg-white border border-gray-200 rounded-xl px-5 py-3 shadow-sm h-16 min-w-[100px] transition-opacity hover:opacity-80">
+                          <Image src={s.logoUrl} alt={s.name} width={120} height={40} className="h-10 w-auto object-contain mx-auto" />
+                        </div>
+                      ) : (
+                        <span className="text-gray-700 font-semibold text-lg hover:underline">{s.name}</span>
+                      );
+                      return (
+                        <div key={i} className="text-center">
+                          {s.websiteUrl ? (
+                            <a href={s.websiteUrl} target="_blank" rel="noopener noreferrer" aria-label={`Visit ${s.name}`}>
+                              {inner}
+                            </a>
+                          ) : inner}
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
               </section>

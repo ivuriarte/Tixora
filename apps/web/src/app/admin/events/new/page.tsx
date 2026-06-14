@@ -160,6 +160,7 @@ export default function AdminNewEventPage() {
             name: (s.name ?? '').trim(),
             ...(s.logoUrl && { logoUrl: s.logoUrl }),
             ...(s.tier && { tier: s.tier }),
+            ...(s.websiteUrl?.trim() && { websiteUrl: s.websiteUrl.trim() }),
           }))
           .filter((s) => s.name.length > 0);
         if (cleaned.length > 0) payload.sponsors = cleaned;

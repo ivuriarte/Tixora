@@ -60,6 +60,12 @@ export class SponsorItemDto {
   @IsString()
   @MaxLength(50)
   tier?: string;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsUrl()
+  @MaxLength(500)
+  websiteUrl?: string;
 }
 
 export class FaqItemDto {

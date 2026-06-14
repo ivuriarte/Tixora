@@ -68,7 +68,7 @@ interface ApiEvent {
   imageUrl?: string | null;
   speakerName?: string | null;
   agenda?: Array<{ time: string; title: string; description?: string }> | null;
-  sponsors?: Array<{ name: string; logoUrl?: string; tier?: string }> | null;
+  sponsors?: Array<{ name: string; logoUrl?: string; tier?: string; websiteUrl?: string }> | null;
   faqs?: Array<{ question: string; answer: string }> | null;
   allowManualPayment?: boolean;
   bankName?: string | null;
@@ -176,6 +176,7 @@ export default function AdminEventEditPage() {
               name: s.name,
               logoUrl: s.logoUrl ?? '',
               tier: s.tier ?? '',
+              websiteUrl: s.websiteUrl ?? '',
             }))
         : [],
       faqs: Array.isArray(event.faqs)
@@ -440,6 +441,7 @@ export default function AdminEventEditPage() {
               name: s.name,
               ...(s.logoUrl && { logoUrl: s.logoUrl }),
               ...(s.tier && { tier: s.tier }),
+              ...(s.websiteUrl?.trim() && { websiteUrl: s.websiteUrl.trim() }),
             }))
           : null,
       faqs: draft.faqs.length > 0 ? draft.faqs : null,
