@@ -143,6 +143,29 @@ export default function AdminCheckinPage() {
     cameraActiveRef.current = false;
     setCameraStarting(true);
 
+    // Preflight: call getUserMedia directly first to trigger Android Chrome's
+    // permission prompt and confirm the camera is accessible. Android can return
+    // NotAllowedError even with permission granted when ZXing's constrained request
+    // is the first call — this plain call forces the real system prompt to appear.
+    try {
+      const preflightStream = await navigator.mediaDevices.getUserMedia({ video: true });
+      preflightStream.getTracks().forEach((t) => t.stop());
+    } catch (err: any) {
+      if (scannerSessionRef.current !== sessionId) return;
+      stopCamera();
+      const name = (err?.name ?? '') as string;
+      if (name === 'NotAllowedError' || name === 'PermissionDeniedError') {
+        setCameraError('permission_denied');
+      } else if (name === 'NotFoundError' || name === 'DevicesNotFoundError') {
+        setCameraError('No camera was found on this device.');
+      } else {
+        setCameraError(`Camera error${name ? ` (${name})` : ''}: ${err?.message ?? 'Unknown error'}`);
+      }
+      return;
+    }
+
+    if (stoppingRef.current || scannerSessionRef.current !== sessionId) return;
+
     try {
       const { BrowserQRCodeReader } = await import('@zxing/browser');
       const reader = new BrowserQRCodeReader();
@@ -150,8 +173,6 @@ export default function AdminCheckinPage() {
       const controls = await reader.decodeFromConstraints({
         video: {
           facingMode: { ideal: 'environment' },
-          width: { ideal: 1280 },
-          height: { ideal: 720 },
         },
         audio: false,
       }, videoRef.current, (result, err) => {
