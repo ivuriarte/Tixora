@@ -70,6 +70,10 @@ export class EmailService implements OnModuleDestroy {
         content: a.content,
         filename: a.filename,
         contentType: a.content_type,
+        // nodemailer defaults contentDisposition to 'inline' whenever cid is set,
+        // which hides the file from the client's attachment list. Force 'attachment'
+        // so cid-referenced images still render inline AND show as a downloadable file.
+        contentDisposition: 'attachment',
         ...(a.cid ? { cid: a.cid } : {}),
       })),
     };
