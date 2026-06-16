@@ -135,6 +135,19 @@ export default function AdminCheckinPage() {
       return;
     }
 
+    // On Android Chrome, once a permission is permanently blocked, getUserMedia throws
+    // NotAllowedError immediately without showing any dialog. Detect this first so we
+    // can show actionable instructions instead of looping into the same error.
+    try {
+      if (navigator.permissions?.query) {
+        const ps = await navigator.permissions.query({ name: 'camera' as PermissionName });
+        if (ps.state === 'denied') {
+          setCameraError('permission_blocked');
+          return;
+        }
+      }
+    } catch {}
+
     stopCamera();
     const sessionId = scannerSessionRef.current + 1;
     scannerSessionRef.current = sessionId;
@@ -240,6 +253,17 @@ export default function AdminCheckinPage() {
 
   // Runs the same user-gesture camera start path Chrome uses for permission prompts.
   const requestCameraAccess = useCallback(async () => {
+    // If the permission is permanently blocked, calling getUserMedia again won't
+    // show the system dialog — it just throws immediately. Show instructions instead.
+    try {
+      if (navigator.permissions?.query) {
+        const ps = await navigator.permissions.query({ name: 'camera' as PermissionName });
+        if (ps.state === 'denied') {
+          setCameraError('permission_blocked');
+          return;
+        }
+      }
+    } catch {}
     await startCamera();
   }, [startCamera]);
 
@@ -401,7 +425,9 @@ export default function AdminCheckinPage() {
                 <div className="flex items-start gap-2">
                   <span className="text-red-600 text-sm flex-1">
                     {cameraError === 'permission_denied'
-                      ? 'Camera access was denied. Tap \"Request Camera Access\" below — or open Chrome → Settings → Site Settings → Camera and allow this site.'
+                      ? 'Camera access was denied. Tap "Request Camera Access" below — or open Chrome → Settings → Site Settings → Camera and allow this site.'
+                      : cameraError === 'permission_blocked'
+                      ? 'Camera is blocked in Chrome. To fix: tap the 🔒 lock icon in the address bar → Permissions → Camera → Allow. Then tap "Start Camera" again.'
                       : cameraError}
                   </span>
                   <button
@@ -412,12 +438,12 @@ export default function AdminCheckinPage() {
                     ×
                   </button>
                 </div>
-                {cameraError === 'permission_denied' && (
+                {(cameraError === 'permission_denied' || cameraError === 'permission_blocked') && (
                   <button
-                    onClick={requestCameraAccess}
+                    onClick={cameraError === 'permission_blocked' ? () => setCameraError('') : requestCameraAccess}
                     className="w-full bg-red-600 hover:bg-red-700 text-white text-sm font-medium rounded-lg py-2 px-4 transition-colors"
                   >
-                    Request Camera Access
+                    {cameraError === 'permission_blocked' ? 'OK, I\'ll fix it in Settings' : 'Request Camera Access'}
                   </button>
                 )}
               </div>
