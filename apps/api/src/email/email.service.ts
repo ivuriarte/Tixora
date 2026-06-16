@@ -70,10 +70,6 @@ export class EmailService implements OnModuleDestroy {
         content: a.content,
         filename: a.filename,
         contentType: a.content_type,
-        // nodemailer defaults contentDisposition to 'inline' whenever cid is set,
-        // which hides the file from the client's attachment list. Force 'attachment'
-        // so cid-referenced images still render inline AND show as a downloadable file.
-        contentDisposition: 'attachment',
         ...(a.cid ? { cid: a.cid } : {}),
       })),
     };
@@ -292,12 +288,22 @@ export class EmailService implements OnModuleDestroy {
         const safeName = `${a.firstName}-${a.lastName}`.toLowerCase().replace(/[^a-z0-9-]/g, '_');
         const cid = `qr-${index}-${safeName}@axontickets`;
 
-        // Inline attachment: rendered directly in the email body
+        // Mail clients (Gmail included) hide any part with a Content-ID from the
+        // visible attachment list, regardless of Content-Disposition — so a single
+        // cid-tagged part can only ever be "inline", never "downloadable" at the
+        // same time. Send the PNG twice: once for inline embedding (cid set),
+        // once more as a plain attachment (no cid) so it shows up as a real
+        // downloadable file too.
         attachments.push({
           content: pngBuffer,
           filename: `ticket-qr-${safeName}.png`,
           content_type: 'image/png',
           cid,
+        });
+        attachments.push({
+          content: pngBuffer,
+          filename: `ticket-qr-${safeName}.png`,
+          content_type: 'image/png',
         });
 
         return `<tr style="border-bottom:1px solid #e5e7eb">

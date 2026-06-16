@@ -62,53 +62,11 @@ export class RegistrationsService {
     const tier = event.tiers[0];
     if (!tier) throw new NotFoundException('Ticket tier not found');
 
-    // Duplicate registration guard: block if user already has an active
-    // registration for this event (pending_payment or proof_submitted).
-    const activeRegistration = await this.prisma.registration.findFirst({
-      where: {
-        userId,
-        eventId: dto.eventId,
-        status: { in: ['pending_payment', 'proof_submitted'] },
-      },
-      select: { id: true, status: true },
-    });
-    if (activeRegistration) {
-      throw new BadRequestException(
-        activeRegistration.status === 'proof_submitted'
-          ? 'You already have a registration awaiting review for this event.'
-          : 'You already have an incomplete registration for this event. Please complete your existing registration or wait for it to expire.',
-      );
-    }
-
     const attendeeCount = dto.attendees.length;
     if (attendeeCount > tier.maxPerOrder) {
       throw new BadRequestException(
         `Maximum ${tier.maxPerOrder} attendees per registration for this tier`,
       );
-    }
-
-    // Anti-scalper #1: per-account cap across the WHOLE event (not just this
-    // registration). Sums attendees from all non-cancelled / non-rejected
-    // registrations this user already has for the event.
-    const maxPerUser = event.maxPerUser ?? 0;
-    if (maxPerUser > 0) {
-      const existing = await this.prisma.registration.aggregate({
-        where: {
-          userId,
-          eventId: dto.eventId,
-          status: { notIn: ['cancelled', 'rejected'] },
-        },
-        _sum: { attendeeCount: true },
-      });
-      const alreadyBooked = existing._sum.attendeeCount ?? 0;
-      if (alreadyBooked + attendeeCount > maxPerUser) {
-        const remaining = Math.max(maxPerUser - alreadyBooked, 0);
-        throw new BadRequestException(
-          remaining === 0
-            ? `You have already reached the limit of ${maxPerUser} ticket(s) for this event.`
-            : `You can only register ${remaining} more ticket(s) for this event (limit ${maxPerUser} per attendee, you already have ${alreadyBooked}).`,
-        );
-      }
     }
 
     const unitPrice = Number(tier.price);
@@ -118,9 +76,60 @@ export class RegistrationsService {
     const fees = Math.round(Number(event.platformFee ?? 50) * 100);
     const total = subtotal + fees;
     const referenceNumber = generateReferenceNumber();
+    const maxPerUser = event.maxPerUser ?? 0;
 
     const registration = await this.prisma.$transaction(
       async (tx: Prisma.TransactionClient) => {
+        // Serialize all registration attempts for this (user, event) pair —
+        // closes the race window where two near-simultaneous requests (double
+        // click, auto-submit firing twice, network retry) could both pass the
+        // duplicate-registration check below before either one commits.
+        // pg_advisory_xact_lock auto-releases when this transaction ends.
+        await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${userId}), hashtext(${dto.eventId}))`;
+
+        // Duplicate registration guard: block if user already has an active
+        // registration for this event (pending_payment or proof_submitted).
+        // Now inside the lock above, so a concurrent request can't slip
+        // through before this one commits.
+        const activeRegistration = await tx.registration.findFirst({
+          where: {
+            userId,
+            eventId: dto.eventId,
+            status: { in: ['pending_payment', 'proof_submitted'] },
+          },
+          select: { id: true, status: true },
+        });
+        if (activeRegistration) {
+          throw new BadRequestException(
+            activeRegistration.status === 'proof_submitted'
+              ? 'You already have a registration awaiting review for this event.'
+              : 'You already have an incomplete registration for this event. Please complete your existing registration or wait for it to expire.',
+          );
+        }
+
+        // Anti-scalper #1: per-account cap across the WHOLE event (not just
+        // this registration). Sums attendees from all non-cancelled /
+        // non-rejected registrations this user already has for the event.
+        if (maxPerUser > 0) {
+          const existing = await tx.registration.aggregate({
+            where: {
+              userId,
+              eventId: dto.eventId,
+              status: { notIn: ['cancelled', 'rejected'] },
+            },
+            _sum: { attendeeCount: true },
+          });
+          const alreadyBooked = existing._sum.attendeeCount ?? 0;
+          if (alreadyBooked + attendeeCount > maxPerUser) {
+            const remaining = Math.max(maxPerUser - alreadyBooked, 0);
+            throw new BadRequestException(
+              remaining === 0
+                ? `You have already reached the limit of ${maxPerUser} ticket(s) for this event.`
+                : `You can only register ${remaining} more ticket(s) for this event (limit ${maxPerUser} per attendee, you already have ${alreadyBooked}).`,
+            );
+          }
+        }
+
         const locked = await tx.$queryRaw<
           Array<{ sold_quantity: number; total_quantity: number }>
         >`

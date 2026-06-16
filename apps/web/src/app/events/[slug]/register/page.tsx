@@ -111,6 +111,10 @@ function GuestWizard({ event, tier, qty, existingRegistrationId }: GuestWizardPr
 
   const [loading, setLoading] = useState(false);
   const [fieldError, setFieldError] = useState<string | null>(null);
+  // Synchronous guard — blocks a second handleVerify() call that starts before
+  // the first call's setLoading(true) has actually re-rendered (e.g. OTP
+  // auto-submit firing twice, a double click, or a network retry).
+  const verifyingRef = useRef(false);
 
   useEffect(() => () => { if (timerRef.current) clearInterval(timerRef.current); }, []);
 
@@ -201,6 +205,11 @@ function GuestWizard({ event, tier, qty, existingRegistrationId }: GuestWizardPr
 
   async function handleVerify() {
     if (!pendingUserId || otp.length !== 6) return;
+    // Synchronous guard — must be checked and set before any await, so a
+    // second call (auto-submit firing twice, double click, retry) can't
+    // slip through during the gap before setLoading(true) takes effect.
+    if (verifyingRef.current) return;
+    verifyingRef.current = true;
     setLoading(true);
     setFieldError(null);
     try {
@@ -287,6 +296,7 @@ function GuestWizard({ event, tier, qty, existingRegistrationId }: GuestWizardPr
       setFieldError(Array.isArray(msg) ? msg.join(' ') : msg);
       setOtp('');
       otpInputRef.current?.focus();
+      verifyingRef.current = false;
     } finally {
       setLoading(false);
     }
