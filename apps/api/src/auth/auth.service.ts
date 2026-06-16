@@ -428,6 +428,7 @@ export class AuthService {
     accessToken: string;
     refreshToken: string;
     isNewUser: boolean;
+    isExistingAccount: boolean;
   }> {
     const userAgent = req?.headers['user-agent'] as string | undefined;
     const referrer = (req?.headers['referer'] as string | undefined) ?? undefined;
@@ -541,6 +542,8 @@ export class AuthService {
       accessToken,
       refreshToken,
       isNewUser,
+      // true when the email already belonged to a verified account before this OTP flow
+      isExistingAccount: user.isVerified,
     };
   }
 

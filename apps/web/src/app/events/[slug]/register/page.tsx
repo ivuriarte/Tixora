@@ -10,7 +10,6 @@ import CheckoutStepper from '@/components/CheckoutStepper';
 import { trackPixelCustomEvent } from '@/lib/metaPixel';
 import { trackInternalFunnelEvent, getOrCreateFunnelSessionId } from '@/lib/funnel';
 import toast from 'react-hot-toast';
-import axios from 'axios';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -57,7 +56,6 @@ interface AttendeeFields {
 
 type WizardStep = 'gate' | 'details' | 'verify';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.axontickets.online/api/v1';
 const RESEND_COOLDOWN = 60;
 
 function emptyAttendee(): AttendeeFields {
@@ -77,16 +75,25 @@ function Spinner() {
 
 // ── Guest Wizard (unauthenticated path) ──────────────────────────────────────
 
+interface OtpVerifiedPayload {
+  isExistingAccount: boolean;
+  attendees: AttendeeFields[];
+  notes: string;
+  user: { id: string; email: string; firstName: string | null; lastName: string | null; isAdmin: boolean; isVerified: boolean };
+  accessToken: string;
+  refreshToken: string;
+}
+
 interface GuestWizardProps {
   event: EventData;
   tier: Tier;
   qty: number;
   existingRegistrationId?: string;
+  onOtpVerified: (payload: OtpVerifiedPayload) => void;
 }
 
-function GuestWizard({ event, tier, qty, existingRegistrationId }: GuestWizardProps) {
+function GuestWizard({ event, tier, qty, existingRegistrationId, onOtpVerified }: GuestWizardProps) {
   const router = useRouter();
-  const { setAuth } = useAuthStore();
   const funnelSessionId = getOrCreateFunnelSessionId();
 
   const [step, setStep] = useState<WizardStep>('gate');
@@ -220,6 +227,7 @@ function GuestWizard({ event, tier, qty, existingRegistrationId }: GuestWizardPr
           accessToken: string;
           refreshToken: string;
           isNewUser: boolean;
+          isExistingAccount: boolean;
         };
       }>('/auth/verify-access', {
         userId: pendingUserId,
@@ -229,68 +237,50 @@ function GuestWizard({ event, tier, qty, existingRegistrationId }: GuestWizardPr
         sessionId: funnelSessionId,
       });
 
-      const { user: verifiedUser, accessToken, refreshToken } = verifyRes.data.data;
+      const { user: verifiedUser, accessToken, refreshToken, isExistingAccount } = verifyRes.data.data;
 
-      // 2. Store auth immediately so the registration API call is authenticated
-      setAuth(
-        {
-          id: verifiedUser.id,
-          email: verifiedUser.email,
-          firstName: verifiedUser.firstName ?? firstName.trim(),
-          lastName: verifiedUser.lastName ?? lastName.trim(),
-          isAdmin: verifiedUser.isAdmin,
-          isVerified: verifiedUser.isVerified,
-        },
-        accessToken,
-        refreshToken,
-      );
-
-      // 3. Build attendee list: lead (from step 1 fields) + extra attendees
+      // 2. Build attendee list: lead (from step 1 fields) + extra attendees
       const normalizedPhone = phone.trim().startsWith('+')
         ? phone.trim()
         : `+63${phone.trim()}`;
 
-      const leadAttendee = {
+      const leadAttendee: AttendeeFields = {
         firstName: firstName.trim(),
         lastName: lastName.trim(),
         email: email.trim().toLowerCase(),
         phone: normalizedPhone,
+        company: '',
+        jobTitle: '',
       };
 
-      const extraList = extraAttendees.map((a) => ({
+      const extraList: AttendeeFields[] = extraAttendees.map((a) => ({
         firstName: a.firstName.trim(),
         lastName: a.lastName.trim(),
         email: a.email.trim(),
         phone: a.phone.trim().startsWith('+') ? a.phone.trim() : `+63${a.phone.trim()}`,
-        ...(a.company.trim() && { company: a.company.trim() }),
-        ...(a.jobTitle.trim() && { jobTitle: a.jobTitle.trim() }),
+        company: a.company.trim(),
+        jobTitle: a.jobTitle.trim(),
       }));
-
-      // 4. Create registration
-      const regRes = await axios.post<{ data: { id: string } }>(
-        `${API_URL}/registrations`,
-        {
-          eventId: event.id,
-          tierId: tier.id,
-          attendees: [leadAttendee, ...extraList],
-          ...(notes.trim() && { notes: notes.trim() }),
-        },
-        { headers: { Authorization: `Bearer ${accessToken}` } },
-      );
-
-      const regId = regRes.data.data.id;
 
       trackPixelCustomEvent('OTP_Verified', { event_id: event.id, event_name: event.title });
       void trackInternalFunnelEvent({
         eventId: event.id,
         email: verifiedUser.email,
-        step: 'payment_started',
+        step: 'otp_verified',
         status: 'success',
-        metadata: { eventSlug: event.slug, registrationId: regId },
+        metadata: { eventSlug: event.slug, isExistingAccount },
       });
 
-      // 5. Navigate directly to payment step
-      router.push(`/events/${event.slug}/register/payment/${regId}`);
+      // 3. Hand off to parent — parent sets auth + passes pre-filled attendees to RegistrationForm.
+      //    Registration is only created when the user explicitly clicks "Confirm My Registration".
+      onOtpVerified({
+        isExistingAccount,
+        attendees: [leadAttendee, ...extraList],
+        notes,
+        user: verifiedUser,
+        accessToken,
+        refreshToken,
+      });
     } catch (err: any) {
       const msg = err?.response?.data?.message ?? 'Something went wrong. Please try again.';
       setFieldError(Array.isArray(msg) ? msg.join(' ') : msg);
@@ -664,7 +654,7 @@ export default function RegisterPage({
   };
 }) {
   const router = useRouter();
-  const { isAuthenticated, isHydrating } = useAuthStore();
+  const { isAuthenticated, isHydrating, setAuth } = useAuthStore();
 
   const [event, setEvent] = useState<EventData | null>(null);
   const [pageLoading, setPageLoading] = useState(true);
@@ -672,6 +662,40 @@ export default function RegisterPage({
     { firstName: string; lastName: string; email: string; phone: string; company: string; jobTitle: string }[] | undefined
   >(undefined);
   const [initialNotes, setInitialNotes] = useState<string | undefined>(undefined);
+
+  // Holds attendee data collected by GuestWizard so RegistrationForm can pre-fill after OTP success.
+  // Using a ref avoids a render ordering issue between Zustand (setAuth) and React state updates.
+  const pendingGuestData = useRef<{
+    attendees: AttendeeFields[];
+    notes: string;
+    existingAccountDetected: boolean;
+  } | null>(null);
+
+  const handleOtpVerified = useCallback(
+    (payload: OtpVerifiedPayload) => {
+      // Store wizard data first (ref is synchronous — available in the very next render)
+      pendingGuestData.current = {
+        attendees: payload.attendees,
+        notes: payload.notes,
+        existingAccountDetected: payload.isExistingAccount,
+      };
+      // Calling setAuth sets isAuthenticated=true in Zustand, which triggers a re-render
+      // of this component and switches from GuestWizard to RegistrationForm.
+      setAuth(
+        {
+          id: payload.user.id,
+          email: payload.user.email,
+          firstName: payload.user.firstName ?? payload.attendees[0]?.firstName ?? '',
+          lastName: payload.user.lastName ?? payload.attendees[0]?.lastName ?? '',
+          isAdmin: payload.user.isAdmin,
+          isVerified: payload.user.isVerified,
+        },
+        payload.accessToken,
+        payload.refreshToken,
+      );
+    },
+    [setAuth],
+  );
 
   const qty = Math.max(1, parseInt(searchParams.qty ?? '1', 10));
   const existingRegistrationId = searchParams.registrationId;
@@ -774,7 +798,7 @@ export default function RegisterPage({
           </span>
         </div>
 
-        {/* Path A: authenticated — existing RegistrationForm (unchanged UX) */}
+        {/* Path A: authenticated (or just verified via OTP) — RegistrationForm */}
         {isAuthenticated ? (
           <RegistrationForm
             eventId={event.id}
@@ -790,16 +814,18 @@ export default function RegisterPage({
             bankAccountNumber={event.bankAccountNumber ?? null}
             paymentInstructions={event.paymentInstructions ?? null}
             registrationId={existingRegistrationId}
-            initialAttendees={initialAttendees}
-            initialNotes={initialNotes}
+            initialAttendees={pendingGuestData.current?.attendees ?? initialAttendees}
+            initialNotes={pendingGuestData.current?.notes ?? initialNotes}
+            existingAccountDetected={pendingGuestData.current?.existingAccountDetected ?? false}
           />
         ) : (
-          /* Path B: guest wizard — collects details + OTP + creates registration */
+          /* Path B: guest wizard — collects details + OTP, then hands off to RegistrationForm */
           <GuestWizard
             event={event}
             tier={tier}
             qty={qty}
             existingRegistrationId={existingRegistrationId}
+            onOtpVerified={handleOtpVerified}
           />
         )}
       </div>
