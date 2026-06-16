@@ -663,6 +663,10 @@ export default function RegisterPage({
   >(undefined);
   const [initialNotes, setInitialNotes] = useState<string | undefined>(undefined);
 
+  // 'idle' → 'checking' → 'duplicate' | 'clear'
+  const [dupCheck, setDupCheck] = useState<'idle' | 'checking' | 'duplicate' | 'clear'>('idle');
+  const dupCheckRanRef = useRef(false);
+
   // Holds attendee data collected by GuestWizard so RegistrationForm can pre-fill after OTP success.
   // Using a ref avoids a render ordering issue between Zustand (setAuth) and React state updates.
   const pendingGuestData = useRef<{
@@ -747,6 +751,33 @@ export default function RegisterPage({
     if (!isHydrating) void loadPage();
   }, [isHydrating, loadPage]);
 
+  // After authentication (either OTP path), check if this user already has an
+  // active registration for this event. If so, redirect them to the event page
+  // instead of showing the registration form. Skip when editing an existing
+  // registration (existingRegistrationId is set).
+  useEffect(() => {
+    if (!isAuthenticated || !event || dupCheckRanRef.current || existingRegistrationId) return;
+    dupCheckRanRef.current = true;
+    setDupCheck('checking');
+    api
+      .get<{ data?: { hasRegistration: boolean }; hasRegistration?: boolean }>(
+        `/registrations/check?eventId=${event.id}`,
+      )
+      .then((res) => {
+        const hasReg = res.data?.data?.hasRegistration ?? res.data?.hasRegistration ?? false;
+        if (hasReg) {
+          setDupCheck('duplicate');
+          setTimeout(() => router.replace(`/events/${event.slug}`), 3000);
+        } else {
+          setDupCheck('clear');
+        }
+      })
+      .catch(() => {
+        // Fail open — let them proceed; the server will reject on submit
+        setDupCheck('clear');
+      });
+  }, [isAuthenticated, event, existingRegistrationId, router]);
+
   useEffect(() => {
     if (!event) return;
     trackPixelCustomEvent('TicketSelection_Started', { event_id: event.id, event_name: event.title },
@@ -800,24 +831,48 @@ export default function RegisterPage({
 
         {/* Path A: authenticated (or just verified via OTP) — RegistrationForm */}
         {isAuthenticated ? (
-          <RegistrationForm
-            eventId={event.id}
-            eventSlug={event.slug}
-            tierId={tier.id}
-            tierName={tier.name}
-            unitPrice={tier.price}
-            qty={qty}
-            platformFee={event.platformFee ?? 50}
-            paymentMethods={event.paymentMethods ?? null}
-            bankName={event.bankName ?? null}
-            bankAccountName={event.bankAccountName ?? null}
-            bankAccountNumber={event.bankAccountNumber ?? null}
-            paymentInstructions={event.paymentInstructions ?? null}
-            registrationId={existingRegistrationId}
-            initialAttendees={pendingGuestData.current?.attendees ?? initialAttendees}
-            initialNotes={pendingGuestData.current?.notes ?? initialNotes}
-            existingAccountDetected={pendingGuestData.current?.existingAccountDetected ?? false}
-          />
+          // While checking for a duplicate registration, show a neutral loading state.
+          // On duplicate, show an error banner and redirect after 3 s.
+          dupCheck === 'duplicate' ? (
+            <div className="rounded-2xl border border-red-200 bg-red-50 p-5 flex items-start gap-3">
+              <svg className="mt-0.5 h-5 w-5 shrink-0 text-red-500" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+              </svg>
+              <div>
+                <p className="font-semibold text-red-900">You&apos;re already registered for this event</p>
+                <p className="mt-0.5 text-sm text-red-700">
+                  You already have an active registration. Redirecting you back to the event page…
+                </p>
+              </div>
+            </div>
+          ) : dupCheck === 'idle' || dupCheck === 'checking' ? (
+            <div className="flex items-center justify-center gap-2 py-12 text-sm text-gray-500">
+              <svg className="animate-spin w-4 h-4" viewBox="0 0 24 24" fill="none">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+              </svg>
+              Checking your registration status…
+            </div>
+          ) : (
+            <RegistrationForm
+              eventId={event.id}
+              eventSlug={event.slug}
+              tierId={tier.id}
+              tierName={tier.name}
+              unitPrice={tier.price}
+              qty={qty}
+              platformFee={event.platformFee ?? 50}
+              paymentMethods={event.paymentMethods ?? null}
+              bankName={event.bankName ?? null}
+              bankAccountName={event.bankAccountName ?? null}
+              bankAccountNumber={event.bankAccountNumber ?? null}
+              paymentInstructions={event.paymentInstructions ?? null}
+              registrationId={existingRegistrationId}
+              initialAttendees={pendingGuestData.current?.attendees ?? initialAttendees}
+              initialNotes={pendingGuestData.current?.notes ?? initialNotes}
+              existingAccountDetected={pendingGuestData.current?.existingAccountDetected ?? false}
+            />
+          )
         ) : (
           /* Path B: guest wizard — collects details + OTP, then hands off to RegistrationForm */
           <GuestWizard
