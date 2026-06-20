@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from 'next';
 import { Inter } from 'next/font/google';
 import { Analytics } from '@vercel/analytics/next';
+import { SpeedInsights } from '@vercel/speed-insights/next';
 import MetaPixel from '@/components/MetaPixel';
 import './globals.css';
 import Providers from './providers';
@@ -47,6 +48,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <Providers>{children}</Providers>
         <MetaPixel />
         {showAnalytics ? <Analytics /> : null}
+        {showAnalytics ? <SpeedInsights /> : null}
       </body>
     </html>
   );
