@@ -18,6 +18,7 @@ import LocationStep from '@/components/event-wizard/steps/LocationStep';
 import CapacityTiersStep from '@/components/event-wizard/steps/CapacityTiersStep';
 import ConferenceStep from '@/components/event-wizard/steps/ConferenceStep';
 import PaymentStep from '@/components/event-wizard/steps/PaymentStep';
+import FeaturedStep from '@/components/event-wizard/steps/FeaturedStep';
 import ReviewStep from '@/components/event-wizard/steps/ReviewStep';
 import {
   emptyDraft,
@@ -130,10 +131,6 @@ export default function AdminEventEditPage() {
   const nextPMKey = useRef(1);
 
   const [status, setStatus] = useState('draft');
-  const [isFeatured, setIsFeatured] = useState(false);
-  const [featuredOrder, setFeaturedOrder] = useState('');
-  const [featuredUntil, setFeaturedUntil] = useState('');
-  const [tagline, setTagline] = useState('');
 
   const initialised = useRef(false);
   useEffect(() => {
@@ -190,10 +187,6 @@ export default function AdminEventEditPage() {
       featuredUntil: event.featuredUntil ? event.featuredUntil.slice(0, 10) : '',
     });
     setStatus(event.status ?? 'draft');
-    setIsFeatured(event.isFeatured ?? false);
-    setFeaturedOrder(event.featuredOrder != null ? String(event.featuredOrder) : '');
-    setFeaturedUntil(event.featuredUntil ? event.featuredUntil.slice(0, 10) : '');
-    setTagline(event.tagline ?? '');
 
     // Hydrate paymentMethods. Prefer the new array; if absent but legacy
     // single-bank / GCash fields exist, synthesize entries so existing events
@@ -445,10 +438,10 @@ export default function AdminEventEditPage() {
             }))
           : null,
       faqs: draft.faqs.length > 0 ? draft.faqs : null,
-      tagline: tagline.trim() || null,
-      isFeatured,
-      featuredOrder: featuredOrder.trim() ? parseInt(featuredOrder, 10) : null,
-      featuredUntil: featuredUntil ? new Date(`${featuredUntil}T23:59:59+08:00`).toISOString() : null,
+      tagline: draft.tagline.trim() || null,
+      isFeatured: draft.isFeatured,
+      featuredOrder: draft.featuredOrder.trim() ? parseInt(draft.featuredOrder, 10) : null,
+      featuredUntil: draft.featuredUntil ? new Date(`${draft.featuredUntil}T23:59:59+08:00`).toISOString() : null,
     };
     await updateMutation.mutateAsync(payload);
   }
@@ -540,67 +533,25 @@ export default function AdminEventEditPage() {
       </div>
     </div>
 
-      {/* ── Featured hero panel ──────────────────────────────────────────── */}
-      <div className="rounded-2xl border border-indigo-200 bg-indigo-50/40 px-4 py-4 space-y-3">
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="text-sm font-semibold text-indigo-900">Homepage Hero</p>
-            <p className="text-xs text-indigo-600 mt-0.5">
-              Featured events appear in the animated hero carousel on the homepage.
-            </p>
-          </div>
-          <label className="relative inline-flex items-center cursor-pointer">
-            <input
-              type="checkbox"
-              className="sr-only peer"
-              checked={isFeatured}
-              onChange={(e) => setIsFeatured(e.target.checked)}
-            />
-            <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-indigo-400 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600" />
-          </label>
+      {/* ── Featured hero quick-toggle ───────────────────────────────────── */}
+      <div className="rounded-2xl border border-indigo-200 bg-indigo-50/40 px-4 py-3 flex items-center justify-between gap-4">
+        <div>
+          <p className="text-sm font-semibold text-indigo-900">Homepage Hero</p>
+          <p className="text-xs text-indigo-600 mt-0.5">
+            {draft.isFeatured
+              ? 'This event is featured on the homepage. Open the Featured step to adjust settings.'
+              : 'Feature this event in the homepage hero carousel. Open the Featured step to configure.'}
+          </p>
         </div>
-
-        {isFeatured && (
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
-            <div className="sm:col-span-3">
-              <label className="block text-xs font-medium text-gray-700 mb-1">
-                Tagline <span className="text-gray-400">(max 100 chars — shown above title in hero)</span>
-              </label>
-              <input
-                type="text"
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
-                placeholder="FULL-DAY LEADERSHIP CONFERENCE"
-                maxLength={100}
-                value={tagline}
-                onChange={(e) => setTagline(e.target.value)}
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1">
-                Display order <span className="text-gray-400">(1 = first slot)</span>
-              </label>
-              <input
-                type="number"
-                min={1}
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
-                placeholder="1"
-                value={featuredOrder}
-                onChange={(e) => setFeaturedOrder(e.target.value)}
-              />
-            </div>
-            <div className="sm:col-span-2">
-              <label className="block text-xs font-medium text-gray-700 mb-1">
-                Featured until <span className="text-gray-400">(leave blank = no expiry)</span>
-              </label>
-              <input
-                type="date"
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
-                value={featuredUntil}
-                onChange={(e) => setFeaturedUntil(e.target.value)}
-              />
-            </div>
-          </div>
-        )}
+        <label className="relative inline-flex items-center cursor-pointer shrink-0">
+          <input
+            type="checkbox"
+            className="sr-only peer"
+            checked={draft.isFeatured}
+            onChange={(e) => update({ isFeatured: e.target.checked })}
+          />
+          <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-indigo-400 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600" />
+        </label>
       </div>
     </div>
   ) : null;
@@ -670,6 +621,7 @@ export default function AdminEventEditPage() {
                   onReorder={setPaymentMethods}
                 />
               );
+            case 'featured': return <FeaturedStep draft={draft} update={update} currentEventId={id} />;
             case 'review':
               return (
                 <ReviewStep

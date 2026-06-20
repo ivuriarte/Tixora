@@ -53,7 +53,7 @@ const SOURCE_BADGE: Record<string, string> = {
 };
 
 const SOURCE_LABEL: Record<string, string> = {
-  order: 'PayMongo',
+  order: 'Online',
   registration: 'Manual',
 };
 
@@ -122,7 +122,7 @@ export default function AdminOrdersPage() {
             <BackButton href="/admin" label="Back to Admin" className="mb-2" />
             <h1 className="text-2xl font-bold text-gray-900">Transactions</h1>
             <p className="text-sm text-gray-500 mt-1">
-              All paid transactions — online (PayMongo) and manual (GCash / bank transfer).
+              All paid transactions — online and manual (GCash / bank transfer).
             </p>
           </div>
           {filtersApplied && (

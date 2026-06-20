@@ -246,52 +246,6 @@ export class AuthService {
     return user;
   }
 
-  async loginWithGoogle(profile: {
-    googleId: string;
-    email: string;
-    firstName: string;
-    lastName: string;
-    avatarUrl: string | null;
-  }): Promise<{ user: { id: string; email: string; firstName: string; lastName: string; isAdmin: boolean; isVerified: boolean }; accessToken: string; refreshToken: string }> {
-    // Find by googleId first, then fall back to email (links existing accounts)
-    let user = await this.prisma.user.findFirst({
-      where: { OR: [{ googleId: profile.googleId }, { email: profile.email.toLowerCase() }] },
-    });
-
-    if (user) {
-      // Link googleId if not already set
-      if (!user.googleId) {
-        user = await this.prisma.user.update({
-          where: { id: user.id },
-          data: { googleId: profile.googleId, avatarUrl: profile.avatarUrl ?? undefined, isVerified: true },
-        });
-      }
-    } else {
-      // New user — auto-verified, no password
-      user = await this.prisma.user.create({
-        data: {
-          email: profile.email.toLowerCase(),
-          googleId: profile.googleId,
-          avatarUrl: profile.avatarUrl,
-          firstName: profile.firstName,
-          lastName: profile.lastName,
-          isVerified: true,
-        },
-      });
-    }
-
-    const [accessToken, refreshToken] = await Promise.all([
-      this.generateAccessToken(user.id, user.email, user.isAdmin),
-      this.generateRefreshToken(user.id),
-    ]);
-
-    return {
-      user: { id: user.id, email: user.email, firstName: user.firstName!, lastName: user.lastName!, isAdmin: user.isAdmin, isVerified: true },
-      accessToken,
-      refreshToken,
-    };
-  }
-
   /**
    * Step 1 of the passwordless access flow.
    * Finds or creates a stub user by email, then sends a 6-digit OTP.

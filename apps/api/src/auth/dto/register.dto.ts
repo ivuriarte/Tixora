@@ -32,11 +32,10 @@ export class RegisterDto {
   @MaxLength(50)
   lastName: string;
 
-  @ApiProperty({ required: false, example: '+639171234567' })
-  @IsOptional()
+  @ApiProperty({ example: '+639171234567' })
   @IsString()
   @Matches(/^\+639\d{9}$/, { message: 'Phone must be in format +639XXXXXXXXX' })
-  phone?: string;
+  phone: string;
 
   // Conference registration fields (Francis Kong MVP)
   @ApiProperty({ required: false, example: 'Acme Corp' })

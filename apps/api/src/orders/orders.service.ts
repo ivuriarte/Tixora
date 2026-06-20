@@ -194,10 +194,6 @@ export class OrdersService {
     };
   }
 
-  /**
-   * Called by PayMongo webhook after payment succeeds.
-   * Generates QR tickets.
-   */
   async confirmPayment(orderId: string, paymentRef: string): Promise<void> {
     const order = await this.prisma.order.findUnique({
       where: { id: orderId },

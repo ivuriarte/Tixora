@@ -74,13 +74,16 @@ export default function ProfilePage() {
 
   async function handleSave(e: React.FormEvent) {
     e.preventDefault();
+    if (form.phoneDigits.length !== 10) {
+      toast.error('Please enter a valid 10-digit mobile number.');
+      return;
+    }
     setSaving(true);
     try {
-      const phone = form.phoneDigits.length === 10 ? `+63${form.phoneDigits}` : form.phoneDigits.length === 0 ? '' : undefined;
       await api.patch('/users/me', {
         firstName: form.firstName.trim() || undefined,
         lastName: form.lastName.trim() || undefined,
-        phone: phone ?? undefined,
+        phone: `+63${form.phoneDigits}`,
         company: form.company.trim() || undefined,
         jobTitle: form.jobTitle.trim() || undefined,
         city: form.city.trim() || undefined,
@@ -147,12 +150,12 @@ export default function ProfilePage() {
 
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">First name</label>
-                <input name="firstName" value={form.firstName} onChange={update} autoComplete="given-name" className={inputClass} />
+                <label className="block text-sm font-medium text-gray-700 mb-1">First name <span className="text-red-500">*</span></label>
+                <input name="firstName" value={form.firstName} onChange={update} autoComplete="given-name" required className={inputClass} />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Last name</label>
-                <input name="lastName" value={form.lastName} onChange={update} autoComplete="family-name" className={inputClass} />
+                <label className="block text-sm font-medium text-gray-700 mb-1">Last name <span className="text-red-500">*</span></label>
+                <input name="lastName" value={form.lastName} onChange={update} autoComplete="family-name" required className={inputClass} />
               </div>
             </div>
 
@@ -169,7 +172,7 @@ export default function ProfilePage() {
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Mobile number <span className="text-gray-400 font-normal">(optional)</span>
+                Mobile number <span className="text-red-500">*</span>
               </label>
               <div className="flex rounded-lg border border-gray-300 overflow-hidden focus-within:ring-2 focus-within:ring-primary focus-within:border-transparent">
                 <div className="flex items-center gap-1.5 bg-gray-50 border-r border-gray-300 px-3 py-2 select-none shrink-0">

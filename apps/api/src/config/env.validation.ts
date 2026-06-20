@@ -30,15 +30,7 @@ export const validationSchema = Joi.object({
   CLOUDINARY_API_KEY: Joi.string().required(),
   CLOUDINARY_API_SECRET: Joi.string().required(),
 
-  PAYMONGO_SECRET_KEY: Joi.string().required(),
-  PAYMONGO_PUBLIC_KEY: Joi.string().required(),
-  PAYMONGO_WEBHOOK_SECRET: Joi.string().required(),
-
   HCAPTCHA_SECRET: Joi.string().required(),
-
-  GOOGLE_CLIENT_ID: Joi.string().optional().allow(''),
-  GOOGLE_CLIENT_SECRET: Joi.string().optional().allow(''),
-  GOOGLE_CALLBACK_URL: Joi.string().uri().optional().allow(''),
 
   THROTTLE_TTL: Joi.number().default(60000),
   THROTTLE_LIMIT: Joi.number().default(60),

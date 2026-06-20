@@ -39,20 +39,8 @@ export default () => ({
     apiSecret: process.env.CLOUDINARY_API_SECRET ?? '',
   },
 
-  paymongo: {
-    secretKey: process.env.PAYMONGO_SECRET_KEY ?? '',
-    publicKey: process.env.PAYMONGO_PUBLIC_KEY ?? '',
-    webhookSecret: process.env.PAYMONGO_WEBHOOK_SECRET ?? '',
-  },
-
   hcaptcha: {
     secret: process.env.HCAPTCHA_SECRET ?? '',
-  },
-
-  google: {
-    clientId: process.env.GOOGLE_CLIENT_ID ?? '',
-    clientSecret: process.env.GOOGLE_CLIENT_SECRET ?? '',
-    callbackUrl: process.env.GOOGLE_CALLBACK_URL ?? '',
   },
 
   throttle: {

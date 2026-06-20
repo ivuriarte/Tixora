@@ -4,16 +4,13 @@ import {
   Get,
   Body,
   Req,
-  Res,
   HttpCode,
   HttpStatus,
   UseGuards,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
-import { AuthGuard } from '@nestjs/passport';
-import { ConfigService } from '@nestjs/config';
-import { Request, Response } from 'express';
+import { Request } from 'express';
 import { AuthService } from './auth.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto, VerifyOtpDto, ResendOtpDto, RefreshTokenDto, RequestAccessDto, VerifyAccessDto } from './dto/auth.dto';
@@ -27,7 +24,6 @@ import { JwtPayload } from '@axon-tickets/types';
 export class AuthController {
   constructor(
     private readonly authService: AuthService,
-    private readonly config: ConfigService,
   ) {}
 
   @Public()
@@ -113,53 +109,4 @@ export class AuthController {
     return this.authService.getMe(user.sub);
   }
 
-  @Public()
-  @Get('google')
-  @ApiOperation({ summary: 'Initiate Google OAuth login' })
-  googleAuth(@Res() res: Response) {
-    const clientId = this.config.get<string>('google.clientId');
-    if (!clientId) {
-      (res as any).status(503).json({ message: 'Google login is not configured yet.' });
-      return;
-    }
-    // Passport handles the redirect
-    (res as any).redirect(
-      `https://accounts.google.com/o/oauth2/v2/auth?` +
-      new URLSearchParams({
-        client_id: clientId,
-        redirect_uri: this.config.get<string>('google.callbackUrl') ?? '',
-        response_type: 'code',
-        scope: 'email profile',
-        access_type: 'offline',
-        prompt: 'select_account',
-      }).toString(),
-    );
-  }
-
-  @Public()
-  @Get('google/callback')
-  @UseGuards(AuthGuard('google'))
-  @ApiOperation({ summary: 'Google OAuth callback' })
-  async googleCallback(@Req() req: Request, @Res() res: Response) {
-    const profile = req.user as {
-      googleId: string;
-      email: string;
-      firstName: string;
-      lastName: string;
-      avatarUrl: string | null;
-    };
-
-    const { user, accessToken, refreshToken } = await this.authService.loginWithGoogle(profile);
-    const webUrl = (req as any).app?.get?.('webUrl') as string | undefined;
-    const base = this.config.get<string>('webUrl') ?? webUrl ?? 'https://axontickets.online';
-
-    const params = new URLSearchParams({
-      accessToken,
-      refreshToken,
-      firstName: user.firstName,
-      isAdmin: String(user.isAdmin),
-    });
-
-    res.redirect(`${base}/auth/callback?${params.toString()}`);
-  }
 }

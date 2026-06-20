@@ -513,7 +513,7 @@ export class AdminService {
       };
     }
 
-    // ── Path B: Legacy Ticket QR token (PayMongo / online order flow) ───────
+    // ── Path B: Legacy Ticket QR token (online order flow) ───────
     const payload = verifyQrToken(qrToken, qrSecret);
     if (!payload) throw new BadRequestException('Invalid QR code');
 
@@ -1185,7 +1185,7 @@ export class AdminService {
       const tierNames = o.items.map((i: (typeof o.items)[number]) => `${i.ticketTier.name} x${i.quantity}`).join(' | ');
       const qty = o.items.reduce((sum: number, i: (typeof o.items)[number]) => sum + i.quantity, 0);
       return [
-        'Online (PayMongo)',
+        'Online',
         o.id,
         `"${this.escapeCsvCell(o.event.title)}"`,
         `"${this.escapeCsvCell(`${o.user.firstName} ${o.user.lastName}`)}"`,

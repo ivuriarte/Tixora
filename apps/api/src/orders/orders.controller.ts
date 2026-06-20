@@ -14,7 +14,6 @@ import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { JwtPayload } from '@axon-tickets/types';
 import { OrdersService } from './orders.service';
-import { PaymentsService } from '../payments/payments.service';
 import { CreateOrderDto } from './dto/order.dto';
 
 @ApiTags('orders')
@@ -24,7 +23,6 @@ import { CreateOrderDto } from './dto/order.dto';
 export class OrdersController {
   constructor(
     private readonly ordersService: OrdersService,
-    private readonly paymentsService: PaymentsService,
   ) {}
 
   @Post()
@@ -59,9 +57,4 @@ export class OrdersController {
     return this.ordersService.findOne(id, user.sub);
   }
 
-  @Post(':id/payment-intent')
-  @ApiOperation({ summary: 'Create payment link for an order' })
-  createPaymentIntent(@Param('id') id: string, @CurrentUser() user: JwtPayload) {
-    return this.paymentsService.createPaymentIntent(id, user.sub);
-  }
 }

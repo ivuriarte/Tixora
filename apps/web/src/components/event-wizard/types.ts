@@ -71,6 +71,7 @@ export interface StepMeta {
     | 'capacity'
     | 'conference'
     | 'payment'
+    | 'featured'
     | 'review';
   readonly label: string;
   readonly short: string;
@@ -83,7 +84,8 @@ export const STEPS: readonly StepMeta[] = [
   { id: 'capacity', label: 'Capacity & Tiers', short: '3' },
   { id: 'conference', label: 'Conference', short: '4', optional: true },
   { id: 'payment', label: 'Payment', short: '5', optional: true },
-  { id: 'review', label: 'Review', short: '6' },
+  { id: 'featured', label: 'Featured', short: '6', optional: true },
+  { id: 'review', label: 'Review', short: '7' },
 ];
 
 export type StepId = StepMeta['id'];
@@ -183,6 +185,7 @@ export function validateStep(
     case 'capacity': return validateCapacity(draft, tiers);
     case 'conference':
     case 'payment':
+    case 'featured':
     case 'review':
       return null;
   }

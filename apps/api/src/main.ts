@@ -23,7 +23,7 @@ async function bootstrap() {
 
   const app = await NestFactory.create(AppModule, {
     bufferLogs: true,
-    rawBody: true, // Required for PayMongo webhook signature verification
+    rawBody: true,
   });
 
   // Pino structured logging

@@ -19,7 +19,6 @@ import { TicketTiersModule } from './ticket-tiers/ticket-tiers.module';
 import { ReservationsModule } from './reservations/reservations.module';
 import { OrdersModule } from './orders/orders.module';
 import { TicketsModule } from './tickets/tickets.module';
-import { PaymentsModule } from './payments/payments.module';
 import { AdminModule } from './admin/admin.module';
 import { UploadModule } from './upload/upload.module';
 import { RegistrationsModule } from './registrations/registrations.module';
@@ -80,7 +79,6 @@ import { FunnelModule } from './funnel/funnel.module';
     ReservationsModule,
     OrdersModule,
     TicketsModule,
-    PaymentsModule,
     AdminModule,
     UploadModule,
     RegistrationsModule,

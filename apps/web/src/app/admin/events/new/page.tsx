@@ -11,6 +11,7 @@ import LocationStep from '@/components/event-wizard/steps/LocationStep';
 import CapacityTiersStep from '@/components/event-wizard/steps/CapacityTiersStep';
 import ConferenceStep from '@/components/event-wizard/steps/ConferenceStep';
 import PaymentStep from '@/components/event-wizard/steps/PaymentStep';
+import FeaturedStep from '@/components/event-wizard/steps/FeaturedStep';
 import ReviewStep from '@/components/event-wizard/steps/ReviewStep';
 import {
   emptyDraft,
@@ -140,6 +141,12 @@ export default function AdminNewEventPage() {
               accountNumber: pm.accountNumber.trim() || undefined,
               qrImageUrl: pm.qrImageUrl || undefined,
             }))
+          : undefined,
+        tagline: draft.tagline.trim() || undefined,
+        isFeatured: draft.isFeatured,
+        featuredOrder: draft.featuredOrder.trim() ? parseInt(draft.featuredOrder, 10) : undefined,
+        featuredUntil: draft.featuredUntil
+          ? new Date(`${draft.featuredUntil}T23:59:59+08:00`).toISOString()
           : undefined,
       };
       if (draft.agenda.length > 0) {
@@ -287,6 +294,7 @@ export default function AdminNewEventPage() {
                   onReorder={setPaymentMethods}
                 />
               );
+            case 'featured': return <FeaturedStep draft={draft} update={update} />;
             case 'review':
               return (
                 <ReviewStep
