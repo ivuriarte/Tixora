@@ -8,17 +8,18 @@ test.describe('Homepage', () => {
     await expect(page.getByRole('navigation')).toBeVisible();
     // Navbar brand
     await expect(page.getByRole('link', { name: 'Axon Tickets' })).toBeVisible();
-    // Either marketplace heading or conference hero h1
-    const heading = page.locator('h1').first();
+    // Conference mode → h1 from hero; marketplace mode → h1 from carousel (if featured events
+    // exist) or h2 "Upcoming Events" (if none). Accept either level.
+    const heading = page.locator('h1, h2').first();
     await expect(heading).toBeVisible();
   });
 
   test('marketplace mode shows Upcoming Events heading', async ({ page }) => {
     await page.goto('/');
-    // In marketplace mode (no NEXT_PUBLIC_FEATURED_EVENT_SLUG) the h1 is "Upcoming Events"
-    // In conference mode it shows the event title – either way h1 must be present
-    const h1 = page.locator('h1').first();
-    await expect(h1).toBeVisible();
+    // Conference mode → h1 event title; marketplace with featured events → h1 from carousel;
+    // marketplace with no featured events → h2 "Upcoming Events". Accept any heading.
+    const heading = page.locator('h1, h2').first();
+    await expect(heading).toBeVisible();
   });
 
   test('navbar shows Log in and Sign up links', async ({ page }) => {
