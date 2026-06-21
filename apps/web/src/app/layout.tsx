@@ -3,6 +3,7 @@ import { Inter } from 'next/font/google';
 import { Analytics } from '@vercel/analytics/next';
 import { SpeedInsights } from '@vercel/speed-insights/next';
 import MetaPixel from '@/components/MetaPixel';
+import UatBanner from '@/components/UatBanner';
 import './globals.css';
 import Providers from './providers';
 
@@ -40,11 +41,12 @@ export const metadata: Metadata = {
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
-  const showAnalytics = process.env.NODE_ENV === 'production';
+  const showAnalytics = process.env.NEXT_PUBLIC_APP_ENV === 'production';
 
   return (
     <html lang="en" className={inter.className}>
       <body>
+        <UatBanner />
         <Providers>{children}</Providers>
         <MetaPixel />
         {showAnalytics ? <Analytics /> : null}

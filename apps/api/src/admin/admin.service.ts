@@ -482,17 +482,21 @@ export class AdminService {
         );
       }
 
-      if (attendee.checkedInAt) {
-        throw new ConflictException(
-          `Already checked in at ${attendee.checkedInAt.toISOString()}`,
-        );
-      }
-
       const now = new Date();
-      await this.prisma.attendee.update({
-        where: { id: attendee.id },
+      const scanResult = await this.prisma.attendee.updateMany({
+        where: { id: attendee.id, checkedInAt: null },
         data: { checkedInAt: now, checkedInById: adminId, checkInMethod: 'scan' },
       });
+
+      if (scanResult.count === 0) {
+        const fresh = await this.prisma.attendee.findUnique({
+          where: { id: attendee.id },
+          select: { checkedInAt: true },
+        });
+        throw new ConflictException(
+          `Already checked in at ${fresh?.checkedInAt?.toISOString() ?? 'unknown time'}`,
+        );
+      }
 
       await this.audit.log({
         action: 'CHECKIN_SCAN',
@@ -538,20 +542,33 @@ export class AdminService {
       );
     }
 
-    if (ticket.status === 'used') {
-      throw new ConflictException(
-        `Already checked in at ${ticket.checkedInAt?.toISOString()}`,
-      );
-    }
     if (ticket.status !== 'valid') {
+      if (ticket.status === 'used') {
+        throw new ConflictException(
+          `Already checked in at ${ticket.checkedInAt?.toISOString()}`,
+        );
+      }
       throw new BadRequestException(`Ticket is ${ticket.status}`);
     }
 
     const now = new Date();
-    await this.prisma.ticket.update({
-      where: { id: ticket.id },
+    const ticketResult = await this.prisma.ticket.updateMany({
+      where: { id: ticket.id, status: 'valid' },
       data: { status: 'used', checkedInAt: now, checkedInById: adminId },
     });
+
+    if (ticketResult.count === 0) {
+      const fresh = await this.prisma.ticket.findUnique({
+        where: { id: ticket.id },
+        select: { status: true, checkedInAt: true },
+      });
+      if (fresh?.status === 'used') {
+        throw new ConflictException(
+          `Already checked in at ${fresh.checkedInAt?.toISOString() ?? 'unknown time'}`,
+        );
+      }
+      throw new BadRequestException(`Ticket is ${fresh?.status ?? 'unavailable'}`);
+    }
 
     await this.audit.log({
       action: 'CHECKIN_SCAN',
@@ -666,17 +683,21 @@ export class AdminService {
         `Registration is not verified (status: ${attendee.registration.status})`,
       );
     }
-    if (attendee.checkedInAt) {
-      throw new ConflictException(
-        `Already checked in at ${attendee.checkedInAt.toISOString()}`,
-      );
-    }
-
     const now = new Date();
-    await this.prisma.attendee.update({
-      where: { id: attendeeId },
+    const manualResult = await this.prisma.attendee.updateMany({
+      where: { id: attendeeId, checkedInAt: null },
       data: { checkedInAt: now, checkedInById: adminId, checkInMethod: 'manual' },
     });
+
+    if (manualResult.count === 0) {
+      const fresh = await this.prisma.attendee.findUnique({
+        where: { id: attendeeId },
+        select: { checkedInAt: true },
+      });
+      throw new ConflictException(
+        `Already checked in at ${fresh?.checkedInAt?.toISOString() ?? 'unknown time'}`,
+      );
+    }
 
     await this.audit.log({
       action: 'CHECKIN_MANUAL',

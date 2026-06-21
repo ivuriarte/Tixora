@@ -12,7 +12,12 @@
     "typecheck": "tsc --noEmit",
     "test": "jest --passWithNoTests",
     "test:e2e": "jest --config ./test/jest-e2e.json",
-    "delete-ian": "npx tsx prisma/delete-user.ts --email ivvuriarte@gmail.com"
+    "delete-ian": "npx tsx prisma/delete-user.ts --email ivvuriarte@gmail.com",
+    "db:seed": "npx prisma db seed",
+    "db:migrate": "ts-node --transpile-only prisma/check-migrate-target.ts && npx prisma migrate deploy",
+    "db:migrate:uat": "ts-node --transpile-only prisma/migrate-uat.ts",
+    "db:migrate:prod": "ts-node --transpile-only prisma/check-migrate-target.ts --allow-production && npx prisma migrate deploy",
+    "db:reset:uat": "ts-node --transpile-only prisma/reset-uat.ts"
   },
   "dependencies": {
     "@nestjs/common": "^10.4.0",

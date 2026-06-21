@@ -2,9 +2,12 @@ name: Cron Jobs
 
 on:
   schedule:
-    # Every 5 minutes — releases expired cart reservations and restores
-    # Redis inventory. GitHub Actions minimum interval is 5 minutes.
+    # Every 5 minutes — releases expired cart reservations, cancels expired
+    # registrations, and cleans up orphaned flows.
+    # GitHub Actions minimum interval is 5 minutes.
     - cron: '*/5 * * * *'
+    # Daily at 02:00 UTC — OTP code cleanup.
+    - cron: '0 2 * * *'
   workflow_dispatch: # allow manual trigger for testing / event-day use
 
 jobs:
@@ -22,10 +25,7 @@ jobs:
   auto-cancel-registrations:
     name: Auto-cancel expired registrations
     runs-on: ubuntu-latest
-    # Runs every 5 minutes (same cadence as release-reservations). The query is
-    # idempotent — it only touches tiers where saleEndsAt < now — so running it
-    # frequently is safe and avoids the GH Actions queue-drift problem that made
-    # a minute-based gate unreliable.
+    # Idempotent — only touches tiers where saleEndsAt < now.
     steps:
       - name: POST /cron/auto-cancel-registrations
         run: |
@@ -33,3 +33,29 @@ jobs:
             -H "x-cron-secret: ${{ secrets.CRON_SECRET }}" \
             -H "Content-Type: application/json" \
             "${{ vars.API_BASE_URL }}/api/v1/cron/auto-cancel-registrations"
+
+  cleanup-orphan-registrations:
+    name: Cleanup orphan registrations
+    runs-on: ubuntu-latest
+    # Cancels pending_payment registrations older than 2 hours (abandoned flows).
+    # Idempotent — safe to run every 5 minutes.
+    steps:
+      - name: POST /cron/cleanup-orphan-registrations
+        run: |
+          curl --fail-with-body -s -X POST \
+            -H "x-cron-secret: ${{ secrets.CRON_SECRET }}" \
+            -H "Content-Type: application/json" \
+            "${{ vars.API_BASE_URL }}/api/v1/cron/cleanup-orphan-registrations"
+
+  cleanup-otp-codes:
+    name: Cleanup expired OTP codes
+    runs-on: ubuntu-latest
+    # Only fires on the 02:00 UTC daily schedule trigger.
+    if: github.event.schedule == '0 2 * * *' || github.event_name == 'workflow_dispatch'
+    steps:
+      - name: POST /cron/cleanup-otp-codes
+        run: |
+          curl --fail-with-body -s -X POST \
+            -H "x-cron-secret: ${{ secrets.CRON_SECRET }}" \
+            -H "Content-Type: application/json" \
+            "${{ vars.API_BASE_URL }}/api/v1/cron/cleanup-otp-codes"

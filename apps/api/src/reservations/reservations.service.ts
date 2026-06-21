@@ -5,7 +5,6 @@ import {
   NotFoundException,
   Logger,
 } from '@nestjs/common';
-import { Cron, CronExpression } from '@nestjs/schedule';
 import { PrismaService } from '../prisma/prisma.service';
 import { RedisService } from '../redis/redis.service';
 import { TicketTiersService } from '../ticket-tiers/ticket-tiers.service';
@@ -141,8 +140,6 @@ export class ReservationsService {
     await this.redis.incrBy(INVENTORY_KEY(reservation.ticketTierId), reservation.quantity);
   }
 
-  /** Cron: release expired reservations every 60 seconds */
-  @Cron('*/60 * * * * *')
   async releaseExpiredReservations() {
     const expired = await this.prisma.reservation.findMany({
       where: { status: 'active', expiresAt: { lt: new Date() } },

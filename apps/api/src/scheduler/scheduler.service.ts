@@ -1,5 +1,4 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { Cron } from '@nestjs/schedule';
 import { PrismaService } from '../prisma/prisma.service';
 import { EmailService } from '../email/email.service';
 import { AuditService } from '../audit/audit.service';
@@ -22,7 +21,6 @@ export class SchedulerService {
    * has ended (tier.saleEndsAt < now). Sends a cancellation email to the lead attendee
    * and writes an audit log entry per registration.
    */
-  @Cron('0 * * * *')
   async autoCancelExpiredRegistrations(): Promise<void> {
     const now = new Date();
 
@@ -100,7 +98,6 @@ export class SchedulerService {
    * Runs daily at 02:00. Deletes expired and used OtpCode records to keep
    * the table small and avoid leaking stale codes.
    */
-  @Cron('0 2 * * *')
   async cleanupExpiredOtpCodes(): Promise<void> {
     const now = new Date();
     const { count } = await this.prisma.otpCode.deleteMany({
@@ -117,7 +114,6 @@ export class SchedulerService {
    * where the user abandoned the flow before uploading proof. Releases the
    * reserved seats back to the tier's soldQuantity so inventory stays accurate.
    */
-  @Cron('0 * * * *')
   async cleanupOrphanRegistrations(): Promise<void> {
     const cutoff = new Date(Date.now() - 2 * 60 * 60 * 1000);
 
