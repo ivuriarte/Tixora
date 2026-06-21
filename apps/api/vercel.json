@@ -1,6 +1,6 @@
 {
-  "buildCommand": "echo 'pre-built'",
-  "installCommand": "echo 'pre-built'",
+  "buildCommand": "npm run vercel-build",
+  "installCommand": "cd ../../ && npm install",
   "outputDirectory": ".",
   "functions": {
     "api/index.js": {
