@@ -71,13 +71,4 @@ export default () => ({
     enabled: true, // Always validate environment boundary
     environment: process.env.APP_ENV ?? 'development',
   },
-
-  // PayMongo: UAT must only use test keys
-  paymongo: {
-    secretKey: process.env.PAYMONGO_SECRET_KEY ?? '',
-    publicKey: process.env.PAYMONGO_PUBLIC_KEY ?? '',
-    webhookSecret: process.env.PAYMONGO_WEBHOOK_SECRET ?? '',
-    // Prevent live keys in UAT
-    isTestMode: process.env.APP_ENV === 'uat',
-  },
 });
