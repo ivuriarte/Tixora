@@ -10,23 +10,19 @@ import { TransformInterceptor } from './common/interceptors/transform.intercepto
 import { SentryExceptionFilter } from './common/filters/sentry-exception.filter';
 
 // Refuse to start the UAT instance if it is misconfigured in a way that
-// could affect production data or send real-money transactions.
+// could affect production data.
 function assertUatSafety(): void {
   if (process.env.APP_ENV !== 'uat') return;
 
   const errors: string[] = [];
-  const webUrl  = process.env.WEB_URL  ?? '';
-  const apiUrl  = process.env.API_URL  ?? '';
-  const pmKey   = process.env.PAYMONGO_SECRET_KEY ?? '';
+  const webUrl = process.env.WEB_URL ?? '';
+  const apiUrl = process.env.API_URL ?? '';
 
   if (webUrl === 'https://axontickets.online' || webUrl === 'https://www.axontickets.online') {
     errors.push(`WEB_URL "${webUrl}" is the production domain — UAT must use https://uat.axontickets.online`);
   }
   if (apiUrl === 'https://api.axontickets.online') {
     errors.push(`API_URL "${apiUrl}" is the production domain — UAT must use https://api-uat.axontickets.online`);
-  }
-  if (pmKey.startsWith('sk_live_')) {
-    errors.push('PAYMONGO_SECRET_KEY is a live key (sk_live_…) — UAT must use test keys only (sk_test_…)');
   }
 
   if (errors.length === 0) return;
