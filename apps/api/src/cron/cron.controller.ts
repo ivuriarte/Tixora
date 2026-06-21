@@ -71,4 +71,36 @@ export class CronController {
     await this.schedulerService.autoCancelExpiredRegistrations();
     return { ok: true };
   }
+
+  /**
+   * POST /api/v1/cron/cleanup-orphan-registrations
+   * Triggered every hour by GitHub Actions.
+   * Cancels pending_payment registrations older than 2 hours (abandoned flows).
+   */
+  @Post('cleanup-orphan-registrations')
+  @HttpCode(HttpStatus.OK)
+  async cleanupOrphanRegistrations(
+    @Headers('x-cron-secret') secret: string | undefined,
+  ) {
+    this.verifySecret(secret);
+    this.logger.log({ msg: 'External cron: cleanup-orphan-registrations triggered' });
+    await this.schedulerService.cleanupOrphanRegistrations();
+    return { ok: true };
+  }
+
+  /**
+   * POST /api/v1/cron/cleanup-otp-codes
+   * Triggered daily by GitHub Actions.
+   * Deletes expired and used OtpCode records.
+   */
+  @Post('cleanup-otp-codes')
+  @HttpCode(HttpStatus.OK)
+  async cleanupOtpCodes(
+    @Headers('x-cron-secret') secret: string | undefined,
+  ) {
+    this.verifySecret(secret);
+    this.logger.log({ msg: 'External cron: cleanup-otp-codes triggered' });
+    await this.schedulerService.cleanupExpiredOtpCodes();
+    return { ok: true };
+  }
 }

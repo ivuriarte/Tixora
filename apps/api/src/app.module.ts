@@ -3,7 +3,6 @@ import { APP_GUARD } from '@nestjs/core';
 import { ConfigModule } from '@nestjs/config';
 import { ThrottlerModule } from '@nestjs/throttler';
 import { CustomThrottlerGuard } from './common/guards/throttler.guard';
-import { ScheduleModule } from '@nestjs/schedule';
 import { LoggerModule } from 'nestjs-pino';
 import configuration from './config/configuration';
 import { validationSchema } from './config/env.validation';
@@ -64,8 +63,6 @@ import { FunnelModule } from './funnel/funnel.module';
         },
       ],
     }),
-
-    ScheduleModule.forRoot(),
 
     PrismaModule,
     RedisModule,

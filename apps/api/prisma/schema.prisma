@@ -275,6 +275,7 @@ model Ticket {
 
   @@index([userId])
   @@index([eventId, status])
+  @@index([ticketTierId, status])
   @@index([orderId])
   @@map("tickets")
 }
@@ -347,6 +348,8 @@ model Registration {
 
   @@index([userId, status])
   @@index([eventId, status])
+  @@index([tierId, status])
+  @@index([status, createdAt])
   @@index([referenceNumber])
   @@map("registrations")
 }
@@ -449,6 +452,7 @@ model RegistrationFunnelEvent {
 
   @@index([eventId, step])
   @@index([step, status])
+  @@index([userId])
   @@index([createdAt])
   @@map("registration_funnel_events")
 }

@@ -1,0 +1,49 @@
+name: Weekly Database Backup
+
+on:
+  schedule:
+    - cron: '0 0 * * 0' # Every Sunday at 00:00 UTC
+  workflow_dispatch:     # Allow manual trigger
+
+jobs:
+  backup:
+    name: pg_dump production database
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Install PostgreSQL client
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y postgresql-client
+
+      - name: Create backup
+        env:
+          DATABASE_URL: ${{ secrets.PRODUCTION_DIRECT_URL }}
+        run: |
+          TIMESTAMP=$(date -u +%Y%m%d_%H%M%S)
+          FILENAME="axon-tickets-backup-${TIMESTAMP}.dump"
+
+          pg_dump \
+            "$DATABASE_URL" \
+            --format=custom \
+            --no-acl \
+            --no-owner \
+            --file="${FILENAME}"
+
+          gzip "${FILENAME}"
+          echo "BACKUP_FILE=${FILENAME}.gz" >> "$GITHUB_ENV"
+          echo "TIMESTAMP=${TIMESTAMP}" >> "$GITHUB_ENV"
+
+      - name: Upload backup artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: db-backup-${{ env.TIMESTAMP }}
+          path: '*.dump.gz'
+          retention-days: 90
+          if-no-files-found: error
+
+      - name: Report size
+        run: |
+          SIZE=$(du -sh *.dump.gz | cut -f1)
+          echo "Backup complete: ${{ env.BACKUP_FILE }} (${SIZE})"

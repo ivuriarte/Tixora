@@ -4,6 +4,9 @@
 const nextConfig = {
   env: {
     NEXT_PUBLIC_ENABLE_ONLINE_PAYMENT: process.env.NEXT_PUBLIC_ENABLE_ONLINE_PAYMENT ?? 'false',
+    // Expose the Vercel system variable as a public env var so UatBanner and
+    // other client components can display the deployed commit SHA.
+    NEXT_PUBLIC_GIT_SHA: process.env.VERCEL_GIT_COMMIT_SHA ?? process.env.NEXT_PUBLIC_GIT_SHA ?? '',
   },
   images: {
     remotePatterns: [
