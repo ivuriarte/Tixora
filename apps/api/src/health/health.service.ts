@@ -11,7 +11,10 @@ export class HealthService {
 
   async checkDatabase(): Promise<boolean> {
     try {
-      await this.prisma.$queryRaw`SELECT 1`;
+      const timeout = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error('DB timeout')), 5000),
+      );
+      await Promise.race([this.prisma.$queryRaw`SELECT 1`, timeout]);
       return true;
     } catch {
       return false;
@@ -20,7 +23,10 @@ export class HealthService {
 
   async checkRedis(): Promise<boolean> {
     try {
-      const result = await this.redis.ping();
+      const timeout = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error('Redis timeout')), 5000),
+      );
+      const result = await Promise.race([this.redis.ping(), timeout]);
       return result === 'PONG';
     } catch {
       return false;

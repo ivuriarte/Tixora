@@ -6,8 +6,8 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
   private readonly logger = new Logger(PrismaService.name);
 
   async onModuleInit() {
-    await this.$connect();
-    this.logger.log('Prisma connected');
+    // Lazy connect: don't block serverless startup. Prisma connects on first query.
+    this.logger.log('PrismaService ready');
   }
 
   async onModuleDestroy() {

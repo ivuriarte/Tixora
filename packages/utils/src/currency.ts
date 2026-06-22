@@ -12,7 +12,7 @@ export function formatPHP(amount: number): string {
 }
 
 /**
- * Convert centavos to peso (PayMongo uses centavos).
+ * Convert centavos to peso.
  */
 export function centavosToPeso(centavos: number): number {
   return centavos / 100;

@@ -65,6 +65,7 @@ function buildMocks() {
     get: jest.fn().mockResolvedValue(null),
     set: jest.fn().mockResolvedValue('OK'),
     del: jest.fn().mockResolvedValue(1),
+    incrementWithTtl: jest.fn().mockResolvedValue({ count: 1, ttlSeconds: 3600 }),
   } as any;
 
   const emailService = {
@@ -80,7 +81,12 @@ function buildMocks() {
   } as any;
 
   const config = {
-    get: jest.fn().mockReturnValue('15m'),
+    get: jest.fn((key: string) => {
+      if (key === 'throttle.otpHourlyLimit') return 10;
+      if (key === 'jwt.accessExpiry') return '15m';
+      if (key === 'jwt.refreshExpiry') return '7d';
+      return undefined;
+    }),
   } as any;
 
   const service = new AuthService(prisma, redis, jwt, config, emailService, funnel);
@@ -224,5 +230,41 @@ describe('AuthService.requestAccess — profile pre-filling', () => {
     const result = await service.requestAccess({ ...BASE_DTO });
 
     expect(result).toEqual({ userId: 'returning_user' });
+  });
+
+  it('U-A9: applies the distributed hourly limiter only inside OTP send flows', async () => {
+    const { redis, service } = buildMocks();
+    const req = {
+      headers: { 'x-real-ip': '203.0.113.10' },
+      ip: '127.0.0.1',
+    } as any;
+
+    await service.requestAccess({ ...BASE_DTO }, req);
+
+    expect(redis.incrementWithTtl).toHaveBeenCalledWith(
+      expect.stringMatching(/^rate-limit:otp-hourly:[a-f0-9]{64}$/),
+      3600,
+    );
+  });
+
+  it('U-A10: rejects the eleventh OTP request before any database or email work', async () => {
+    const { prisma, redis, emailService, service } = buildMocks();
+    redis.incrementWithTtl.mockResolvedValue({ count: 11, ttlSeconds: 1200 });
+
+    await expect(
+      service.requestAccess(
+        { ...BASE_DTO },
+        { headers: { 'x-real-ip': '203.0.113.11' }, ip: '127.0.0.1' } as any,
+      ),
+    ).rejects.toMatchObject({
+      status: 429,
+      response: expect.objectContaining({
+        message: 'Too many verification code requests. Please try again later.',
+        retryAfterSeconds: 1200,
+      }),
+    });
+
+    expect(prisma.user.findUnique).not.toHaveBeenCalled();
+    expect(emailService.sendOtpEmail).not.toHaveBeenCalled();
   });
 });
