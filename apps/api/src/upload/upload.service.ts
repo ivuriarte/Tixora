@@ -22,7 +22,7 @@ export class UploadService {
   async uploadEventImage(
     eventId: string,
     buffer: Buffer,
-    mimeType: string,
+    _mimeType: string,
   ): Promise<{ imageUrl: string }> {
     // IDOR guard: verify event exists before uploading
     const event = await this.prisma.event.findUnique({ where: { id: eventId }, select: { id: true } });
