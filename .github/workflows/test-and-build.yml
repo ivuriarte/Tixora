@@ -28,6 +28,16 @@ jobs:
         working-directory: .
         run: npm ci --workspaces
 
+      - name: Build shared packages
+        working-directory: .
+        run: npm run build --workspace=packages/types --workspace=packages/utils
+
+      - name: Generate Prisma client
+        env:
+          DATABASE_URL: "postgresql://ci:ci@localhost:5432/ci"
+          DIRECT_URL: "postgresql://ci:ci@localhost:5432/ci"
+        run: npx prisma generate
+
       - name: Lint
         run: npm run lint
 
@@ -35,6 +45,9 @@ jobs:
         run: npm run typecheck
 
       - name: Build
+        env:
+          DATABASE_URL: "postgresql://ci:ci@localhost:5432/ci"
+          DIRECT_URL: "postgresql://ci:ci@localhost:5432/ci"
         run: npm run build
 
   test-web:
@@ -57,6 +70,10 @@ jobs:
       - name: Install dependencies
         working-directory: .
         run: npm ci --workspaces
+
+      - name: Build shared packages
+        working-directory: .
+        run: npm run build --workspace=packages/types --workspace=packages/utils
 
       - name: Lint
         run: npm run lint
