@@ -25,7 +25,6 @@ import { JwtPayload } from '@axon-tickets/types';
 const BCRYPT_COST = 12;
 const OTP_TTL_SECONDS = 300; // 5 minutes
 const OTP_DIGITS = 6;
-const MAX_ACTIVE_RESERVATIONS = 3;
 const OTP_MAX_ATTEMPTS = 5;
 const OTP_ATTEMPT_TTL = OTP_TTL_SECONDS + 60; // slightly longer than OTP TTL
 const OTP_HOURLY_TTL_SECONDS = 60 * 60;
