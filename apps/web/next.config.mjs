@@ -43,7 +43,7 @@ const nextConfig = {
               "img-src 'self' data: blob: https:",
               "font-src 'self' https://fonts.gstatic.com",
               // Sentry tunnel and reporting endpoints
-              "connect-src 'self' https://api.axontickets.online https://*.vercel.app https://*.sentry.io https://*.ingest.sentry.io https://vercel.live https://connect.facebook.net https://www.facebook.com wss://ws-us3.pusher.com",
+              "connect-src 'self' https://api.axontickets.online https://api-uat.axontickets.online https://*.vercel.app https://*.sentry.io https://*.ingest.sentry.io https://vercel.live https://connect.facebook.net https://www.facebook.com wss://ws-us3.pusher.com",
               // Sentry Replay and Vercel toolbar use blob: workers
               "worker-src 'self' blob:",
               "frame-src https://hcaptcha.com https://*.hcaptcha.com https://vercel.live",
