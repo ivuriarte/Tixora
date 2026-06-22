@@ -175,8 +175,7 @@ Use the following model first. Do not build a separate persistent staging enviro
   - Allowlist configured in `configuration.ts`: `SMTP_ALLOWLIST=ivvuriarte@gmail.com` (UAT only). Block all other addresses at API layer.
   - Email subjects will be prefixed `[UAT]` by default in UAT mode.
   - UAT environment prevents arbitrary attendee email delivery.
-- [x] **Use PayMongo test keys only in UAT** — `config.paymongo.isTestMode` checks `APP_ENV === 'uat'`. Test credentials required in Vercel UAT secrets.
-- [x] **Use separate webhook secrets and callback URLs** — PayMongo `PAYMONGO_WEBHOOK_SECRET_UAT` stored in Vercel UAT environment.
+- [x] **Use separate webhook secrets and callback URLs** — `PAYMONGO_WEBHOOK_SECRET_UAT` stored in Vercel UAT environment.
 - [x] **Set Sentry environment/release tags** — `config.sentry.environment` automatically set from `APP_ENV`. Release tracked via `VERCEL_GIT_COMMIT_SHA`. UAT errors in separate Sentry environment.
 - [x] **Disable Meta Pixel and production analytics in UAT** — conditional rendering in web components (TODO: verify in Phase 7 testing).
 - [x] **Ensure UAT QR tokens cannot be accepted by Production** — `config.qrEnvironmentBoundary` validates environment match. UAT uses separate `QR_HMAC_SECRET_UAT`.

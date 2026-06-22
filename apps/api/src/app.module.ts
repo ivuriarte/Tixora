@@ -50,16 +50,8 @@ import { FunnelModule } from './funnel/funnel.module';
     ThrottlerModule.forRootAsync({
       useFactory: () => [
         {
-          name: 'default',
           ttl: parseInt(process.env.THROTTLE_TTL ?? '60000', 10),
           limit: parseInt(process.env.THROTTLE_LIMIT ?? '60', 10),
-        },
-        {
-          // Hard ceiling: no single IP can trigger more than 10 OTP emails
-          // per hour, regardless of how many different email addresses it uses.
-          name: 'otp-hourly',
-          ttl: 3_600_000,
-          limit: parseInt(process.env.OTP_HOURLY_LIMIT ?? '10', 10),
         },
       ],
     }),
