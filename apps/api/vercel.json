@@ -1,6 +1,6 @@
 {
   "buildCommand": "npm run vercel-build",
-  "installCommand": "cd ../../ && npm install",
+  "installCommand": "cd ../../ && npm install --include=dev",
   "outputDirectory": ".",
   "functions": {
     "api/index.js": {
