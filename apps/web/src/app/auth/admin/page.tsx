@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import axios from 'axios';
 import { useAuthStore } from '@/store/auth.store';
 import api from '@/lib/api';
 
@@ -64,9 +65,21 @@ export default function AdminAuthPage() {
       setAuth(loggedInUser, accessToken, refreshToken);
       router.replace('/admin');
     } catch (err: unknown) {
-      const message =
-        (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
-      setError(message || 'Invalid email or password.');
+      if (axios.isAxiosError(err)) {
+        const message = err.response?.data?.message;
+        if (err.response?.status === 429) {
+          setError('Too many sign-in attempts. Please wait a moment and try again.');
+        } else if (err.code === 'ECONNABORTED' || err.code === 'ERR_NETWORK' || !err.response) {
+          setError('The UAT server did not respond. Please try again.');
+        } else {
+          setError(
+            (Array.isArray(message) ? message.join(', ') : message) ||
+              'Invalid email or password.',
+          );
+        }
+      } else {
+        setError('Unable to sign in. Please try again.');
+      }
       setLoading(false);
     }
   }

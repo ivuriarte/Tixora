@@ -11,7 +11,7 @@ import {
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcryptjs';
-import { randomInt } from 'crypto';
+import { createHash, randomInt } from 'crypto';
 import { v4 as uuidv4 } from 'uuid';
 import type { Request } from 'express';
 import { PrismaService } from '../prisma/prisma.service';
@@ -28,6 +28,7 @@ const OTP_DIGITS = 6;
 const MAX_ACTIVE_RESERVATIONS = 3;
 const OTP_MAX_ATTEMPTS = 5;
 const OTP_ATTEMPT_TTL = OTP_TTL_SECONDS + 60; // slightly longer than OTP TTL
+const OTP_HOURLY_TTL_SECONDS = 60 * 60;
 
 @Injectable()
 export class AuthService {
@@ -166,7 +167,9 @@ export class AuthService {
     };
   }
 
-  async resendOtp(userId: string): Promise<{ message: string }> {
+  async resendOtp(userId: string, req?: Request): Promise<{ message: string }> {
+    await this.enforceOtpHourlyLimit(req);
+
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user) throw new BadRequestException('Invalid request');
     if (user.isVerified) throw new BadRequestException('Account already verified');
@@ -252,6 +255,8 @@ export class AuthService {
    * Always returns { userId } — never distinguishes new vs existing (prevents enumeration).
    */
   async requestAccess(dto: RequestAccessDto, req?: Request): Promise<{ userId: string }> {
+    await this.enforceOtpHourlyLimit(req);
+
     const email = dto.email.toLowerCase().trim();
     const userAgent = req?.headers['user-agent'] as string | undefined;
     const referrer = (req?.headers['referer'] as string | undefined) ?? undefined;
@@ -370,6 +375,50 @@ export class AuthService {
 
     this.logger.log({ msg: 'OTP send success', userId: user.id, eventId: dto.eventId ?? null });
     return { userId: user.id };
+  }
+
+  /**
+   * Distributed OTP abuse protection.
+   *
+   * This belongs in Redis rather than a named Nest throttler because named
+   * throttlers are global by default. Registering an "otp-hourly" throttler
+   * globally caused every API route (events, login, registration, health) to
+   * inherit the 10 requests/hour ceiling.
+   */
+  private async enforceOtpHourlyLimit(req?: Request): Promise<void> {
+    const tracker = this.getTrustedIp(req);
+    const trackerHash = createHash('sha256').update(tracker).digest('hex');
+    const key = `rate-limit:otp-hourly:${trackerHash}`;
+    const limit = this.config.get<number>('throttle.otpHourlyLimit') ?? 10;
+    const result = await this.redis.incrementWithTtl(key, OTP_HOURLY_TTL_SECONDS);
+
+    if (result.count > limit) {
+      throw new HttpException(
+        {
+          statusCode: HttpStatus.TOO_MANY_REQUESTS,
+          message: 'Too many verification code requests. Please try again later.',
+          retryAfterSeconds: result.ttlSeconds,
+        },
+        HttpStatus.TOO_MANY_REQUESTS,
+      );
+    }
+  }
+
+  private getTrustedIp(req?: Request): string {
+    if (!req) return 'unknown';
+
+    const realIp = req.headers['x-real-ip'];
+    if (typeof realIp === 'string' && realIp.trim()) {
+      return realIp.trim();
+    }
+
+    const forwardedFor = req.headers['x-forwarded-for'];
+    if (typeof forwardedFor === 'string') {
+      const ips = forwardedFor.split(',');
+      return ips[ips.length - 1].trim() || req.ip || 'unknown';
+    }
+
+    return req.ip || 'unknown';
   }
 
   /**

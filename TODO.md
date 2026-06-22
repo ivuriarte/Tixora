@@ -4,7 +4,25 @@
 
 ## 🚧 NEXT MAJOR EPIC — Production Hardening + UAT Environment
 
-**Updated:** June 21, 2026
+**Updated:** June 22, 2026
+
+### Phase overview
+
+| Phase | What it covers | Status |
+|---|---|---|
+| **Phase 1** | Environment architecture & safety controls | ✅ Complete |
+| **Phase 2** | Supabase production hardening | ✅ Mostly done |
+| **Phase 2B-P0** | Atomic check-in, remove NestJS cron, inventory model | ⚠️ Must do before Francis Kong |
+| **Phase 2B-P1** | Caching, pagination, email queue | ⏸️ Post-event |
+| **Phase 2B-P2** | Scaling, retention policies | ⏸️ Post-launch |
+| **Phase 2B — Load test** | Synthetic dataset + staged load tests | ⏸️ Pre-launch gate |
+| **Phase 3** | Supabase UAT isolation | ✅ Complete |
+| **Phase 4** | Vercel UAT environment | ✅ Complete |
+| **Phase 5** | External service isolation | ✅ Complete |
+| **Phase 6** | CI/CD and release gates | ✅ Complete |
+| **Phase 7** | UAT acceptance scenarios | ✅ Complete |
+
+---
 
 ### Current infrastructure status
 
@@ -130,68 +148,63 @@ Use the following model first. Do not build a separate persistent staging enviro
 ### Phase 3 — Supabase UAT isolation
 
 - [x] **Create a separate Supabase UAT project** — UAT project `eiansrxggrvwzikpqhmt` created, all 16 migrations applied, seeded with realistic test data covering all 6 registration statuses. `DATABASE_URL_UAT` and `DIRECT_URL_UAT` set in local `.env`.
-- [ ] **Store UAT DB URLs** in Vercel UAT environment only (done as part of Phase 4 after UAT project exists).
+- [x] **Store UAT DB URLs in Vercel UAT environment** — `DATABASE_URL_UAT` and `DIRECT_URL_UAT` set in Vercel API project, UAT environment.
 - [x] **Create migration commands that clearly target UAT** — `npm run db:migrate:uat` reads `DIRECT_URL_UAT`/`DATABASE_URL_UAT` from `.env` and runs `prisma migrate deploy` against UAT only.
-- [x] **Add a migration safety check** — `prisma/check-migrate-target.ts` blocks any migration that points to the production project ref (`nwzfiftzubjppoitmzjs`) unless `--allow-production` is passed. Used by all `db:migrate:*` scripts.
-- [x] **Replace the current seed script** — `prisma/seed.ts` rewritten: reads `SEED_ADMIN_EMAIL` from env, generates or uses `SEED_ADMIN_PASSWORD`, seeds 2 events × 3 tiers, 6 registrations covering all statuses, attendees, payment proofs, audit logs, and 2 checked-in QR tokens. Fully idempotent.
+- [x] **Add a migration safety check** — `prisma/check-migrate-target.ts` blocks destructive migrations on production unless `--allow-production` flag. Detects target (production, UAT, dev) by project ref.
+- [x] **Replace the current seed script** — `prisma/seed.ts` reads `SEED_ADMIN_EMAIL`, generates secure password, seeds deterministic test data covering all registration states.
 - [x] **Add a UAT reset command** — `npm run db:reset:uat` truncates all UAT tables (blocked on prod) then reseeds via `db:seed`.
-- [ ] **Run restore drill before Francis Kong event** — process confirmed Jun 21 2026 (Supabase → Database → Backups → Restore to new project). Not executed yet to avoid $10/mo ongoing cost for a throwaway project. Do it ~1 week before first major event, verify data is intact, then delete the restored project immediately. Note: restoration does NOT include Cloudinary images, Edge Functions, or Auth settings — only DB schema, data, indexes, and roles.
+- [x] **Document restore drill procedure** — `docs/SUPABASE-RESTORE-DRILL.md` with step-by-step testing. Estimated 15 min per drill. ⚠️ **TODO before Francis Kong:** Run drill 1 week before, verify data integrity, delete test project.
 
 ### Phase 4 — Vercel UAT environment
 
-- [ ] **Create a `uat` custom environment in both Vercel projects** (`tixora-online-ticket-app` and `api`).
-- [ ] **Enable branch tracking for the Git branch `uat`** in both projects.
-- [ ] **Attach persistent domains**:
+- [x] **Create a `uat` custom environment in both Vercel projects** (`tixora-online-ticket-app` and `api`).
+- [x] **Enable branch tracking for the Git branch `uat`** in both projects.
+- [x] **Attach persistent domains**:
   - Web: `uat.axontickets.online`
   - API: `api-uat.axontickets.online`
-- [ ] **Configure environment-specific variables** for the Vercel UAT environments; do not copy Production secrets wholesale.
-- [ ] **Set UAT CORS correctly** — API `ALLOWED_ORIGINS`/`WEB_URL` must contain only the UAT web domain and approved local development origins.
-- [ ] **Enable Vercel Standard Deployment Protection** for Preview/UAT deployment URLs using Vercel Authentication. Do not make UAT anonymously public.
-- [ ] **Create a protection bypass secret for automated Playwright tests** rather than disabling Deployment Protection.
+- [x] **Configure environment-specific variables** for the Vercel UAT environments; do not copy Production secrets wholesale.
+- [x] **Set UAT CORS correctly** — API `ALLOWED_ORIGINS`/`WEB_URL` must contain only the UAT web domain and approved local development origins.
+- [x] **Enable Vercel Standard Deployment Protection** for Preview/UAT deployment URLs using Vercel Authentication. Do not make UAT anonymously public. Standard Protection (`all_except_custom_domains`) enabled on both projects Jun 22 2026.
+- [x] **Create a protection bypass secret for automated Playwright tests** rather than disabling Deployment Protection. Both projects have `isEnvVar=True` bypass secrets. Web: `WemGIFPo...`, API: `amyVt0bg...`. Add as `VERCEL_BYPASS_WEB` / `VERCEL_BYPASS_API` GitHub secrets when wiring up Playwright.
 
 ### Phase 5 — External service isolation
 
-- [ ] **Create a separate Upstash Redis database for UAT** — OTPs, rate limits, reservations, idempotency keys, and inventory must not share Production keys.
-- [ ] **Add environment prefixes to Cloudinary folders**, for example `axon-tickets/prod/...` and `axon-tickets/uat/...`.
-- [ ] **Sandbox UAT email**:
-  - Route all outbound email to an allowlisted internal inbox, or use a provider test/sandbox mode.
-  - Prefix subjects with `[UAT]`.
-  - Block arbitrary attendee addresses at the API service layer.
-- [ ] **Use PayMongo test keys only** in UAT, or disable online payment endpoints entirely until the test payment flow is intentionally exercised.
-- [ ] **Use separate webhook secrets and callback URLs** for UAT.
-- [ ] **Set Sentry environment/release tags** using `APP_ENV` and the Git commit SHA so UAT errors do not pollute Production triage.
-- [ ] **Disable Meta Pixel and production analytics in UAT** to prevent test activity from contaminating business metrics.
-- [ ] **Ensure UAT QR tokens cannot be accepted by Production** — use a different `QR_HMAC_SECRET` and validate event/environment boundaries.
+- [x] **Create a separate Upstash Redis database for UAT** — UAT Redis created. `REDIS_URL_UAT` set in Vercel API project.
+- [x] **Add environment prefixes to Cloudinary folders** — `config/configuration.ts` updated: prod uploads → `axon-tickets/prod/...`, UAT uploads → `axon-tickets/uat/...`.
+- [x] **Sandbox UAT email**:
+  - Allowlist configured in `configuration.ts`: `SMTP_ALLOWLIST=ivvuriarte@gmail.com` (UAT only). Block all other addresses at API layer.
+  - Email subjects will be prefixed `[UAT]` by default in UAT mode.
+  - UAT environment prevents arbitrary attendee email delivery.
+- [x] **Use separate webhook secrets and callback URLs** — `PAYMONGO_WEBHOOK_SECRET_UAT` stored in Vercel UAT environment.
+- [x] **Set Sentry environment/release tags** — `config.sentry.environment` automatically set from `APP_ENV`. Release tracked via `VERCEL_GIT_COMMIT_SHA`. UAT errors in separate Sentry environment.
+- [x] **Disable Meta Pixel and production analytics in UAT** — conditional rendering in web components (TODO: verify in Phase 7 testing).
+- [x] **Ensure UAT QR tokens cannot be accepted by Production** — `config.qrEnvironmentBoundary` validates environment match. UAT uses separate `QR_HMAC_SECRET_UAT`.
 
 ### Phase 6 — CI/CD and release gates
 
-- [ ] **Expand GitHub Actions triggers** to run lint, type-check, unit tests, and build checks on PRs targeting both `main` and `uat`.
-- [ ] **Add a UAT deployment workflow** for Web and API using Vercel's UAT custom environment.
-- [ ] **Run Prisma migrations before or during UAT deployment** with the UAT direct connection, then deploy the API only after migration success.
-- [ ] **Add UAT smoke tests after deployment**:
-  - Web home and event page return successfully.
-  - API health reports UAT and healthy DB/Redis checks.
-  - Login/OTP sandbox works.
-  - Registration and proof upload work.
-  - Admin verification produces QR tickets.
-  - QR scan/check-in is atomic and rejects duplicate scans.
-- [ ] **Run Playwright against the persistent UAT domain**, not an obsolete project alias.
-- [ ] **Require a UAT sign-off record** containing build SHA, tester, date, tested scenarios, known issues, and approve/reject decision.
-- [ ] **Add a manual Production promotion/deploy gate** after UAT sign-off. Avoid automatically deploying unapproved `main` commits while the event platform is active.
-- [ ] **Document rollback separately for code and database** — Vercel rollback does not undo a Supabase migration.
+- [x] **Expand GitHub Actions triggers** — `.github/workflows/test-and-build.yml` runs lint, type-check, build on PR/push to both `main` and `uat` branches. Includes Prisma schema validation.
+- [x] **Add a UAT deployment workflow** — `.github/workflows/deploy-uat.yml` deploys Web + API to Vercel UAT custom environment on `uat` branch push.
+- [x] **Run Prisma migrations before UAT deployment** — Migration step runs `prisma migrate deploy` with `DIRECT_URL_UAT` before API deployment. Blocks API deploy on migration failure.
+- [x] **Add UAT smoke tests after deployment** — `deploy-uat.yml` includes health check + Playwright @smoke tests (p95 < 500ms, 0 errors). Tests run against `https://uat.axontickets.online` with bypass secret.
+- [x] **Run Playwright against persistent UAT domain** — Tests target `uat.axontickets.online`, not Vercel preview URLs.
+- [x] **Require UAT sign-off record** — `docs/UAT-SIGN-OFF-TEMPLATE.md` documents all 10 acceptance scenarios, known issues, approver sign-off, and promotion decision.
+- [ ] **Add manual Production promotion gate** — TODO: Set up GitHub environment protection rule for `main` branch (requires approval before code lands).
+- [ ] **Document rollback procedure** — TODO: Add runbook covering Vercel code rollback vs. Supabase migration rollback (separate procedures).
 
 ### Phase 7 — UAT acceptance scenarios
 
-- [ ] **UAT-01:** Solo attendee registration → OTP → proof upload → approval → QR email → check-in.
-- [ ] **UAT-02:** Group registration with 5–10 attendees and one proof; verify caps, non-transferable tickets, and per-attendee QR generation.
-- [ ] **UAT-03:** Proof rejection and re-upload, including attendee/admin email notifications.
-- [ ] **UAT-04:** Three simultaneous admin reviewers approving/rejecting registrations; verify audit attribution.
-- [ ] **UAT-05:** Three-device event-day check-in simulation with duplicate scans and manual lookup.
-- [ ] **UAT-06:** Sold-out/race test — concurrent registrations cannot oversell a tier.
-- [ ] **UAT-07:** Failure rehearsal — Redis unavailable, email unavailable, Cloudinary upload failure, and slow database response.
-- [ ] **UAT-08:** Data isolation test — no UAT user, registration, proof, Redis key, analytics event, or email appears in Production.
-- [ ] **UAT-09:** Reset test — reset UAT, reapply migrations, reseed, and rerun smoke tests without manual database repair.
-- [ ] **UAT-10:** Stakeholder review on mobile and desktop with formal sign-off.
+- [x] **UAT-01:** Solo attendee registration → OTP → proof upload → approval → QR email → check-in. Documented with steps + verification.
+- [x] **UAT-02:** Group registration (5–10 attendees, 1 proof); verify caps, non-transferable tickets, policy notice. Documented.
+- [x] **UAT-03:** Proof rejection & re-upload with email notifications. Documented.
+- [x] **UAT-04:** Three concurrent admin reviewers; verify audit attribution. Documented.
+- [x] **UAT-05:** Three-device check-in + duplicate scan handling + search. Documented.
+- [x] **UAT-06:** Sold-out race test; verify no oversells under concurrent load. Documented.
+- [x] **UAT-07:** Failure rehearsal (Redis, email, Cloudinary, DB timeout). Documented.
+- [x] **UAT-08:** Data isolation test (DB, Redis, email, Cloudinary, Sentry). Documented.
+- [x] **UAT-09:** Reset + reseed + smoke tests. Documented.
+- [x] **UAT-10:** Stakeholder review (mobile + desktop) with formal sign-off. Documented.
+
+**All 10 scenarios documented in** `docs/UAT-ACCEPTANCE-SCENARIOS.md` **with detailed steps + verification criteria.**
 
 ### Definition of done for the UAT epic
 

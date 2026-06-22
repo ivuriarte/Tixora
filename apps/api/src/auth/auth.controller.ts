@@ -60,16 +60,16 @@ export class AuthController {
   @Public()
   @Post('resend-otp')
   @HttpCode(HttpStatus.OK)
-  @Throttle({ default: { ttl: 60_000, limit: 3 }, 'otp-hourly': { ttl: 3_600_000, limit: 10 } })
+  @Throttle({ default: { ttl: 60_000, limit: 3 } })
   @ApiOperation({ summary: 'Resend OTP code' })
-  async resendOtp(@Body() dto: ResendOtpDto) {
-    return this.authService.resendOtp(dto.userId);
+  async resendOtp(@Body() dto: ResendOtpDto, @Req() req: Request) {
+    return this.authService.resendOtp(dto.userId, req);
   }
 
   @Public()
   @Post('request-access')
   @HttpCode(HttpStatus.OK)
-  @Throttle({ default: { ttl: 60_000, limit: 5 }, 'otp-hourly': { ttl: 3_600_000, limit: 10 } })
+  @Throttle({ default: { ttl: 60_000, limit: 5 } })
   @ApiOperation({ summary: 'Request a passwordless access code (OTP) by email' })
   async requestAccess(@Body() dto: RequestAccessDto, @Req() req: Request) {
     return this.authService.requestAccess(dto, req);

@@ -35,4 +35,5 @@ export const validationSchema = Joi.object({
 
   THROTTLE_TTL: Joi.number().default(60000),
   THROTTLE_LIMIT: Joi.number().default(60),
+  OTP_HOURLY_LIMIT: Joi.number().integer().min(1).default(10),
 });
