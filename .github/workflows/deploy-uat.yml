@@ -94,10 +94,3 @@ jobs:
           echo "❌ API health check failed after all retries"
           exit 1
 
-      - name: Slack notification on failure
-        if: failure() && secrets.SLACK_WEBHOOK != ''
-        uses: 8398a7/action-slack@v3
-        with:
-          status: ${{ job.status }}
-          text: 'UAT deployment failed. Check logs.'
-          webhook_url: ${{ secrets.SLACK_WEBHOOK }}
