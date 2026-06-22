@@ -56,6 +56,7 @@ export default () => ({
   throttle: {
     ttl: parseInt(process.env.THROTTLE_TTL ?? '60000', 10),
     limit: parseInt(process.env.THROTTLE_LIMIT ?? '60', 10),
+    otpHourlyLimit: parseInt(process.env.OTP_HOURLY_LIMIT ?? '10', 10),
   },
 
   sentry: {
