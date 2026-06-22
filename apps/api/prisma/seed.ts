@@ -162,7 +162,7 @@ async function main() {
       eventId: conf.id,
       name: 'VIP',
       description: 'Front-row seating, lunch included, exclusive Q&A session',
-      price: 3500,
+      price: 350000,
       totalQuantity: 30,
       soldQuantity: 1,
       maxPerOrder: 2,
@@ -178,7 +178,7 @@ async function main() {
       eventId: conf.id,
       name: 'General Admission',
       description: 'Standard seating',
-      price: 1500,
+      price: 150000,
       totalQuantity: 150,
       soldQuantity: 5,
       maxPerOrder: 5,
@@ -194,7 +194,7 @@ async function main() {
       eventId: conf.id,
       name: 'Early Bird',
       description: 'Sold out — discount tier for testing sold-out UI',
-      price: 999,
+      price: 99900,
       totalQuantity: 20,
       soldQuantity: 20,
       maxPerOrder: 2,
@@ -233,7 +233,7 @@ async function main() {
       id: deterministicId('tier-funrun-5k'),
       eventId: funrun.id,
       name: '5K Run',
-      price: 500,
+      price: 50000,
       totalQuantity: 200,
       soldQuantity: 2,
       maxPerOrder: 3,
@@ -248,7 +248,7 @@ async function main() {
       id: deterministicId('tier-funrun-10k'),
       eventId: funrun.id,
       name: '10K Run',
-      price: 800,
+      price: 80000,
       totalQuantity: 150,
       soldQuantity: 1,
       maxPerOrder: 3,
@@ -286,7 +286,7 @@ async function main() {
   }) {
     const qty = opts.attendees.length;
     const subtotal = opts.tier.price * qty;
-    const fees = 50 * qty;
+    const fees = 5000;
 
     const reg = await prisma.registration.upsert({
       where: { referenceNumber: opts.refNum },

@@ -54,3 +54,4 @@ apps/web/playwright-report/
 
 /generated/prisma
 .env.sentry-build-plugin
+.vercel
