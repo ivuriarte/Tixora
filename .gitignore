@@ -17,8 +17,9 @@ out/
 # Prisma
 apps/api/prisma/migrations/
 
-# Vercel ncc bundle output
-apps/api/api/
+# Vercel ncc bundle output (track placeholder index.js; ignore compiled artifacts)
+apps/api/api/*
+!apps/api/api/index.js
 
 # Logs
 *.log
