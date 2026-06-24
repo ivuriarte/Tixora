@@ -4,8 +4,6 @@ import { useState, useEffect } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
 import api from '@/lib/api';
-import Navbar from '@/components/Navbar';
-import BackButton from '@/components/BackButton';
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -245,13 +243,10 @@ export default function AdminAnalyticsPage() {
   const lastDate = timeline?.series.at(-1)?.date ?? '';
 
   return (
-    <>
-      <Navbar />
-      <main className="max-w-5xl mx-auto px-4 py-10 space-y-8">
+    <main className="max-w-5xl mx-auto px-4 py-10 space-y-8">
         {/* Header */}
         <div className="flex items-center justify-between">
           <div>
-            <BackButton href="/admin" label="Back to Admin" className="mb-2" />
             <h1 className="text-2xl font-bold text-gray-900">Real Time Analytics</h1>
             <p className="text-sm text-gray-400 mt-0.5">
               Real-time stats for your events
@@ -427,7 +422,6 @@ export default function AdminAnalyticsPage() {
         {!analyticsLoading && !analytics && selectedEventId && (
           <p className="text-gray-400 text-center py-12">No data for this event yet.</p>
         )}
-      </main>
-    </>
+    </main>
   );
 }

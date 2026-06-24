@@ -4,7 +4,6 @@ import { useEffect, useRef, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '@/lib/api';
-import Navbar from '@/components/Navbar';
 import ConfirmModal from '@/components/ConfirmModal';
 import toast from 'react-hot-toast';
 import {
@@ -561,12 +560,9 @@ export default function AdminEventEditPage() {
 
   if (isLoading || !event) {
     return (
-      <>
-        <Navbar />
-        <main className="max-w-3xl mx-auto px-4 py-10">
-          <p className="text-gray-400">Loading…</p>
-        </main>
-      </>
+      <main className="max-w-3xl mx-auto px-4 py-10">
+        <p className="text-gray-400">Loading…</p>
+      </main>
     );
   }
 
@@ -584,7 +580,6 @@ export default function AdminEventEditPage() {
         }}
         onCancel={() => setDialog(null)}
       />
-      <Navbar />
       <WizardShell
         title="Edit Event"
         draft={draft}

@@ -3,8 +3,6 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import api from '@/lib/api';
-import Navbar from '@/components/Navbar';
-import BackButton from '@/components/BackButton';
 import Link from 'next/link';
 import { formatShortDate } from '@axon-tickets/utils';
 
@@ -113,13 +111,10 @@ export default function AdminOrdersPage() {
   };
 
   return (
-    <>
-      <Navbar />
-      <main className="max-w-6xl mx-auto px-4 py-10">
+    <main className="max-w-6xl mx-auto px-4 py-10">
         {/* Header */}
         <div className="flex items-center justify-between mb-8">
           <div>
-            <BackButton href="/admin" label="Back to Admin" className="mb-2" />
             <h1 className="text-2xl font-bold text-gray-900">Transactions</h1>
             <p className="text-sm text-gray-500 mt-1">
               All paid transactions — online and manual (GCash / bank transfer).
@@ -286,7 +281,6 @@ export default function AdminOrdersPage() {
             )}
           </>
         ))}
-      </main>
-    </>
+    </main>
   );
 }

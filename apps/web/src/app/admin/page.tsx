@@ -3,7 +3,6 @@
 import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '@/lib/api';
-import Navbar from '@/components/Navbar';
 import ConfirmModal from '@/components/ConfirmModal';
 import Link from 'next/link';
 import { formatShortDate } from '@axon-tickets/utils';
@@ -124,7 +123,6 @@ export default function AdminDashboardPage() {
         onConfirm={() => { dialog?.onConfirm(); setDialog(null); }}
         onCancel={() => setDialog(null)}
       />
-      <Navbar />
       <main className="max-w-6xl mx-auto px-4 py-10">
         <div className="flex items-center justify-between mb-8">
           <h1 className="text-2xl font-bold text-gray-900">Admin Dashboard</h1>

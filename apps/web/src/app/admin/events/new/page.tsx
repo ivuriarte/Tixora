@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import Navbar from '@/components/Navbar';
 import api from '@/lib/api';
 import toast from 'react-hot-toast';
 import WizardShell from '@/components/event-wizard/WizardShell';
@@ -260,9 +259,7 @@ export default function AdminNewEventPage() {
   ) : null;
 
   return (
-    <>
-      <Navbar />
-      <WizardShell
+    <WizardShell
         title="New Event"
         draft={draft}
         tiers={tiers}
@@ -304,6 +301,5 @@ export default function AdminNewEventPage() {
           }
         }}
       />
-    </>
   );
 }
