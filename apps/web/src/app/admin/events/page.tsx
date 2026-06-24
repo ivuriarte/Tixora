@@ -4,8 +4,6 @@ import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import Link from 'next/link';
 import api from '@/lib/api';
-import Navbar from '@/components/Navbar';
-import BackButton from '@/components/BackButton';
 import { formatShortDate } from '@axon-tickets/utils';
 
 interface EventRow {
@@ -45,12 +43,9 @@ export default function EventHistoryPage() {
   });
 
   return (
-    <>
-      <Navbar />
-      <main className="max-w-6xl mx-auto px-4 py-10">
+    <main className="max-w-6xl mx-auto px-4 py-10">
         <div className="flex items-start justify-between mb-6">
           <div>
-            <BackButton href="/admin" label="Back to Admin" className="mb-2" />
             <h1 className="text-2xl font-bold text-gray-900">Event History</h1>
             <p className="text-sm text-gray-500 mt-1">
               A log of every event with quick access to analytics, attendees, and details.
@@ -140,7 +135,6 @@ export default function EventHistoryPage() {
             </div>
           ))}
         </div>
-      </main>
-    </>
+    </main>
   );
 }

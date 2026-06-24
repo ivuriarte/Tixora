@@ -1,8 +1,6 @@
 'use client';
 
 import { useState, useRef, useEffect, useCallback } from 'react';
-import Navbar from '@/components/Navbar';
-import BackButton from '@/components/BackButton';
 import api from '@/lib/api';
 import toast from 'react-hot-toast';
 import Button from '@/components/Button';
@@ -368,10 +366,7 @@ export default function AdminCheckinPage() {
   // ── Render ─────────────────────────────────────────────────────────────────
 
   return (
-    <>
-      <Navbar />
-      <main className="max-w-2xl mx-auto px-4 py-10 space-y-6">
-        <BackButton href="/admin" label="Back to Admin" />
+    <main className="max-w-2xl mx-auto px-4 py-10 space-y-6">
         <h1 className="text-2xl font-bold text-gray-900">Check-In Scanner</h1>
 
         {/* Event selector */}
@@ -566,7 +561,6 @@ export default function AdminCheckinPage() {
             </button>
           </div>
         )}
-      </main>
-    </>
+    </main>
   );
 }

@@ -4,7 +4,6 @@ import { useEffect, useState, useCallback } from 'react';
 import Image from 'next/image';
 import { useParams, useRouter } from 'next/navigation';
 import api from '@/lib/api';
-import Navbar from '@/components/Navbar';
 import { formatManila, centavosToPeso, formatPHP } from '@axon-tickets/utils';
 
 interface ProofRow {
@@ -142,29 +141,23 @@ export default function AdminRegistrationDetailPage() {
 
   if (loading) {
     return (
-      <>
-        <Navbar />
-        <main className="max-w-3xl mx-auto px-4 py-10">
-          <p className="text-gray-400">Loading…</p>
-        </main>
-      </>
+      <main className="max-w-3xl mx-auto px-4 py-10">
+        <p className="text-gray-400">Loading…</p>
+      </main>
     );
   }
 
   if (!reg) {
     return (
-      <>
-        <Navbar />
-        <main className="max-w-3xl mx-auto px-4 py-10">
-          <p className="text-gray-500">{error ?? 'Not found.'}</p>
-          <button
-            onClick={() => router.push('/admin/verifications')}
-            className="mt-4 text-sm text-primary hover:underline"
-          >
-            ← Back
-          </button>
-        </main>
-      </>
+      <main className="max-w-3xl mx-auto px-4 py-10">
+        <p className="text-gray-500">{error ?? 'Not found.'}</p>
+        <button
+          onClick={() => router.push('/admin/verifications')}
+          className="mt-4 text-sm text-primary hover:underline"
+        >
+          ← Back
+        </button>
+      </main>
     );
   }
 
@@ -172,9 +165,7 @@ export default function AdminRegistrationDetailPage() {
   const canReview = reg.status === 'proof_submitted';
 
   return (
-    <>
-      <Navbar />
-      <main className="max-w-3xl mx-auto px-4 py-10 space-y-6">
+    <main className="max-w-3xl mx-auto px-4 py-10 space-y-6">
         <div className="flex items-center gap-4">
           <button
             onClick={() => router.push('/admin/orders')}
@@ -398,7 +389,6 @@ export default function AdminRegistrationDetailPage() {
             )}
           </div>
         )}
-      </main>
-    </>
+    </main>
   );
 }
