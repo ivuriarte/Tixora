@@ -736,11 +736,6 @@ export default function EventWorkspacePage() {
   if (!summary) {
     return (
       <main className="max-w-4xl mx-auto px-6 py-10">
-        <div className="mb-6">
-          <Link href={`/admin/events/${id}`} className="text-sm text-gray-400 hover:text-gray-600">
-            ← Back to event
-          </Link>
-        </div>
         <div className="rounded-2xl border border-gray-200 bg-white px-8 py-12 text-center max-w-md mx-auto">
           <div className="w-12 h-12 bg-violet-100 rounded-xl flex items-center justify-center mx-auto mb-4">
             <svg className="w-6 h-6 text-violet-600" fill="none" stroke="currentColor" strokeWidth={1.75} viewBox="0 0 24 24">
@@ -774,12 +769,9 @@ export default function EventWorkspacePage() {
         {/* Header */}
         <div className="flex items-start justify-between gap-4">
           <div>
-            <Link href={`/admin/events/${id}`} className="text-xs text-gray-400 hover:text-gray-600 transition-colors">
-              ← {summary.event.title}
-            </Link>
-            <h1 className="text-xl font-semibold text-gray-900 mt-0.5">Event Workspace</h1>
+            <h1 className="text-xl font-semibold text-gray-900">Event Workspace</h1>
             <p className="text-sm text-gray-400">
-              {new Date(summary.event.startsAt).toLocaleDateString('en-PH', { dateStyle: 'long' })}
+              {summary.event.title} &middot; {new Date(summary.event.startsAt).toLocaleDateString('en-PH', { dateStyle: 'long' })}
             </p>
           </div>
           <div className="flex items-center gap-2 shrink-0 flex-wrap justify-end">

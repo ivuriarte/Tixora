@@ -1,5 +1,6 @@
 import { Controller, Post, Get, Body, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { JwtPayload } from '@axon-tickets/types';
@@ -14,6 +15,7 @@ export class OrganizationsController {
   constructor(private readonly orgsService: OrganizationsService) {}
 
   @Post()
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
   @ApiOperation({ summary: 'Register a new organizer organization (pending approval)' })
   register(@Body() dto: RegisterOrganizationDto, @CurrentUser() user: JwtPayload) {
     return this.orgsService.register(dto, user.sub);

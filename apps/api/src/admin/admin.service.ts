@@ -153,7 +153,7 @@ export class AdminService {
         city: e.city,
         startsAt: e.startsAt.toISOString(),
         status: e.status,
-        maxCapacity: (e as any).maxCapacity ?? null,
+        maxCapacity: e.maxCapacity ?? null,
         ticketsSold: tiersByEvent[index].reduce((sum, tier) => sum + tier.soldQuantity, 0),
         ordersCount: e._count.orders,
         lowestPrice: e.tiers.length > 0
@@ -222,38 +222,41 @@ export class AdminService {
 
     const orderWhere = {
       ...(eventId ? { eventId } : {}),
-      ...(orderStatusFilter ? { status: { in: orderStatusFilter as any } } : {}),
+      ...(orderStatusFilter ? { status: { in: orderStatusFilter as Prisma.EnumOrderStatusFilter['in'] } } : {}),
     };
 
     const regWhere = {
       ...(eventId ? { eventId } : {}),
       ...(regStatusFilter && regStatusFilter.length
-        ? { status: { in: regStatusFilter as any } }
+        ? { status: { in: regStatusFilter as Prisma.EnumRegistrationStatusFilter['in'] } }
         : {}),
     };
 
     // Skip the registration query entirely when the status filter has no registration equivalent.
     const includeRegs = !safeStatus || (regStatusFilter && regStatusFilter.length > 0);
 
+    const regQuery = this.prisma.registration.findMany({
+      where: regWhere,
+      orderBy: { createdAt: 'desc' },
+      take: 2_000,
+      include: {
+        user: { select: { email: true, firstName: true, lastName: true } },
+        event: { select: { title: true, slug: true } },
+      },
+    });
+    type RegRow = Awaited<typeof regQuery>[number];
+
     const [orders, registrations] = await Promise.all([
       this.prisma.order.findMany({
         where: orderWhere,
         orderBy: { createdAt: 'desc' },
+        take: 2_000,
         include: {
           user: { select: { email: true, firstName: true, lastName: true } },
           event: { select: { title: true, slug: true } },
         },
       }),
-      includeRegs
-        ? this.prisma.registration.findMany({
-            where: regWhere,
-            orderBy: { createdAt: 'desc' },
-            include: {
-              user: { select: { email: true, firstName: true, lastName: true } },
-              event: { select: { title: true, slug: true } },
-            },
-          })
-        : Promise.resolve([] as any[]),
+      includeRegs ? regQuery : Promise.resolve([] as RegRow[]),
     ]);
 
     type NormalizedRow = {
@@ -284,7 +287,7 @@ export class AdminService {
       createdAt: o.createdAt,
     }));
 
-    const normalizedRegs: NormalizedRow[] = registrations.map((r: any) => ({
+    const normalizedRegs: NormalizedRow[] = registrations.map((r) => ({
       id: r.id,
       source: 'registration',
       reference: r.referenceNumber,
@@ -760,6 +763,7 @@ export class AdminService {
       this.prisma.attendee.findMany({
         where: attendeeWhere,
         orderBy: { createdAt: 'desc' },
+        take: 2_000,
         include: {
           registration: { select: { tierName: true, paymentMethod: true, status: true } },
         },
@@ -767,6 +771,7 @@ export class AdminService {
       this.prisma.ticket.findMany({
         where: ticketWhere,
         orderBy: { createdAt: 'desc' },
+        take: 2_000,
         include: {
           user: { select: { email: true, firstName: true, lastName: true, company: true, jobTitle: true, city: true, phone: true } },
           ticketTier: { select: { name: true } },
@@ -1585,57 +1590,6 @@ export class AdminService {
       size: options.size,
       color: options.color,
     });
-  }
-
-  private drawCenteredWrappedText(
-    page: PDFPage,
-    text: string,
-    options: {
-      x: number;
-      y: number;
-      width: number;
-      maxLines: number;
-      font: PDFFont;
-      size: number;
-      color: ReturnType<typeof rgb>;
-      lineHeight: number;
-    },
-  ) {
-    const lines = this.wrapText(text.trim(), options.font, options.size, options.width, options.maxLines);
-    lines.forEach((line, index) => {
-      this.drawCenteredText(page, line, {
-        x: options.x,
-        y: options.y - index * options.lineHeight,
-        width: options.width,
-        font: options.font,
-        size: options.size,
-        color: options.color,
-      });
-    });
-  }
-
-  private wrapText(text: string, font: PDFFont, size: number, maxWidth: number, maxLines: number) {
-    if (!text) return [''];
-    const words = text.split(/\s+/);
-    const lines: string[] = [];
-    let line = '';
-
-    words.forEach((word) => {
-      const candidate = line ? `${line} ${word}` : word;
-      if (font.widthOfTextAtSize(candidate, size) <= maxWidth) {
-        line = candidate;
-        return;
-      }
-      if (line) lines.push(line);
-      line = word;
-    });
-
-    if (line) lines.push(line);
-    const visible = lines.slice(0, maxLines);
-    if (lines.length > maxLines) {
-      visible[maxLines - 1] = this.truncateToWidth(`${visible[maxLines - 1]}...`, font, size, maxWidth);
-    }
-    return visible;
   }
 
   private truncateToWidth(text: string, font: PDFFont, size: number, maxWidth: number) {

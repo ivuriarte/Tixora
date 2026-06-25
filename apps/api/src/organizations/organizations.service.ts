@@ -62,6 +62,9 @@ export class OrganizationsService {
       id: org.id,
       name: org.name,
       approvalStatus: org.approvalStatus,
+      rejectionReason: null,
+      approvedAt: null,
+      rejectedAt: null,
       createdAt: org.createdAt.toISOString(),
     };
   }
