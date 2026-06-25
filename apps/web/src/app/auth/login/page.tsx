@@ -12,7 +12,7 @@ function LoginForm() {
 
   useEffect(() => {
     if (!isHydrating && isAuthenticated && user) {
-      router.replace(user.isAdmin || user.isOrganizer ? '/admin' : '/');
+      router.replace(user.isAdmin ? '/admin' : '/');
     }
   }, [isHydrating, isAuthenticated, user, router]);
 

@@ -126,7 +126,7 @@ export default function AdminDashboardPage() {
       />
       <main className="max-w-6xl mx-auto px-4 py-10">
         <div className="flex items-center justify-between mb-8">
-          <h1 className="text-2xl font-bold text-gray-900">Admin Dashboard</h1>
+          <h1 className="text-2xl font-bold text-gray-900">Operations Overview</h1>
           <Link
             href="/admin/events/new"
             className="bg-primary text-white font-semibold px-5 py-2.5 rounded-xl text-sm hover:bg-primary-hover transition-colors"

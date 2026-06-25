@@ -310,7 +310,6 @@ function RaciInput({
     );
   }
 
-  const datalistId = `raci-list-${role}-${itemId}`;
   const isEmpty = !userId;
 
   function handleBlur(e: React.FocusEvent<HTMLInputElement>) {
@@ -346,29 +345,22 @@ function RaciInput({
   }
 
   return (
-    <>
-      <input
-        id={`raci-${role}-${itemId}`}
-        type="text"
-        list={datalistId}
-        value={localName}
-        onChange={handleChange}
-        onFocus={() => setIsFocused(true)}
-        onBlur={handleBlur}
-        placeholder={role === 'R' ? 'Responsible…' : 'Accountable…'}
-        disabled={mutation.isPending}
-        className={`w-full text-xs rounded-md border px-2 py-1 focus:outline-none focus:ring-1 focus:ring-violet-400 disabled:opacity-60 truncate ${
-          isEmpty && isUnowned && role === 'R'
-            ? 'border-amber-200 bg-amber-50 text-amber-700 placeholder:text-amber-400'
-            : 'border-gray-200 bg-gray-50 text-gray-700 placeholder:text-gray-300'
-        }`}
-      />
-      <datalist id={datalistId}>
-        {assignableUsers.map((u) => (
-          <option key={u.id} value={u.name} />
-        ))}
-      </datalist>
-    </>
+    <input
+      id={`raci-${role}-${itemId}`}
+      type="text"
+      value={localName}
+      onChange={handleChange}
+      onFocus={() => setIsFocused(true)}
+      onBlur={handleBlur}
+      placeholder={role === 'R' ? 'Responsible…' : 'Accountable…'}
+      disabled={mutation.isPending}
+      autoComplete="off"
+      className={`w-full text-xs rounded-md border px-2 py-1 focus:outline-none focus:ring-1 focus:ring-violet-400 disabled:opacity-60 truncate ${
+        isEmpty && isUnowned && role === 'R'
+          ? 'border-amber-200 bg-amber-50 text-amber-700 placeholder:text-amber-400'
+          : 'border-gray-200 bg-gray-50 text-gray-700 placeholder:text-gray-300'
+      }`}
+    />
   );
 }
 
@@ -412,7 +404,6 @@ function ItemRow({
   const invalidate = useInvalidateWorkspace(eventId);
   const isNA = item.status === 'not_applicable';
   const isDone = item.status === 'done';
-  const overdue = isOverdue(item.dueDate, item.status);
 
   const deleteMutation = useMutation({
     mutationFn: () => api.delete(`/admin/events/${eventId}/workspace/items/${item.id}`),
@@ -440,11 +431,9 @@ function ItemRow({
             </span>
           )}
         </span>
-        {(item.startDate || item.dueDate) && !isNA && (
-          <span className={`text-[10px] tabular-nums ${overdue ? 'text-red-400' : isDone ? 'text-gray-300' : 'text-gray-400'}`}>
-            {item.startDate && formatDate(item.startDate)}
-            {item.startDate && item.dueDate && ' → '}
-            {item.dueDate && (overdue && !isDone ? `⚠ ${formatDate(item.dueDate)}` : formatDate(item.dueDate))}
+        {isDone && item.completedAt && (
+          <span className="text-[10px] text-green-600 tabular-nums">
+            Completed {formatDate(item.completedAt)}
           </span>
         )}
       </div>
