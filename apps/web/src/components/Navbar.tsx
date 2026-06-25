@@ -17,6 +17,8 @@ export default function Navbar() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isLoginOpen, setIsLoginOpen] = useState(false);
   const loginRef = useRef<HTMLDivElement>(null);
+  const isStaff = Boolean(user?.isAdmin || user?.isOrganizer);
+  const dashboardLabel = user?.isAdmin ? 'Admin Dashboard' : 'Organizer Dashboard';
 
   // Close mobile menu and login dropdown on route change
   useEffect(() => {
@@ -85,7 +87,7 @@ export default function Navbar() {
 
         {/* ── Desktop nav (hidden on mobile) ── */}
         <div className="hidden sm:flex items-center gap-4">
-          {!user?.isAdmin && (
+          {!isStaff && (
             <Link href="/" className="text-sm font-medium text-gray-700 hover:text-primary">
               Home
             </Link>
@@ -97,18 +99,18 @@ export default function Navbar() {
             </div>
           ) : isAuthenticated ? (
             <>
-              {user?.isAdmin && (
+              {isStaff && (
                 <Link
                   href="/admin"
                   className="group inline-flex items-center gap-2 text-sm font-medium text-gray-700 hover:text-primary transition-colors"
                   aria-label={
-                    pendingCount > 0
+                    user?.isAdmin && pendingCount > 0
                       ? `Admin Dashboard — ${pendingCount} pending verification${pendingCount === 1 ? '' : 's'}`
-                      : 'Admin Dashboard'
+                      : dashboardLabel
                   }
                 >
-                  <span>Admin Dashboard</span>
-                  {pendingCount > 0 && (
+                  <span>{dashboardLabel}</span>
+                  {user?.isAdmin && pendingCount > 0 && (
                     <span
                       className="inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full text-[11px] font-semibold leading-none bg-red-50 text-red-700 ring-1 ring-inset ring-red-200 group-hover:bg-red-100 transition-colors"
                       title={`${pendingCount} pending verification${pendingCount === 1 ? '' : 's'}`}
@@ -118,7 +120,7 @@ export default function Navbar() {
                   )}
                 </Link>
               )}
-              {user?.isAdmin ? (
+              {isStaff ? (
                 <Link href="/admin/event-previews" className="text-sm font-medium text-gray-700 hover:text-primary">
                   Event Previews
                 </Link>
@@ -127,12 +129,12 @@ export default function Navbar() {
                   My Events
                 </Link>
               )}
-              {!user?.isAdmin && (
+              {!isStaff && (
                 <Link href="/become-organizer" className="text-sm font-medium text-gray-700 hover:text-primary">
                   Organize
                 </Link>
               )}
-              <Link href="/profile" className="text-sm font-medium text-gray-700 hover:text-primary">
+              <Link href={isStaff ? '/admin/profile' : '/profile'} className="text-sm font-medium text-gray-700 hover:text-primary">
                 My Profile
               </Link>
               <button
@@ -227,22 +229,22 @@ export default function Navbar() {
             </div>
           ) : isAuthenticated ? (
             <>
-              {!user?.isAdmin && (
+              {!isStaff && (
                 <Link href="/" className="block px-3 py-2 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors">
                   Home
                 </Link>
               )}
-              {user?.isAdmin && (
+              {isStaff && (
                 <Link href="/admin" className="flex items-center justify-between px-3 py-2 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors">
-                  <span>Admin Dashboard</span>
-                  {pendingCount > 0 && (
+                  <span>{dashboardLabel}</span>
+                  {user?.isAdmin && pendingCount > 0 && (
                     <span className="inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full text-[11px] font-semibold bg-red-50 text-red-700 ring-1 ring-inset ring-red-200">
                       {pendingCount > 99 ? '99+' : pendingCount}
                     </span>
                   )}
                 </Link>
               )}
-              {user?.isAdmin ? (
+              {isStaff ? (
                 <Link href="/admin/event-previews" className="block px-3 py-2 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors">
                   Event Previews
                 </Link>
@@ -251,12 +253,12 @@ export default function Navbar() {
                   My Events
                 </Link>
               )}
-              {!user?.isAdmin && (
+              {!isStaff && (
                 <Link href="/become-organizer" className="block px-3 py-2 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors">
                   Organize
                 </Link>
               )}
-              <Link href="/profile" className="block px-3 py-2 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors">
+              <Link href={isStaff ? '/admin/profile' : '/profile'} className="block px-3 py-2 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors">
                 My Profile
               </Link>
               <button

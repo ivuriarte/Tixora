@@ -1872,7 +1872,13 @@ export class AdminService {
       id: org.id,
       name: org.name,
       description: org.description,
+      contactName: org.contactName,
+      organizationType: org.organizationType,
+      registrationNumber: org.registrationNumber,
+      idType: org.idType,
+      idNumber: org.idNumber,
       website: org.website,
+      facebookUrl: org.facebookUrl,
       phone: org.phone,
       city: org.city,
       approvalStatus: org.approvalStatus,
@@ -1946,7 +1952,7 @@ export class AdminService {
       org.createdBy.email,
       org.createdBy.firstName ?? 'there',
       org.name,
-      `${webUrl}/admin`,
+      webUrl,
     );
 
     return {

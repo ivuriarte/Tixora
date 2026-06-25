@@ -5,7 +5,7 @@ import Navbar from '@/components/Navbar';
 import api from '@/lib/api';
 import { useAuthStore } from '@/store/auth.store';
 import toast from 'react-hot-toast';
-import { useRouter } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 
 interface ProfileData {
   id: string;
@@ -21,15 +21,24 @@ interface ProfileData {
 
 interface OrganizationProfile {
   name: string;
+  description: string;
   approvalStatus: string;
   contactName: string;
   city: string;
   phone: string;
+  idType: string;
+  idNumber: string;
+  organizationType: string;
+  registrationNumber: string | null;
+  website: string | null;
+  facebookUrl: string | null;
 }
 
 export default function ProfilePage() {
   const router = useRouter();
+  const pathname = usePathname();
   const { isAuthenticated, isHydrating, user: authUser } = useAuthStore();
+  const isAdminShell = pathname.startsWith('/admin');
 
   const [profile, setProfile] = useState<ProfileData | null>(null);
   const [organization, setOrganization] = useState<OrganizationProfile | null>(null);
@@ -49,7 +58,7 @@ export default function ProfilePage() {
   useEffect(() => {
     if (isHydrating) return;
     if (!isAuthenticated) {
-      router.replace('/auth/access?redirect=/profile');
+      router.replace(isAdminShell ? '/auth/admin' : '/auth/access?redirect=/profile');
       return;
     }
     api
@@ -76,7 +85,7 @@ export default function ProfilePage() {
       })
       .catch(() => toast.error('Could not load your profile. Please refresh the page to try again.'))
       .finally(() => setLoading(false));
-  }, [isHydrating, isAuthenticated, router]);
+  }, [isHydrating, isAuthenticated, authUser?.isOrganizer, isAdminShell, router]);
 
   function update(e: React.ChangeEvent<HTMLInputElement>) {
     setForm((f) => ({ ...f, [e.target.name]: e.target.value }));
@@ -118,7 +127,7 @@ export default function ProfilePage() {
   if (isHydrating || loading) {
     return (
       <>
-        <Navbar />
+        {!isAdminShell && <Navbar />}
         <main className="max-w-2xl mx-auto px-4 py-10 space-y-4">
           <div className="h-8 w-40 bg-gray-200 rounded animate-pulse" />
           <div className="h-64 bg-white rounded-2xl border border-gray-200 animate-pulse" />
@@ -144,7 +153,7 @@ export default function ProfilePage() {
 
   return (
     <>
-      <Navbar />
+      {!isAdminShell && <Navbar />}
       <main className="max-w-2xl mx-auto px-4 py-10">
         <h1 className="text-2xl font-bold text-gray-900 mb-6">{accountLabel} Profile</h1>
 
@@ -185,12 +194,56 @@ export default function ProfilePage() {
                 <p className="font-medium text-gray-900 capitalize">{organization.approvalStatus}</p>
               </div>
               <div>
+                <p className="text-gray-400">Organization type</p>
+                <p className="font-medium text-gray-900">{organization.organizationType}</p>
+              </div>
+              <div>
                 <p className="text-gray-400">Primary contact</p>
                 <p className="font-medium text-gray-900">{organization.contactName}</p>
               </div>
               <div>
+                <p className="text-gray-400">Contact phone</p>
+                <p className="font-medium text-gray-900">{organization.phone}</p>
+              </div>
+              <div>
                 <p className="text-gray-400">Organizer city</p>
                 <p className="font-medium text-gray-900">{organization.city}</p>
+              </div>
+              <div>
+                <p className="text-gray-400">Government ID type</p>
+                <p className="font-medium text-gray-900">{organization.idType}</p>
+              </div>
+              <div>
+                <p className="text-gray-400">ID number</p>
+                <p className="font-medium text-gray-900">{organization.idNumber}</p>
+              </div>
+              <div>
+                <p className="text-gray-400">Registration no.</p>
+                <p className="font-medium text-gray-900">{organization.registrationNumber ?? 'Not provided'}</p>
+              </div>
+              <div>
+                <p className="text-gray-400">Website</p>
+                {organization.website ? (
+                  <a href={organization.website} target="_blank" rel="noopener noreferrer" className="font-medium text-primary hover:underline break-words">
+                    {organization.website}
+                  </a>
+                ) : (
+                  <p className="font-medium text-gray-400">Not provided</p>
+                )}
+              </div>
+              <div>
+                <p className="text-gray-400">Facebook page</p>
+                {organization.facebookUrl ? (
+                  <a href={organization.facebookUrl} target="_blank" rel="noopener noreferrer" className="font-medium text-primary hover:underline break-words">
+                    {organization.facebookUrl}
+                  </a>
+                ) : (
+                  <p className="font-medium text-gray-400">Not provided</p>
+                )}
+              </div>
+              <div className="sm:col-span-2">
+                <p className="text-gray-400">Description</p>
+                <p className="font-medium text-gray-900">{organization.description}</p>
               </div>
             </div>
           </div>
