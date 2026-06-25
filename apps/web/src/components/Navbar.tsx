@@ -128,6 +128,9 @@ export default function Navbar() {
             </>
           ) : (
             <>
+              <Link href="/become-organizer" className="text-sm font-medium text-gray-500 hover:text-primary">
+                Become an organizer
+              </Link>
               <Link href="/auth/login" className="text-sm font-medium text-gray-700 hover:text-primary">
                 Log in
               </Link>
@@ -213,6 +216,9 @@ export default function Navbar() {
             <>
               <Link href="/" className="block px-3 py-2 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors">
                 Home
+              </Link>
+              <Link href="/become-organizer" className="block px-3 py-2 rounded-lg text-sm font-medium text-gray-500 hover:bg-gray-50 transition-colors">
+                Become an organizer
               </Link>
               <Link href="/auth/login" className="block px-3 py-2 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors">
                 Log in

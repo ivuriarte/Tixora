@@ -255,12 +255,15 @@ function UnauthenticatedLanding() {
         <p className="text-lg text-gray-500 max-w-xl mx-auto mb-8">
           Join hundreds of organizers selling tickets, managing attendees, and running professional events — all on one platform.
         </p>
+        <p className="text-sm text-gray-400 mb-3">
+          New to Axon Tickets? Create a free account first, then complete your organizer application.
+        </p>
         <div className="flex flex-col sm:flex-row gap-3 justify-center">
           <Link
-            href="/auth/access?redirect=/become-organizer"
+            href="/auth/register?redirect=/become-organizer"
             className="inline-flex items-center justify-center gap-2 bg-violet-600 hover:bg-violet-700 text-white font-semibold px-7 py-3.5 rounded-xl transition-colors text-base"
           >
-            Apply as an organizer
+            Create account &amp; apply
             <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" aria-hidden="true">
               <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
             </svg>
@@ -269,7 +272,7 @@ function UnauthenticatedLanding() {
             href="/auth/login?redirect=/become-organizer"
             className="inline-flex items-center justify-center gap-2 border border-gray-300 text-gray-700 hover:border-gray-400 hover:bg-gray-50 font-semibold px-7 py-3.5 rounded-xl transition-colors text-base"
           >
-            Sign in to apply
+            Already have an account? Sign in
           </Link>
         </div>
       </div>
@@ -299,65 +302,108 @@ function UnauthenticatedLanding() {
 interface FormFields {
   name: string;
   description: string;
-  website: string;
+  organizationType: string;
+  registrationNumber: string;
+  contactName: string;
   phone: string;
   city: string;
+  idType: string;
+  idNumber: string;
+  website: string;
+  facebookUrl: string;
 }
 
-const EMPTY_FORM: FormFields = { name: '', description: '', website: '', phone: '', city: '' };
+const EMPTY_FORM: FormFields = {
+  name: '', description: '', organizationType: '', registrationNumber: '',
+  contactName: '', phone: '', city: '',
+  idType: '', idNumber: '',
+  website: '', facebookUrl: '',
+};
+
+const ORG_TYPE_OPTIONS = [
+  { value: 'individual', label: 'Individual / Freelancer' },
+  { value: 'company', label: 'Business / Company' },
+  { value: 'ngo', label: 'NGO / Non-profit' },
+  { value: 'event_company', label: 'Event management company' },
+];
+
+const ID_TYPE_OPTIONS = [
+  { value: 'passport', label: 'Philippine Passport' },
+  { value: 'drivers_license', label: "Driver's License" },
+  { value: 'umid', label: 'UMID' },
+  { value: 'sss', label: 'SSS ID' },
+  { value: 'philsys', label: 'PhilSys ID (National ID)' },
+  { value: 'postal_id', label: 'Postal ID' },
+];
+
+const REQ = <span className="text-red-500 ml-0.5" aria-hidden="true">*</span>;
+const INP = (err?: string) =>
+  `w-full border rounded-lg px-3.5 py-2.5 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-violet-400 transition ${err ? 'border-red-400 bg-red-50' : 'border-gray-300'}`;
+
+function SectionHeading({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="pt-2">
+      <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-4 pb-2 border-b border-gray-100">
+        {children}
+      </h2>
+    </div>
+  );
+}
 
 function RegistrationForm({ onSuccess }: { onSuccess: (org: OrgData) => void }) {
   const [form, setForm] = useState<FormFields>(EMPTY_FORM);
-  const [errors, setErrors] = useState<Partial<FormFields>>({});
+  const [errors, setErrors] = useState<Partial<Record<keyof FormFields, string>>>({});
   const [submitting, setSubmitting] = useState(false);
   const nameRef = useRef<HTMLInputElement>(null);
 
   function set(field: keyof FormFields) {
-    return (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    return (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
       setForm((prev) => ({ ...prev, [field]: e.target.value }));
       if (errors[field]) setErrors((prev) => ({ ...prev, [field]: undefined }));
     };
   }
 
   function validate(): boolean {
-    const next: Partial<FormFields> = {};
+    const next: Partial<Record<keyof FormFields, string>> = {};
 
-    if (!form.name.trim()) {
-      next.name = 'Organization name is required';
-    } else if (form.name.trim().length < 2) {
-      next.name = 'Name must be at least 2 characters';
-    } else if (form.name.trim().length > 120) {
-      next.name = 'Name must be 120 characters or fewer';
-    }
+    if (!form.name.trim()) next.name = 'Organization name is required';
+    else if (form.name.trim().length < 2) next.name = 'Name must be at least 2 characters';
+    else if (form.name.trim().length > 120) next.name = 'Name must be 120 characters or fewer';
 
-    if (form.description.length > 500) {
-      next.description = 'Description must be 500 characters or fewer';
-    }
+    if (!form.description.trim()) next.description = 'Description is required';
+    else if (form.description.trim().length < 20) next.description = 'Describe your organization in at least 20 characters';
+    else if (form.description.trim().length > 1000) next.description = 'Description must be 1000 characters or fewer';
 
-    if (form.website) {
+    if (!form.organizationType) next.organizationType = 'Select an organization type';
+
+    if (!form.contactName.trim()) next.contactName = 'Contact person name is required';
+    else if (form.contactName.trim().length < 2) next.contactName = 'Name must be at least 2 characters';
+
+    if (!form.phone.trim()) next.phone = 'Contact phone is required';
+    else if (!/^\+?[0-9\s\-().]{7,25}$/.test(form.phone.trim())) next.phone = 'Enter a valid phone number (e.g. +639171234567)';
+
+    if (!form.city.trim()) next.city = 'City is required';
+
+    if (!form.idType) next.idType = 'Select a government ID type';
+
+    if (!form.idNumber.trim()) next.idNumber = 'ID number is required';
+    else if (form.idNumber.trim().length < 4) next.idNumber = 'ID number must be at least 4 characters';
+
+    if (form.website.trim()) {
       const webErr = validateWebsite(form.website.trim());
       if (webErr) next.website = webErr;
-      else if (form.website.trim().length > 200) next.website = 'URL too long (max 200 characters)';
     }
-
-    if (form.phone && form.phone.trim().length > 30) {
-      next.phone = 'Phone number too long (max 30 characters)';
-    }
-
-    if (form.city && form.city.trim().length > 80) {
-      next.city = 'City name too long (max 80 characters)';
+    if (form.facebookUrl.trim()) {
+      const fbErr = validateWebsite(form.facebookUrl.trim());
+      if (fbErr) next.facebookUrl = fbErr;
     }
 
     setErrors(next);
-
     if (Object.keys(next).length > 0) {
-      // Move focus to the first field with an error
       const firstKey = Object.keys(next)[0] as keyof FormFields;
-      const el = document.getElementById(`org-field-${firstKey}`);
-      if (el) (el as HTMLElement).focus();
+      document.getElementById(`org-field-${firstKey}`)?.focus();
       return false;
     }
-
     return true;
   }
 
@@ -367,11 +413,19 @@ function RegistrationForm({ onSuccess }: { onSuccess: (org: OrgData) => void }) 
 
     setSubmitting(true);
     try {
-      const payload: Partial<FormFields> = { name: form.name.trim() };
-      if (form.description.trim()) payload.description = form.description.trim();
+      const payload: Record<string, string> = {
+        name: form.name.trim(),
+        description: form.description.trim(),
+        organizationType: form.organizationType,
+        contactName: form.contactName.trim(),
+        phone: form.phone.trim(),
+        city: form.city.trim(),
+        idType: form.idType,
+        idNumber: form.idNumber.trim(),
+      };
+      if (form.registrationNumber.trim()) payload.registrationNumber = form.registrationNumber.trim();
       if (form.website.trim()) payload.website = form.website.trim();
-      if (form.phone.trim()) payload.phone = form.phone.trim();
-      if (form.city.trim()) payload.city = form.city.trim();
+      if (form.facebookUrl.trim()) payload.facebookUrl = form.facebookUrl.trim();
 
       const res = await api.post<{ data: OrgData }>('/organizations', payload);
       toast.success('Application submitted!');
@@ -388,31 +442,30 @@ function RegistrationForm({ onSuccess }: { onSuccess: (org: OrgData) => void }) 
     }
   }
 
-  // Focus name field on mount
-  useEffect(() => {
-    nameRef.current?.focus();
-  }, []);
+  useEffect(() => { nameRef.current?.focus(); }, []);
 
   return (
-    <div className="max-w-xl mx-auto">
+    <div className="max-w-2xl mx-auto">
       <div className="text-center mb-8">
         <div className="inline-flex items-center justify-center w-12 h-12 rounded-xl bg-violet-600 mb-4" aria-hidden="true">
           <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" strokeWidth={1.75} viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+            <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
           </svg>
         </div>
-        <h1 className="text-2xl font-bold text-gray-900 mb-1">Register your organization</h1>
+        <h1 className="text-2xl font-bold text-gray-900 mb-1">Organizer application</h1>
         <p className="text-sm text-gray-500">
-          Tell us about your organization. Our team will review your application within 1–2 business days.
+          Complete your KYC details so our team can verify your identity and organization. All information is kept confidential.
         </p>
       </div>
 
       <form onSubmit={handleSubmit} noValidate className="bg-white rounded-2xl border border-gray-200 shadow-sm p-7 space-y-5">
-        {/* Name */}
+
+        {/* ── Section 1: Organization ── */}
+        <SectionHeading>Organization details</SectionHeading>
+
         <div>
           <label htmlFor="org-field-name" className="block text-sm font-medium text-gray-700 mb-1.5">
-            Organization name <span className="text-red-500" aria-hidden="true">*</span>
-            <span className="sr-only">(required)</span>
+            Organization name {REQ}
           </label>
           <input
             ref={nameRef}
@@ -424,82 +477,100 @@ function RegistrationForm({ onSuccess }: { onSuccess: (org: OrgData) => void }) 
             maxLength={120}
             aria-required="true"
             aria-invalid={!!errors.name}
-            aria-describedby={errors.name ? 'org-err-name' : undefined}
-            className={`w-full border rounded-lg px-3.5 py-2.5 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-violet-400 transition ${
-              errors.name ? 'border-red-400 bg-red-50' : 'border-gray-300'
-            }`}
+            className={INP(errors.name)}
           />
-          {errors.name && (
-            <p id="org-err-name" role="alert" className="text-xs text-red-600 mt-1">{errors.name}</p>
-          )}
+          {errors.name && <p role="alert" className="text-xs text-red-600 mt-1">{errors.name}</p>}
         </div>
 
-        {/* Description */}
         <div>
           <label htmlFor="org-field-description" className="block text-sm font-medium text-gray-700 mb-1.5">
-            Description
-            <span className="ml-1.5 text-xs text-gray-400 font-normal">(optional)</span>
+            Description {REQ}
+            <span className="ml-1.5 text-xs text-gray-400 font-normal">— what kind of events do you produce?</span>
           </label>
           <textarea
             id="org-field-description"
             value={form.description}
             onChange={set('description')}
             rows={3}
-            maxLength={500}
-            placeholder="What kind of events does your organization produce?"
+            maxLength={1000}
+            placeholder="Describe your organization, the types of events you run, and your experience as an event organizer."
+            aria-required="true"
             aria-invalid={!!errors.description}
-            aria-describedby={errors.description ? 'org-err-description' : 'org-desc-count'}
-            className={`w-full border rounded-lg px-3.5 py-2.5 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-violet-400 transition resize-none ${
-              errors.description ? 'border-red-400 bg-red-50' : 'border-gray-300'
-            }`}
+            className={`${INP(errors.description)} resize-none`}
           />
           <div className="flex justify-between mt-1">
-            {errors.description ? (
-              <p id="org-err-description" role="alert" className="text-xs text-red-600">{errors.description}</p>
-            ) : (
-              <span />
-            )}
-            <span
-              id="org-desc-count"
-              aria-live="polite"
-              className={`text-xs ${form.description.length > 450 ? 'text-amber-600' : 'text-gray-400'}`}
-            >
-              {form.description.length}/500
+            {errors.description
+              ? <p role="alert" className="text-xs text-red-600">{errors.description}</p>
+              : <span />}
+            <span className={`text-xs ${form.description.length > 900 ? 'text-amber-600' : 'text-gray-400'}`}>
+              {form.description.length}/1000
             </span>
           </div>
         </div>
 
-        {/* Two-column row */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          {/* City */}
           <div>
-            <label htmlFor="org-field-city" className="block text-sm font-medium text-gray-700 mb-1.5">
-              City
+            <label htmlFor="org-field-organizationType" className="block text-sm font-medium text-gray-700 mb-1.5">
+              Organization type {REQ}
+            </label>
+            <select
+              id="org-field-organizationType"
+              value={form.organizationType}
+              onChange={set('organizationType')}
+              aria-required="true"
+              aria-invalid={!!errors.organizationType}
+              className={INP(errors.organizationType)}
+            >
+              <option value="">Select type…</option>
+              {ORG_TYPE_OPTIONS.map((o) => (
+                <option key={o.value} value={o.value}>{o.label}</option>
+              ))}
+            </select>
+            {errors.organizationType && <p role="alert" className="text-xs text-red-600 mt-1">{errors.organizationType}</p>}
+          </div>
+
+          <div>
+            <label htmlFor="org-field-registrationNumber" className="block text-sm font-medium text-gray-700 mb-1.5">
+              DTI / SEC / CDA registration no.
               <span className="ml-1.5 text-xs text-gray-400 font-normal">(optional)</span>
             </label>
             <input
-              id="org-field-city"
+              id="org-field-registrationNumber"
               type="text"
-              value={form.city}
-              onChange={set('city')}
-              placeholder="e.g. Manila"
-              maxLength={80}
-              aria-invalid={!!errors.city}
-              aria-describedby={errors.city ? 'org-err-city' : undefined}
-              className={`w-full border rounded-lg px-3.5 py-2.5 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-violet-400 transition ${
-                errors.city ? 'border-red-400 bg-red-50' : 'border-gray-300'
-              }`}
+              value={form.registrationNumber}
+              onChange={set('registrationNumber')}
+              placeholder="e.g. DTI-123456"
+              maxLength={100}
+              className={INP(errors.registrationNumber)}
             />
-            {errors.city && (
-              <p id="org-err-city" role="alert" className="text-xs text-red-600 mt-1">{errors.city}</p>
-            )}
           </div>
+        </div>
 
-          {/* Phone */}
+        {/* ── Section 2: Primary contact ── */}
+        <SectionHeading>Primary contact</SectionHeading>
+
+        <div>
+          <label htmlFor="org-field-contactName" className="block text-sm font-medium text-gray-700 mb-1.5">
+            Contact person full name {REQ}
+          </label>
+          <input
+            id="org-field-contactName"
+            type="text"
+            value={form.contactName}
+            onChange={set('contactName')}
+            placeholder="e.g. Juan Dela Cruz"
+            maxLength={120}
+            aria-required="true"
+            aria-invalid={!!errors.contactName}
+            className={INP(errors.contactName)}
+          />
+          {errors.contactName && <p role="alert" className="text-xs text-red-600 mt-1">{errors.contactName}</p>}
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
             <label htmlFor="org-field-phone" className="block text-sm font-medium text-gray-700 mb-1.5">
-              Contact phone
-              <span className="ml-1.5 text-xs text-gray-400 font-normal">(optional)</span>
+              Contact phone {REQ}
             </label>
             <input
               id="org-field-phone"
@@ -507,50 +578,125 @@ function RegistrationForm({ onSuccess }: { onSuccess: (org: OrgData) => void }) 
               value={form.phone}
               onChange={set('phone')}
               placeholder="+639171234567"
-              maxLength={30}
+              maxLength={25}
+              aria-required="true"
               aria-invalid={!!errors.phone}
-              aria-describedby={errors.phone ? 'org-err-phone' : undefined}
-              className={`w-full border rounded-lg px-3.5 py-2.5 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-violet-400 transition ${
-                errors.phone ? 'border-red-400 bg-red-50' : 'border-gray-300'
-              }`}
+              className={INP(errors.phone)}
             />
-            {errors.phone && (
-              <p id="org-err-phone" role="alert" className="text-xs text-red-600 mt-1">{errors.phone}</p>
-            )}
+            {errors.phone && <p role="alert" className="text-xs text-red-600 mt-1">{errors.phone}</p>}
+          </div>
+
+          <div>
+            <label htmlFor="org-field-city" className="block text-sm font-medium text-gray-700 mb-1.5">
+              City {REQ}
+            </label>
+            <input
+              id="org-field-city"
+              type="text"
+              value={form.city}
+              onChange={set('city')}
+              placeholder="e.g. Davao City"
+              maxLength={80}
+              aria-required="true"
+              aria-invalid={!!errors.city}
+              className={INP(errors.city)}
+            />
+            {errors.city && <p role="alert" className="text-xs text-red-600 mt-1">{errors.city}</p>}
           </div>
         </div>
 
-        {/* Website */}
-        <div>
-          <label htmlFor="org-field-website" className="block text-sm font-medium text-gray-700 mb-1.5">
-            Website
-            <span className="ml-1.5 text-xs text-gray-400 font-normal">(optional)</span>
-          </label>
-          <input
-            id="org-field-website"
-            type="url"
-            value={form.website}
-            onChange={set('website')}
-            placeholder="https://yourcompany.com"
-            maxLength={200}
-            aria-invalid={!!errors.website}
-            aria-describedby={errors.website ? 'org-err-website' : undefined}
-            className={`w-full border rounded-lg px-3.5 py-2.5 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-violet-400 transition ${
-              errors.website ? 'border-red-400 bg-red-50' : 'border-gray-300'
-            }`}
-          />
-          {errors.website && (
-            <p id="org-err-website" role="alert" className="text-xs text-red-600 mt-1">{errors.website}</p>
-          )}
+        {/* ── Section 3: Identity verification ── */}
+        <SectionHeading>Identity verification</SectionHeading>
+        <p className="text-xs text-gray-500 -mt-3">
+          A valid Philippine government-issued ID is required. This information is used only for KYC verification and kept strictly confidential.
+        </p>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label htmlFor="org-field-idType" className="block text-sm font-medium text-gray-700 mb-1.5">
+              Government ID type {REQ}
+            </label>
+            <select
+              id="org-field-idType"
+              value={form.idType}
+              onChange={set('idType')}
+              aria-required="true"
+              aria-invalid={!!errors.idType}
+              className={INP(errors.idType)}
+            >
+              <option value="">Select ID type…</option>
+              {ID_TYPE_OPTIONS.map((o) => (
+                <option key={o.value} value={o.value}>{o.label}</option>
+              ))}
+            </select>
+            {errors.idType && <p role="alert" className="text-xs text-red-600 mt-1">{errors.idType}</p>}
+          </div>
+
+          <div>
+            <label htmlFor="org-field-idNumber" className="block text-sm font-medium text-gray-700 mb-1.5">
+              ID number {REQ}
+            </label>
+            <input
+              id="org-field-idNumber"
+              type="text"
+              value={form.idNumber}
+              onChange={set('idNumber')}
+              placeholder="e.g. P1234567A"
+              maxLength={50}
+              aria-required="true"
+              aria-invalid={!!errors.idNumber}
+              className={INP(errors.idNumber)}
+            />
+            {errors.idNumber && <p role="alert" className="text-xs text-red-600 mt-1">{errors.idNumber}</p>}
+          </div>
+        </div>
+
+        {/* ── Section 4: Online presence ── */}
+        <SectionHeading>Online presence <span className="normal-case font-normal text-gray-400">(optional)</span></SectionHeading>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label htmlFor="org-field-website" className="block text-sm font-medium text-gray-700 mb-1.5">
+              Website
+            </label>
+            <input
+              id="org-field-website"
+              type="url"
+              value={form.website}
+              onChange={set('website')}
+              placeholder="https://yourcompany.com"
+              maxLength={200}
+              aria-invalid={!!errors.website}
+              className={INP(errors.website)}
+            />
+            {errors.website && <p role="alert" className="text-xs text-red-600 mt-1">{errors.website}</p>}
+          </div>
+
+          <div>
+            <label htmlFor="org-field-facebookUrl" className="block text-sm font-medium text-gray-700 mb-1.5">
+              Facebook page URL
+            </label>
+            <input
+              id="org-field-facebookUrl"
+              type="url"
+              value={form.facebookUrl}
+              onChange={set('facebookUrl')}
+              placeholder="https://facebook.com/yourpage"
+              maxLength={200}
+              aria-invalid={!!errors.facebookUrl}
+              className={INP(errors.facebookUrl)}
+            />
+            {errors.facebookUrl && <p role="alert" className="text-xs text-red-600 mt-1">{errors.facebookUrl}</p>}
+          </div>
         </div>
 
         {/* Notice */}
-        <div className="flex items-start gap-2.5 bg-gray-50 rounded-xl px-4 py-3">
-          <svg className="flex-shrink-0 w-4 h-4 text-gray-400 mt-0.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" aria-hidden="true">
+        <div className="flex items-start gap-2.5 bg-violet-50 rounded-xl px-4 py-3">
+          <svg className="flex-shrink-0 w-4 h-4 text-violet-500 mt-0.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" aria-hidden="true">
             <path strokeLinecap="round" strokeLinejoin="round" d="M11.25 11.25l.041-.02a.75.75 0 011.063.852l-.708 2.836a.75.75 0 001.063.853l.041-.021M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9-3.75h.008v.008H12V8.25z" />
           </svg>
-          <p className="text-xs text-gray-500 leading-relaxed">
-            Your application will be reviewed by our team before you can publish events. You&apos;ll be notified by email within 1–2 business days.
+          <p className="text-xs text-violet-700 leading-relaxed">
+            Your application will be manually reviewed by our team. You&apos;ll be notified by email within 1–2 business days. Fields marked <span className="text-red-500">*</span> are required.
           </p>
         </div>
 
@@ -561,13 +707,7 @@ function RegistrationForm({ onSuccess }: { onSuccess: (org: OrgData) => void }) 
         >
           {submitting ? (
             <>
-              <svg
-                className="w-4 h-4 animate-spin"
-                fill="none"
-                viewBox="0 0 24 24"
-                role="status"
-                aria-label="Submitting…"
-              >
+              <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24" role="status" aria-label="Submitting…">
                 <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                 <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
               </svg>

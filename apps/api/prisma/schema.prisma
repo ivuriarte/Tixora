@@ -480,20 +480,26 @@ model RegistrationFunnelEvent {
 // ── Organizer Management ──────────────────────────────────────────────────────
 
 model Organization {
-  id              String            @id @default(uuid())
-  name            String
-  description     String?
-  website         String?
-  phone           String?
-  city            String?
-  approvalStatus  OrgApprovalStatus @default(pending) @map("approval_status")
-  approvedById    String?           @map("approved_by_id")
-  approvedAt      DateTime?         @map("approved_at")
-  rejectedAt      DateTime?         @map("rejected_at")
-  rejectionReason String?           @map("rejection_reason")
-  createdById     String            @map("created_by_id")
-  createdAt       DateTime          @default(now()) @map("created_at")
-  updatedAt       DateTime          @updatedAt @map("updated_at")
+  id                 String            @id @default(uuid())
+  name               String
+  description        String
+  contactName        String            @map("contact_name")
+  phone              String
+  city               String
+  idType             String            @map("id_type")
+  idNumber           String            @map("id_number")
+  organizationType   String            @map("organization_type")
+  registrationNumber String?           @map("registration_number")
+  website            String?
+  facebookUrl        String?           @map("facebook_url")
+  approvalStatus     OrgApprovalStatus @default(pending) @map("approval_status")
+  approvedById       String?           @map("approved_by_id")
+  approvedAt         DateTime?         @map("approved_at")
+  rejectedAt         DateTime?         @map("rejected_at")
+  rejectionReason    String?           @map("rejection_reason")
+  createdById        String            @map("created_by_id")
+  createdAt          DateTime          @default(now()) @map("created_at")
+  updatedAt          DateTime          @updatedAt @map("updated_at")
 
   createdBy  User                 @relation("OrgCreatedBy", fields: [createdById], references: [id])
   approvedBy User?                @relation("OrgApprovedBy", fields: [approvedById], references: [id])

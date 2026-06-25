@@ -15,7 +15,7 @@ export class OrganizationsService {
   ) {}
 
   async register(dto: RegisterOrganizationDto, userId: string) {
-    // One active application per user — pending or approved orgs block a new submission
+    // Block if user already has a pending or approved org
     const existing = await this.prisma.organizationMember.findFirst({
       where: {
         userId,
@@ -31,41 +31,51 @@ export class OrganizationsService {
       );
     }
 
-    const org = await this.prisma.$transaction(async (tx) => {
-      const organization = await tx.organization.create({
-        data: {
-          name: dto.name.trim(),
-          description: dto.description?.trim() ?? null,
-          website: dto.website?.trim() ?? null,
-          phone: dto.phone?.trim() ?? null,
-          city: dto.city?.trim() ?? null,
-          createdById: userId,
-        },
-      });
+    // Sequential create — avoids $transaction(callback) which can fail with
+    // PgBouncer in transaction mode (Supabase default connection pooler).
+    const organization = await this.prisma.organization.create({
+      data: {
+        name: dto.name.trim(),
+        description: dto.description.trim(),
+        contactName: dto.contactName.trim(),
+        phone: dto.phone.trim(),
+        city: dto.city.trim(),
+        idType: dto.idType,
+        idNumber: dto.idNumber.trim(),
+        organizationType: dto.organizationType,
+        registrationNumber: dto.registrationNumber?.trim() ?? null,
+        website: dto.website?.trim() ?? null,
+        facebookUrl: dto.facebookUrl?.trim() ?? null,
+        createdById: userId,
+      },
+    });
 
-      await tx.organizationMember.create({
+    try {
+      await this.prisma.organizationMember.create({
         data: { userId, organizationId: organization.id, role: 'owner' },
       });
-
-      return organization;
-    });
+    } catch (e) {
+      // Roll back the org if membership creation fails
+      await this.prisma.organization.delete({ where: { id: organization.id } }).catch(() => null);
+      throw e;
+    }
 
     await this.audit.log({
       action: 'ORGANIZER_REGISTERED',
       entityType: 'Organization',
-      entityId: org.id,
+      entityId: organization.id,
       performedById: userId,
-      metadata: { name: org.name },
-    });
+      metadata: { name: organization.name, organizationType: organization.organizationType },
+    }).catch(() => null); // audit failure must never fail the registration
 
     return {
-      id: org.id,
-      name: org.name,
-      approvalStatus: org.approvalStatus,
+      id: organization.id,
+      name: organization.name,
+      approvalStatus: organization.approvalStatus,
       rejectionReason: null,
       approvedAt: null,
       rejectedAt: null,
-      createdAt: org.createdAt.toISOString(),
+      createdAt: organization.createdAt.toISOString(),
     };
   }
 
@@ -78,9 +88,15 @@ export class OrganizationsService {
             id: true,
             name: true,
             description: true,
-            website: true,
+            contactName: true,
             phone: true,
             city: true,
+            idType: true,
+            idNumber: true,
+            organizationType: true,
+            registrationNumber: true,
+            website: true,
+            facebookUrl: true,
             approvalStatus: true,
             rejectionReason: true,
             approvedAt: true,
@@ -99,9 +115,15 @@ export class OrganizationsService {
       id: org.id,
       name: org.name,
       description: org.description,
-      website: org.website,
+      contactName: org.contactName,
       phone: org.phone,
       city: org.city,
+      idType: org.idType,
+      idNumber: org.idNumber,
+      organizationType: org.organizationType,
+      registrationNumber: org.registrationNumber,
+      website: org.website,
+      facebookUrl: org.facebookUrl,
       approvalStatus: org.approvalStatus,
       rejectionReason: org.rejectionReason,
       approvedAt: org.approvedAt?.toISOString() ?? null,
@@ -110,10 +132,6 @@ export class OrganizationsService {
     };
   }
 
-  /**
-   * Returns the approval status for the user's most recently created org.
-   * Used by guards and event-creation gates in later phases.
-   */
   async getApprovalStatusForUser(
     userId: string,
   ): Promise<'none' | 'pending' | 'approved' | 'rejected' | 'suspended'> {
