@@ -6,6 +6,7 @@ export interface AuthUser {
   phone: string | null;
   isVerified: boolean;
   isAdmin: boolean;
+  isOrganizer?: boolean;
 }
 
 export interface AuthTokens {

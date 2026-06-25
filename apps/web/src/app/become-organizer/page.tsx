@@ -16,6 +16,16 @@ type ApprovalStatus = 'pending' | 'approved' | 'rejected' | 'suspended';
 interface OrgData {
   id: string;
   name: string;
+  description?: string;
+  contactName?: string;
+  phone?: string;
+  city?: string;
+  idType?: string;
+  idNumber?: string;
+  organizationType?: string;
+  registrationNumber?: string | null;
+  website?: string | null;
+  facebookUrl?: string | null;
   approvalStatus: ApprovalStatus;
   rejectionReason: string | null;
   createdAt: string;
@@ -27,7 +37,7 @@ type PageState =
   | { kind: 'loading' }
   | { kind: 'unauthenticated' }
   | { kind: 'guest-apply' }
-  | { kind: 'form' }
+  | { kind: 'form'; org?: OrgData | null }
   | { kind: 'status'; org: OrgData };
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -124,9 +134,16 @@ function ApprovedCard({ org }: { org: OrgData }) {
       <div className="bg-violet-50 border border-violet-100 rounded-2xl px-6 py-4 text-left mb-6">
         <p className="text-sm font-semibold text-violet-800 mb-1">What&apos;s next?</p>
         <p className="text-sm text-violet-700">
-          Our team will reach out with next steps for creating your first event. In the meantime, explore upcoming events or check back soon for your organizer portal.
+          Your organizer dashboard is ready. You can create and manage your own events, review registrations, run check-in, and monitor your event data.
         </p>
       </div>
+      <Link
+        href="/admin"
+        className="inline-flex items-center justify-center bg-violet-600 hover:bg-violet-700 text-white font-semibold px-6 py-3 rounded-xl transition-colors mb-4"
+      >
+        Open organizer dashboard
+      </Link>
+      <br />
       <Link
         href="/"
         className="inline-flex items-center gap-2 text-sm text-gray-500 hover:text-gray-900 transition-colors"
@@ -164,13 +181,13 @@ function RejectedCard({ org, onReapply }: { org: OrgData; onReapply: () => void 
         </div>
       )}
       <p className="text-sm text-gray-500 mb-6">
-        If you believe this was a mistake or have addressed the issue, you can submit a new application.
+        If you believe this was a mistake or have addressed the issue, you can update this same application.
       </p>
       <button
         onClick={onReapply}
         className="inline-flex items-center gap-2 bg-violet-600 hover:bg-violet-700 text-white font-semibold px-6 py-3 rounded-xl transition-colors"
       >
-        Submit a new application
+        Update application
       </button>
     </div>
   );
@@ -349,11 +366,34 @@ function SectionHeading({ children }: { children: React.ReactNode }) {
   );
 }
 
-function RegistrationForm({ onSuccess }: { onSuccess: (org: OrgData) => void }) {
-  const [form, setForm] = useState<FormFields>(EMPTY_FORM);
+function toFormFields(org?: OrgData | null): FormFields {
+  if (!org) return EMPTY_FORM;
+  return {
+    name: org.name ?? '',
+    description: org.description ?? '',
+    organizationType: org.organizationType ?? '',
+    registrationNumber: org.registrationNumber ?? '',
+    contactName: org.contactName ?? '',
+    phone: org.phone ?? '',
+    city: org.city ?? '',
+    idType: org.idType ?? '',
+    idNumber: org.idNumber ?? '',
+    website: org.website ?? '',
+    facebookUrl: org.facebookUrl ?? '',
+  };
+}
+
+function RegistrationForm({ onSuccess, initialOrg }: { onSuccess: (org: OrgData) => void; initialOrg?: OrgData | null }) {
+  const { user: authUser, setAuth } = useAuthStore();
+  const [form, setForm] = useState<FormFields>(() => toFormFields(initialOrg));
   const [errors, setErrors] = useState<Partial<Record<keyof FormFields, string>>>({});
   const [submitting, setSubmitting] = useState(false);
+  const [step, setStep] = useState<'form' | 'otp'>('form');
+  const [pendingUserId, setPendingUserId] = useState('');
+  const [otp, setOtp] = useState('');
+  const [otpError, setOtpError] = useState('');
   const nameRef = useRef<HTMLInputElement>(null);
+  const otpRef = useRef<HTMLInputElement>(null);
 
   function set(field: keyof FormFields) {
     return (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
@@ -406,12 +446,7 @@ function RegistrationForm({ onSuccess }: { onSuccess: (org: OrgData) => void }) 
     return true;
   }
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    if (!validate()) return;
-
-    setSubmitting(true);
-    try {
+  function buildPayload(): Record<string, string> {
       const payload: Record<string, string> = {
         name: form.name.trim(),
         description: form.description.trim(),
@@ -425,10 +460,51 @@ function RegistrationForm({ onSuccess }: { onSuccess: (org: OrgData) => void }) 
       if (form.registrationNumber.trim()) payload.registrationNumber = form.registrationNumber.trim();
       if (form.website.trim()) payload.website = form.website.trim();
       if (form.facebookUrl.trim()) payload.facebookUrl = form.facebookUrl.trim();
+      return payload;
+  }
 
-      const res = await api.post<{ data: OrgData }>('/organizations', payload);
+  async function submitOrganization(accessToken?: string) {
+      const payload = buildPayload();
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? 'https://api.axontickets.online/api/v1';
+      const res = accessToken
+        ? await axios.post<{ data: OrgData }>(`${apiUrl}/organizations`, payload, {
+            headers: { Authorization: `Bearer ${accessToken}` },
+          })
+        : await api.post<{ data: OrgData }>('/organizations', payload);
       toast.success('Application submitted!');
       onSuccess(res.data.data);
+  }
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!validate()) return;
+
+    if (initialOrg?.approvalStatus === 'rejected') {
+      if (!authUser?.email) {
+        toast.error('Please sign in again before resubmitting.');
+        return;
+      }
+      setSubmitting(true);
+      try {
+        const res = await api.post<{ data: { userId: string } }>('/auth/request-access', {
+          email: authUser.email,
+        });
+        setPendingUserId(res.data.data.userId);
+        setStep('otp');
+        setOtp('');
+        setOtpError('');
+        setTimeout(() => otpRef.current?.focus(), 50);
+      } catch (err: unknown) {
+        toast.error(extractApiError(err) ?? 'Could not send verification code. Please try again.');
+      } finally {
+        setSubmitting(false);
+      }
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      await submitOrganization();
     } catch (err: unknown) {
       const msg = extractApiError(err);
       if (msg?.toLowerCase().includes('already')) {
@@ -441,7 +517,87 @@ function RegistrationForm({ onSuccess }: { onSuccess: (org: OrgData) => void }) 
     }
   }
 
+  async function handleVerifyResubmission() {
+    if (!pendingUserId || otp.length !== 6) return;
+    setSubmitting(true);
+    setOtpError('');
+    try {
+      const verifyRes = await api.post<{
+        data: {
+          user: { id: string; email: string; firstName: string | null; lastName: string | null; isAdmin: boolean; isOrganizer?: boolean; isVerified: boolean };
+          accessToken: string;
+          refreshToken: string;
+        };
+      }>('/auth/verify-access', { userId: pendingUserId, otp });
+
+      const { user: verifiedUser, accessToken, refreshToken } = verifyRes.data.data;
+      setAuth(
+        {
+          id: verifiedUser.id,
+          email: verifiedUser.email,
+          firstName: verifiedUser.firstName ?? authUser?.firstName ?? '',
+          lastName: verifiedUser.lastName ?? authUser?.lastName ?? '',
+          isAdmin: verifiedUser.isAdmin,
+          isOrganizer: verifiedUser.isOrganizer,
+          isVerified: verifiedUser.isVerified,
+        },
+        accessToken,
+        refreshToken,
+      );
+      await submitOrganization(accessToken);
+    } catch (err: unknown) {
+      setOtpError(extractApiError(err) ?? 'Invalid or expired code.');
+      setOtp('');
+      setTimeout(() => otpRef.current?.focus(), 50);
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  useEffect(() => {
+    if (step === 'otp' && otp.length === 6) void handleVerifyResubmission();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [otp, step]);
+
   useEffect(() => { nameRef.current?.focus(); }, []);
+
+  if (step === 'otp') {
+    return (
+      <div className="max-w-sm mx-auto">
+        <div className="text-center mb-8">
+          <div className="inline-flex items-center justify-center w-12 h-12 rounded-xl bg-violet-600 mb-4" aria-hidden="true">
+            <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" strokeWidth={1.75} viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75" />
+            </svg>
+          </div>
+          <h1 className="text-2xl font-bold text-gray-900 mb-1">Verify your email</h1>
+          <p className="text-sm text-gray-500">
+            We sent a 6-digit code to <span className="font-medium text-gray-700">{authUser?.email}</span>. Enter it to resubmit your organizer application.
+          </p>
+        </div>
+        <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-7 space-y-5">
+          {otpError && <p role="alert" className="rounded-xl bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700">{otpError}</p>}
+          <input
+            ref={otpRef}
+            type="text"
+            inputMode="numeric"
+            pattern="\d{6}"
+            maxLength={6}
+            autoComplete="one-time-code"
+            value={otp}
+            onChange={(e) => { setOtp(e.target.value.replace(/\D/g, '').slice(0, 6)); setOtpError(''); }}
+            disabled={submitting}
+            placeholder="000000"
+            className="w-full text-center text-3xl font-mono tracking-[0.5em] rounded-xl border border-gray-300 px-4 py-4 focus:outline-none focus:ring-2 focus:ring-violet-400 disabled:opacity-50"
+          />
+          {submitting && <p className="text-center text-sm text-gray-500">Verifying and resubmitting...</p>}
+          <button type="button" onClick={() => { setStep('form'); setOtp(''); setOtpError(''); }} className="w-full text-xs text-gray-400 hover:text-gray-600">
+            Back to application form
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-2xl mx-auto">
@@ -712,9 +868,7 @@ function RegistrationForm({ onSuccess }: { onSuccess: (org: OrgData) => void }) 
               </svg>
               Submitting…
             </>
-          ) : (
-            'Submit application'
-          )}
+          ) : initialOrg?.approvalStatus === 'rejected' ? 'Resubmit application' : 'Submit application'}
         </button>
       </form>
     </div>
@@ -862,7 +1016,7 @@ function GuestApplicationFlow({ onSuccess }: { onSuccess: (org: OrgData) => void
       // 1. Verify OTP → get tokens
       const verifyRes = await api.post<{
         data: {
-          user: { id: string; email: string; firstName: string | null; lastName: string | null; isAdmin: boolean; isVerified: boolean };
+          user: { id: string; email: string; firstName: string | null; lastName: string | null; isAdmin: boolean; isOrganizer?: boolean; isVerified: boolean };
           accessToken: string;
           refreshToken: string;
           isNewUser: boolean;
@@ -910,6 +1064,7 @@ function GuestApplicationFlow({ onSuccess }: { onSuccess: (org: OrgData) => void
           firstName: form.firstName.trim() || (verifiedUser.firstName ?? ''),
           lastName: form.lastName.trim() || (verifiedUser.lastName ?? ''),
           isAdmin: false,
+          isOrganizer: verifiedUser.isOrganizer,
           isVerified: verifiedUser.isVerified,
         },
         accessToken,
@@ -1274,7 +1429,9 @@ export default function BecomeOrganizerPage() {
   }
 
   function handleReapply() {
-    setPageState({ kind: 'form' });
+    if (pageState.kind === 'status') {
+      setPageState({ kind: 'form', org: pageState.org });
+    }
   }
 
   function renderContent() {
@@ -1299,7 +1456,7 @@ export default function BecomeOrganizerPage() {
       case 'guest-apply':
         return <GuestApplicationFlow onSuccess={handleRegistrationSuccess} />;
       case 'form':
-        return <RegistrationForm onSuccess={handleRegistrationSuccess} />;
+        return <RegistrationForm onSuccess={handleRegistrationSuccess} initialOrg={pageState.org} />;
       case 'status': {
         const { org } = pageState;
         if (org.approvalStatus === 'pending') return <PendingCard org={org} />;

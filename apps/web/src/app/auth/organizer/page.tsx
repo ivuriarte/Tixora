@@ -105,7 +105,7 @@ function OrganizerSignInForm() {
     try {
       const res = await api.post<{
         data: {
-          user: { id: string; email: string; firstName: string | null; lastName: string | null; isAdmin: boolean; isVerified: boolean };
+          user: { id: string; email: string; firstName: string | null; lastName: string | null; isAdmin: boolean; isOrganizer?: boolean; isVerified: boolean };
           accessToken: string;
           refreshToken: string;
           isNewUser: boolean;
@@ -132,13 +132,14 @@ function OrganizerSignInForm() {
             firstName: verifiedUser.firstName ?? '',
             lastName: verifiedUser.lastName ?? '',
             isAdmin: false,
+            isOrganizer: verifiedUser.isOrganizer,
             isVerified: verifiedUser.isVerified,
           },
           accessToken,
           refreshToken,
         );
         toast.success('Welcome back!');
-        router.replace(redirect.startsWith('/') ? redirect : '/become-organizer');
+        router.replace(verifiedUser.isOrganizer ? '/admin' : redirect.startsWith('/') ? redirect : '/become-organizer');
       }
     } catch (err: unknown) {
       const msg = axios.isAxiosError(err) ? err.response?.data?.message ?? 'Verification failed.' : 'Verification failed.';

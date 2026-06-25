@@ -5,6 +5,7 @@ import Image from 'next/image';
 import { useEffect, useRef, useState } from 'react';
 import { useAuthStore } from '@/store/auth.store';
 import api from '@/lib/api';
+import { getRefreshToken } from '@/lib/auth';
 import { useRouter, usePathname } from 'next/navigation';
 import toast from 'react-hot-toast';
 
@@ -57,7 +58,8 @@ export default function Navbar() {
 
   async function handleLogout() {
     try {
-      await api.post('/auth/logout');
+      const refreshToken = getRefreshToken();
+      if (refreshToken) await api.post('/auth/logout', { refreshToken });
     } catch {
       // ignore
     } finally {

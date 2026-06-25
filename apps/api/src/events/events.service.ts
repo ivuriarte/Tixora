@@ -173,7 +173,7 @@ export class EventsService {
     };
   }
 
-  async create(dto: CreateEventDto, createdById: string) {
+  async create(dto: CreateEventDto, createdById: string, organizationId?: string) {
     const slug = uniqueSlug(dto.title);
     const platformFee = dto.platformFee !== undefined
       ? dto.platformFee
@@ -207,6 +207,7 @@ export class EventsService {
         ...(dto.landmark !== undefined && { landmark: dto.landmark }),
         ...(dto.paymentMethods !== undefined && { paymentMethods: (dto.paymentMethods as unknown as Prisma.InputJsonValue | null) ?? Prisma.JsonNull }),
         createdById,
+        ...(organizationId ? { organizationId } : {}),
       },
     });
 

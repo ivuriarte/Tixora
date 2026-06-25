@@ -153,10 +153,12 @@ model Event {
   bankAccountName     String?     @map("bank_account_name")
   gcashNumber         String?     @map("gcash_number")
   createdById         String      @map("created_by_id")
+  organizationId      String?     @map("organization_id")
   createdAt           DateTime    @default(now()) @map("created_at")
   updatedAt           DateTime    @updatedAt @map("updated_at")
 
   createdBy     User           @relation("CreatedBy", fields: [createdById], references: [id])
+  organization  Organization?  @relation(fields: [organizationId], references: [id], onDelete: SetNull)
   tiers         TicketTier[]
   reservations  Reservation[]
   orders        Order[]
@@ -168,6 +170,7 @@ model Event {
 
   @@index([status, startsAt])
   @@index([slug])
+  @@index([organizationId])
   @@map("events")
 }
 
@@ -504,6 +507,7 @@ model Organization {
   createdBy  User                 @relation("OrgCreatedBy", fields: [createdById], references: [id])
   approvedBy User?                @relation("OrgApprovedBy", fields: [approvedById], references: [id])
   members    OrganizationMember[]
+  events     Event[]
 
   @@index([approvalStatus])
   @@index([createdById])

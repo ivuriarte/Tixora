@@ -152,6 +152,15 @@ export class EmailService implements OnModuleDestroy {
     return false;
   }
 
+  private escapeHtml(value: string): string {
+    return value
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
+  }
+
   // ── Auth emails ────────────────────────────────────────────────────────────
 
   /**
@@ -175,6 +184,88 @@ export class EmailService implements OnModuleDestroy {
         <p style="margin-top:24px;color:#9ca3af;font-size:12px">Axon Tickets · Online Ticketing Platform</p>
       </div>`,
       2,
+    );
+  }
+
+  // ── Organizer application emails ───────────────────────────────────────────
+
+  async sendOrganizerApplicationReceived(
+    to: string,
+    firstName: string,
+    organizationName: string,
+  ): Promise<void> {
+    const safeName = this.escapeHtml(firstName);
+    const safeOrg = this.escapeHtml(organizationName);
+    await this.send(
+      to,
+      `We received your organizer application — ${safeOrg}`,
+      `<div style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:24px">
+        <h1 style="color:#1A3A5C;margin-bottom:4px">Your application is under review</h1>
+        <p style="color:#374151">Hi ${safeName}, thank you for applying to become an Axon Tickets organizer.</p>
+        <p style="color:#374151">We received the application for <strong>${safeOrg}</strong>. Our team will review the details you submitted before organizer tools are enabled.</p>
+        <div style="background:#fffbeb;border-left:4px solid #f59e0b;padding:14px 16px;margin:20px 0;border-radius:0 8px 8px 0;color:#92400e">
+          <strong>What happens next:</strong> We check your organizer information, identity details, and contact information. You will receive another email when your application is approved or if we need updated details.
+        </div>
+        <p style="color:#374151">You do not need to submit again while the application is under review.</p>
+        <p style="color:#64748b;font-size:13px">If you did not submit this application, please contact Axon Tickets support.</p>
+        <p style="margin-top:24px;color:#9ca3af;font-size:12px">Axon Tickets · Online Ticketing Platform</p>
+      </div>`,
+    );
+  }
+
+  async sendOrganizerApprovedEmail(
+    to: string,
+    firstName: string,
+    organizationName: string,
+    dashboardUrl: string,
+  ): Promise<void> {
+    const safeName = this.escapeHtml(firstName);
+    const safeOrg = this.escapeHtml(organizationName);
+    await this.send(
+      to,
+      `Your organizer application was approved — ${safeOrg}`,
+      `<div style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:24px">
+        <h1 style="color:#166534;margin-bottom:4px">You are approved as an organizer</h1>
+        <p style="color:#374151">Hi ${safeName}, your application for <strong>${safeOrg}</strong> has been approved.</p>
+        <p style="color:#374151">You can now sign in and use the organizer tools for your events, attendees, workspace, check-in, transactions, and reports.</p>
+        <div style="background:#f0fdf4;border-left:4px solid #16a34a;padding:14px 16px;margin:20px 0;border-radius:0 8px 8px 0;color:#166534">
+          Organizer access is limited to the events and data connected to your own organizer account.
+        </div>
+        <p style="margin:24px 0">
+          <a href="${dashboardUrl}" style="background:#1A3A5C;color:white;padding:12px 24px;text-decoration:none;border-radius:8px;display:inline-block;font-weight:600">Open organizer dashboard</a>
+        </p>
+        <p style="color:#64748b;font-size:13px">If you need help setting up your first event, reply to this email and our team can guide you.</p>
+        <p style="margin-top:24px;color:#9ca3af;font-size:12px">Axon Tickets · Online Ticketing Platform</p>
+      </div>`,
+    );
+  }
+
+  async sendOrganizerRejectedEmail(
+    to: string,
+    firstName: string,
+    organizationName: string,
+    reason: string,
+    reapplyUrl: string,
+  ): Promise<void> {
+    const safeName = this.escapeHtml(firstName);
+    const safeOrg = this.escapeHtml(organizationName);
+    const safeReason = this.escapeHtml(reason);
+    await this.send(
+      to,
+      `Organizer application needs updates — ${safeOrg}`,
+      `<div style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:24px">
+        <h1 style="color:#991b1b;margin-bottom:4px">Your application needs updates</h1>
+        <p style="color:#374151">Hi ${safeName}, we reviewed the organizer application for <strong>${safeOrg}</strong>. We cannot approve it yet.</p>
+        <div style="background:#fef2f2;border-left:4px solid #dc2626;padding:14px 16px;margin:20px 0;border-radius:0 8px 8px 0;color:#991b1b">
+          <strong>Reason:</strong> ${safeReason}
+        </div>
+        <p style="color:#374151">You can update the same application record instead of starting from zero. The form will load your latest submitted details so you only need to change what is necessary.</p>
+        <p style="margin:24px 0">
+          <a href="${reapplyUrl}" style="background:#1A3A5C;color:white;padding:12px 24px;text-decoration:none;border-radius:8px;display:inline-block;font-weight:600">Update application</a>
+        </p>
+        <p style="color:#64748b;font-size:13px">After you resubmit, we will ask you to verify by email again and then review the updated details.</p>
+        <p style="margin-top:24px;color:#9ca3af;font-size:12px">Axon Tickets · Online Ticketing Platform</p>
+      </div>`,
     );
   }
 

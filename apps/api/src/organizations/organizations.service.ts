@@ -5,6 +5,7 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
+import { EmailService } from '../email/email.service';
 import { RegisterOrganizationDto } from './dto/organization.dto';
 
 @Injectable()
@@ -12,40 +13,90 @@ export class OrganizationsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
+    private readonly emailService: EmailService,
   ) {}
 
   async register(dto: RegisterOrganizationDto, userId: string) {
-    // Block if user already has a pending or approved org
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { email: true, firstName: true },
+    });
+    if (!user) throw new NotFoundException('User not found');
+
+    const data = {
+      name: dto.name.trim(),
+      description: dto.description.trim(),
+      contactName: dto.contactName.trim(),
+      phone: dto.phone.trim(),
+      city: dto.city.trim(),
+      idType: dto.idType,
+      idNumber: dto.idNumber.trim(),
+      organizationType: dto.organizationType,
+      registrationNumber: dto.registrationNumber?.trim() ?? null,
+      website: dto.website?.trim() ?? null,
+      facebookUrl: dto.facebookUrl?.trim() ?? null,
+    };
+
+    // Block if user already has a pending or approved org; rejected records are reusable.
     const existing = await this.prisma.organizationMember.findFirst({
       where: {
         userId,
         role: 'owner',
-        organization: { approvalStatus: { in: ['pending', 'approved'] } },
+        organization: { approvalStatus: { in: ['pending', 'approved', 'rejected'] } },
       },
-      include: { organization: { select: { name: true, approvalStatus: true } } },
+      include: {
+        organization: {
+          select: {
+            id: true,
+            name: true,
+            approvalStatus: true,
+            createdAt: true,
+          },
+        },
+      },
     });
 
-    if (existing) {
+    if (existing?.organization.approvalStatus === 'pending' || existing?.organization.approvalStatus === 'approved') {
       throw new ConflictException(
         `You already have an organization "${existing.organization.name}" (status: ${existing.organization.approvalStatus}).`,
       );
+    }
+
+    if (existing?.organization.approvalStatus === 'rejected') {
+      const organization = await this.prisma.organization.update({
+        where: { id: existing.organization.id },
+        data: {
+          ...data,
+          approvalStatus: 'pending',
+          rejectionReason: null,
+          rejectedAt: null,
+          approvedById: null,
+          approvedAt: null,
+        },
+      });
+
+      await this.audit.log({
+        action: 'ORGANIZER_RESUBMITTED',
+        entityType: 'Organization',
+        entityId: organization.id,
+        performedById: userId,
+        metadata: { name: organization.name, organizationType: organization.organizationType },
+      }).catch(() => null);
+
+      await this.emailService.sendOrganizerApplicationReceived(
+        user.email,
+        user.firstName ?? 'there',
+        organization.name,
+      );
+
+      return this.toOrganizationStatus(organization);
     }
 
     // Sequential create — avoids $transaction(callback) which can fail with
     // PgBouncer in transaction mode (Supabase default connection pooler).
     const organization = await this.prisma.organization.create({
       data: {
-        name: dto.name.trim(),
-        description: dto.description.trim(),
-        contactName: dto.contactName.trim(),
-        phone: dto.phone.trim(),
-        city: dto.city.trim(),
-        idType: dto.idType,
-        idNumber: dto.idNumber.trim(),
-        organizationType: dto.organizationType,
-        registrationNumber: dto.registrationNumber?.trim() ?? null,
-        website: dto.website?.trim() ?? null,
-        facebookUrl: dto.facebookUrl?.trim() ?? null,
+        ...data,
         createdById: userId,
       },
     });
@@ -68,15 +119,13 @@ export class OrganizationsService {
       metadata: { name: organization.name, organizationType: organization.organizationType },
     }).catch(() => null); // audit failure must never fail the registration
 
-    return {
-      id: organization.id,
-      name: organization.name,
-      approvalStatus: organization.approvalStatus,
-      rejectionReason: null,
-      approvedAt: null,
-      rejectedAt: null,
-      createdAt: organization.createdAt.toISOString(),
-    };
+    await this.emailService.sendOrganizerApplicationReceived(
+      user.email,
+      user.firstName ?? 'there',
+      organization.name,
+    );
+
+    return this.toOrganizationStatus(organization);
   }
 
   async getMyOrganization(userId: string) {
@@ -147,5 +196,25 @@ export class OrganizationsService {
       | 'approved'
       | 'rejected'
       | 'suspended';
+  }
+
+  private toOrganizationStatus(organization: {
+    id: string;
+    name: string;
+    approvalStatus: string;
+    rejectionReason: string | null;
+    approvedAt: Date | null;
+    rejectedAt: Date | null;
+    createdAt: Date;
+  }) {
+    return {
+      id: organization.id,
+      name: organization.name,
+      approvalStatus: organization.approvalStatus,
+      rejectionReason: organization.rejectionReason,
+      approvedAt: organization.approvedAt?.toISOString() ?? null,
+      rejectedAt: organization.rejectedAt?.toISOString() ?? null,
+      createdAt: organization.createdAt.toISOString(),
+    };
   }
 }
