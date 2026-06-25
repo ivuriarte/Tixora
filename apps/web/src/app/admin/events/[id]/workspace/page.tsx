@@ -736,11 +736,6 @@ export default function EventWorkspacePage() {
   if (!summary) {
     return (
       <main className="max-w-4xl mx-auto px-6 py-10">
-        <div className="mb-6">
-          <Link href={`/admin/events/${id}`} className="text-sm text-gray-400 hover:text-gray-600">
-            ← Back to event
-          </Link>
-        </div>
         <div className="rounded-2xl border border-gray-200 bg-white px-8 py-12 text-center max-w-md mx-auto">
           <div className="w-12 h-12 bg-violet-100 rounded-xl flex items-center justify-center mx-auto mb-4">
             <svg className="w-6 h-6 text-violet-600" fill="none" stroke="currentColor" strokeWidth={1.75} viewBox="0 0 24 24">
