@@ -1,11 +1,11 @@
-import { Controller, Post, Get, Body, UseGuards } from '@nestjs/common';
+import { Controller, Post, Get, Body, UseGuards, Patch } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { JwtPayload } from '@axon-tickets/types';
 import { OrganizationsService } from './organizations.service';
-import { RegisterOrganizationDto } from './dto/organization.dto';
+import { RegisterOrganizationDto, UpdateOrganizationDto } from './dto/organization.dto';
 
 @ApiTags('organizations')
 @Controller('organizations')
@@ -25,5 +25,11 @@ export class OrganizationsController {
   @ApiOperation({ summary: 'Get the organization owned by the current user' })
   getMyOrganization(@CurrentUser() user: JwtPayload) {
     return this.orgsService.getMyOrganization(user.sub);
+  }
+
+  @Patch('me')
+  @ApiOperation({ summary: 'Update the organization owned by the current user' })
+  updateMyOrganization(@Body() dto: UpdateOrganizationDto, @CurrentUser() user: JwtPayload) {
+    return this.orgsService.updateMyOrganization(dto, user.sub);
   }
 }

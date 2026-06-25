@@ -37,13 +37,14 @@ function OrganizerSignInForm() {
   const emailRef = useRef<HTMLInputElement>(null);
 
   const redirect = searchParams.get('redirect') ?? '/become-organizer';
+  const safeRedirect = redirect.startsWith('/') ? redirect : '/become-organizer';
 
   // Redirect already-authenticated non-admin users
   useEffect(() => {
     if (!isHydrating && isAuthenticated && user && !user.isAdmin) {
-      router.replace(redirect.startsWith('/') ? redirect : '/become-organizer');
+      router.replace(safeRedirect);
     }
-  }, [isHydrating, isAuthenticated, user, router, redirect]);
+  }, [isHydrating, isAuthenticated, user, router, safeRedirect]);
 
   useEffect(() => { emailRef.current?.focus(); }, []);
 
@@ -139,7 +140,7 @@ function OrganizerSignInForm() {
           refreshToken,
         );
         toast.success('Welcome back!');
-        router.replace(verifiedUser.isOrganizer ? '/admin' : redirect.startsWith('/') ? redirect : '/become-organizer');
+        router.replace(safeRedirect);
       }
     } catch (err: unknown) {
       const msg = axios.isAxiosError(err) ? err.response?.data?.message ?? 'Verification failed.' : 'Verification failed.';
@@ -188,7 +189,7 @@ function OrganizerSignInForm() {
         pendingAuth.refreshToken,
       );
       toast.success(`Welcome, ${updatedUser.firstName}!`);
-      router.replace(redirect.startsWith('/') ? redirect : '/become-organizer');
+      router.replace(safeRedirect);
     } catch (err: unknown) {
       const msg = axios.isAxiosError(err) ? err.response?.data?.message ?? 'Could not save profile.' : 'Could not save profile.';
       setError(Array.isArray(msg) ? msg.join(', ') : String(msg));

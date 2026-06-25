@@ -23,6 +23,7 @@ interface WorkspaceItem {
   status: ChecklistStatus;
   priority: ChecklistPriority;
   isBlocker: boolean;
+  startDate: string | null;
   dueDate: string | null;
   notes: string | null;
   completedAt: string | null;
@@ -261,96 +262,113 @@ function TemplatePicker({ eventId, hasItems, onClose }: { eventId: string; hasIt
   );
 }
 
-// ── RACI cell (Responsible + Accountable) ─────────────────────────────────────
+// ── RACI assignment input ─────────────────────────────────────────────────────
 
-function MiniSelect({
-  label, value, userId, itemId, eventId, assignableUsers, isUnowned,
+function RaciInput({
+  role, value, userId, itemId, eventId, assignableUsers, isUnowned, canEdit,
 }: {
-  label: 'R' | 'A';
+  role: 'R' | 'A';
   value: AssignedUser | null;
   userId: string | null;
   itemId: string;
   eventId: string;
   assignableUsers: AssignedUser[];
   isUnowned: boolean;
+  canEdit: boolean;
 }) {
   const invalidate = useInvalidateWorkspace(eventId);
-  const field = label === 'R' ? 'assignedToId' : 'accountableId';
+  const field = role === 'R' ? 'assignedToId' : 'accountableId';
+  const [localName, setLocalName] = useState(value?.name ?? '');
+  const [isFocused, setIsFocused] = useState(false);
+
+  // Sync with server value when not focused
+  const serverName = value?.name ?? '';
+  if (!isFocused && localName !== serverName) {
+    setLocalName(serverName);
+  }
+
   const mutation = useMutation({
     mutationFn: (id: string | null) =>
       api.patch(`/admin/events/${eventId}/workspace/items/${itemId}`, { [field]: id }),
     onSuccess: invalidate,
-    onError: () => toast.error('Assignment failed.'),
+    onError: () => {
+      toast.error('Assignment failed.');
+      setLocalName(value?.name ?? '');
+    },
   });
 
-  const isEmpty = !userId;
-  return (
-    <div className="flex items-center gap-0.5">
-      <span className={`text-[9px] font-bold w-3 shrink-0 ${
-        label === 'R' ? 'text-violet-500' : 'text-blue-400'
-      }`}>{label}</span>
-      <div className="relative">
-        <select
-          value={userId ?? ''}
-          onChange={(e) => mutation.mutate(e.target.value || null)}
-          disabled={mutation.isPending}
-          className={`appearance-none text-[11px] rounded px-1 py-0 pr-3.5 border-0 cursor-pointer focus:outline-none focus:ring-1 focus:ring-violet-400 max-w-[80px] truncate disabled:opacity-60 leading-4 ${
-            isEmpty && isUnowned && label === 'R' ? 'bg-amber-50 text-amber-500' : 'bg-gray-50 text-gray-500'
-          }`}
-          title={value?.name ?? `No ${label === 'R' ? 'responsible' : 'accountable'}`}
-        >
-          <option value="">{isEmpty ? `— ${label === 'R' ? 'responsible' : 'accountable'}` : '— remove'}</option>
-          {assignableUsers.map((u) => (
-            <option key={u.id} value={u.id}>{u.name}</option>
-          ))}
-        </select>
-        <div className="pointer-events-none absolute inset-y-0 right-0.5 flex items-center">
-          <svg className="w-2 h-2 text-gray-300" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
-            <path d="M2 4l4 4 4-4"/>
-          </svg>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function RACICell({
-  item, eventId, assignableUsers, canEdit,
-}: {
-  item: WorkspaceItem; eventId: string; assignableUsers: AssignedUser[]; canEdit: boolean;
-}) {
-  const isDone = item.status === 'done' || item.status === 'not_applicable';
-  const isUnowned = !item.assignedToId && !item.accountableId && !isDone;
-
   if (!canEdit) {
-    const r = item.assignedTo;
-    const a = item.accountableTo;
-    if (!r && !a) return <span className={`text-[10px] ${isUnowned ? 'text-amber-400' : 'text-gray-300'}`}>{isUnowned ? '⚑' : '—'}</span>;
+    if (!value) {
+      return (
+        <span className={`text-xs ${isUnowned && role === 'R' ? 'text-amber-400' : 'text-gray-300'}`}>
+          {isUnowned && role === 'R' ? 'Unassigned' : '—'}
+        </span>
+      );
+    }
     return (
-      <div className="flex flex-col gap-0.5">
-        {r && (
-          <div className="flex items-center gap-0.5" title={`Responsible: ${r.name}`}>
-            <span className="text-[9px] font-bold text-violet-400 w-3">R</span>
-            <div className="w-4 h-4 rounded-full bg-violet-100 text-violet-700 flex items-center justify-center text-[8px] font-bold">{initials(r.name)}</div>
-          </div>
-        )}
-        {a && (
-          <div className="flex items-center gap-0.5" title={`Accountable: ${a.name}`}>
-            <span className="text-[9px] font-bold text-blue-400 w-3">A</span>
-            <div className="w-4 h-4 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center text-[8px] font-bold">{initials(a.name)}</div>
-          </div>
-        )}
-      </div>
+      <span className="text-xs text-gray-700 truncate" title={value.name}>{value.name}</span>
     );
   }
 
+  const datalistId = `raci-list-${role}-${itemId}`;
+  const isEmpty = !userId;
+
+  function handleBlur(e: React.FocusEvent<HTMLInputElement>) {
+    setIsFocused(false);
+    const inputVal = e.target.value.trim();
+    if (!inputVal) {
+      if (userId) mutation.mutate(null);
+      setLocalName('');
+      return;
+    }
+    const matched = assignableUsers.find(
+      (u) => u.name.toLowerCase() === inputVal.toLowerCase(),
+    );
+    if (matched) {
+      if (matched.id !== userId) mutation.mutate(matched.id);
+      setLocalName(matched.name);
+    } else {
+      setLocalName(value?.name ?? '');
+    }
+  }
+
+  function handleChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const inputVal = e.target.value;
+    setLocalName(inputVal);
+    const matched = assignableUsers.find(
+      (u) => u.name.toLowerCase() === inputVal.toLowerCase(),
+    );
+    if (matched && matched.id !== userId) {
+      mutation.mutate(matched.id);
+    } else if (!inputVal && userId) {
+      mutation.mutate(null);
+    }
+  }
+
   return (
-    <div className="flex flex-col gap-0.5">
-      <MiniSelect label="R" value={item.assignedTo} userId={item.assignedToId}
-        itemId={item.id} eventId={eventId} assignableUsers={assignableUsers} isUnowned={isUnowned} />
-      <MiniSelect label="A" value={item.accountableTo} userId={item.accountableId}
-        itemId={item.id} eventId={eventId} assignableUsers={assignableUsers} isUnowned={false} />
-    </div>
+    <>
+      <input
+        id={`raci-${role}-${itemId}`}
+        type="text"
+        list={datalistId}
+        value={localName}
+        onChange={handleChange}
+        onFocus={() => setIsFocused(true)}
+        onBlur={handleBlur}
+        placeholder={role === 'R' ? 'Responsible…' : 'Accountable…'}
+        disabled={mutation.isPending}
+        className={`w-full text-xs rounded-md border px-2 py-1 focus:outline-none focus:ring-1 focus:ring-violet-400 disabled:opacity-60 truncate ${
+          isEmpty && isUnowned && role === 'R'
+            ? 'border-amber-200 bg-amber-50 text-amber-700 placeholder:text-amber-400'
+            : 'border-gray-200 bg-gray-50 text-gray-700 placeholder:text-gray-300'
+        }`}
+      />
+      <datalist id={datalistId}>
+        {assignableUsers.map((u) => (
+          <option key={u.id} value={u.name} />
+        ))}
+      </datalist>
+    </>
   );
 }
 
@@ -402,32 +420,44 @@ function ItemRow({
     onError: () => toast.error('Could not remove item.'),
   });
 
+  const isDoneOrNA = isDone || isNA;
+  const isUnowned = !item.assignedToId && !item.accountableId && !isDoneOrNA;
+
   return (
     <div
       className={`grid items-center gap-2 px-3 py-2 rounded-md group hover:bg-gray-50 transition-colors text-sm ${isNA ? 'opacity-45' : ''}`}
-      style={{ gridTemplateColumns: '10px 1fr auto auto auto auto' }}
+      style={{ gridTemplateColumns: '10px 1fr minmax(110px,150px) minmax(110px,150px) auto auto auto' }}
     >
       <div className={`w-2 h-2 rounded-full shrink-0 ${PRIORITY_DOT[item.priority]}`}
         title={`${PRIORITY_LABEL[item.priority]} priority`} />
 
-      <span className={`truncate ${isDone || isNA ? 'line-through text-gray-400' : 'text-gray-800'}`}>
-        {item.title}
-        {item.isBlocker && !isDone && !isNA && (
-          <span className="ml-2 text-[10px] font-semibold text-red-600 bg-red-50 border border-red-200 px-1 py-px rounded uppercase tracking-wide">
-            blocker
+      <div className="min-w-0">
+        <span className={`truncate block ${isDone || isNA ? 'line-through text-gray-400' : 'text-gray-800'}`}>
+          {item.title}
+          {item.isBlocker && !isDone && !isNA && (
+            <span className="ml-2 text-[10px] font-semibold text-red-600 bg-red-50 border border-red-200 px-1 py-px rounded uppercase tracking-wide">
+              blocker
+            </span>
+          )}
+        </span>
+        {(item.startDate || item.dueDate) && !isNA && (
+          <span className={`text-[10px] tabular-nums ${overdue ? 'text-red-400' : isDone ? 'text-gray-300' : 'text-gray-400'}`}>
+            {item.startDate && formatDate(item.startDate)}
+            {item.startDate && item.dueDate && ' → '}
+            {item.dueDate && (overdue && !isDone ? `⚠ ${formatDate(item.dueDate)}` : formatDate(item.dueDate))}
           </span>
         )}
-      </span>
+      </div>
 
-      <RACICell item={item} eventId={eventId} assignableUsers={assignableUsers} canEdit={canEdit} />
+      <RaciInput role="R" value={item.assignedTo} userId={item.assignedToId}
+        itemId={item.id} eventId={eventId} assignableUsers={assignableUsers}
+        isUnowned={isUnowned} canEdit={canEdit} />
 
-      {item.dueDate && !isNA ? (
-        <span className={`shrink-0 text-xs tabular-nums whitespace-nowrap ${
-          overdue ? 'text-red-500 font-medium' : isDone ? 'text-gray-300 line-through' : 'text-gray-400'
-        }`}>
-          {overdue && !isDone ? `⚠ ${formatDate(item.dueDate)}` : formatDate(item.dueDate)}
-        </span>
-      ) : <span />}
+      <RaciInput role="A" value={item.accountableTo} userId={item.accountableId}
+        itemId={item.id} eventId={eventId} assignableUsers={assignableUsers}
+        isUnowned={false} canEdit={canEdit} />
+
+      <span />
 
       {canEdit ? (
         <StatusSelect value={item.status} itemId={item.id} eventId={eventId} />
@@ -808,7 +838,7 @@ export default function EventWorkspacePage() {
             {canEdit && (
               <button onClick={() => setShowTemplate(true)}
                 className="border border-gray-200 hover:border-gray-300 text-sm text-gray-600 hover:text-gray-800 font-medium px-3 py-2 rounded-lg transition-colors">
-                Apply Template
+                Choose Template
               </button>
             )}
           </div>
@@ -943,9 +973,9 @@ export default function EventWorkspacePage() {
               </button>
             )}
           </div>
-          <div className="grid px-3 py-1.5 border-b border-gray-50 text-[10px] font-semibold text-gray-300 uppercase tracking-wider"
-            style={{ gridTemplateColumns: '10px 1fr auto auto auto auto' }}>
-            <span /><span>Item</span><span>R / A</span><span>Due</span><span>Status</span><span />
+          <div className="grid px-3 py-1.5 border-b border-gray-50 text-[10px] font-semibold text-gray-300 uppercase tracking-wider gap-2"
+            style={{ gridTemplateColumns: '10px 1fr minmax(110px,150px) minmax(110px,150px) auto auto auto' }}>
+            <span /><span>Item</span><span>Responsible</span><span>Accountable</span><span /><span>Status</span><span />
           </div>
           <div className="px-2 py-2 space-y-4">
             {showAddItem && (
@@ -961,7 +991,7 @@ export default function EventWorkspacePage() {
                 {canEdit && (
                   <button onClick={() => setShowTemplate(true)}
                     className="text-sm text-violet-600 hover:text-violet-800 font-medium">
-                    Apply a template to get started →
+                    Choose a template to get started →
                   </button>
                 )}
               </div>

@@ -116,19 +116,6 @@ export default function ReviewStep({ draft, tiers, paymentMethods, onJump }: Rev
           )}
         </Section>
 
-        <Section title="Featured (optional)" onEdit={() => onJump('featured')}>
-          {!draft.isFeatured ? (
-            <em className="text-gray-400 text-xs">Not featured on homepage</em>
-          ) : (
-            <ul className="text-xs space-y-0.5">
-              <li>✅ Will appear in homepage hero carousel</li>
-              {draft.tagline && <li>🏷 Tagline: {draft.tagline}</li>}
-              {draft.featuredOrder && <li>📌 Display slot: {draft.featuredOrder}</li>}
-              {draft.featuredUntil && <li>⏰ Featured until: {draft.featuredUntil}</li>}
-              {!draft.featuredUntil && <li className="text-gray-400">No expiry set</li>}
-            </ul>
-          )}
-        </Section>
       </div>
     </>
   );

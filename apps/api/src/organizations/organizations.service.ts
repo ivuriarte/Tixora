@@ -6,7 +6,7 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { EmailService } from '../email/email.service';
-import { RegisterOrganizationDto } from './dto/organization.dto';
+import { RegisterOrganizationDto, UpdateOrganizationDto } from './dto/organization.dto';
 
 @Injectable()
 export class OrganizationsService {
@@ -179,6 +179,48 @@ export class OrganizationsService {
       rejectedAt: org.rejectedAt?.toISOString() ?? null,
       createdAt: org.createdAt.toISOString(),
     };
+  }
+
+  async updateMyOrganization(dto: UpdateOrganizationDto, userId: string) {
+    const membership = await this.prisma.organizationMember.findFirst({
+      where: { userId, role: 'owner' },
+      include: {
+        organization: {
+          select: { id: true },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    if (!membership) throw new NotFoundException('No organization found for this user');
+
+    const data: Record<string, string | null> = {};
+    if (dto.name !== undefined) data.name = dto.name.trim();
+    if (dto.description !== undefined) data.description = dto.description.trim();
+    if (dto.contactName !== undefined) data.contactName = dto.contactName.trim();
+    if (dto.phone !== undefined) data.phone = dto.phone.trim();
+    if (dto.city !== undefined) data.city = dto.city.trim();
+    if (dto.idType !== undefined) data.idType = dto.idType;
+    if (dto.idNumber !== undefined) data.idNumber = dto.idNumber.trim();
+    if (dto.organizationType !== undefined) data.organizationType = dto.organizationType;
+    if (dto.registrationNumber !== undefined) data.registrationNumber = dto.registrationNumber?.trim() || null;
+    if (dto.website !== undefined) data.website = dto.website?.trim() || null;
+    if (dto.facebookUrl !== undefined) data.facebookUrl = dto.facebookUrl?.trim() || null;
+
+    await this.prisma.organization.update({
+      where: { id: membership.organization.id },
+      data,
+    });
+
+    await this.audit.log({
+      action: 'ORGANIZER_UPDATED',
+      entityType: 'Organization',
+      entityId: membership.organization.id,
+      performedById: userId,
+      metadata: { fields: Object.keys(data) },
+    }).catch(() => null);
+
+    return this.getMyOrganization(userId);
   }
 
   async getApprovalStatusForUser(
