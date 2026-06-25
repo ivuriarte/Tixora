@@ -111,6 +111,11 @@ export default function Navbar() {
                   My Events
                 </Link>
               )}
+              {!user?.isAdmin && (
+                <Link href="/become-organizer" className="text-sm font-medium text-gray-700 hover:text-primary">
+                  Organize
+                </Link>
+              )}
               <Link href="/profile" className="text-sm font-medium text-gray-700 hover:text-primary">
                 My Profile
               </Link>
@@ -187,6 +192,11 @@ export default function Navbar() {
               ) : (
                 <Link href="/account/tickets" className="block px-3 py-2 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors">
                   My Events
+                </Link>
+              )}
+              {!user?.isAdmin && (
+                <Link href="/become-organizer" className="block px-3 py-2 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors">
+                  Organize
                 </Link>
               )}
               <Link href="/profile" className="block px-3 py-2 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors">

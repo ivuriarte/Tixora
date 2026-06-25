@@ -774,12 +774,9 @@ export default function EventWorkspacePage() {
         {/* Header */}
         <div className="flex items-start justify-between gap-4">
           <div>
-            <Link href={`/admin/events/${id}`} className="text-xs text-gray-400 hover:text-gray-600 transition-colors">
-              ← {summary.event.title}
-            </Link>
-            <h1 className="text-xl font-semibold text-gray-900 mt-0.5">Event Workspace</h1>
+            <h1 className="text-xl font-semibold text-gray-900">Event Workspace</h1>
             <p className="text-sm text-gray-400">
-              {new Date(summary.event.startsAt).toLocaleDateString('en-PH', { dateStyle: 'long' })}
+              {summary.event.title} &middot; {new Date(summary.event.startsAt).toLocaleDateString('en-PH', { dateStyle: 'long' })}
             </p>
           </div>
           <div className="flex items-center gap-2 shrink-0 flex-wrap justify-end">
