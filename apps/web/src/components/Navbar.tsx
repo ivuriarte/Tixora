@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import Image from 'next/image';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useAuthStore } from '@/store/auth.store';
 import api from '@/lib/api';
 import { useRouter, usePathname } from 'next/navigation';
@@ -14,11 +14,25 @@ export default function Navbar() {
   const pathname = usePathname();
   const [pendingCount, setPendingCount] = useState<number>(0);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [isLoginOpen, setIsLoginOpen] = useState(false);
+  const loginRef = useRef<HTMLDivElement>(null);
 
-  // Close mobile menu whenever the route changes
+  // Close mobile menu and login dropdown on route change
   useEffect(() => {
     setIsMenuOpen(false);
+    setIsLoginOpen(false);
   }, [pathname]);
+
+  // Close login dropdown when clicking outside
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (loginRef.current && !loginRef.current.contains(e.target as Node)) {
+        setIsLoginOpen(false);
+      }
+    }
+    if (isLoginOpen) document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [isLoginOpen]);
 
   useEffect(() => {
     if (!user?.isAdmin) return;
@@ -131,9 +145,47 @@ export default function Navbar() {
               <Link href="/become-organizer" className="text-sm font-medium text-gray-500 hover:text-primary">
                 Become an organizer
               </Link>
-              <Link href="/auth/login" className="text-sm font-medium text-gray-700 hover:text-primary">
-                Log in
-              </Link>
+              <div className="w-px h-4 bg-gray-200" />
+              {/* Log in dropdown */}
+              <div ref={loginRef} className="relative">
+                <button
+                  onClick={() => setIsLoginOpen((prev) => !prev)}
+                  className="flex items-center gap-1 text-sm font-medium text-gray-700 hover:text-primary border border-gray-200 px-3 py-1.5 rounded-lg hover:border-gray-300 transition-colors"
+                  aria-expanded={isLoginOpen}
+                  aria-haspopup="true"
+                >
+                  Log in
+                  <svg className={`w-3.5 h-3.5 transition-transform ${isLoginOpen ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                  </svg>
+                </button>
+                {isLoginOpen && (
+                  <div className="absolute right-0 mt-2 w-52 bg-white border border-gray-200 rounded-xl shadow-lg py-1.5 z-50">
+                    <Link
+                      href="/auth/login"
+                      className="flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                    >
+                      <svg className="w-4 h-4 text-gray-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
+                      </svg>
+                      <span>Customer login</span>
+                    </Link>
+                    <div className="my-1 border-t border-gray-100" />
+                    <Link
+                      href="/auth/organizer?redirect=/become-organizer"
+                      className="flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                    >
+                      <svg className="w-4 h-4 text-gray-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 21v-7.5a.75.75 0 01.75-.75h3a.75.75 0 01.75.75V21m-4.5 0H2.36m11.14 0H18m0 0h3.64m-1.39 0V9.349m-16.5 11.65V9.35m0 0a3.001 3.001 0 003.75-.615A2.993 2.993 0 009.75 9.75c.896 0 1.7-.393 2.25-1.016a2.993 2.993 0 002.25 1.016c.896 0 1.7-.393 2.25-1.016a3.001 3.001 0 003.75.614m-16.5 0a3.004 3.004 0 01-.621-4.72L4.318 3.44A1.5 1.5 0 015.378 3h13.243a1.5 1.5 0 011.06.44l1.19 1.189a3 3 0 01-.621 4.72m-13.5 8.65h3.75a.75.75 0 00.75-.75V13.5a.75.75 0 00-.75-.75H6.75a.75.75 0 00-.75.75v3.75c0 .415.336.75.75.75z" />
+                      </svg>
+                      <div>
+                        <span>Organizer login</span>
+                        <span className="ml-2 text-[10px] font-medium bg-primary/10 text-primary px-1.5 py-0.5 rounded-full">Organizer</span>
+                      </div>
+                    </Link>
+                  </div>
+                )}
+              </div>
               <Link
                 href="/auth/register"
                 className="text-sm font-semibold bg-primary text-white px-4 py-2 rounded-lg hover:bg-primary-hover transition-colors"
@@ -220,9 +272,16 @@ export default function Navbar() {
               <Link href="/become-organizer" className="block px-3 py-2 rounded-lg text-sm font-medium text-gray-500 hover:bg-gray-50 transition-colors">
                 Become an organizer
               </Link>
+              <div className="my-1 border-t border-gray-100" />
+              <p className="px-3 pt-1 pb-0.5 text-[11px] font-medium text-gray-400 uppercase tracking-wide">Log in as</p>
               <Link href="/auth/login" className="block px-3 py-2 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors">
-                Log in
+                Customer
               </Link>
+              <Link href="/auth/organizer?redirect=/become-organizer" className="flex items-center justify-between px-3 py-2 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors">
+                <span>Organizer</span>
+                <span className="text-[10px] font-medium bg-primary/10 text-primary px-1.5 py-0.5 rounded-full">Organizer</span>
+              </Link>
+              <div className="my-1 border-t border-gray-100" />
               <Link
                 href="/auth/register"
                 className="block mt-1 px-3 py-2 rounded-lg text-sm font-semibold bg-primary text-white text-center hover:bg-primary-hover transition-colors"
