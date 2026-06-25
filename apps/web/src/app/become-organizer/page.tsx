@@ -41,17 +41,8 @@ type PageState =
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-function validateWebsite(url: string): string | null {
-  if (!url) return null;
-  try {
-    const parsed = new URL(url);
-    if (!['http:', 'https:'].includes(parsed.protocol)) {
-      return 'URL must start with http:// or https://';
-    }
-    return null;
-  } catch {
-    return 'Enter a valid URL (e.g. https://yourcompany.com)';
-  }
+function validateWebsite(_url: string): string | null {
+  return null;
 }
 
 function extractApiError(err: unknown): string | null {

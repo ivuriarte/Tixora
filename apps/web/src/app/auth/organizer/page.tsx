@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import axios from 'axios';
 import toast from 'react-hot-toast';
 import api from '@/lib/api';
+import { setLoginPortal } from '@/lib/auth';
 import { useAuthStore } from '@/store/auth.store';
 
 const RESEND_COOLDOWN = 60;
@@ -42,7 +43,7 @@ function OrganizerSignInForm() {
   // Redirect already-authenticated non-admin users
   useEffect(() => {
     if (!isHydrating && isAuthenticated && user && !user.isAdmin) {
-      router.replace(safeRedirect);
+      router.replace(user.isOrganizer ? '/admin' : safeRedirect);
     }
   }, [isHydrating, isAuthenticated, user, router, safeRedirect]);
 
@@ -126,6 +127,7 @@ function OrganizerSignInForm() {
         setPendingAuth({ userId: verifiedUser.id, accessToken, refreshToken });
         setStep('profile');
       } else {
+        setLoginPortal('organizer');
         setAuth(
           {
             id: verifiedUser.id,
@@ -135,12 +137,13 @@ function OrganizerSignInForm() {
             isAdmin: false,
             isOrganizer: verifiedUser.isOrganizer,
             isVerified: verifiedUser.isVerified,
+            loginPortal: 'organizer',
           },
           accessToken,
           refreshToken,
         );
         toast.success('Welcome back!');
-        router.replace(safeRedirect);
+        router.replace(verifiedUser.isOrganizer ? '/admin' : safeRedirect);
       }
     } catch (err: unknown) {
       const msg = axios.isAxiosError(err) ? err.response?.data?.message ?? 'Verification failed.' : 'Verification failed.';
@@ -183,8 +186,9 @@ function OrganizerSignInForm() {
         { headers: { Authorization: `Bearer ${pendingAuth.accessToken}` } },
       );
       const updatedUser = res.data.data;
+      setLoginPortal('organizer');
       setAuth(
-        { id: updatedUser.id, email: updatedUser.email, firstName: updatedUser.firstName, lastName: updatedUser.lastName, isAdmin: false, isVerified: updatedUser.isVerified },
+        { id: updatedUser.id, email: updatedUser.email, firstName: updatedUser.firstName, lastName: updatedUser.lastName, isAdmin: false, isVerified: updatedUser.isVerified, loginPortal: 'organizer' },
         pendingAuth.accessToken,
         pendingAuth.refreshToken,
       );

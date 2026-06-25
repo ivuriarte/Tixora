@@ -9,6 +9,7 @@ interface AuthUser {
   isAdmin: boolean;
   isOrganizer?: boolean;
   isVerified: boolean;
+  loginPortal?: 'customer' | 'organizer';
 }
 
 interface AuthStore {

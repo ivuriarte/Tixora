@@ -17,7 +17,7 @@ export default function Navbar() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isLoginOpen, setIsLoginOpen] = useState(false);
   const loginRef = useRef<HTMLDivElement>(null);
-  const isStaff = Boolean(user?.isAdmin || user?.isOrganizer);
+  const isStaff = Boolean(user?.isAdmin || user?.loginPortal === 'organizer');
   const dashboardLabel = user?.isAdmin ? 'Admin Dashboard' : 'Organizer Dashboard';
 
   // Close mobile menu and login dropdown on route change

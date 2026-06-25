@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import axios from 'axios';
 import toast from 'react-hot-toast';
 import api from '@/lib/api';
+import { setLoginPortal } from '@/lib/auth';
 import { useAuthStore } from '@/store/auth.store';
 import { useIsInAppBrowser } from '@/lib/useIsInAppBrowser';
 import { getOrCreateFunnelSessionId, trackInternalFunnelEvent } from '@/lib/funnel';
@@ -219,6 +220,7 @@ function AccessForm() {
           metadata: { eventSlug, eventName, userId: verifiedUser.id },
         });
       } else {
+        setLoginPortal('customer');
         setAuth(
           {
             id: verifiedUser.id,
@@ -228,6 +230,7 @@ function AccessForm() {
             isAdmin: verifiedUser.isAdmin,
             isOrganizer: Boolean(verifiedUser.isOrganizer),
             isVerified: verifiedUser.isVerified,
+            loginPortal: 'customer',
           },
           accessToken,
           refreshToken,
@@ -305,6 +308,7 @@ function AccessForm() {
         metadata: { eventSlug, eventName, userId: updatedUser.id },
       });
 
+      setLoginPortal('customer');
       setAuth(
         {
           id: updatedUser.id,
@@ -314,6 +318,7 @@ function AccessForm() {
           isAdmin: updatedUser.isAdmin,
           isOrganizer: Boolean(updatedUser.isOrganizer),
           isVerified: updatedUser.isVerified,
+          loginPortal: 'customer',
         },
         pendingAuth.accessToken,
         pendingAuth.refreshToken,
