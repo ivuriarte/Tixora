@@ -621,3 +621,16 @@ model WorkspaceMilestone {
   @@index([workspaceId])
   @@map("workspace_milestones")
 }
+
+// ── Platform-wide configuration ───────────────────────────────────────────────
+// Each row is a key/value pair. Admins manage these via /admin/settings/platform.
+// Keys: "service_fee" (pesos, stored as string, e.g. "50")
+
+model PlatformConfig {
+  key         String   @id
+  value       String
+  updatedById String?  @map("updated_by_id")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@map("platform_configs")
+}

@@ -1935,4 +1935,25 @@ export class AdminService {
     });
     return { count };
   }
+
+  // ── Platform settings ─────────────────────────────────────────────────────
+
+  async getPlatformSettings() {
+    const [feeRow] = await Promise.all([
+      this.prisma.platformConfig.findUnique({ where: { key: 'service_fee' } }),
+    ]);
+    return {
+      serviceFee: feeRow ? Number(feeRow.value) : 50,
+    };
+  }
+
+  async updatePlatformSettings(serviceFee: number, adminId: string) {
+    await this.prisma.platformConfig.upsert({
+      where: { key: 'service_fee' },
+      create: { key: 'service_fee', value: String(serviceFee), updatedById: adminId },
+      update: { value: String(serviceFee), updatedById: adminId },
+    });
+    await this.audit.log({ action: 'platform.settings.update', entityType: 'platform', entityId: 'service_fee', performedById: adminId, metadata: { serviceFee } });
+    return { serviceFee };
+  }
 }

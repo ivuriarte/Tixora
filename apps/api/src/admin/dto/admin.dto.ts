@@ -1,4 +1,4 @@
-import { IsString, MinLength, MaxLength, IsArray, ArrayMaxSize, ArrayMinSize, IsUUID, IsBoolean } from 'class-validator';
+import { IsString, MinLength, MaxLength, IsArray, ArrayMaxSize, ArrayMinSize, IsUUID, IsBoolean, IsNumber, Min, Max } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 
 export class RejectOrganizerDto {
@@ -55,4 +55,12 @@ export class BulkRejectDto {
   @MinLength(5)
   @MaxLength(500)
   reason: string;
+}
+
+export class UpdatePlatformSettingsDto {
+  @ApiProperty({ description: 'Flat service fee per order in pesos (₱). Min ₱0, max ₱9999.' })
+  @IsNumber()
+  @Min(0)
+  @Max(9999)
+  serviceFee: number;
 }
