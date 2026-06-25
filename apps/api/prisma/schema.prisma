@@ -598,6 +598,7 @@ model WorkspaceItem {
   status      ChecklistStatus   @default(open)
   priority    ChecklistPriority @default(medium)
   isBlocker    Boolean           @default(false) @map("is_blocker")
+  startDate    DateTime?         @map("start_date")
   dueDate      DateTime?         @map("due_date")
   assignedToId  String?           @map("assigned_to_id")
   accountableId String?           @map("accountable_id")

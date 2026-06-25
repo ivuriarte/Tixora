@@ -45,6 +45,12 @@ export class UpdateWorkspaceItemDto {
 
   @ApiProperty({ required: false })
   @IsOptional()
+  @ValidateIf((o) => o.startDate !== null)
+  @IsISO8601()
+  startDate?: string | null;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
   @ValidateIf((o) => o.dueDate !== null)
   @IsISO8601()
   dueDate?: string | null;
@@ -90,6 +96,11 @@ export class CreateWorkspaceItemDto {
   @IsOptional()
   @IsBoolean()
   isBlocker?: boolean;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsISO8601()
+  startDate?: string;
 
   @ApiProperty({ required: false })
   @IsOptional()

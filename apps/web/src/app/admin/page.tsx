@@ -28,6 +28,7 @@ interface Event {
   startsAt: string;
   status: string;
   ticketsSold: number;
+  organization: { id: string; name: string } | null;
 }
 
 interface DashboardStats {
@@ -169,6 +170,9 @@ export default function AdminDashboardPage() {
                 <p className="text-sm text-gray-500">
                   {formatShortDate(new Date(event.startsAt))} · {event.venue}
                 </p>
+                {event.organization && (
+                  <p className="text-xs text-violet-600 mt-0.5">by {event.organization.name}</p>
+                )}
               </div>
               <div className="flex items-center gap-3">
                 <span className="text-sm text-gray-500">{event.ticketsSold} sold</span>

@@ -18,7 +18,6 @@ import LocationStep from '@/components/event-wizard/steps/LocationStep';
 import CapacityTiersStep from '@/components/event-wizard/steps/CapacityTiersStep';
 import ConferenceStep from '@/components/event-wizard/steps/ConferenceStep';
 import PaymentStep from '@/components/event-wizard/steps/PaymentStep';
-import FeaturedStep from '@/components/event-wizard/steps/FeaturedStep';
 import ReviewStep from '@/components/event-wizard/steps/ReviewStep';
 import {
   emptyDraft,
@@ -80,9 +79,6 @@ interface ApiEvent {
   landmark?: string | null;
   tiers: ApiTier[];
   tagline?: string | null;
-  isFeatured?: boolean;
-  featuredOrder?: number | null;
-  featuredUntil?: string | null;
 }
 
 interface WorkspaceSummary {
@@ -201,9 +197,6 @@ export default function AdminEventEditPage() {
             .map<FaqItem>((f) => ({ question: f.question, answer: f.answer }))
         : [],
       tagline: event.tagline ?? '',
-      isFeatured: event.isFeatured ?? false,
-      featuredOrder: event.featuredOrder != null ? String(event.featuredOrder) : '',
-      featuredUntil: event.featuredUntil ? event.featuredUntil.slice(0, 10) : '',
     });
     setStatus(event.status ?? 'draft');
 
@@ -476,9 +469,6 @@ export default function AdminEventEditPage() {
           : null,
       faqs: draft.faqs.length > 0 ? draft.faqs : null,
       tagline: draft.tagline.trim() || null,
-      isFeatured: draft.isFeatured,
-      featuredOrder: draft.featuredOrder.trim() ? parseInt(draft.featuredOrder, 10) : null,
-      featuredUntil: draft.featuredUntil ? new Date(`${draft.featuredUntil}T23:59:59+08:00`).toISOString() : null,
     };
     await updateMutation.mutateAsync(payload);
   }
@@ -569,27 +559,6 @@ export default function AdminEventEditPage() {
         </button>
       </div>
     </div>
-
-      {/* ── Featured hero quick-toggle ───────────────────────────────────── */}
-      <div className="rounded-2xl border border-indigo-200 bg-indigo-50/40 px-4 py-3 flex items-center justify-between gap-4">
-        <div>
-          <p className="text-sm font-semibold text-indigo-900">Homepage Hero</p>
-          <p className="text-xs text-indigo-600 mt-0.5">
-            {draft.isFeatured
-              ? 'This event is featured on the homepage. Open the Featured step to adjust settings.'
-              : 'Feature this event in the homepage hero carousel. Open the Featured step to configure.'}
-          </p>
-        </div>
-        <label className="relative inline-flex items-center cursor-pointer shrink-0">
-          <input
-            type="checkbox"
-            className="sr-only peer"
-            checked={draft.isFeatured}
-            onChange={(e) => update({ isFeatured: e.target.checked })}
-          />
-          <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-indigo-400 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600" />
-        </label>
-      </div>
 
       {/* ── Workspace readiness banner ───────────────────────────────────── */}
       {workspaceSummary ? (
@@ -710,7 +679,6 @@ export default function AdminEventEditPage() {
                   onReorder={setPaymentMethods}
                 />
               );
-            case 'featured': return <FeaturedStep draft={draft} update={update} currentEventId={id} />;
             case 'review':
               return (
                 <ReviewStep

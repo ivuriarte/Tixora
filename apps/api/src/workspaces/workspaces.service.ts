@@ -508,6 +508,7 @@ export class WorkspacesService {
         category: dto.category ?? 'General',
         priority: (dto.priority as any) ?? 'medium',
         isBlocker: dto.isBlocker ?? false,
+        startDate: dto.startDate ? new Date(dto.startDate) : null,
         dueDate: dto.dueDate ? new Date(dto.dueDate) : null,
         notes: dto.notes ?? null,
         sortOrder: (maxOrder._max.sortOrder ?? -1) + 1,
@@ -566,6 +567,7 @@ export class WorkspacesService {
         ...(dto.status !== undefined && { status: dto.status as any }),
         ...(dto.priority !== undefined && { priority: dto.priority as any }),
         ...(dto.isBlocker !== undefined && { isBlocker: dto.isBlocker }),
+        ...(dto.startDate !== undefined && { startDate: dto.startDate ? new Date(dto.startDate) : null }),
         ...(dto.dueDate !== undefined && { dueDate: dto.dueDate ? new Date(dto.dueDate) : null }),
         ...(dto.notes !== undefined && { notes: dto.notes }),
         // explicit null means unassign; undefined means unchanged
@@ -1670,6 +1672,7 @@ export class WorkspacesService {
       status: item.status,
       priority: item.priority,
       isBlocker: item.isBlocker,
+      startDate: item.startDate?.toISOString() ?? null,
       dueDate: item.dueDate?.toISOString() ?? null,
       notes: item.notes,
       completedAt: item.completedAt?.toISOString() ?? null,
