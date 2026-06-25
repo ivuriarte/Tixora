@@ -227,12 +227,12 @@ export class EmailService implements OnModuleDestroy {
       `<div style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:24px">
         <h1 style="color:#166534;margin-bottom:4px">You are approved as an organizer</h1>
         <p style="color:#374151">Hi ${safeName}, your application for <strong>${safeOrg}</strong> has been approved.</p>
-        <p style="color:#374151">You can now sign in from the Axon Tickets homepage and use the organizer tools for your events, attendees, workspace, check-in, transactions, and reports.</p>
+        <p style="color:#374151">You can now sign in from Axon Tickets and use the organizer tools for your events, attendees, workspace, check-in, transactions, and reports.</p>
         <div style="background:#f0fdf4;border-left:4px solid #16a34a;padding:14px 16px;margin:20px 0;border-radius:0 8px 8px 0;color:#166534">
           Organizer access is limited to the events and data connected to your own organizer account.
         </div>
         <p style="margin:24px 0">
-          <a href="${homepageUrl}" style="background:#1A3A5C;color:white;padding:12px 24px;text-decoration:none;border-radius:8px;display:inline-block;font-weight:600">Go to Axon Tickets homepage</a>
+          <a href="${homepageUrl}" style="background:#1A3A5C;color:white;padding:12px 24px;text-decoration:none;border-radius:8px;display:inline-block;font-weight:600">Go to Axon Tickets</a>
         </p>
         <p style="color:#64748b;font-size:13px">If you need help setting up your first event, reply to this email and our team can guide you.</p>
         <p style="margin-top:24px;color:#9ca3af;font-size:12px">Axon Tickets · Online Ticketing Platform</p>

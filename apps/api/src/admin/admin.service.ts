@@ -1952,7 +1952,7 @@ export class AdminService {
       org.createdBy.email,
       org.createdBy.firstName ?? 'there',
       org.name,
-      webUrl,
+      `${webUrl}/auth/organizer?redirect=/become-organizer`,
     );
 
     return {

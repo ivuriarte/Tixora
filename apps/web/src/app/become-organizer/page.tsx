@@ -67,6 +67,10 @@ function extractApiError(err: unknown): string | null {
 // ── Status cards ──────────────────────────────────────────────────────────────
 
 function PendingCard({ org }: { org: OrgData }) {
+  function goHome() {
+    window.location.assign('/');
+  }
+
   return (
     <div className="max-w-lg mx-auto text-center">
       <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-amber-50 mb-6" aria-hidden="true">
@@ -100,15 +104,16 @@ function PendingCard({ org }: { org: OrgData }) {
         </ul>
       </div>
 
-      <Link
-        href="/"
+      <button
+        type="button"
+        onClick={goHome}
         className="inline-flex items-center gap-2 text-sm text-gray-500 hover:text-gray-900 transition-colors"
       >
         <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" aria-hidden="true">
           <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18" />
         </svg>
         Back to homepage
-      </Link>
+      </button>
     </div>
   );
 }
@@ -133,9 +138,15 @@ function ApprovedCard({ org }: { org: OrgData }) {
       <div className="bg-violet-50 border border-violet-100 rounded-2xl px-6 py-4 text-left mb-6">
         <p className="text-sm font-semibold text-violet-800 mb-1">What&apos;s next?</p>
         <p className="text-sm text-violet-700">
-          Your organizer access is active. Sign in from the Axon Tickets homepage whenever you are ready to manage your events, registrations, check-in, workspace, transactions, and reports.
+          Your organizer dashboard is ready. You can create and manage your own events, review registrations, run check-in, and monitor your event data.
         </p>
       </div>
+      <Link
+        href="/admin"
+        className="inline-flex items-center justify-center bg-violet-600 hover:bg-violet-700 text-white font-semibold px-6 py-3 rounded-xl transition-colors"
+      >
+        Open organizer dashboard
+      </Link>
     </div>
   );
 }
@@ -368,6 +379,7 @@ function toFormFields(org?: OrgData | null): FormFields {
 
 function RegistrationForm({ onSuccess, initialOrg }: { onSuccess: (org: OrgData) => void; initialOrg?: OrgData | null }) {
   const { user: authUser, setAuth } = useAuthStore();
+  const router = useRouter();
   const [form, setForm] = useState<FormFields>(() => toFormFields(initialOrg));
   const [errors, setErrors] = useState<Partial<Record<keyof FormFields, string>>>({});
   const [submitting, setSubmitting] = useState(false);
@@ -838,21 +850,31 @@ function RegistrationForm({ onSuccess, initialOrg }: { onSuccess: (org: OrgData)
           </p>
         </div>
 
-        <button
-          type="submit"
-          disabled={submitting}
-          className="w-full bg-violet-600 hover:bg-violet-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold px-4 py-3 rounded-xl transition-colors flex items-center justify-center gap-2"
-        >
-          {submitting ? (
-            <>
-              <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24" role="status" aria-label="Submitting…">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-              </svg>
-              Submitting…
-            </>
-          ) : initialOrg?.approvalStatus === 'rejected' ? 'Resubmit application' : 'Submit application'}
-        </button>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <button
+            type="button"
+            onClick={() => router.push('/')}
+            disabled={submitting}
+            className="w-full border border-gray-300 text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed font-semibold px-4 py-3 rounded-xl transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            type="submit"
+            disabled={submitting}
+            className="w-full bg-violet-600 hover:bg-violet-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold px-4 py-3 rounded-xl transition-colors flex items-center justify-center gap-2"
+          >
+            {submitting ? (
+              <>
+                <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24" role="status" aria-label="Submitting…">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                </svg>
+                Submitting…
+              </>
+            ) : initialOrg?.approvalStatus === 'rejected' ? 'Resubmit application' : 'Submit application'}
+          </button>
+        </div>
       </form>
     </div>
   );
@@ -892,6 +914,7 @@ const RESEND_COOLDOWN = 60;
 
 function GuestApplicationFlow({ onSuccess }: { onSuccess: (org: OrgData) => void }) {
   const { setAuth } = useAuthStore();
+  const router = useRouter();
   const [step, setStep] = useState<'form' | 'otp'>('form');
   const [form, setForm] = useState<GuestFormData>(EMPTY_GUEST);
   const [errors, setErrors] = useState<Partial<Record<keyof GuestFormData, string>>>({});
@@ -1356,21 +1379,31 @@ function GuestApplicationFlow({ onSuccess }: { onSuccess: (org: OrgData) => void
           </p>
         </div>
 
-        <button
-          type="submit"
-          disabled={submitting}
-          className="w-full bg-violet-600 hover:bg-violet-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold px-4 py-3 rounded-xl transition-colors flex items-center justify-center gap-2"
-        >
-          {submitting ? (
-            <>
-              <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24" role="status" aria-label="Submitting…">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-              </svg>
-              Submitting…
-            </>
-          ) : 'Submit application'}
-        </button>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <button
+            type="button"
+            onClick={() => router.push('/')}
+            disabled={submitting}
+            className="w-full border border-gray-300 text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed font-semibold px-4 py-3 rounded-xl transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            type="submit"
+            disabled={submitting}
+            className="w-full bg-violet-600 hover:bg-violet-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold px-4 py-3 rounded-xl transition-colors flex items-center justify-center gap-2"
+          >
+            {submitting ? (
+              <>
+                <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24" role="status" aria-label="Submitting…">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                </svg>
+                Submitting…
+              </>
+            ) : 'Submit application'}
+          </button>
+        </div>
       </form>
     </div>
   );

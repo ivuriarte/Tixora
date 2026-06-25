@@ -60,17 +60,88 @@ export class RegisterOrganizationDto {
   @IsOptional()
   @IsString()
   @MaxLength(100)
-  registrationNumber?: string;
+  registrationNumber?: string | null;
 
   @ApiPropertyOptional({ example: 'https://acme.com' })
   @IsOptional()
   @IsUrl({ protocols: ['http', 'https'], require_protocol: true })
   @MaxLength(200)
-  website?: string;
+  website?: string | null;
 
   @ApiPropertyOptional({ example: 'https://facebook.com/acmeevents' })
   @IsOptional()
   @IsUrl({ protocols: ['http', 'https'], require_protocol: true })
   @MaxLength(200)
-  facebookUrl?: string;
+  facebookUrl?: string | null;
+}
+
+export class UpdateOrganizationDto {
+  @ApiPropertyOptional({ example: 'Acme Events Inc.' })
+  @IsOptional()
+  @IsString()
+  @MinLength(2)
+  @MaxLength(120)
+  name?: string;
+
+  @ApiPropertyOptional({ example: 'We produce live music and corporate events across the Philippines.' })
+  @IsOptional()
+  @IsString()
+  @MinLength(20, { message: 'Description must be at least 20 characters' })
+  @MaxLength(1000)
+  description?: string;
+
+  @ApiPropertyOptional({ example: 'Juan Dela Cruz' })
+  @IsOptional()
+  @IsString()
+  @MinLength(2)
+  @MaxLength(120)
+  contactName?: string;
+
+  @ApiPropertyOptional({ example: '+639171234567' })
+  @IsOptional()
+  @IsString()
+  @Matches(/^\+?[0-9\s\-().]{7,25}$/, { message: 'Enter a valid phone number' })
+  phone?: string;
+
+  @ApiPropertyOptional({ example: 'Manila' })
+  @IsOptional()
+  @IsString()
+  @MinLength(2)
+  @MaxLength(80)
+  city?: string;
+
+  @ApiPropertyOptional({ enum: ID_TYPES, example: 'passport' })
+  @IsOptional()
+  @IsIn(ID_TYPES, { message: 'Select a valid government ID type' })
+  idType?: string;
+
+  @ApiPropertyOptional({ example: 'P1234567A' })
+  @IsOptional()
+  @IsString()
+  @MinLength(4)
+  @MaxLength(50)
+  idNumber?: string;
+
+  @ApiPropertyOptional({ enum: ORG_TYPES, example: 'company' })
+  @IsOptional()
+  @IsIn(ORG_TYPES, { message: 'Select a valid organization type' })
+  organizationType?: string;
+
+  @ApiPropertyOptional({ example: 'DTI-123456' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  registrationNumber?: string | null;
+
+  @ApiPropertyOptional({ example: 'https://acme.com' })
+  @IsOptional()
+  @IsUrl({ protocols: ['http', 'https'], require_protocol: true })
+  @MaxLength(200)
+  website?: string | null;
+
+  @ApiPropertyOptional({ example: 'https://facebook.com/acmeevents' })
+  @IsOptional()
+  @IsUrl({ protocols: ['http', 'https'], require_protocol: true })
+  @MaxLength(200)
+  facebookUrl?: string | null;
 }

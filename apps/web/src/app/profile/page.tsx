@@ -34,6 +34,36 @@ interface OrganizationProfile {
   facebookUrl: string | null;
 }
 
+const ORG_TYPE_OPTIONS = [
+  { value: 'individual', label: 'Individual / Sole proprietor' },
+  { value: 'company', label: 'Company / Corporation' },
+  { value: 'ngo', label: 'Non-profit / NGO' },
+  { value: 'event_company', label: 'Events company' },
+];
+
+const ID_TYPE_OPTIONS = [
+  { value: 'passport', label: 'Philippine Passport' },
+  { value: 'drivers_license', label: "Driver's License" },
+  { value: 'umid', label: 'UMID' },
+  { value: 'sss', label: 'SSS ID' },
+  { value: 'philsys', label: 'PhilSys ID (National ID)' },
+  { value: 'postal_id', label: 'Postal ID' },
+];
+
+const EMPTY_ORG_FORM = {
+  name: '',
+  description: '',
+  organizationType: '',
+  registrationNumber: '',
+  contactName: '',
+  phone: '',
+  city: '',
+  idType: '',
+  idNumber: '',
+  website: '',
+  facebookUrl: '',
+};
+
 export default function ProfilePage() {
   const router = useRouter();
   const pathname = usePathname();
@@ -44,6 +74,8 @@ export default function ProfilePage() {
   const [organization, setOrganization] = useState<OrganizationProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [orgSaving, setOrgSaving] = useState(false);
+  const [orgForm, setOrgForm] = useState(EMPTY_ORG_FORM);
 
   // Phone split: store the 10 digits after +63
   const [form, setForm] = useState({
@@ -79,7 +111,23 @@ export default function ProfilePage() {
         if (authUser?.isOrganizer) {
           api
             .get<{ data: OrganizationProfile }>('/organizations/me')
-            .then((orgRes) => setOrganization(orgRes.data.data))
+            .then((orgRes) => {
+              const org = orgRes.data.data;
+              setOrganization(org);
+              setOrgForm({
+                name: org.name ?? '',
+                description: org.description ?? '',
+                organizationType: org.organizationType ?? '',
+                registrationNumber: org.registrationNumber ?? '',
+                contactName: org.contactName ?? '',
+                phone: org.phone ?? '',
+                city: org.city ?? '',
+                idType: org.idType ?? '',
+                idNumber: org.idNumber ?? '',
+                website: org.website ?? '',
+                facebookUrl: org.facebookUrl ?? '',
+              });
+            })
             .catch(() => setOrganization(null));
         }
       })
@@ -94,6 +142,20 @@ export default function ProfilePage() {
   function updatePhone(e: React.ChangeEvent<HTMLInputElement>) {
     const digits = e.target.value.replace(/\D/g, '').slice(0, 10);
     setForm((f) => ({ ...f, phoneDigits: digits }));
+  }
+
+  function updateOrg(e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) {
+    setOrgForm((f) => ({ ...f, [e.target.name]: e.target.value }));
+  }
+
+  function validateUrl(value: string): boolean {
+    if (!value.trim()) return true;
+    try {
+      const url = new URL(value.trim());
+      return url.protocol === 'http:' || url.protocol === 'https:';
+    } catch {
+      return false;
+    }
   }
 
   async function handleSave(e: React.FormEvent) {
@@ -118,6 +180,69 @@ export default function ProfilePage() {
       toast.error(Array.isArray(msg) ? msg.join(', ') : msg ?? 'Failed to save changes.');
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function handleOrgSave(e: React.FormEvent) {
+    e.preventDefault();
+    if (!orgForm.name.trim() || orgForm.name.trim().length < 2) {
+      toast.error('Organization name must be at least 2 characters.');
+      return;
+    }
+    if (!orgForm.description.trim() || orgForm.description.trim().length < 20) {
+      toast.error('Description must be at least 20 characters.');
+      return;
+    }
+    if (!orgForm.organizationType || !orgForm.contactName.trim() || !orgForm.phone.trim() || !orgForm.city.trim() || !orgForm.idType || !orgForm.idNumber.trim()) {
+      toast.error('Please complete all required organizer account fields.');
+      return;
+    }
+    if (!/^\+?[0-9\s\-().]{7,25}$/.test(orgForm.phone.trim())) {
+      toast.error('Please enter a valid organizer contact phone number.');
+      return;
+    }
+    if (!validateUrl(orgForm.website) || !validateUrl(orgForm.facebookUrl)) {
+      toast.error('Website and Facebook URLs must start with http:// or https://.');
+      return;
+    }
+
+    setOrgSaving(true);
+    try {
+      const payload = {
+        name: orgForm.name.trim(),
+        description: orgForm.description.trim(),
+        organizationType: orgForm.organizationType,
+        registrationNumber: orgForm.registrationNumber.trim() || null,
+        contactName: orgForm.contactName.trim(),
+        phone: orgForm.phone.trim(),
+        city: orgForm.city.trim(),
+        idType: orgForm.idType,
+        idNumber: orgForm.idNumber.trim(),
+        website: orgForm.website.trim() || null,
+        facebookUrl: orgForm.facebookUrl.trim() || null,
+      };
+      const res = await api.patch<{ data: OrganizationProfile }>('/organizations/me', payload);
+      const org = res.data.data;
+      setOrganization(org);
+      setOrgForm({
+        name: org.name ?? '',
+        description: org.description ?? '',
+        organizationType: org.organizationType ?? '',
+        registrationNumber: org.registrationNumber ?? '',
+        contactName: org.contactName ?? '',
+        phone: org.phone ?? '',
+        city: org.city ?? '',
+        idType: org.idType ?? '',
+        idNumber: org.idNumber ?? '',
+        website: org.website ?? '',
+        facebookUrl: org.facebookUrl ?? '',
+      });
+      toast.success('Organizer account updated!');
+    } catch (err: any) {
+      const msg = err?.response?.data?.message;
+      toast.error(Array.isArray(msg) ? msg.join(', ') : msg ?? 'Failed to save organizer account.');
+    } finally {
+      setOrgSaving(false);
     }
   }
 
@@ -181,74 +306,80 @@ export default function ProfilePage() {
           </div>
         </div>
 
-        {organization && (
-          <div className="bg-white border border-gray-100 rounded-2xl shadow-sm px-6 py-5 mb-6">
+        {organization && authUser?.isOrganizer && (
+          <form onSubmit={handleOrgSave} className="bg-white border border-gray-100 rounded-2xl shadow-sm px-6 py-5 mb-6 space-y-4">
             <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-widest">Organizer Account</h2>
-            <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
               <div>
-                <p className="text-gray-400">Organization</p>
-                <p className="font-medium text-gray-900">{organization.name}</p>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Organization <span className="text-red-500">*</span></label>
+                <input name="name" value={orgForm.name} onChange={updateOrg} required className={inputClass} />
               </div>
               <div>
                 <p className="text-gray-400">KYC status</p>
                 <p className="font-medium text-gray-900 capitalize">{organization.approvalStatus}</p>
               </div>
               <div>
-                <p className="text-gray-400">Organization type</p>
-                <p className="font-medium text-gray-900">{organization.organizationType}</p>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Organization type <span className="text-red-500">*</span></label>
+                <select name="organizationType" value={orgForm.organizationType} onChange={updateOrg} required className={inputClass}>
+                  <option value="">Select type...</option>
+                  {ORG_TYPE_OPTIONS.map((option) => (
+                    <option key={option.value} value={option.value}>{option.label}</option>
+                  ))}
+                </select>
               </div>
               <div>
-                <p className="text-gray-400">Primary contact</p>
-                <p className="font-medium text-gray-900">{organization.contactName}</p>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Primary contact <span className="text-red-500">*</span></label>
+                <input name="contactName" value={orgForm.contactName} onChange={updateOrg} required className={inputClass} />
               </div>
               <div>
-                <p className="text-gray-400">Contact phone</p>
-                <p className="font-medium text-gray-900">{organization.phone}</p>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Contact phone <span className="text-red-500">*</span></label>
+                <input name="phone" value={orgForm.phone} onChange={updateOrg} required className={inputClass} />
               </div>
               <div>
-                <p className="text-gray-400">Organizer city</p>
-                <p className="font-medium text-gray-900">{organization.city}</p>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Organizer city <span className="text-red-500">*</span></label>
+                <input name="city" value={orgForm.city} onChange={updateOrg} required className={inputClass} />
               </div>
               <div>
-                <p className="text-gray-400">Government ID type</p>
-                <p className="font-medium text-gray-900">{organization.idType}</p>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Government ID type <span className="text-red-500">*</span></label>
+                <select name="idType" value={orgForm.idType} onChange={updateOrg} required className={inputClass}>
+                  <option value="">Select ID type...</option>
+                  {ID_TYPE_OPTIONS.map((option) => (
+                    <option key={option.value} value={option.value}>{option.label}</option>
+                  ))}
+                </select>
               </div>
               <div>
-                <p className="text-gray-400">ID number</p>
-                <p className="font-medium text-gray-900">{organization.idNumber}</p>
+                <label className="block text-sm font-medium text-gray-700 mb-1">ID number <span className="text-red-500">*</span></label>
+                <input name="idNumber" value={orgForm.idNumber} onChange={updateOrg} required className={inputClass} />
               </div>
               <div>
-                <p className="text-gray-400">Registration no.</p>
-                <p className="font-medium text-gray-900">{organization.registrationNumber ?? 'Not provided'}</p>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Registration no. <span className="text-gray-400 font-normal">(optional)</span></label>
+                <input name="registrationNumber" value={orgForm.registrationNumber} onChange={updateOrg} className={inputClass} />
               </div>
               <div>
-                <p className="text-gray-400">Website</p>
-                {organization.website ? (
-                  <a href={organization.website} target="_blank" rel="noopener noreferrer" className="font-medium text-primary hover:underline break-words">
-                    {organization.website}
-                  </a>
-                ) : (
-                  <p className="font-medium text-gray-400">Not provided</p>
-                )}
+                <label className="block text-sm font-medium text-gray-700 mb-1">Website <span className="text-gray-400 font-normal">(optional)</span></label>
+                <input name="website" value={orgForm.website} onChange={updateOrg} placeholder="https://yourcompany.com" className={inputClass} />
               </div>
               <div>
-                <p className="text-gray-400">Facebook page</p>
-                {organization.facebookUrl ? (
-                  <a href={organization.facebookUrl} target="_blank" rel="noopener noreferrer" className="font-medium text-primary hover:underline break-words">
-                    {organization.facebookUrl}
-                  </a>
-                ) : (
-                  <p className="font-medium text-gray-400">Not provided</p>
-                )}
+                <label className="block text-sm font-medium text-gray-700 mb-1">Facebook page <span className="text-gray-400 font-normal">(optional)</span></label>
+                <input name="facebookUrl" value={orgForm.facebookUrl} onChange={updateOrg} placeholder="https://facebook.com/yourpage" className={inputClass} />
               </div>
               <div className="sm:col-span-2">
-                <p className="text-gray-400">Description</p>
-                <p className="font-medium text-gray-900">{organization.description}</p>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Description <span className="text-red-500">*</span></label>
+                <textarea name="description" value={orgForm.description} onChange={updateOrg} required rows={4} className={`${inputClass} resize-none`} />
               </div>
             </div>
-          </div>
+            <button
+              type="submit"
+              disabled={orgSaving}
+              className="w-full bg-primary text-white font-semibold py-2.5 rounded-xl hover:bg-primary/90 transition-colors disabled:opacity-60"
+            >
+              {orgSaving ? 'Saving...' : 'Save organizer account'}
+            </button>
+          </form>
         )}
 
+        {!authUser?.isOrganizer && (
         <form onSubmit={handleSave} className="space-y-6">
           {/* Basic Info */}
           <div className="bg-white border border-gray-100 rounded-2xl shadow-sm p-6 space-y-4">
@@ -336,6 +467,7 @@ export default function ProfilePage() {
             {saving ? 'Saving…' : 'Save changes'}
           </button>
         </form>
+        )}
       </main>
     </>
   );
