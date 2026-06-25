@@ -23,7 +23,6 @@
 
 import { ConflictException, NotFoundException, BadRequestException } from '@nestjs/common';
 import { OrganizationsService } from './organizations.service';
-import { AdminService } from '../admin/admin.service';
 
 // ── helpers ────────────────────────────────────────────────────────────────
 
@@ -79,7 +78,7 @@ describe('OrganizationsService.register', () => {
   const USER_ID = 'user_1';
 
   it('U-O1: creates org + membership and returns pending status', async () => {
-    const { prisma, audit, service, createdOrg, tx } = buildOrgsMocks();
+    const { audit, service, createdOrg, tx } = buildOrgsMocks();
 
     const result = await service.register(DTO, USER_ID);
 

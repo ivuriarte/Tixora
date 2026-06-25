@@ -277,8 +277,7 @@ describe('getWorkspaceSummary() — unownedCount', () => {
 // ── Overdue items (TR-01) ─────────────────────────────────────────────────────
 
 describe('getOverdueItems()', () => {
-  const PAST  = new Date('2026-01-01T00:00:00Z'); // definitely past
-  const FUTURE = new Date('2030-01-01T00:00:00Z'); // definitely future
+  const PAST = new Date('2026-01-01T00:00:00Z'); // definitely past
 
   // W-13
   it('returns items past dueDate that are not done', async () => {
