@@ -15,6 +15,7 @@ interface NavItem {
   exactMatch?: boolean;
   alsoActiveFor?: string[];
   pendingBadge?: boolean;
+  orgPendingBadge?: boolean;
 }
 
 interface NavSection {
@@ -125,6 +126,22 @@ const SECTIONS: NavSection[] = [
     ],
   },
   {
+    label: 'Organizers',
+    items: [
+      {
+        href: '/admin/organizers',
+        label: 'Applications',
+        pendingBadge: false,
+        orgPendingBadge: true,
+        icon: (
+          <svg className="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth={1.75} viewBox="0 0 24 24" aria-hidden>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 21h16.5M4.5 3h15M5.25 3v18m13.5-18v18M9 6.75h1.5m-1.5 3h1.5m-1.5 3h1.5m3-6H15m-1.5 3H15m-1.5 3H15M9 21v-3.375c0-.621.504-1.125 1.125-1.125h3.75c.621 0 1.125.504 1.125 1.125V21" />
+          </svg>
+        ),
+      },
+    ],
+  },
+  {
     label: 'Settings',
     items: [
       {
@@ -145,15 +162,22 @@ export default function AdminSidebar() {
   const router = useRouter();
   const { logout } = useAuthStore();
   const [pendingCount, setPendingCount] = useState(0);
+  const [orgPendingCount, setOrgPendingCount] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
     const load = async () => {
       try {
-        const res = await api.get('/admin/verifications/count');
-        const body = res.data as { count?: number; data?: { count?: number } };
-        const c = body?.data?.count ?? body?.count ?? 0;
-        if (!cancelled) setPendingCount(c);
+        const [verRes, orgRes] = await Promise.all([
+          api.get('/admin/verifications/count'),
+          api.get('/admin/organizers/count'),
+        ]);
+        const verBody = verRes.data as { count?: number; data?: { count?: number } };
+        const orgBody = orgRes.data as { count?: number; data?: { count?: number } };
+        if (!cancelled) {
+          setPendingCount(verBody?.data?.count ?? verBody?.count ?? 0);
+          setOrgPendingCount(orgBody?.data?.count ?? orgBody?.count ?? 0);
+        }
       } catch {
         /* ignore */
       }
@@ -212,7 +236,7 @@ export default function AdminSidebar() {
             <div className="space-y-0.5">
               {section.items.map((item) => {
                 const active = isItemActive(item);
-                const badge = item.pendingBadge ? pendingCount : 0;
+                const badge = item.orgPendingBadge ? orgPendingCount : item.pendingBadge ? pendingCount : 0;
                 return (
                   <Link
                     key={item.href}

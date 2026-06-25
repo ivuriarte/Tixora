@@ -2,6 +2,7 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { RedisService } from '../redis/redis.service';
+import { WorkspacesService } from '../workspaces/workspaces.service';
 import { CreateEventDto, UpdateEventDto } from './dto/event.dto';
 import { uniqueSlug } from '@axon-tickets/utils';
 
@@ -21,6 +22,7 @@ export class EventsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly redis: RedisService,
+    private readonly workspaces: WorkspacesService,
   ) {}
 
   /**
@@ -173,7 +175,7 @@ export class EventsService {
 
   async create(dto: CreateEventDto, createdById: string) {
     const slug = uniqueSlug(dto.title);
-    return this.prisma.event.create({
+    const event = await this.prisma.event.create({
       data: {
         slug,
         title: dto.title,
@@ -204,6 +206,11 @@ export class EventsService {
         createdById,
       },
     });
+
+    // Auto-create workspace — fire-and-forget; never fails event creation
+    this.workspaces.ensureWorkspace(event.id, createdById).catch(() => void 0);
+
+    return event;
   }
 
   async update(id: string, dto: UpdateEventDto) {

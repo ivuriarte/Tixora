@@ -1,0 +1,1221 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Axon × DAVI NFC Integration Product Backlog</title>
+  <meta name="description" content="Product backlog for the Axon Tickets and DAVI NFC kiosk integration iteration.">
+  <style>
+:root{
+  --ink:#14203a;--muted:#64708a;--line:#dfe4ee;--paper:#fbfaf7;--white:#fff;
+  --purple:#6328ce;--violet:#8b4dff;--orange:#f46922;--green:#15916c;
+  --red:#d94747;--amber:#b66a00;--blue:#2369b3;--navy:#15233f;
+  --lilac:#f1ebff;--mint:#e8f7f1;--cream:#fff6ea;--sky:#eaf4ff;--rose:#fdecec;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;background:var(--paper);color:var(--ink);font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;line-height:1.55}
+a{color:inherit}
+.hero{position:relative;overflow:hidden;background:var(--navy);color:white;padding:72px max(6vw,42px) 64px}
+.hero:after{content:"";position:absolute;width:420px;height:420px;border-radius:50%;background:var(--purple);right:-145px;top:-170px;box-shadow:-115px 108px 0 -55px var(--orange)}
+.hero-inner{position:relative;z-index:1;max-width:1120px;margin:auto}
+.eyebrow{font-size:.75rem;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:#c5b4ff}
+h1{font-size:clamp(2.4rem,5vw,4.9rem);line-height:.98;letter-spacing:-.045em;margin:20px 0;max-width:920px}
+.hero p{font-size:1.15rem;color:#d5daeb;max-width:780px}
+.meta{display:flex;flex-wrap:wrap;gap:10px;margin-top:30px}
+.meta span,.chip{border-radius:999px;padding:7px 12px;font-size:.75rem;font-weight:800;letter-spacing:.03em}
+.meta span{background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.15)}
+.layout{max-width:1200px;margin:auto;padding:42px max(4vw,28px) 90px}
+.nav{position:sticky;top:0;z-index:10;background:rgba(251,250,247,.94);backdrop-filter:blur(12px);border-bottom:1px solid var(--line);padding:12px max(4vw,28px)}
+.nav-inner{max-width:1200px;margin:auto;display:flex;gap:8px;overflow:auto}
+.nav a{white-space:nowrap;text-decoration:none;border:1px solid var(--line);background:white;padding:7px 11px;border-radius:999px;font-size:.75rem;font-weight:700}
+.nav a:hover{border-color:var(--purple);color:var(--purple)}
+h2{font-size:clamp(1.7rem,3vw,2.55rem);line-height:1.1;letter-spacing:-.035em;margin:62px 0 18px}
+h3{font-size:1.2rem;line-height:1.25;margin:0}
+.lede{font-size:1.05rem;color:var(--muted);max-width:850px}
+.callout{border-radius:22px;padding:24px 28px;margin:22px 0;background:var(--navy);color:white}
+.callout strong{color:#bfa9ff}
+.callout p{color:#d5daeb;margin:.45rem 0 0}
+.grid{display:grid;gap:18px}
+.grid-2{grid-template-columns:repeat(2,minmax(0,1fr))}
+.grid-3{grid-template-columns:repeat(3,minmax(0,1fr))}
+.metric{border:1px solid var(--line);background:white;border-radius:18px;padding:22px}
+.metric .num{font-size:2.3rem;font-weight:850;letter-spacing:-.04em}
+.metric .label{color:var(--muted);font-size:.82rem}
+.statusbar{display:flex;height:13px;border-radius:999px;overflow:hidden;background:#eee;margin:16px 0}
+.statusbar span{display:block;height:100%}
+.legend{display:flex;gap:8px;flex-wrap:wrap;margin:14px 0}
+.chip{display:inline-flex;align-items:center;gap:6px}
+.status-verified{background:var(--mint);color:#0b7655}.status-partial{background:var(--cream);color:#9a5200}
+.status-gap{background:var(--rose);color:#ad2f2f}.status-deferred{background:#edf0f5;color:#4d586d}
+.status-verify{background:var(--sky);color:#185b9e}.status-ready{background:var(--mint);color:#0b7655}
+.status-blocked{background:var(--rose);color:#ad2f2f}
+.priority-Must{background:var(--red);color:white}.priority-Should{background:var(--orange);color:white}
+.priority-Could{background:var(--blue);color:white}.priority-Wont{background:#5d6678;color:white}
+.epic{margin:58px 0 18px;padding:26px 28px;border-radius:24px;background:linear-gradient(135deg,var(--navy),#283b64);color:white}
+.epic-id{color:#bfa9ff;font-size:.78rem;font-weight:850;letter-spacing:.1em}
+.epic h2{font-size:2rem;margin:8px 0 7px;color:white}
+.epic p{color:#d0d7e8;margin:0;max-width:920px}
+.story{background:white;border:1px solid var(--line);border-radius:20px;padding:22px 24px;margin:14px 0;box-shadow:0 6px 22px rgba(25,38,68,.035);break-inside:avoid}
+.story-top{display:flex;gap:12px;align-items:flex-start;justify-content:space-between}
+.story-heading{display:flex;gap:12px;align-items:flex-start}
+.story-id{font-family:"SFMono-Regular",Consolas,monospace;color:var(--purple);font-weight:800;font-size:.8rem;padding-top:3px}
+.badges{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
+.badge{border-radius:999px;padding:4px 8px;font-size:.67rem;font-weight:850;letter-spacing:.025em}
+.user-story{margin:14px 0;padding:14px 16px;background:#f7f5fb;border-left:4px solid var(--purple);border-radius:0 12px 12px 0;color:#35415b}
+.user-story strong{color:var(--ink)}
+.ac-title{font-size:.76rem;letter-spacing:.08em;text-transform:uppercase;font-weight:850;color:var(--purple)}
+.ac{margin:8px 0 0;padding-left:20px}
+.ac li{margin:6px 0;color:#3c4860}
+.details{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:15px;padding-top:14px;border-top:1px solid var(--line);font-size:.8rem;color:var(--muted)}
+.details strong{color:var(--ink)}
+.note{margin-top:12px;padding:11px 13px;border-radius:12px;background:var(--cream);color:#714300;font-size:.83rem}
+table{width:100%;border-collapse:separate;border-spacing:0;background:white;border:1px solid var(--line);border-radius:18px;overflow:hidden;margin:18px 0}
+th{background:var(--navy);color:white;text-align:left;padding:12px;font-size:.76rem;text-transform:uppercase;letter-spacing:.05em}
+td{padding:11px 12px;border-top:1px solid var(--line);vertical-align:top;font-size:.88rem}
+tr:nth-child(even) td{background:#fafbfc}
+.flow{display:flex;gap:8px;align-items:stretch;overflow:auto;padding:8px 0}
+.flow .step{min-width:175px;flex:1;background:white;border:1px solid var(--line);border-radius:18px;padding:18px}
+.step-num{width:30px;height:30px;border-radius:50%;background:var(--purple);color:white;display:grid;place-items:center;font-weight:850;margin-bottom:15px}
+.arrow{display:grid;place-items:center;color:var(--purple);font-weight:900}
+.scope{border-radius:20px;padding:22px;background:white;border:1px solid var(--line)}
+.scope.must{border-top:6px solid var(--green)}.scope.defer{border-top:6px solid var(--orange)}
+.decision{border:2px solid var(--purple);border-radius:22px;padding:26px;background:white;margin:22px 0}
+.decision-options{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin:18px 0}
+.decision-option{border:1px solid var(--line);border-radius:14px;padding:14px;font-weight:750}
+.signature{display:grid;grid-template-columns:2fr 1fr;gap:24px;margin-top:28px}
+.signature-line{border-bottom:1px solid var(--ink);min-height:34px}
+.footer{margin-top:70px;border-top:1px solid var(--line);padding-top:24px;color:var(--muted);font-size:.8rem}
+code{font-family:"SFMono-Regular",Consolas,monospace;background:#f1edf9;color:#5423b1;padding:1px 5px;border-radius:5px}
+@media(max-width:760px){.grid-2,.grid-3,.decision-options,.signature{grid-template-columns:1fr}.story-top{display:block}.badges{justify-content:flex-start;margin-top:10px}.details{grid-template-columns:1fr}.hero{padding-top:54px}.flow{display:grid}.arrow{transform:rotate(90deg)}}
+@media print{.nav{display:none}.hero{padding:42px}.layout{padding:24px}.story{box-shadow:none}a{text-decoration:none}.epic,.callout,.story,.scope{break-inside:avoid}h2{break-after:avoid}}
+</style>
+</head>
+<body>
+  <header class="hero">
+    <div class="hero-inner">
+      <div class="eyebrow">Axon Tickets · Product Management</div>
+      <h1>Axon × DAVI NFC Integration Product Backlog</h1>
+      <p>A state-of-the-art, dependency-aware iteration backlog for NFC card assignment, Axon-owned check-in, freebie collection, kiosk security, limited offline operation and July validation.</p>
+      <div class="meta">
+        <span>Version 1.0</span><span>Ready for Discovery</span><span>June 21, 2026</span>
+      </div>
+    </div>
+  </header>
+  <nav class="nav"><div class="nav-inner"><a href="#north-star">North star</a><a href="#scope">Scope</a><a href="#sequence">Sequence</a><a href="#DAVI-00">DAVI-00 · Discovery, Repository and Device Validation</a><a href="#DAVI-01">DAVI-01 · NFC Card Identity and Lifecycle</a><a href="#DAVI-02">DAVI-02 · Kiosk Identity, Authorization and Security</a><a href="#DAVI-03">DAVI-03 · Axon-Authoritative NFC Check-In</a><a href="#DAVI-04">DAVI-04 · Axon Freebie Entitlements and Collection</a><a href="#DAVI-05">DAVI-05 · Kiosk Application Adaptation and UX</a><a href="#DAVI-06">DAVI-06 · Limited Offline Mode and Synchronization</a><a href="#DAVI-07">DAVI-07 · Testing, Rehearsal, Release and Event Operations</a></div></nav>
+  <main class="layout">
+<section id="north-star">
+  <h2>Iteration north star</h2>
+  <p class="lede">An attendee taps an NFC card. The kiosk reads a safe card identifier. Axon resolves the attendee, applies eligibility rules and records check-in or freebie collection. DAVI does not need to approve the live transaction.</p>
+  <div class="flow">
+    <div class="step"><div class="step-num">1</div><h3>NFC card</h3><p>Presents an opaque token or documented card identifier.</p></div>
+    <div class="arrow">→</div>
+    <div class="step"><div class="step-num">2</div><h3>Axon-operated kiosk</h3><p>Reads the card and submits event, station and operation context.</p></div>
+    <div class="arrow">→</div>
+    <div class="step"><div class="step-num">3</div><h3>Axon API</h3><p>Authenticates the station and applies check-in or entitlement rules.</p></div>
+    <div class="arrow">→</div>
+    <div class="step"><div class="step-num">4</div><h3>Axon ledger</h3><p>Records the authoritative, auditable result.</p></div>
+  </div>
+  <div class="callout"><strong>Critical architecture boundary</strong><p>DAVI contributes the kiosk repository and card-format knowledge. Axon owns card assignment, admission, freebies, offline recovery, audit and reporting. A DAVI production outage must not prevent these operations.</p></div>
+  <div class="grid grid-3">
+    <div class="metric"><div class="num">49</div><div class="label">developer-ready stories</div></div>
+    <div class="metric"><div class="num">250</div><div class="label">estimated points before refinement</div></div>
+    <div class="metric"><div class="num">8</div><div class="label">delivery epics</div></div>
+  </div>
+  <div class="legend"><span class="badge status-ready">Ready</span> 31 &nbsp; <span class="badge status-blocked">Blocked</span> 18</div>
+</section>
+
+<section id="scope">
+  <h2>July scope box</h2>
+  <div class="grid grid-2">
+    <div class="scope must">
+      <h3>Must be included</h3>
+      <ul>
+        <li>Repository and real-card compatibility proof</li>
+        <li>Approved kiosk device matrix</li>
+        <li>Card assignment and replacement</li>
+        <li>Axon-authoritative, atomic NFC check-in</li>
+        <li>Event/station-scoped kiosk security</li>
+        <li>QR and manual-search fallback</li>
+        <li>One controlled freebie entitlement and collection flow</li>
+        <li>Limited offline procedure, rehearsal and reconciliation</li>
+      </ul>
+    </div>
+    <div class="scope defer">
+      <h3>Explicitly deferred</h3>
+      <ul>
+        <li>Replacing QR entirely</li>
+        <li>Attendee phones as virtual NFC cards</li>
+        <li>Mixed untested Android/iPhone web kiosk fleet</li>
+        <li>Multiple disconnected freebie stations for one item</li>
+        <li>Community features coupled to admission</li>
+        <li>Cross-event identity federation</li>
+        <li>Full local venue coordination server</li>
+        <li>Gamification and sponsor-facing dashboards</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<section id="sequence">
+  <h2>Mandatory delivery sequence</h2>
+  <p class="lede">The order below is a dependency chain, not a suggestion. Starting API or database implementation before card and repository discovery creates avoidable rework.</p>
+  <div class="flow">
+    <div class="step"><div class="step-num">1</div><h3>Prove</h3><p>Build repository, scan real cards, approve devices.</p></div><div class="arrow">→</div>
+    <div class="step"><div class="step-num">2</div><h3>Decide</h3><p>Freeze business rules, scope and security model.</p></div><div class="arrow">→</div>
+    <div class="step"><div class="step-num">3</div><h3>Build core</h3><p>Card lifecycle, station auth and atomic ledgers.</p></div><div class="arrow">→</div>
+    <div class="step"><div class="step-num">4</div><h3>Adapt kiosk</h3><p>Connect DAVI foundation directly to Axon.</p></div><div class="arrow">→</div>
+    <div class="step"><div class="step-num">5</div><h3>Rehearse</h3><p>Real cards, concurrency, outages and trained staff.</p></div>
+  </div>
+  <table>
+    <thead><tr><th>Epic</th><th>Capability</th><th>Stories</th><th>Points</th><th>Discovery</th><th>July MVP</th><th>After July</th></tr></thead>
+    <tbody><tr><td>DAVI-00</td><td>Discovery, Repository and Device Validation</td><td>6</td><td>21</td><td>6</td><td>0</td><td>0</td></tr><tr><td>DAVI-01</td><td>NFC Card Identity and Lifecycle</td><td>5</td><td>19</td><td>0</td><td>4</td><td>1</td></tr><tr><td>DAVI-02</td><td>Kiosk Identity, Authorization and Security</td><td>5</td><td>21</td><td>0</td><td>5</td><td>0</td></tr><tr><td>DAVI-03</td><td>Axon-Authoritative NFC Check-In</td><td>7</td><td>41</td><td>0</td><td>6</td><td>1</td></tr><tr><td>DAVI-04</td><td>Axon Freebie Entitlements and Collection</td><td>7</td><td>34</td><td>0</td><td>6</td><td>1</td></tr><tr><td>DAVI-05</td><td>Kiosk Application Adaptation and UX</td><td>5</td><td>24</td><td>0</td><td>5</td><td>0</td></tr><tr><td>DAVI-06</td><td>Limited Offline Mode and Synchronization</td><td>6</td><td>44</td><td>0</td><td>5</td><td>1</td></tr><tr><td>DAVI-07</td><td>Testing, Rehearsal, Release and Event Operations</td><td>8</td><td>46</td><td>0</td><td>8</td><td>0</td></tr></tbody>
+  </table>
+</section>
+
+<section>
+  <h2>Definition of Ready</h2>
+  <p class="lede">A story may enter implementation only when these conditions are true.</p>
+  <div class="grid grid-3">
+    <div class="scope"><h3>Business clarity</h3><p>User, outcome, rule decisions and acceptance criteria are approved.</p></div>
+    <div class="scope"><h3>Technical clarity</h3><p>Dependencies, data ownership, API boundary and security assumptions are known.</p></div>
+    <div class="scope"><h3>Test clarity</h3><p>Required cards, devices, environments and measurable success conditions are available.</p></div>
+  </div>
+</section>
+
+
+<section id="DAVI-00">
+  <div class="epic">
+    <div class="epic-id">DAVI-00</div>
+    <h2>Discovery, Repository and Device Validation</h2>
+    <p><strong>Business value:</strong> Prove that the contributed kiosk technology and real NFC cards work on the exact July devices before Axon commits to implementation.</p>
+  </div>
+
+<article class="story" id="DAVI-DISC-01">
+  <div class="story-top">
+    <div class="story-heading"><span class="story-id">DAVI-DISC-01</span><h3>Receive and build the kiosk repository</h3></div>
+    <div class="badges">
+      <span class="badge status-blocked">Blocked</span>
+      <span class="badge priority-Must">Must</span>
+      <span class="badge status-deferred">3 SP</span>
+      <span class="badge status-verify">Discovery</span>
+    </div>
+  </div>
+  <div class="user-story"><strong>As a technical lead,</strong> I want to obtain, build and run the DAVI-provided NFC kiosk repository, so that the team understands the real starting point.</div>
+  <div class="ac-title">Acceptance criteria</div>
+  <ul class="ac"><li>GIVEN repository access and setup instructions, WHEN the documented build is run, THEN the kiosk launches without undocumented manual patches.</li><li>GIVEN the running application, WHEN network activity is inspected, THEN every DAVI/external dependency is documented.</li><li>GIVEN build failure, WHEN discovery ends, THEN the blocker, owner and required DAVI action are recorded.</li></ul>
+  <div class="details">
+    <div><strong>Evidence / planned component</strong><br>Not applicable</div>
+    <div><strong>Dependencies</strong><br>Repository access from DAVI/Dotside</div>
+  </div>
+<div class="note"><strong>Product note:</strong> Greatest-value first story. No downstream NFC commitment should be made before this succeeds.</div>
+</article>
+<article class="story" id="DAVI-DISC-02">
+  <div class="story-top">
+    <div class="story-heading"><span class="story-id">DAVI-DISC-02</span><h3>Identify the card protocol and identifier</h3></div>
+    <div class="badges">
+      <span class="badge status-blocked">Blocked</span>
+      <span class="badge priority-Must">Must</span>
+      <span class="badge status-deferred">5 SP</span>
+      <span class="badge status-verify">Discovery</span>
+    </div>
+  </div>
+  <div class="user-story"><strong>As an integration architect,</strong> I want to determine exactly what the kiosk reads from each card, so that Axon can design a stable and secure card mapping.</div>
+  <div class="ac-title">Acceptance criteria</div>
+  <ul class="ac"><li>GIVEN a production card, WHEN scanned repeatedly, THEN the returned identifier and protocol are captured and consistent.</li><li>GIVEN multiple cards, WHEN scanned, THEN identifiers are unique at the expected collision risk.</li><li>GIVEN UID, NDEF or proprietary data, WHEN identified, THEN cloning, rewriting and privacy implications are documented.</li></ul>
+  <div class="details">
+    <div><strong>Evidence / planned component</strong><br>Not applicable</div>
+    <div><strong>Dependencies</strong><br>DAVI-DISC-01, Production NFC cards</div>
+  </div>
+
+</article>
+<article class="story" id="DAVI-DISC-03">
+  <div class="story-top">
+    <div class="story-heading"><span class="story-id">DAVI-DISC-03</span><h3>Approve the July kiosk device matrix</h3></div>
+    <div class="badges">
+      <span class="badge status-blocked">Blocked</span>
+      <span class="badge priority-Must">Must</span>
+      <span class="badge status-deferred">5 SP</span>
+      <span class="badge status-verify">Discovery</span>
+    </div>
+  </div>
+  <div class="user-story"><strong>As an event technology lead,</strong> I want to test the exact phone, operating system and app/browser combinations, so that production does not depend on assumed NFC support.</div>
+  <div class="ac-title">Acceptance criteria</div>
+  <ul class="ac"><li>GIVEN each proposed device, WHEN the real card is scanned 20 consecutive times, THEN success/failure rate and median read time are recorded.</li><li>GIVEN a browser-based Web NFC kiosk, WHEN tested, THEN Android Chrome, HTTPS, foreground and permission requirements are confirmed.</li><li>GIVEN iPhone use, WHEN proposed, THEN a native Core NFC implementation or supported reader is demonstrated; Safari Web NFC is not assumed.</li></ul>
+  <div class="details">
+    <div><strong>Evidence / planned component</strong><br>Not applicable</div>
+    <div><strong>Dependencies</strong><br>DAVI-DISC-01, DAVI-DISC-02</div>
+  </div>
+
+</article>
+<article class="story" id="DAVI-DISC-04">
+  <div class="story-top">
+    <div class="story-heading"><span class="story-id">DAVI-DISC-04</span><h3>Document the existing kiosk architecture</h3></div>
+    <div class="badges">
+      <span class="badge status-blocked">Blocked</span>
+      <span class="badge priority-Must">Must</span>
+      <span class="badge status-deferred">3 SP</span>
+      <span class="badge status-verify">Discovery</span>
+    </div>
+  </div>
+  <div class="user-story"><strong>As a developer,</strong> I want to map screens, local storage, APIs, authentication and offline behavior, so that the adaptation work is estimable.</div>
+  <div class="ac-title">Acceptance criteria</div>
+  <ul class="ac"><li>GIVEN the repository, WHEN reviewed, THEN a component/data-flow diagram is produced.</li><li>GIVEN local persistence, WHEN present, THEN stored fields, encryption and expiry are documented.</li><li>GIVEN DAVI production calls, WHEN found, THEN each is classified as remove, replace, retain outside live operations, or needs decision.</li></ul>
+  <div class="details">
+    <div><strong>Evidence / planned component</strong><br>Not applicable</div>
+    <div><strong>Dependencies</strong><br>DAVI-DISC-01</div>
+  </div>
+
+</article>
+<article class="story" id="DAVI-DISC-05">
+  <div class="story-top">
+    <div class="story-heading"><span class="story-id">DAVI-DISC-05</span><h3>Freeze check-in and freebie business rules</h3></div>
+    <div class="badges">
+      <span class="badge status-ready">Ready</span>
+      <span class="badge priority-Must">Must</span>
+      <span class="badge status-deferred">3 SP</span>
+      <span class="badge status-verify">Discovery</span>
+    </div>
+  </div>
+  <div class="user-story"><strong>As a product owner,</strong> I want to approve eligibility, duplicate, replacement and override rules, so that developers implement one unambiguous behavior.</div>
+  <div class="ac-title">Acceptance criteria</div>
+  <ul class="ac"><li>GIVEN registration states, WHEN rules are approved, THEN every state has an explicit check-in decision.</li><li>GIVEN each July freebie, WHEN rules are approved, THEN eligible tiers, quantity, variants, reversal and override behavior are documented.</li><li>GIVEN re-entry or repeat taps, WHEN rules are approved, THEN the intended result and displayed message are defined.</li></ul>
+  <div class="details">
+    <div><strong>Evidence / planned component</strong><br>Not applicable</div>
+    <div><strong>Dependencies</strong><br>None</div>
+  </div>
+
+</article>
+<article class="story" id="DAVI-DISC-06">
+  <div class="story-top">
+    <div class="story-heading"><span class="story-id">DAVI-DISC-06</span><h3>Approve the July scope box and release gate</h3></div>
+    <div class="badges">
+      <span class="badge status-ready">Ready</span>
+      <span class="badge priority-Must">Must</span>
+      <span class="badge status-deferred">2 SP</span>
+      <span class="badge status-verify">Discovery</span>
+    </div>
+  </div>
+  <div class="user-story"><strong>As a product owner,</strong> I want to separate must-have pilot work from post-July enhancements, so that scope remains achievable and reliable.</div>
+  <div class="ac-title">Acceptance criteria</div>
+  <ul class="ac"><li>GIVEN the discovery results, WHEN scope is approved, THEN NFC check-in, fallback, security and one controlled freebie pilot are explicitly included or excluded.</li><li>GIVEN any new request, WHEN raised after scope freeze, THEN it replaces an item of equivalent effort or moves after July.</li><li>GIVEN a failed discovery gate, WHEN reviewed, THEN QR-only operation remains the approved fallback.</li></ul>
+  <div class="details">
+    <div><strong>Evidence / planned component</strong><br>Not applicable</div>
+    <div><strong>Dependencies</strong><br>DAVI-DISC-01, DAVI-DISC-02, DAVI-DISC-03</div>
+  </div>
+
+</article>
+</section>
+<section id="DAVI-01">
+  <div class="epic">
+    <div class="epic-id">DAVI-01</div>
+    <h2>NFC Card Identity and Lifecycle</h2>
+    <p><strong>Business value:</strong> Axon can safely link a physical card to an attendee while preserving assignment history, replacement and revocation.</p>
+  </div>
+
+<article class="story" id="DAVI-CARD-01">
+  <div class="story-top">
+    <div class="story-heading"><span class="story-id">DAVI-CARD-01</span><h3>Design NFC card records</h3></div>
+    <div class="badges">
+      <span class="badge status-blocked">Blocked</span>
+      <span class="badge priority-Must">Must</span>
+      <span class="badge status-deferred">3 SP</span>
+      <span class="badge status-verify">July MVP</span>
+    </div>
+  </div>
+  <div class="user-story"><strong>As a system owner,</strong> I want to store a safe card token and lifecycle state, so that the physical credential can be managed without storing PII on the card.</div>
+  <div class="ac-title">Acceptance criteria</div>
+  <ul class="ac"><li>GIVEN a card, WHEN registered, THEN Axon stores an internal ID, token/token hash, protocol/type, status and timestamps.</li><li>GIVEN the database design, WHEN reviewed, THEN no attendee name, email, payment details or entitlement list is required on the NFC card.</li><li>GIVEN sensitive raw card values, WHEN stored, THEN hashing/encryption requirements are explicitly decided.</li></ul>
+  <div class="details">
+    <div><strong>Evidence / planned component</strong><br>Not applicable</div>
+    <div><strong>Dependencies</strong><br>DAVI-DISC-02</div>
+  </div>
+
+</article>
+<article class="story" id="DAVI-CARD-02">
+  <div class="story-top">
+    <div class="story-heading"><span class="story-id">DAVI-CARD-02</span><h3>Design attendee-card assignment history</h3></div>
+    <div class="badges">
+      <span class="badge status-blocked">Blocked</span>
+      <span class="badge priority-Must">Must</span>
+      <span class="badge status-deferred">5 SP</span>
+      <span class="badge status-verify">July MVP</span>
+    </div>
+  </div>
+  <div class="user-story"><strong>As an operations administrator,</strong> I want to link cards to attendees without losing replacement history, so that lost and reassigned cards remain explainable.</div>
+  <div class="ac-title">Acceptance criteria</div>
+  <ul class="ac"><li>GIVEN a card assignment, WHEN created, THEN attendee, event scope, assigner, time and active state are recorded.</li><li>GIVEN one active card, WHEN assigned to another attendee, THEN Axon blocks silent reassignment.</li><li>GIVEN an attendee with an active card, WHEN a replacement is issued, THEN the previous assignment is deactivated and retained.</li></ul>
+  <div class="details">
+    <div><strong>Evidence / planned component</strong><br>Not applicable</div>
+    <div><strong>Dependencies</strong><br>DAVI-CARD-01</div>
+  </div>
+
+</article>
+<article class="story" id="DAVI-CARD-03">
+  <div class="story-top">
+    <div class="story-heading"><span class="story-id">DAVI-CARD-03</span><h3>Assign a card to a verified attendee</h3></div>
+    <div class="badges">
+      <span class="badge status-blocked">Blocked</span>
+      <span class="badge priority-Must">Must</span>
+      <span class="badge status-deferred">5 SP</span>
+      <span class="badge status-verify">July MVP</span>
+    </div>
+  </div>
+  <div class="user-story"><strong>As an authorized event staff,</strong> I want to search an attendee and tap a card to assign it, so that the card can identify the correct person at the event.</div>
+  <div class="ac-title">Acceptance criteria</div>
+  <ul class="ac"><li>GIVEN a verified attendee without an active card, WHEN staff confirms a scanned unused card, THEN assignment succeeds.</li><li>GIVEN an unverified attendee, WHEN assignment is attempted, THEN it is rejected unless the approved rule explicitly permits pre-assignment.</li><li>GIVEN success or rejection, WHEN completed, THEN the actor, station, reason and time are audited.</li></ul>
+  <div class="details">
+    <div><strong>Evidence / planned component</strong><br>Not applicable</div>
+    <div><strong>Dependencies</strong><br>DAVI-CARD-02, DAVI-STN-03</div>
+  </div>
+
+</article>
+<article class="story" id="DAVI-CARD-04">
+  <div class="story-top">
+    <div class="story-heading"><span class="story-id">DAVI-CARD-04</span><h3>Replace a lost or damaged card</h3></div>
+    <div class="badges">
+      <span class="badge status-blocked">Blocked</span>
+      <span class="badge priority-Must">Must</span>
+      <span class="badge status-deferred">3 SP</span>
+      <span class="badge status-verify">July MVP</span>
+    </div>
+  </div>
+  <div class="user-story"><strong>As an authorized support staff,</strong> I want to revoke the old card and issue a replacement, so that the attendee can continue without duplicate active credentials.</div>
+  <div class="ac-title">Acceptance criteria</div>
+  <ul class="ac"><li>GIVEN a reported lost card, WHEN replacement is confirmed, THEN the old card becomes revoked before the new card becomes active.</li><li>GIVEN the old card, WHEN later tapped, THEN Axon returns card revoked and does not perform the event action.</li><li>GIVEN replacement, WHEN complete, THEN the reason and staff identity are retained.</li></ul>
+  <div class="details">
+    <div><strong>Evidence / planned component</strong><br>Not applicable</div>
+    <div><strong>Dependencies</strong><br>DAVI-CARD-03</div>
+  </div>
+
+</article>
+<article class="story" id="DAVI-CARD-05">
+  <div class="story-top">
+    <div class="story-heading"><span class="story-id">DAVI-CARD-05</span><h3>Search and reconcile card assignments</h3></div>
+    <div class="badges">
+      <span class="badge status-blocked">Blocked</span>
+      <span class="badge priority-Should">Should</span>
+      <span class="badge status-deferred">3 SP</span>
+      <span class="badge status-verify">After July</span>
+    </div>
+  </div>
+  <div class="user-story"><strong>As an event support lead,</strong> I want to find cards by attendee, token reference or assignment state, so that unlinked and duplicate operational cases can be resolved.</div>
+  <div class="ac-title">Acceptance criteria</div>
+  <ul class="ac"><li>GIVEN an attendee or safe card reference, WHEN searched, THEN authorized staff can view current and prior assignments.</li><li>GIVEN unassigned or revoked cards, WHEN filtered, THEN the support team can export an exception list.</li></ul>
+  <div class="details">
+    <div><strong>Evidence / planned component</strong><br>Not applicable</div>
+    <div><strong>Dependencies</strong><br>DAVI-CARD-02</div>
+  </div>
+
+</article>
+</section>
+<section id="DAVI-02">
+  <div class="epic">
+    <div class="epic-id">DAVI-02</div>
+    <h2>Kiosk Identity, Authorization and Security</h2>
+    <p><strong>Business value:</strong> Kiosk devices receive only the permissions needed for their assigned event and station.</p>
+  </div>
+
+<article class="story" id="DAVI-STN-01">
+  <div class="story-top">
+    <div class="story-heading"><span class="story-id">DAVI-STN-01</span><h3>Model event stations</h3></div>
+    <div class="badges">
+      <span class="badge status-ready">Ready</span>
+      <span class="badge priority-Must">Must</span>
+      <span class="badge status-deferred">3 SP</span>
+      <span class="badge status-verify">July MVP</span>
+    </div>
+  </div>
+  <div class="user-story"><strong>As an event administrator,</strong> I want to register entrance, freebie and support stations, so that every operation has a known physical and technical origin.</div>
+  <div class="ac-title">Acceptance criteria</div>
+  <ul class="ac"><li>GIVEN a station, WHEN created, THEN event, station type, display name, device reference and active state are stored.</li><li>GIVEN a station type, WHEN permissions are evaluated, THEN only approved actions are allowed.</li></ul>
+  <div class="details">
+    <div><strong>Evidence / planned component</strong><br>Not applicable</div>
+    <div><strong>Dependencies</strong><br>None</div>
+  </div>
+
+</article>
+<article class="story" id="DAVI-STN-02">
+  <div class="story-top">
+    <div class="story-heading"><span class="story-id">DAVI-STN-02</span><h3>Issue short-lived kiosk credentials</h3></div>
+    <div class="badges">
+      <span class="badge status-ready">Ready</span>
+      <span class="badge priority-Must">Must</span>
+      <span class="badge status-deferred">5 SP</span>
+      <span class="badge status-verify">July MVP</span>
+    </div>
+  </div>
+  <div class="user-story"><strong>As a security owner,</strong> I want to authenticate each registered kiosk independently, so that a copied or lost credential has limited use.</div>
+  <div class="ac-title">Acceptance criteria</div>
+  <ul class="ac"><li>GIVEN an approved device, WHEN activated, THEN Axon issues event- and station-scoped credentials.</li><li>GIVEN an expired or revoked credential, WHEN an operation is submitted, THEN Axon rejects it.</li><li>GIVEN source code review, WHEN completed, THEN production secrets are not hard-coded in the kiosk repository.</li></ul>
+  <div class="details">
+    <div><strong>Evidence / planned component</strong><br>Not applicable</div>
+    <div><strong>Dependencies</strong><br>DAVI-STN-01</div>
+  </div>
+
+</article>
+<article class="story" id="DAVI-STN-03">
+  <div class="story-top">
+    <div class="story-heading"><span class="story-id">DAVI-STN-03</span><h3>Enforce least-privilege station permissions</h3></div>
+    <div class="badges">
+      <span class="badge status-ready">Ready</span>
+      <span class="badge priority-Must">Must</span>
+      <span class="badge status-deferred">5 SP</span>
+      <span class="badge status-verify">July MVP</span>
+    </div>
+  </div>
+  <div class="user-story"><strong>As a platform owner,</strong> I want to restrict stations to check-in, assignment or freebie actions, so that a kiosk cannot access full administration.</div>
+  <div class="ac-title">Acceptance criteria</div>
+  <ul class="ac"><li>GIVEN an entrance station, WHEN it requests user management or event deletion, THEN access is forbidden.</li><li>GIVEN a freebie station, WHEN it attempts card assignment without permission, THEN access is forbidden.</li><li>GIVEN permissions, WHEN enforced, THEN checks occur on the API, not only in the interface.</li></ul>
+  <div class="details">
+    <div><strong>Evidence / planned component</strong><br>Not applicable</div>
+    <div><strong>Dependencies</strong><br>DAVI-STN-02</div>
+  </div>
+
+</article>
+<article class="story" id="DAVI-STN-04">
+  <div class="story-top">
+    <div class="story-heading"><span class="story-id">DAVI-STN-04</span><h3>Remotely revoke a kiosk</h3></div>
+    <div class="badges">
+      <span class="badge status-ready">Ready</span>
+      <span class="badge priority-Must">Must</span>
+      <span class="badge status-deferred">3 SP</span>
+      <span class="badge status-verify">July MVP</span>
+    </div>
+  </div>
+  <div class="user-story"><strong>As an incident commander,</strong> I want to disable a lost or compromised device, so that event operations can contain security incidents.</div>
+  <div class="ac-title">Acceptance criteria</div>
+  <ul class="ac"><li>GIVEN an active station, WHEN revoked, THEN new online operations are rejected immediately.</li><li>GIVEN queued offline actions from a revoked device, WHEN synchronized, THEN they are quarantined for review.</li></ul>
+  <div class="details">
+    <div><strong>Evidence / planned component</strong><br>Not applicable</div>
+    <div><strong>Dependencies</strong><br>DAVI-STN-02</div>
+  </div>
+
+</article>
+<article class="story" id="DAVI-STN-05">
+  <div class="story-top">
+    <div class="story-heading"><span class="story-id">DAVI-STN-05</span><h3>Protect local kiosk data</h3></div>
+    <div class="badges">
+      <span class="badge status-blocked">Blocked</span>
+      <span class="badge priority-Must">Must</span>
+      <span class="badge status-deferred">5 SP</span>
+      <span class="badge status-verify">July MVP</span>
+    </div>
+  </div>
+  <div class="user-story"><strong>As a security owner,</strong> I want to encrypt and expire cached event information, so that device loss does not expose unnecessary attendee data.</div>
+  <div class="ac-title">Acceptance criteria</div>
+  <ul class="ac"><li>GIVEN locally cached attendee/card data, WHEN stored, THEN it is encrypted using platform-appropriate secure storage.</li><li>GIVEN event completion or cache expiry, WHEN cleanup runs, THEN local data and credentials are removed.</li><li>GIVEN the minimum dataset, WHEN reviewed, THEN payment proofs, bank details, auth secrets and unnecessary PII are absent.</li></ul>
+  <div class="details">
+    <div><strong>Evidence / planned component</strong><br>Not applicable</div>
+    <div><strong>Dependencies</strong><br>DAVI-DISC-04, DAVI-OFF-01</div>
+  </div>
+
+</article>
+</section>
+<section id="DAVI-03">
+  <div class="epic">
+    <div class="epic-id">DAVI-03</div>
+    <h2>Axon-Authoritative NFC Check-In</h2>
+    <p><strong>Business value:</strong> A card tap becomes a fast Axon check-in while preserving the existing QR and manual pathways.</p>
+  </div>
+
+<article class="story" id="DAVI-CHK-01">
+  <div class="story-top">
+    <div class="story-heading"><span class="story-id">DAVI-CHK-01</span><h3>Create an immutable check-in event model</h3></div>
+    <div class="badges">
+      <span class="badge status-ready">Ready</span>
+      <span class="badge priority-Must">Must</span>
+      <span class="badge status-deferred">5 SP</span>
+      <span class="badge status-verify">July MVP</span>
+    </div>
+  </div>
+  <div class="user-story"><strong>As an operations owner,</strong> I want to record every accepted, duplicate, rejected and overridden attempt, so that attendance decisions remain auditable.</div>
+  <div class="ac-title">Acceptance criteria</div>
+  <ul class="ac"><li>GIVEN a check-in attempt, WHEN processed, THEN attendee, event, method, result, station, actor/device, operation ID and timestamps are stored.</li><li>GIVEN a correction or override, WHEN processed, THEN the original event remains unchanged and a new event explains the change.</li></ul>
+  <div class="details">
+    <div><strong>Evidence / planned component</strong><br>Not applicable</div>
+    <div><strong>Dependencies</strong><br>None</div>
+  </div>
+
+</article>
+<article class="story" id="DAVI-CHK-02">
+  <div class="story-top">
+    <div class="story-heading"><span class="story-id">DAVI-CHK-02</span><h3>Make accepted check-in atomic</h3></div>
+    <div class="badges">
+      <span class="badge status-ready">Ready</span>
+      <span class="badge priority-Must">Must</span>
+      <span class="badge status-deferred">8 SP</span>
+      <span class="badge status-verify">July MVP</span>
+    </div>
+  </div>
+  <div class="user-story"><strong>As an event operator,</strong> I want to allow only one accepted check-in per attendee and event, so that simultaneous stations cannot create conflicting attendance.</div>
+  <div class="ac-title">Acceptance criteria</div>
+  <ul class="ac"><li>GIVEN two concurrent first attempts, WHEN committed, THEN exactly one is accepted.</li><li>GIVEN the second attempt, WHEN returned, THEN it reports already checked in with the authoritative time.</li><li>GIVEN retries with one operation ID, WHEN repeated, THEN the original result is returned.</li></ul>
+  <div class="details">
+    <div><strong>Evidence / planned component</strong><br>Not applicable</div>
+    <div><strong>Dependencies</strong><br>DAVI-CHK-01</div>
+  </div>
+
+</article>
+<article class="story" id="DAVI-CHK-03">
+  <div class="story-top">
+    <div class="story-heading"><span class="story-id">DAVI-CHK-03</span><h3>Resolve an NFC card to an eligible attendee</h3></div>
+    <div class="badges">
+      <span class="badge status-blocked">Blocked</span>
+      <span class="badge priority-Must">Must</span>
+      <span class="badge status-deferred">5 SP</span>
+      <span class="badge status-verify">July MVP</span>
+    </div>
+  </div>
+  <div class="user-story"><strong>As an entrance kiosk,</strong> I want to submit a card token and selected event, so that Axon can apply its registration and ticket rules.</div>
+  <div class="ac-title">Acceptance criteria</div>
+  <ul class="ac"><li>GIVEN an active assigned card, WHEN submitted, THEN Axon resolves the attendee without returning unnecessary PII.</li><li>GIVEN unknown, revoked, replaced or wrong-event cards, WHEN submitted, THEN Axon returns a clear business result.</li><li>GIVEN a DAVI outage, WHEN the Axon API is available, THEN the online transaction still completes.</li></ul>
+  <div class="details">
+    <div><strong>Evidence / planned component</strong><br>Not applicable</div>
+    <div><strong>Dependencies</strong><br>DAVI-CARD-02, DAVI-STN-03</div>
+  </div>
+
+</article>
+<article class="story" id="DAVI-CHK-04">
+  <div class="story-top">
+    <div class="story-heading"><span class="story-id">DAVI-CHK-04</span><h3>Apply existing Axon eligibility rules</h3></div>
+    <div class="badges">
+      <span class="badge status-ready">Ready</span>
+      <span class="badge priority-Must">Must</span>
+      <span class="badge status-deferred">5 SP</span>
+      <span class="badge status-verify">July MVP</span>
+    </div>
+  </div>
+  <div class="user-story"><strong>As an entrance staff,</strong> I want to validate event, payment and ticket state after a card tap, so that NFC does not weaken admission controls.</div>
+  <div class="ac-title">Acceptance criteria</div>
+  <ul class="ac"><li>GIVEN verified registration or paid valid ticket according to approved rules, WHEN tapped, THEN check-in may proceed.</li><li>GIVEN cancelled, rejected, refunded or wrong-event state, WHEN tapped, THEN Axon rejects the action.</li><li>GIVEN rule results, WHEN returned, THEN the kiosk displays a plain-language message.</li></ul>
+  <div class="details">
+    <div><strong>Evidence / planned component</strong><br>Not applicable</div>
+    <div><strong>Dependencies</strong><br>DAVI-DISC-05, DAVI-CHK-03</div>
+  </div>
+
+</article>
+<article class="story" id="DAVI-CHK-05">
+  <div class="story-top">
+    <div class="story-heading"><span class="story-id">DAVI-CHK-05</span><h3>Expose the NFC check-in API</h3></div>
+    <div class="badges">
+      <span class="badge status-ready">Ready</span>
+      <span class="badge priority-Must">Must</span>
+      <span class="badge status-deferred">5 SP</span>
+      <span class="badge status-verify">July MVP</span>
+    </div>
+  </div>
+  <div class="user-story"><strong>As a kiosk application,</strong> I want to submit event, card, station and unique operation context, so that the kiosk can safely retry and receive a deterministic result.</div>
+  <div class="ac-title">Acceptance criteria</div>
+  <ul class="ac"><li>GIVEN a valid station request, WHEN POST /event-operations/check-ins/nfc is called, THEN Axon returns checked_in, already_checked_in or a documented rejection code.</li><li>GIVEN the same operation ID, WHEN retried, THEN no additional event is created.</li><li>GIVEN invalid station scope, WHEN submitted, THEN access is forbidden and logged.</li></ul>
+  <div class="details">
+    <div><strong>Evidence / planned component</strong><br>Not applicable</div>
+    <div><strong>Dependencies</strong><br>DAVI-CHK-02, DAVI-CHK-03, DAVI-CHK-04</div>
+  </div>
+
+</article>
+<article class="story" id="DAVI-CHK-06">
+  <div class="story-top">
+    <div class="story-heading"><span class="story-id">DAVI-CHK-06</span><h3>Preserve QR and manual fallback</h3></div>
+    <div class="badges">
+      <span class="badge status-ready">Ready</span>
+      <span class="badge priority-Must">Must</span>
+      <span class="badge status-deferred">5 SP</span>
+      <span class="badge status-verify">July MVP</span>
+    </div>
+  </div>
+  <div class="user-story"><strong>As an event staff,</strong> I want to switch from NFC to existing admission methods, so that hardware or card failure does not stop the event.</div>
+  <div class="ac-title">Acceptance criteria</div>
+  <ul class="ac"><li>GIVEN an unreadable or unlinked card, WHEN support is required, THEN staff can scan the existing Axon QR or search the attendee.</li><li>GIVEN any method, WHEN attendance succeeds, THEN the same authoritative check-in ledger is used.</li><li>GIVEN a prior NFC check-in, WHEN QR is scanned, THEN the duplicate result is shown.</li></ul>
+  <div class="details">
+    <div><strong>Evidence / planned component</strong><br>Not applicable</div>
+    <div><strong>Dependencies</strong><br>DAVI-CHK-01, DAVI-CHK-02</div>
+  </div>
+
+</article>
+<article class="story" id="DAVI-CHK-07">
+  <div class="story-top">
+    <div class="story-heading"><span class="story-id">DAVI-CHK-07</span><h3>Check-in operations dashboard</h3></div>
+    <div class="badges">
+      <span class="badge status-ready">Ready</span>
+      <span class="badge priority-Should">Should</span>
+      <span class="badge status-deferred">8 SP</span>
+      <span class="badge status-verify">After July</span>
+    </div>
+  </div>
+  <div class="user-story"><strong>As an event lead,</strong> I want to monitor station health, check-ins, duplicates and exceptions, so that issues can be handled before queues grow.</div>
+  <div class="ac-title">Acceptance criteria</div>
+  <ul class="ac"><li>GIVEN active stations, WHEN dashboard data refreshes, THEN last activity, success count, rejection count and offline queue state are visible.</li><li>GIVEN an exception spike, WHEN thresholds are exceeded, THEN the operational lead can identify the station and reason.</li></ul>
+  <div class="details">
+    <div><strong>Evidence / planned component</strong><br>Not applicable</div>
+    <div><strong>Dependencies</strong><br>DAVI-CHK-01, DAVI-STN-01</div>
+  </div>
+
+</article>
+</section>
+<section id="DAVI-04">
+  <div class="epic">
+    <div class="epic-id">DAVI-04</div>
+    <h2>Axon Freebie Entitlements and Collection</h2>
+    <p><strong>Business value:</strong> Axon determines who may receive each physical item and prevents duplicate collection.</p>
+  </div>
+
+<article class="story" id="DAVI-FRB-01">
+  <div class="story-top">
+    <div class="story-heading"><span class="story-id">DAVI-FRB-01</span><h3>Define event freebies</h3></div>
+    <div class="badges">
+      <span class="badge status-ready">Ready</span>
+      <span class="badge priority-Must">Must</span>
+      <span class="badge status-deferred">3 SP</span>
+      <span class="badge status-verify">July MVP</span>
+    </div>
+  </div>
+  <div class="user-story"><strong>As an event administrator,</strong> I want to configure a freebie, stock and optional variants, so that the station knows what may be released.</div>
+  <div class="ac-title">Acceptance criteria</div>
+  <ul class="ac"><li>GIVEN an event, WHEN a freebie is created, THEN name, description, active period, stock quantity and optional variants are stored.</li><li>GIVEN an inactive freebie, WHEN scanned, THEN no new collection is accepted.</li></ul>
+  <div class="details">
+    <div><strong>Evidence / planned component</strong><br>Not applicable</div>
+    <div><strong>Dependencies</strong><br>None</div>
+  </div>
+
+</article>
+<article class="story" id="DAVI-FRB-02">
+  <div class="story-top">
+    <div class="story-heading"><span class="story-id">DAVI-FRB-02</span><h3>Assign attendee entitlements</h3></div>
+    <div class="badges">
+      <span class="badge status-ready">Ready</span>
+      <span class="badge priority-Must">Must</span>
+      <span class="badge status-deferred">5 SP</span>
+      <span class="badge status-verify">July MVP</span>
+    </div>
+  </div>
+  <div class="user-story"><strong>As an event administrator,</strong> I want to grant freebies by event, tier or explicit attendee, so that eligibility is consistent and reviewable.</div>
+  <div class="ac-title">Acceptance criteria</div>
+  <ul class="ac"><li>GIVEN an approved tier rule, WHEN entitlements are generated, THEN eligible attendees receive the configured quantity.</li><li>GIVEN an explicit exception, WHEN added, THEN the source and actor are recorded.</li><li>GIVEN no entitlement, WHEN validation occurs, THEN the result is not eligible.</li></ul>
+  <div class="details">
+    <div><strong>Evidence / planned component</strong><br>Not applicable</div>
+    <div><strong>Dependencies</strong><br>DAVI-FRB-01, DAVI-DISC-05</div>
+  </div>
+
+</article>
+<article class="story" id="DAVI-FRB-03">
+  <div class="story-top">
+    <div class="story-heading"><span class="story-id">DAVI-FRB-03</span><h3>Validate a freebie before handover</h3></div>
+    <div class="badges">
+      <span class="badge status-blocked">Blocked</span>
+      <span class="badge priority-Must">Must</span>
+      <span class="badge status-deferred">5 SP</span>
+      <span class="badge status-verify">July MVP</span>
+    </div>
+  </div>
+  <div class="user-story"><strong>As a freebie station,</strong> I want to tap a card and see eligibility and prior collection, so that staff can make the correct decision before releasing stock.</div>
+  <div class="ac-title">Acceptance criteria</div>
+  <ul class="ac"><li>GIVEN an active card and entitlement, WHEN validated, THEN the kiosk shows item, variant, allowance and prior claim state.</li><li>GIVEN an ineligible or unknown card, WHEN validated, THEN no collection is created.</li></ul>
+  <div class="details">
+    <div><strong>Evidence / planned component</strong><br>Not applicable</div>
+    <div><strong>Dependencies</strong><br>DAVI-CARD-02, DAVI-FRB-02, DAVI-STN-03</div>
+  </div>
+
+</article>
+<article class="story" id="DAVI-FRB-04">
+  <div class="story-top">
+    <div class="story-heading"><span class="story-id">DAVI-FRB-04</span><h3>Require staff confirmation of physical handover</h3></div>
+    <div class="badges">
+      <span class="badge status-ready">Ready</span>
+      <span class="badge priority-Must">Must</span>
+      <span class="badge status-deferred">3 SP</span>
+      <span class="badge status-verify">July MVP</span>
+    </div>
+  </div>
+  <div class="user-story"><strong>As a freebie staff member,</strong> I want to confirm that the item was actually given, so that a mere card tap does not consume stock.</div>
+  <div class="ac-title">Acceptance criteria</div>
+  <ul class="ac"><li>GIVEN a successful validation, WHEN the screen appears, THEN collection is not recorded until staff confirms handover.</li><li>GIVEN cancellation or timeout, WHEN no confirmation occurs, THEN the entitlement remains unused.</li></ul>
+  <div class="details">
+    <div><strong>Evidence / planned component</strong><br>Not applicable</div>
+    <div><strong>Dependencies</strong><br>DAVI-FRB-03</div>
+  </div>
+
+</article>
+<article class="story" id="DAVI-FRB-05">
+  <div class="story-top">
+    <div class="story-heading"><span class="story-id">DAVI-FRB-05</span><h3>Prevent duplicate freebie collection atomically</h3></div>
+    <div class="badges">
+      <span class="badge status-ready">Ready</span>
+      <span class="badge priority-Must">Must</span>
+      <span class="badge status-deferred">8 SP</span>
+      <span class="badge status-verify">July MVP</span>
+    </div>
+  </div>
+  <div class="user-story"><strong>As an event owner,</strong> I want to allow only the entitled quantity, so that two stations cannot release the same limited item twice.</div>
+  <div class="ac-title">Acceptance criteria</div>
+  <ul class="ac"><li>GIVEN quantity one, WHEN two stations confirm simultaneously, THEN exactly one redemption is accepted.</li><li>GIVEN the losing or repeated request, WHEN returned, THEN the original collection time and station are shown.</li><li>GIVEN one operation ID, WHEN retried, THEN the original result is returned.</li></ul>
+  <div class="details">
+    <div><strong>Evidence / planned component</strong><br>Not applicable</div>
+    <div><strong>Dependencies</strong><br>DAVI-FRB-04</div>
+  </div>
+
+</article>
+<article class="story" id="DAVI-FRB-06">
+  <div class="story-top">
+    <div class="story-heading"><span class="story-id">DAVI-FRB-06</span><h3>Controlled override and reversal</h3></div>
+    <div class="badges">
+      <span class="badge status-ready">Ready</span>
+      <span class="badge priority-Should">Should</span>
+      <span class="badge status-deferred">5 SP</span>
+      <span class="badge status-verify">After July</span>
+    </div>
+  </div>
+  <div class="user-story"><strong>As an authorized supervisor,</strong> I want to record an exception with a reason, so that unusual cases can be handled without destroying auditability.</div>
+  <div class="ac-title">Acceptance criteria</div>
+  <ul class="ac"><li>GIVEN an ineligible or previously collected result, WHEN override is attempted, THEN supervisor permission and a mandatory reason are required.</li><li>GIVEN a reversal, WHEN permitted, THEN a new reversal event is written and the original redemption remains visible.</li></ul>
+  <div class="details">
+    <div><strong>Evidence / planned component</strong><br>Not applicable</div>
+    <div><strong>Dependencies</strong><br>DAVI-FRB-05</div>
+  </div>
+
+</article>
+<article class="story" id="DAVI-FRB-07">
+  <div class="story-top">
+    <div class="story-heading"><span class="story-id">DAVI-FRB-07</span><h3>Reconcile digital redemptions with stock</h3></div>
+    <div class="badges">
+      <span class="badge status-ready">Ready</span>
+      <span class="badge priority-Must">Must</span>
+      <span class="badge status-deferred">5 SP</span>
+      <span class="badge status-verify">July MVP</span>
+    </div>
+  </div>
+  <div class="user-story"><strong>As a freebie lead,</strong> I want to compare accepted claims, overrides and remaining physical inventory, so that loss and data discrepancies are visible.</div>
+  <div class="ac-title">Acceptance criteria</div>
+  <ul class="ac"><li>GIVEN a freebie, WHEN reconciliation runs, THEN starting stock, accepted redemptions, reversals, overrides and expected remainder are shown.</li><li>GIVEN a discrepancy, WHEN identified, THEN it can be assigned and annotated without changing original records.</li></ul>
+  <div class="details">
+    <div><strong>Evidence / planned component</strong><br>Not applicable</div>
+    <div><strong>Dependencies</strong><br>DAVI-FRB-05</div>
+  </div>
+
+</article>
+</section>
+<section id="DAVI-05">
+  <div class="epic">
+    <div class="epic-id">DAVI-05</div>
+    <h2>Kiosk Application Adaptation and UX</h2>
+    <p><strong>Business value:</strong> The contributed kiosk becomes a clear Axon-operated interface that event staff can use under pressure.</p>
+  </div>
+
+<article class="story" id="DAVI-KSK-01">
+  <div class="story-top">
+    <div class="story-heading"><span class="story-id">DAVI-KSK-01</span><h3>Replace live DAVI transaction dependencies</h3></div>
+    <div class="badges">
+      <span class="badge status-blocked">Blocked</span>
+      <span class="badge priority-Must">Must</span>
+      <span class="badge status-deferred">8 SP</span>
+      <span class="badge status-verify">July MVP</span>
+    </div>
+  </div>
+  <div class="user-story"><strong>As a kiosk developer,</strong> I want to route check-in and freebie decisions directly to Axon, so that DAVI availability does not block event operations.</div>
+  <div class="ac-title">Acceptance criteria</div>
+  <ul class="ac"><li>GIVEN repository API calls, WHEN adaptation is complete, THEN check-in and freebie calls use Axon endpoints.</li><li>GIVEN non-operational DAVI community features, WHEN retained, THEN they are isolated from admission and collection success.</li></ul>
+  <div class="details">
+    <div><strong>Evidence / planned component</strong><br>Not applicable</div>
+    <div><strong>Dependencies</strong><br>DAVI-DISC-04, DAVI-CHK-05, DAVI-FRB-03</div>
+  </div>
+
+</article>
+<article class="story" id="DAVI-KSK-02">
+  <div class="story-top">
+    <div class="story-heading"><span class="story-id">DAVI-KSK-02</span><h3>Create explicit kiosk states</h3></div>
+    <div class="badges">
+      <span class="badge status-blocked">Blocked</span>
+      <span class="badge priority-Must">Must</span>
+      <span class="badge status-deferred">5 SP</span>
+      <span class="badge status-verify">July MVP</span>
+    </div>
+  </div>
+  <div class="user-story"><strong>As an event staff,</strong> I want to see ready, reading, validating, success and exception states, so that I always know what the station is doing.</div>
+  <div class="ac-title">Acceptance criteria</div>
+  <ul class="ac"><li>GIVEN the kiosk, WHEN idle, THEN a prominent ready-to-tap instruction is shown.</li><li>GIVEN a tap, WHEN processing, THEN duplicate input is temporarily locked and progress is visible.</li><li>GIVEN each Axon business result, WHEN returned, THEN a distinct color, title, instruction and optional attendee name are displayed.</li></ul>
+  <div class="details">
+    <div><strong>Evidence / planned component</strong><br>Not applicable</div>
+    <div><strong>Dependencies</strong><br>DAVI-DISC-01</div>
+  </div>
+
+</article>
+<article class="story" id="DAVI-KSK-03">
+  <div class="story-top">
+    <div class="story-heading"><span class="story-id">DAVI-KSK-03</span><h3>Show plain-language errors and fallback</h3></div>
+    <div class="badges">
+      <span class="badge status-ready">Ready</span>
+      <span class="badge priority-Must">Must</span>
+      <span class="badge status-deferred">3 SP</span>
+      <span class="badge status-verify">July MVP</span>
+    </div>
+  </div>
+  <div class="user-story"><strong>As an event staff,</strong> I want to receive actionable messages rather than technical codes, so that I can resolve the queue without engineering knowledge.</div>
+  <div class="ac-title">Acceptance criteria</div>
+  <ul class="ac"><li>GIVEN card_not_found, WHEN returned, THEN the kiosk instructs staff to search or scan QR.</li><li>GIVEN wrong_event or not_verified, WHEN returned, THEN the reason and support action are clear.</li><li>GIVEN timeout, WHEN displayed, THEN retry and fallback options are available without creating duplicates.</li></ul>
+  <div class="details">
+    <div><strong>Evidence / planned component</strong><br>Not applicable</div>
+    <div><strong>Dependencies</strong><br>DAVI-CHK-05</div>
+  </div>
+
+</article>
+<article class="story" id="DAVI-KSK-04">
+  <div class="story-top">
+    <div class="story-heading"><span class="story-id">DAVI-KSK-04</span><h3>Display connectivity and station identity</h3></div>
+    <div class="badges">
+      <span class="badge status-ready">Ready</span>
+      <span class="badge priority-Must">Must</span>
+      <span class="badge status-deferred">3 SP</span>
+      <span class="badge status-verify">July MVP</span>
+    </div>
+  </div>
+  <div class="user-story"><strong>As an event lead,</strong> I want to see whether the kiosk is online and correctly assigned, so that misconfiguration is caught before it affects attendees.</div>
+  <div class="ac-title">Acceptance criteria</div>
+  <ul class="ac"><li>GIVEN the application header, WHEN active, THEN event, station and connectivity state are visible.</li><li>GIVEN wrong event/station configuration, WHEN detected, THEN operations are blocked until corrected.</li></ul>
+  <div class="details">
+    <div><strong>Evidence / planned component</strong><br>Not applicable</div>
+    <div><strong>Dependencies</strong><br>DAVI-STN-01, DAVI-STN-02</div>
+  </div>
+
+</article>
+<article class="story" id="DAVI-KSK-05">
+  <div class="story-top">
+    <div class="story-heading"><span class="story-id">DAVI-KSK-05</span><h3>Accessible and device-tested kiosk interface</h3></div>
+    <div class="badges">
+      <span class="badge status-blocked">Blocked</span>
+      <span class="badge priority-Must">Must</span>
+      <span class="badge status-deferred">5 SP</span>
+      <span class="badge status-verify">July MVP</span>
+    </div>
+  </div>
+  <div class="user-story"><strong>As an event staff,</strong> I want to operate the kiosk reliably on the approved device fleet, so that the physical workflow remains fast and inclusive.</div>
+  <div class="ac-title">Acceptance criteria</div>
+  <ul class="ac"><li>GIVEN approved kiosk devices, WHEN used in portrait/landscape as designed, THEN controls remain legible and touch targets are at least 44 pixels.</li><li>GIVEN success or rejection, WHEN displayed, THEN color is not the only indicator.</li><li>GIVEN sunlight/noisy venue conditions, WHEN rehearsed, THEN visual and optional audio/haptic feedback remain understandable.</li></ul>
+  <div class="details">
+    <div><strong>Evidence / planned component</strong><br>Not applicable</div>
+    <div><strong>Dependencies</strong><br>DAVI-DISC-03, DAVI-KSK-02</div>
+  </div>
+
+</article>
+</section>
+<section id="DAVI-06">
+  <div class="epic">
+    <div class="epic-id">DAVI-06</div>
+    <h2>Limited Offline Mode and Synchronization</h2>
+    <p><strong>Business value:</strong> A controlled station can continue provisionally during connectivity loss without pretending disconnected devices have perfect global duplicate prevention.</p>
+  </div>
+
+<article class="story" id="DAVI-OFF-01">
+  <div class="story-top">
+    <div class="story-heading"><span class="story-id">DAVI-OFF-01</span><h3>Define the minimum encrypted offline dataset</h3></div>
+    <div class="badges">
+      <span class="badge status-ready">Ready</span>
+      <span class="badge priority-Must">Must</span>
+      <span class="badge status-deferred">5 SP</span>
+      <span class="badge status-verify">July MVP</span>
+    </div>
+  </div>
+  <div class="user-story"><strong>As a security and operations owner,</strong> I want to cache only the event data needed for provisional decisions, so that offline capability does not become uncontrolled PII replication.</div>
+  <div class="ac-title">Acceptance criteria</div>
+  <ul class="ac"><li>GIVEN the cache design, WHEN approved, THEN it includes event, safe card lookup, attendee ID/display name, eligibility, entitlement and last-known use state only as needed.</li><li>GIVEN excluded data, WHEN reviewed, THEN payment proof, bank details, auth secrets, fraud metadata and unnecessary contact details are absent.</li><li>GIVEN a cache version, WHEN expired, THEN the kiosk stops using it.</li></ul>
+  <div class="details">
+    <div><strong>Evidence / planned component</strong><br>Not applicable</div>
+    <div><strong>Dependencies</strong><br>None</div>
+  </div>
+
+</article>
+<article class="story" id="DAVI-OFF-02">
+  <div class="story-top">
+    <div class="story-heading"><span class="story-id">DAVI-OFF-02</span><h3>Record provisional offline check-ins</h3></div>
+    <div class="badges">
+      <span class="badge status-ready">Ready</span>
+      <span class="badge priority-Must">Must</span>
+      <span class="badge status-deferred">8 SP</span>
+      <span class="badge status-verify">July MVP</span>
+    </div>
+  </div>
+  <div class="user-story"><strong>As a designated offline entrance,</strong> I want to validate cached cards and queue signed operations, so that one entrance can continue during an outage.</div>
+  <div class="ac-title">Acceptance criteria</div>
+  <ul class="ac"><li>GIVEN a valid cached attendee, WHEN Axon is unreachable, THEN the designated kiosk records a provisional operation with unique ID and local sequence.</li><li>GIVEN a repeat on the same device, WHEN attempted, THEN it is shown as already provisionally checked in.</li><li>GIVEN an unresolvable card, WHEN offline, THEN the kiosk routes to manual supervisor handling.</li></ul>
+  <div class="details">
+    <div><strong>Evidence / planned component</strong><br>Not applicable</div>
+    <div><strong>Dependencies</strong><br>DAVI-OFF-01, DAVI-CHK-01</div>
+  </div>
+
+</article>
+<article class="story" id="DAVI-OFF-03">
+  <div class="story-top">
+    <div class="story-heading"><span class="story-id">DAVI-OFF-03</span><h3>Persist the offline queue safely</h3></div>
+    <div class="badges">
+      <span class="badge status-blocked">Blocked</span>
+      <span class="badge priority-Must">Must</span>
+      <span class="badge status-deferred">5 SP</span>
+      <span class="badge status-verify">July MVP</span>
+    </div>
+  </div>
+  <div class="user-story"><strong>As a kiosk operator,</strong> I want to retain queued actions through app restart or battery loss, so that provisional operations are not silently lost.</div>
+  <div class="ac-title">Acceptance criteria</div>
+  <ul class="ac"><li>GIVEN queued operations, WHEN the app restarts, THEN unacknowledged records remain.</li><li>GIVEN local storage, WHEN inspected, THEN records are encrypted and credentials are stored using secure platform facilities.</li><li>GIVEN acknowledged synchronization, WHEN complete, THEN retention follows the approved cleanup policy.</li></ul>
+  <div class="details">
+    <div><strong>Evidence / planned component</strong><br>Not applicable</div>
+    <div><strong>Dependencies</strong><br>DAVI-DISC-04, DAVI-STN-05</div>
+  </div>
+
+</article>
+<article class="story" id="DAVI-OFF-04">
+  <div class="story-top">
+    <div class="story-heading"><span class="story-id">DAVI-OFF-04</span><h3>Synchronize idempotently after reconnection</h3></div>
+    <div class="badges">
+      <span class="badge status-ready">Ready</span>
+      <span class="badge priority-Must">Must</span>
+      <span class="badge status-deferred">8 SP</span>
+      <span class="badge status-verify">July MVP</span>
+    </div>
+  </div>
+  <div class="user-story"><strong>As a kiosk application,</strong> I want to upload queued operations without duplicates, so that recovery is reliable.</div>
+  <div class="ac-title">Acceptance criteria</div>
+  <ul class="ac"><li>GIVEN reconnection, WHEN queued operations are submitted, THEN Axon validates device, event, operation ID and sequence.</li><li>GIVEN the same batch is submitted twice, WHEN processed, THEN original results are returned.</li><li>GIVEN a conflict, WHEN detected, THEN it is retained for reconciliation rather than silently overwritten.</li></ul>
+  <div class="details">
+    <div><strong>Evidence / planned component</strong><br>Not applicable</div>
+    <div><strong>Dependencies</strong><br>DAVI-OFF-02, DAVI-OFF-03</div>
+  </div>
+
+</article>
+<article class="story" id="DAVI-OFF-05">
+  <div class="story-top">
+    <div class="story-heading"><span class="story-id">DAVI-OFF-05</span><h3>Restrict offline freebie operation</h3></div>
+    <div class="badges">
+      <span class="badge status-ready">Ready</span>
+      <span class="badge priority-Must">Must</span>
+      <span class="badge status-deferred">5 SP</span>
+      <span class="badge status-verify">July MVP</span>
+    </div>
+  </div>
+  <div class="user-story"><strong>As a freebie lead,</strong> I want to use only one offline station per freebie type, so that physical stock is not released twice across disconnected stations.</div>
+  <div class="ac-title">Acceptance criteria</div>
+  <ul class="ac"><li>GIVEN connectivity loss, WHEN offline freebie mode is approved, THEN only the designated station may create provisional claims.</li><li>GIVEN another station, WHEN it attempts offline collection for that item, THEN it is blocked.</li><li>GIVEN offline handover, WHEN confirmed, THEN a visible manual stock tally and supervisor identity are required.</li></ul>
+  <div class="details">
+    <div><strong>Evidence / planned component</strong><br>Not applicable</div>
+    <div><strong>Dependencies</strong><br>DAVI-FRB-05, DAVI-OFF-01</div>
+  </div>
+
+</article>
+<article class="story" id="DAVI-OFF-06">
+  <div class="story-top">
+    <div class="story-heading"><span class="story-id">DAVI-OFF-06</span><h3>Multi-station local venue coordination</h3></div>
+    <div class="badges">
+      <span class="badge status-ready">Ready</span>
+      <span class="badge priority-Could">Could</span>
+      <span class="badge status-deferred">13 SP</span>
+      <span class="badge status-verify">After July</span>
+    </div>
+  </div>
+  <div class="user-story"><strong>As an event technology lead,</strong> I want to coordinate disconnected stations over a local venue server, so that offline duplicate prevention approaches online reliability.</div>
+  <div class="ac-title">Acceptance criteria</div>
+  <ul class="ac"><li>GIVEN a local venue network, WHEN stations are disconnected from the internet but connected locally, THEN accepted actions are shared through one authority.</li><li>GIVEN local-server failure, WHEN it occurs, THEN the system falls back to the approved single-station procedure.</li></ul>
+  <div class="details">
+    <div><strong>Evidence / planned component</strong><br>Not applicable</div>
+    <div><strong>Dependencies</strong><br>DAVI-OFF-04</div>
+  </div>
+
+</article>
+</section>
+<section id="DAVI-07">
+  <div class="epic">
+    <div class="epic-id">DAVI-07</div>
+    <h2>Testing, Rehearsal, Release and Event Operations</h2>
+    <p><strong>Business value:</strong> The NFC pilot is proven with real hardware, realistic concurrency, trained staff and an explicit fallback before attendees arrive.</p>
+  </div>
+
+<article class="story" id="DAVI-QA-01">
+  <div class="story-top">
+    <div class="story-heading"><span class="story-id">DAVI-QA-01</span><h3>Automate card, check-in and freebie API tests</h3></div>
+    <div class="badges">
+      <span class="badge status-ready">Ready</span>
+      <span class="badge priority-Must">Must</span>
+      <span class="badge status-deferred">8 SP</span>
+      <span class="badge status-verify">July MVP</span>
+    </div>
+  </div>
+  <div class="user-story"><strong>As a development team,</strong> I want to cover success, rejection, idempotency and authorization, so that core rules remain stable during iteration.</div>
+  <div class="ac-title">Acceptance criteria</div>
+  <ul class="ac"><li>GIVEN unit/integration tests, WHEN run, THEN active, unknown, revoked, wrong-event and ineligible card cases are covered.</li><li>GIVEN repeated operation IDs, WHEN tested, THEN no duplicate accepted action is created.</li><li>GIVEN unauthorized station scope, WHEN tested, THEN the API returns forbidden.</li></ul>
+  <div class="details">
+    <div><strong>Evidence / planned component</strong><br>Not applicable</div>
+    <div><strong>Dependencies</strong><br>None</div>
+  </div>
+
+</article>
+<article class="story" id="DAVI-QA-02">
+  <div class="story-top">
+    <div class="story-heading"><span class="story-id">DAVI-QA-02</span><h3>Run concurrency and retry tests</h3></div>
+    <div class="badges">
+      <span class="badge status-ready">Ready</span>
+      <span class="badge priority-Must">Must</span>
+      <span class="badge status-deferred">5 SP</span>
+      <span class="badge status-verify">July MVP</span>
+    </div>
+  </div>
+  <div class="user-story"><strong>As a quality engineer,</strong> I want to simulate simultaneous taps and network timeouts, so that duplicate prevention is proven rather than assumed.</div>
+  <div class="ac-title">Acceptance criteria</div>
+  <ul class="ac"><li>GIVEN at least 20 concurrent attempts for one attendee, WHEN executed, THEN one accepted check-in exists.</li><li>GIVEN concurrent freebie confirmation, WHEN executed, THEN accepted quantity never exceeds entitlement.</li><li>GIVEN timeout followed by retry, WHEN tested, THEN idempotency returns the original result.</li></ul>
+  <div class="details">
+    <div><strong>Evidence / planned component</strong><br>Not applicable</div>
+    <div><strong>Dependencies</strong><br>DAVI-CHK-02, DAVI-FRB-05</div>
+  </div>
+
+</article>
+<article class="story" id="DAVI-QA-03">
+  <div class="story-top">
+    <div class="story-heading"><span class="story-id">DAVI-QA-03</span><h3>Test the approved device and card matrix</h3></div>
+    <div class="badges">
+      <span class="badge status-blocked">Blocked</span>
+      <span class="badge priority-Must">Must</span>
+      <span class="badge status-deferred">5 SP</span>
+      <span class="badge status-verify">July MVP</span>
+    </div>
+  </div>
+  <div class="user-story"><strong>As an event technology lead,</strong> I want to validate every production phone/reader and card combination, so that hardware surprises are removed.</div>
+  <div class="ac-title">Acceptance criteria</div>
+  <ul class="ac"><li>GIVEN each approved combination, WHEN tested, THEN scan success rate, median read time, permission flow and recovery steps are recorded.</li><li>GIVEN an unapproved combination, WHEN proposed for event use, THEN it is rejected or separately certified.</li></ul>
+  <div class="details">
+    <div><strong>Evidence / planned component</strong><br>Not applicable</div>
+    <div><strong>Dependencies</strong><br>DAVI-DISC-03, DAVI-KSK-05</div>
+  </div>
+
+</article>
+<article class="story" id="DAVI-QA-04">
+  <div class="story-top">
+    <div class="story-heading"><span class="story-id">DAVI-QA-04</span><h3>Test degraded and offline conditions</h3></div>
+    <div class="badges">
+      <span class="badge status-ready">Ready</span>
+      <span class="badge priority-Must">Must</span>
+      <span class="badge status-deferred">5 SP</span>
+      <span class="badge status-verify">July MVP</span>
+    </div>
+  </div>
+  <div class="user-story"><strong>As a quality engineer,</strong> I want to simulate slow, intermittent and absent connectivity, so that fallback procedures are proven.</div>
+  <div class="ac-title">Acceptance criteria</div>
+  <ul class="ac"><li>GIVEN slow or lost network, WHEN operations run, THEN the kiosk clearly reports state and does not create uncontrolled retries.</li><li>GIVEN queued operations, WHEN connectivity returns, THEN they synchronize and conflicts are visible.</li><li>GIVEN app restart while offline, WHEN reopened, THEN the queue remains intact.</li></ul>
+  <div class="details">
+    <div><strong>Evidence / planned component</strong><br>Not applicable</div>
+    <div><strong>Dependencies</strong><br>DAVI-OFF-04</div>
+  </div>
+
+</article>
+<article class="story" id="DAVI-QA-05">
+  <div class="story-top">
+    <div class="story-heading"><span class="story-id">DAVI-QA-05</span><h3>Conduct a full event rehearsal</h3></div>
+    <div class="badges">
+      <span class="badge status-blocked">Blocked</span>
+      <span class="badge priority-Must">Must</span>
+      <span class="badge status-deferred">8 SP</span>
+      <span class="badge status-verify">July MVP</span>
+    </div>
+  </div>
+  <div class="user-story"><strong>As an event operations lead,</strong> I want to run entrance, support and freebie workflows with realistic queues, so that staff and technology are validated together.</div>
+  <div class="ac-title">Acceptance criteria</div>
+  <ul class="ac"><li>GIVEN trained staff and production devices, WHEN rehearsal runs, THEN tap, duplicate, lost card, QR fallback, manual lookup and outage scenarios are performed.</li><li>GIVEN rehearsal metrics, WHEN reviewed, THEN tap latency, error rate, queue handling and manual intervention are recorded.</li><li>GIVEN a critical failure, WHEN discovered, THEN the release is blocked until fixed or NFC scope is reduced.</li></ul>
+  <div class="details">
+    <div><strong>Evidence / planned component</strong><br>Not applicable</div>
+    <div><strong>Dependencies</strong><br>All July functional stories</div>
+  </div>
+
+</article>
+<article class="story" id="DAVI-QA-06">
+  <div class="story-top">
+    <div class="story-heading"><span class="story-id">DAVI-QA-06</span><h3>Publish the event-day runbook</h3></div>
+    <div class="badges">
+      <span class="badge status-ready">Ready</span>
+      <span class="badge priority-Must">Must</span>
+      <span class="badge status-deferred">5 SP</span>
+      <span class="badge status-verify">July MVP</span>
+    </div>
+  </div>
+  <div class="user-story"><strong>As an operations lead,</strong> I want to give nontechnical staff a visual operating guide, so that common issues are resolved consistently.</div>
+  <div class="ac-title">Acceptance criteria</div>
+  <ul class="ac"><li>GIVEN the final workflow, WHEN documented, THEN startup, station check, tap results, lost card, QR fallback, outage, override and shutdown procedures are included.</li><li>GIVEN each exception, WHEN read, THEN the guide identifies the first action and escalation owner in plain language.</li></ul>
+  <div class="details">
+    <div><strong>Evidence / planned component</strong><br>Not applicable</div>
+    <div><strong>Dependencies</strong><br>DAVI-QA-05</div>
+  </div>
+
+</article>
+<article class="story" id="DAVI-QA-07">
+  <div class="story-top">
+    <div class="story-heading"><span class="story-id">DAVI-QA-07</span><h3>Establish monitoring and incident command</h3></div>
+    <div class="badges">
+      <span class="badge status-ready">Ready</span>
+      <span class="badge priority-Must">Must</span>
+      <span class="badge status-deferred">5 SP</span>
+      <span class="badge status-verify">July MVP</span>
+    </div>
+  </div>
+  <div class="user-story"><strong>As an incident commander,</strong> I want to observe station activity and coordinate technical/operational response, so that issues are contained quickly.</div>
+  <div class="ac-title">Acceptance criteria</div>
+  <ul class="ac"><li>GIVEN event day, WHEN operations start, THEN named Axon technical, kiosk technical, entrance, freebie and support owners are available.</li><li>GIVEN a lost device or error spike, WHEN reported, THEN the station can be revoked and fallback activated.</li><li>GIVEN a major incident, WHEN declared, THEN one incident commander owns the operational decision.</li></ul>
+  <div class="details">
+    <div><strong>Evidence / planned component</strong><br>Not applicable</div>
+    <div><strong>Dependencies</strong><br>DAVI-STN-04</div>
+  </div>
+
+</article>
+<article class="story" id="DAVI-QA-08">
+  <div class="story-top">
+    <div class="story-heading"><span class="story-id">DAVI-QA-08</span><h3>Complete post-event reconciliation and review</h3></div>
+    <div class="badges">
+      <span class="badge status-ready">Ready</span>
+      <span class="badge priority-Must">Must</span>
+      <span class="badge status-deferred">5 SP</span>
+      <span class="badge status-verify">July MVP</span>
+    </div>
+  </div>
+  <div class="user-story"><strong>As a product and operations owners,</strong> I want to close queues, reconcile stock and capture lessons, so that the pilot produces trustworthy outcomes and a clear next decision.</div>
+  <div class="ac-title">Acceptance criteria</div>
+  <ul class="ac"><li>GIVEN event completion, WHEN closing begins, THEN all offline queues synchronize and kiosk credentials/caches are revoked or deleted.</li><li>GIVEN attendance and freebies, WHEN reconciled, THEN duplicates, overrides, conflicts and physical-stock variance are reviewed.</li><li>GIVEN findings, WHEN retrospective completes, THEN expand, iterate or retire decisions are recorded.</li></ul>
+  <div class="details">
+    <div><strong>Evidence / planned component</strong><br>Not applicable</div>
+    <div><strong>Dependencies</strong><br>DAVI-QA-05, DAVI-QA-07</div>
+  </div>
+
+</article>
+</section>
+
+<section id="release">
+  <h2>Release gates</h2>
+  <table>
+    <thead><tr><th>Gate</th><th>Required evidence</th><th>Failure decision</th></tr></thead>
+    <tbody>
+      <tr><td>G1 · Repository</td><td>Repository builds; external dependencies documented.</td><td>Stop NFC work and escalate to DAVI.</td></tr>
+      <tr><td>G2 · Card/device</td><td>Real card reads reliably on every approved kiosk device.</td><td>Reduce device scope or operate QR-only.</td></tr>
+      <tr><td>G3 · Data/security</td><td>Card lifecycle, station access and minimum offline dataset approved.</td><td>No production credential or PII deployment.</td></tr>
+      <tr><td>G4 · Correctness</td><td>Atomic check-in and freebie concurrency tests pass.</td><td>No multi-station launch.</td></tr>
+      <tr><td>G5 · Operations</td><td>Full rehearsal, fallback and staff runbook completed.</td><td>Run QR/manual baseline only.</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<section>
+  <h2>Definition of Done for every July story</h2>
+  <div class="grid grid-2">
+    <div class="scope must"><h3>Product</h3><ul><li>Every acceptance criterion passes.</li><li>Plain-language success and failure behavior is reviewed by operations.</li><li>Out-of-scope behavior has not been added implicitly.</li></ul></div>
+    <div class="scope"><h3>Engineering</h3><ul><li>Authorization and idempotency are tested.</li><li>Audit data excludes unnecessary PII.</li><li>Existing QR/manual flows have no regression.</li></ul></div>
+    <div class="scope"><h3>Quality</h3><ul><li>Automated tests and real-device tests pass.</li><li>Concurrency and retry behavior is demonstrated.</li><li>Failure recovery is documented.</li></ul></div>
+    <div class="scope defer"><h3>Operations</h3><ul><li>Monitoring and owners are named.</li><li>Runbook screenshots match the release.</li><li>Rollback or QR-only fallback is ready.</li></ul></div>
+  </div>
+</section>
+
+<section>
+  <h2>Greatest-value next story</h2>
+  <div class="callout">
+    <strong>DAVI-DISC-01 · Receive and build the kiosk repository</strong>
+    <p>This story unlocks every downstream estimate and design decision. Do not create migrations or NFC APIs until the repository, real card output and production device approach are understood.</p>
+  </div>
+</section>
+
+<footer class="footer">
+  <strong>Planning assumptions:</strong> The DAVI repository was not available in the Axon workspace when this backlog was authored. Stories marked Blocked require repository, card or device evidence. Estimates are initial planning values and must be refined by the delivery team after Discovery.<br><br>
+  Axon Tickets × DAVI · NFC Integration Product Backlog v1.0 · Approved Architecture Baseline · June 21, 2026 · Confidential
+</footer>
+</main>
+</body>
+</html>

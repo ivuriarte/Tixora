@@ -48,6 +48,19 @@ enum OtpType {
   phone_verify
 }
 
+enum OrgApprovalStatus {
+  pending
+  approved
+  rejected
+  suspended
+}
+
+enum OrgMemberRole {
+  owner
+  admin
+  member
+}
+
 enum RegistrationStatus {
   pending_payment
   proof_submitted
@@ -94,6 +107,12 @@ model User {
   reviewedProofs        PaymentProof[]  @relation("ReviewedBy")
   auditLogs             AuditLog[]      @relation("AuditPerformedBy")
   funnelEvents          RegistrationFunnelEvent[]
+  organizationsCreated  Organization[]  @relation("OrgCreatedBy")
+  organizationsApproved Organization[]  @relation("OrgApprovedBy")
+  organizationMembers   OrganizationMember[]
+  workspaceMembers            WorkspaceMember[]
+  workspaceItemAssignments    WorkspaceItem[] @relation("WorkspaceItemResponsible")
+  workspaceItemAccountable    WorkspaceItem[] @relation("WorkspaceItemAccountable")
 
   @@map("users")
 }
@@ -145,6 +164,7 @@ model Event {
   registrations Registration[]
   eventViews    EventView[]
   funnelEvents  RegistrationFunnelEvent[]
+  workspace     EventWorkspace?
 
   @@index([status, startsAt])
   @@index([slug])
@@ -455,4 +475,149 @@ model RegistrationFunnelEvent {
   @@index([userId])
   @@index([createdAt])
   @@map("registration_funnel_events")
+}
+
+// ── Organizer Management ──────────────────────────────────────────────────────
+
+model Organization {
+  id              String            @id @default(uuid())
+  name            String
+  description     String?
+  website         String?
+  phone           String?
+  city            String?
+  approvalStatus  OrgApprovalStatus @default(pending) @map("approval_status")
+  approvedById    String?           @map("approved_by_id")
+  approvedAt      DateTime?         @map("approved_at")
+  rejectedAt      DateTime?         @map("rejected_at")
+  rejectionReason String?           @map("rejection_reason")
+  createdById     String            @map("created_by_id")
+  createdAt       DateTime          @default(now()) @map("created_at")
+  updatedAt       DateTime          @updatedAt @map("updated_at")
+
+  createdBy  User                 @relation("OrgCreatedBy", fields: [createdById], references: [id])
+  approvedBy User?                @relation("OrgApprovedBy", fields: [approvedById], references: [id])
+  members    OrganizationMember[]
+
+  @@index([approvalStatus])
+  @@index([createdById])
+  @@map("organizations")
+}
+
+model OrganizationMember {
+  id             String        @id @default(uuid())
+  userId         String        @map("user_id")
+  organizationId String        @map("organization_id")
+  role           OrgMemberRole @default(member)
+  createdAt      DateTime      @default(now()) @map("created_at")
+
+  user         User         @relation(fields: [userId], references: [id])
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, organizationId])
+  @@index([userId])
+  @@index([organizationId])
+  @@map("organization_members")
+}
+
+// ── Event Workspace ───────────────────────────────────────────────────────────
+
+enum WorkspaceRole {
+  manager
+  editor
+  viewer
+}
+
+enum ChecklistStatus {
+  open
+  in_progress
+  done
+  blocked
+  not_applicable
+}
+
+enum ChecklistPriority {
+  low
+  medium
+  high
+  critical
+}
+
+enum MilestoneStatus {
+  upcoming
+  at_risk
+  done
+  overdue
+}
+
+model EventWorkspace {
+  id        String   @id @default(uuid())
+  eventId   String   @unique @map("event_id")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  event      Event               @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  members    WorkspaceMember[]
+  items      WorkspaceItem[]
+  milestones WorkspaceMilestone[]
+
+  @@map("event_workspaces")
+}
+
+model WorkspaceMember {
+  id          String        @id @default(uuid())
+  workspaceId String        @map("workspace_id")
+  userId      String        @map("user_id")
+  role        WorkspaceRole @default(viewer)
+  createdAt   DateTime      @default(now()) @map("created_at")
+
+  workspace EventWorkspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  user      User           @relation(fields: [userId], references: [id])
+
+  @@unique([workspaceId, userId])
+  @@index([workspaceId])
+  @@index([userId])
+  @@map("workspace_members")
+}
+
+model WorkspaceItem {
+  id          String            @id @default(uuid())
+  workspaceId String            @map("workspace_id")
+  title       String
+  category    String            @default("general")
+  status      ChecklistStatus   @default(open)
+  priority    ChecklistPriority @default(medium)
+  isBlocker    Boolean           @default(false) @map("is_blocker")
+  dueDate      DateTime?         @map("due_date")
+  assignedToId  String?           @map("assigned_to_id")
+  accountableId String?           @map("accountable_id")
+  notes         String?
+  completedAt   DateTime?         @map("completed_at")
+  sortOrder     Int               @default(0) @map("sort_order")
+  createdAt     DateTime          @default(now()) @map("created_at")
+  updatedAt     DateTime          @updatedAt @map("updated_at")
+
+  workspace     EventWorkspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  assignedTo    User?          @relation("WorkspaceItemResponsible", fields: [assignedToId], references: [id], onDelete: SetNull)
+  accountableTo User?          @relation("WorkspaceItemAccountable", fields: [accountableId], references: [id], onDelete: SetNull)
+
+  @@index([workspaceId])
+  @@map("workspace_items")
+}
+
+model WorkspaceMilestone {
+  id          String          @id @default(uuid())
+  workspaceId String          @map("workspace_id")
+  title       String
+  dueDate     DateTime        @map("due_date")
+  status      MilestoneStatus @default(upcoming)
+  notes       String?
+  completedAt DateTime?       @map("completed_at")
+  createdAt   DateTime        @default(now()) @map("created_at")
+  updatedAt   DateTime        @updatedAt @map("updated_at")
+
+  workspace EventWorkspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId])
+  @@map("workspace_milestones")
 }

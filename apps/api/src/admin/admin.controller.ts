@@ -24,7 +24,7 @@ import { JwtPayload } from '@axon-tickets/types';
 import { AdminService } from './admin.service';
 import { CreateEventDto, UpdateEventDto } from '../events/dto/event.dto';
 import { CreateTierDto, UpdateTierDto } from '../ticket-tiers/dto/tier.dto';
-import { CheckinDto, RejectRegistrationDto, BulkApproveDto, BulkRejectDto } from './dto/admin.dto';
+import { CheckinDto, RejectRegistrationDto, BulkApproveDto, BulkRejectDto, RejectOrganizerDto, SetUserRoleDto } from './dto/admin.dto';
 import { RegistrationsService } from '../registrations/registrations.service';
 
 @ApiTags('admin')
@@ -408,12 +408,56 @@ export class AdminController {
   @ApiOperation({ summary: 'Grant or revoke admin role for a user' })
   setUserRole(
     @Param('id') id: string,
-    @Body('isAdmin') isAdmin: boolean,
+    @Body() dto: SetUserRoleDto,
     @CurrentUser() caller: JwtPayload,
   ) {
     if (id === caller.sub) {
       throw new BadRequestException('You cannot change your own admin role');
     }
-    return this.adminService.setAdminRole(id, isAdmin);
+    return this.adminService.setAdminRole(id, dto.isAdmin);
+  }
+
+  // ── Organizer Management ─────────────────────────────────────────────────
+
+  @Get('organizers')
+  @ApiOperation({ summary: 'List organizer applications (optionally filtered by status)' })
+  listOrganizers(
+    @Query('status') status?: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ) {
+    return this.adminService.listOrganizers(
+      status,
+      page ? parseInt(page, 10) : 1,
+      limit ? Math.min(parseInt(limit, 10), 100) : 20,
+    );
+  }
+
+  @Get('organizers/count')
+  @ApiOperation({ summary: 'Count of pending organizer applications (for nav badge)' })
+  pendingOrganizersCount() {
+    return this.adminService.pendingOrganizersCount();
+  }
+
+  @Get('organizers/:id')
+  @ApiOperation({ summary: 'Get organizer application detail' })
+  getOrganizer(@Param('id') id: string) {
+    return this.adminService.getOrganizer(id);
+  }
+
+  @Patch('organizers/:id/approve')
+  @ApiOperation({ summary: 'Approve an organizer application' })
+  approveOrganizer(@Param('id') id: string, @CurrentUser() user: JwtPayload) {
+    return this.adminService.approveOrganizer(id, user.sub);
+  }
+
+  @Patch('organizers/:id/reject')
+  @ApiOperation({ summary: 'Reject an organizer application with a reason' })
+  rejectOrganizer(
+    @Param('id') id: string,
+    @Body() dto: RejectOrganizerDto,
+    @CurrentUser() user: JwtPayload,
+  ) {
+    return this.adminService.rejectOrganizer(id, user.sub, dto.reason);
   }
 }

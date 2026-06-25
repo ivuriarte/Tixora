@@ -25,6 +25,8 @@ import { PaymentProofsModule } from './payment-proofs/payment-proofs.module';
 import { SchedulerModule } from './scheduler/scheduler.module';
 import { CronModule } from './cron/cron.module';
 import { FunnelModule } from './funnel/funnel.module';
+import { OrganizationsModule } from './organizations/organizations.module';
+import { WorkspacesModule } from './workspaces/workspaces.module';
 
 @Module({
   imports: [
@@ -73,6 +75,8 @@ import { FunnelModule } from './funnel/funnel.module';
     RegistrationsModule,
     PaymentProofsModule,
     FunnelModule,
+    OrganizationsModule,
+    WorkspacesModule,
     SchedulerModule,
     CronModule,
   ],

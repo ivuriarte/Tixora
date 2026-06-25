@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '@/lib/api';
 import ConfirmModal from '@/components/ConfirmModal';
@@ -82,6 +83,23 @@ interface ApiEvent {
   isFeatured?: boolean;
   featuredOrder?: number | null;
   featuredUntil?: string | null;
+}
+
+interface WorkspaceSummary {
+  workspaceId: string;
+  readiness: {
+    score: number;
+    scorableTotal: number;
+    done: number;
+    notStarted: number;
+    inProgress: number;
+    blocked: number;
+    notApplicable: number;
+    hasCriticalBlockers: boolean;
+    blockedCount: number;
+  };
+  criticalBlockers: Array<{ id: string; title: string; status: string }>;
+  blockedItems: Array<{ id: string; title: string; category: string }>;
 }
 
 const STATUS_OPTIONS = ['draft', 'on_sale', 'sold_out', 'cancelled'];
@@ -280,6 +298,16 @@ export default function AdminEventEditPage() {
       queryClient.invalidateQueries({ queryKey: ['admin-events'] });
     },
     onError: () => toast.error('Status could not be updated. Please try again.'),
+  });
+
+  const { data: workspaceSummary } = useQuery({
+    queryKey: ['workspace-summary', id],
+    queryFn: () =>
+      api
+        .get<{ data: WorkspaceSummary | null }>(`/admin/events/${id}/workspace`)
+        .then((r) => r.data.data),
+    enabled: !!id,
+    staleTime: 30_000,
   });
 
   const addTierMutation = useMutation({
@@ -552,6 +580,62 @@ export default function AdminEventEditPage() {
           <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-indigo-400 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600" />
         </label>
       </div>
+
+      {/* ── Workspace readiness banner ───────────────────────────────────── */}
+      {workspaceSummary ? (
+        <div
+          className={`rounded-2xl border px-4 py-3 flex items-center justify-between gap-4 ${
+            workspaceSummary.readiness.hasCriticalBlockers
+              ? 'border-red-200 bg-red-50/50'
+              : workspaceSummary.readiness.score >= 80
+              ? 'border-green-200 bg-green-50/40'
+              : 'border-amber-200 bg-amber-50/40'
+          }`}
+        >
+          <div className="min-w-0">
+            <div className="flex items-center gap-2">
+              <p className="text-sm font-semibold text-gray-900">Event Readiness</p>
+              {workspaceSummary.readiness.hasCriticalBlockers && (
+                <span className="text-xs font-medium bg-red-100 text-red-700 border border-red-200 px-1.5 py-0.5 rounded">
+                  {workspaceSummary.criticalBlockers.length} blocker{workspaceSummary.criticalBlockers.length !== 1 ? 's' : ''}
+                </span>
+              )}
+            </div>
+            <div className="flex items-center gap-3 mt-1">
+              <div className="flex-1 max-w-[120px] h-1.5 bg-gray-200 rounded-full overflow-hidden">
+                <div
+                  className={`h-full rounded-full transition-all ${
+                    workspaceSummary.readiness.score >= 80 ? 'bg-green-500' : workspaceSummary.readiness.score >= 50 ? 'bg-amber-400' : 'bg-red-400'
+                  }`}
+                  style={{ width: `${workspaceSummary.readiness.score}%` }}
+                />
+              </div>
+              <span className="text-xs text-gray-500 tabular-nums">
+                {workspaceSummary.readiness.done}/{workspaceSummary.readiness.scorableTotal} done
+              </span>
+            </div>
+          </div>
+          <Link
+            href={`/admin/events/${id}/workspace`}
+            className="shrink-0 text-sm font-medium text-violet-700 hover:text-violet-900 transition-colors"
+          >
+            Open Workspace →
+          </Link>
+        </div>
+      ) : workspaceSummary === null ? (
+        <div className="rounded-2xl border border-gray-200 bg-gray-50 px-4 py-3 flex items-center justify-between gap-4">
+          <div>
+            <p className="text-sm font-semibold text-gray-700">Event Workspace</p>
+            <p className="text-xs text-gray-500 mt-0.5">Enable readiness tracking and operational checklists for this event.</p>
+          </div>
+          <Link
+            href={`/admin/events/${id}/workspace`}
+            className="shrink-0 text-sm font-medium text-violet-700 hover:text-violet-900 transition-colors"
+          >
+            Enable Workspace →
+          </Link>
+        </div>
+      ) : null}
     </div>
   ) : null;
 

@@ -76,7 +76,7 @@ describe('EventsService.findFeatured()', () => {
     mockTicketGroupBy.mockReset();
     mockRegistrationGroupBy.mockResolvedValue([]);
     mockTicketGroupBy.mockResolvedValue([]);
-    service = new EventsService(mockPrisma, mockRedis);
+    service = new EventsService(mockPrisma, mockRedis, { ensureWorkspace: jest.fn() } as any);
   });
 
   // U-59
