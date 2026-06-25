@@ -48,7 +48,7 @@ function AccessForm() {
   useEffect(() => {
     if (!isHydrating && isAuthenticated && user) {
       const redirect = searchParams.get('redirect');
-      const dest = redirect && redirect.startsWith('/') ? redirect : user.isAdmin || user.isOrganizer ? '/admin' : '/';
+      const dest = redirect && redirect.startsWith('/') ? redirect : user.isAdmin ? '/admin' : '/';
       router.replace(dest);
     }
   }, [isHydrating, isAuthenticated, user, router, searchParams]);
@@ -83,7 +83,7 @@ function AccessForm() {
   const redirectAfterAuth = useCallback(
     (isAdmin: boolean, isOrganizer = false) => {
       const redirect = searchParams.get('redirect');
-      const dest = redirect && redirect.startsWith('/') ? redirect : isAdmin || isOrganizer ? '/admin' : '/';
+      const dest = redirect && redirect.startsWith('/') ? redirect : isAdmin ? '/admin' : '/';
       router.replace(dest);
     },
     [searchParams, router],
