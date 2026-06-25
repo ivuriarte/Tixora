@@ -119,17 +119,21 @@ function ApprovedCard({ org }: { org: OrgData }) {
           Approved {new Date(org.approvedAt).toLocaleDateString('en-PH', { dateStyle: 'long' })}
         </p>
       )}
-      <div className="flex flex-col sm:flex-row gap-3 justify-center">
-        <Link
-          href="/admin/events"
-          className="inline-flex items-center justify-center gap-2 bg-violet-600 hover:bg-violet-700 text-white font-semibold px-6 py-3 rounded-xl transition-colors"
-        >
-          Go to Events dashboard
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" aria-hidden="true">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
-          </svg>
-        </Link>
+      <div className="bg-violet-50 border border-violet-100 rounded-2xl px-6 py-4 text-left mb-6">
+        <p className="text-sm font-semibold text-violet-800 mb-1">What&apos;s next?</p>
+        <p className="text-sm text-violet-700">
+          Our team will reach out with next steps for creating your first event. In the meantime, explore upcoming events or check back soon for your organizer portal.
+        </p>
       </div>
+      <Link
+        href="/"
+        className="inline-flex items-center gap-2 text-sm text-gray-500 hover:text-gray-900 transition-colors"
+      >
+        <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" aria-hidden="true">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18" />
+        </svg>
+        Back to homepage
+      </Link>
     </div>
   );
 }
