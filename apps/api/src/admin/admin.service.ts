@@ -4,6 +4,7 @@ import {
   BadRequestException,
   ConflictException,
   Logger,
+  ForbiddenException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { Prisma } from '@prisma/client';
@@ -1777,5 +1778,208 @@ export class AdminService {
       totalCheckedIn: checkedInTickets + checkedInAttendees,
       grossRevenue,
     };
+  }
+
+  // ── Organizer Management ────────────────────────────────────────────────
+
+  async listOrganizers(status?: string, page = 1, limit = 20) {
+    const VALID_STATUSES = ['pending', 'approved', 'rejected', 'suspended'] as const;
+    const safeStatus = status && (VALID_STATUSES as readonly string[]).includes(status)
+      ? (status as (typeof VALID_STATUSES)[number])
+      : undefined;
+
+    const where = safeStatus ? { approvalStatus: safeStatus as any } : {};
+    const skip = (page - 1) * limit;
+
+    const [total, orgs] = await Promise.all([
+      this.prisma.organization.count({ where }),
+      this.prisma.organization.findMany({
+        where,
+        skip,
+        take: limit,
+        orderBy: { createdAt: 'desc' },
+        include: {
+          createdBy: { select: { id: true, email: true, firstName: true, lastName: true } },
+          approvedBy: { select: { id: true, email: true, firstName: true, lastName: true } },
+          _count: { select: { members: true } },
+        },
+      }),
+    ]);
+
+    return {
+      data: orgs.map((o) => ({
+        id: o.id,
+        name: o.name,
+        description: o.description,
+        website: o.website,
+        city: o.city,
+        approvalStatus: o.approvalStatus,
+        rejectionReason: o.rejectionReason,
+        createdBy: {
+          id: o.createdBy.id,
+          email: o.createdBy.email,
+          name: `${o.createdBy.firstName ?? ''} ${o.createdBy.lastName ?? ''}`.trim(),
+        },
+        approvedBy: o.approvedBy
+          ? { id: o.approvedBy.id, email: o.approvedBy.email }
+          : null,
+        approvedAt: o.approvedAt?.toISOString() ?? null,
+        rejectedAt: o.rejectedAt?.toISOString() ?? null,
+        memberCount: o._count.members,
+        createdAt: o.createdAt.toISOString(),
+      })),
+      meta: {
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit),
+        hasNextPage: page * limit < total,
+        hasPrevPage: page > 1,
+      },
+    };
+  }
+
+  async getOrganizer(id: string) {
+    const org = await this.prisma.organization.findUnique({
+      where: { id },
+      include: {
+        createdBy: { select: { id: true, email: true, firstName: true, lastName: true } },
+        approvedBy: { select: { id: true, email: true, firstName: true, lastName: true } },
+        members: {
+          include: {
+            user: { select: { id: true, email: true, firstName: true, lastName: true } },
+          },
+          orderBy: { createdAt: 'asc' },
+        },
+      },
+    });
+    if (!org) throw new NotFoundException('Organization not found');
+
+    return {
+      id: org.id,
+      name: org.name,
+      description: org.description,
+      website: org.website,
+      phone: org.phone,
+      city: org.city,
+      approvalStatus: org.approvalStatus,
+      rejectionReason: org.rejectionReason,
+      createdBy: {
+        id: org.createdBy.id,
+        email: org.createdBy.email,
+        name: `${org.createdBy.firstName ?? ''} ${org.createdBy.lastName ?? ''}`.trim(),
+      },
+      approvedBy: org.approvedBy
+        ? {
+            id: org.approvedBy.id,
+            email: org.approvedBy.email,
+            name: `${org.approvedBy.firstName ?? ''} ${org.approvedBy.lastName ?? ''}`.trim(),
+          }
+        : null,
+      approvedAt: org.approvedAt?.toISOString() ?? null,
+      rejectedAt: org.rejectedAt?.toISOString() ?? null,
+      members: org.members.map((m) => ({
+        id: m.id,
+        role: m.role,
+        user: {
+          id: m.user.id,
+          email: m.user.email,
+          name: `${m.user.firstName ?? ''} ${m.user.lastName ?? ''}`.trim(),
+        },
+        joinedAt: m.createdAt.toISOString(),
+      })),
+      createdAt: org.createdAt.toISOString(),
+      updatedAt: org.updatedAt.toISOString(),
+    };
+  }
+
+  async approveOrganizer(id: string, adminId: string) {
+    const org = await this.prisma.organization.findUnique({
+      where: { id },
+      select: { id: true, approvalStatus: true, name: true },
+    });
+    if (!org) throw new NotFoundException('Organization not found');
+    if (org.approvalStatus === 'approved') {
+      throw new BadRequestException('Organization is already approved');
+    }
+
+    const updated = await this.prisma.organization.update({
+      where: { id },
+      data: {
+        approvalStatus: 'approved',
+        approvedById: adminId,
+        approvedAt: new Date(),
+        rejectedAt: null,
+        rejectionReason: null,
+      },
+      select: { id: true, name: true, approvalStatus: true, approvedAt: true },
+    });
+
+    await this.audit.log({
+      action: 'ORGANIZER_APPROVED',
+      entityType: 'Organization',
+      entityId: id,
+      performedById: adminId,
+      metadata: { organizationName: org.name },
+    });
+
+    return {
+      id: updated.id,
+      name: updated.name,
+      approvalStatus: updated.approvalStatus,
+      approvedAt: updated.approvedAt?.toISOString() ?? null,
+    };
+  }
+
+  async rejectOrganizer(id: string, adminId: string, reason: string) {
+    const org = await this.prisma.organization.findUnique({
+      where: { id },
+      select: { id: true, approvalStatus: true, name: true },
+    });
+    if (!org) throw new NotFoundException('Organization not found');
+    if (org.approvalStatus === 'rejected') {
+      throw new BadRequestException('Organization is already rejected');
+    }
+
+    const updated = await this.prisma.organization.update({
+      where: { id },
+      data: {
+        approvalStatus: 'rejected',
+        rejectionReason: reason,
+        rejectedAt: new Date(),
+        approvedById: null,
+        approvedAt: null,
+      },
+      select: {
+        id: true,
+        name: true,
+        approvalStatus: true,
+        rejectedAt: true,
+        rejectionReason: true,
+      },
+    });
+
+    await this.audit.log({
+      action: 'ORGANIZER_REJECTED',
+      entityType: 'Organization',
+      entityId: id,
+      performedById: adminId,
+      metadata: { organizationName: org.name, reason },
+    });
+
+    return {
+      id: updated.id,
+      name: updated.name,
+      approvalStatus: updated.approvalStatus,
+      rejectedAt: updated.rejectedAt?.toISOString() ?? null,
+      rejectionReason: updated.rejectionReason,
+    };
+  }
+
+  async pendingOrganizersCount(): Promise<{ count: number }> {
+    const count = await this.prisma.organization.count({
+      where: { approvalStatus: 'pending' },
+    });
+    return { count };
   }
 }

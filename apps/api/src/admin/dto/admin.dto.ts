@@ -1,5 +1,13 @@
-import { IsString, MinLength, MaxLength, IsArray, ArrayMaxSize, ArrayMinSize, IsUUID } from 'class-validator';
+import { IsString, MinLength, MaxLength, IsArray, ArrayMaxSize, ArrayMinSize, IsUUID, IsBoolean } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
+
+export class RejectOrganizerDto {
+  @ApiProperty({ description: 'Reason for rejection shown to the organizer (5-500 chars)' })
+  @IsString()
+  @MinLength(5)
+  @MaxLength(500)
+  reason: string;
+}
 
 export class CheckinDto {
   @ApiProperty({ description: 'Raw QR token scanned from ticket' })
@@ -26,6 +34,12 @@ export class BulkApproveDto {
   @ArrayMaxSize(20)
   @IsUUID('all', { each: true })
   ids: string[];
+}
+
+export class SetUserRoleDto {
+  @ApiProperty({ description: 'true to grant admin, false to revoke' })
+  @IsBoolean()
+  isAdmin: boolean;
 }
 
 export class BulkRejectDto {
