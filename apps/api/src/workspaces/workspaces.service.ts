@@ -331,12 +331,16 @@ export class WorkspacesService {
     const event = await this.prisma.event.findUnique({ where: { id: eventId }, select: { id: true } });
     if (!event) throw new NotFoundException('Event not found');
 
-    const workspace = await this.prisma.eventWorkspace.create({
-      data: {
-        eventId,
-        members: { create: { userId: creatorId, role: 'manager' } },
-        items: { createMany: { data: DEFAULT_ITEMS } },
-      },
+    // Create workspace bare, then member and items sequentially — avoids nested createMany
+    // which can fail with PgBouncer transaction-mode connection poolers (Supabase).
+    const workspace = await this.prisma.eventWorkspace.create({ data: { eventId } });
+
+    await this.prisma.workspaceMember.create({
+      data: { workspaceId: workspace.id, userId: creatorId, role: 'manager' },
+    });
+
+    await this.prisma.workspaceItem.createMany({
+      data: DEFAULT_ITEMS.map((item) => ({ ...item, workspaceId: workspace.id })),
     });
 
     await this.audit.log({

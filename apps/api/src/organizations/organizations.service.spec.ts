@@ -26,14 +26,31 @@ import { OrganizationsService } from './organizations.service';
 
 // ── helpers ────────────────────────────────────────────────────────────────
 
+const FULL_DTO = {
+  name: 'Acme Events',
+  description: 'We produce live music and corporate events across the Philippines.',
+  contactName: 'Juan Dela Cruz',
+  phone: '+639171234567',
+  city: 'Manila',
+  idType: 'passport',
+  idNumber: 'P1234567A',
+  organizationType: 'company',
+};
+
 function makeOrg(overrides: Record<string, unknown> = {}) {
   return {
     id: 'org_1',
     name: 'Acme Events',
-    description: null,
-    website: null,
-    phone: null,
+    description: 'We produce live music and corporate events across the Philippines.',
+    contactName: 'Juan Dela Cruz',
+    phone: '+639171234567',
     city: 'Manila',
+    idType: 'passport',
+    idNumber: 'P1234567A',
+    organizationType: 'company',
+    registrationNumber: null,
+    website: null,
+    facebookUrl: null,
     approvalStatus: 'pending',
     approvedById: null,
     approvedAt: null,
@@ -48,44 +65,39 @@ function makeOrg(overrides: Record<string, unknown> = {}) {
 
 function buildOrgsMocks() {
   const createdOrg = makeOrg();
-  const tx = {
-    organization: { create: jest.fn().mockResolvedValue(createdOrg) },
-    organizationMember: { create: jest.fn().mockResolvedValue({ id: 'mem_1' }) },
-  };
 
   const prisma = {
     organizationMember: {
       findFirst: jest.fn().mockResolvedValue(null),
+      create: jest.fn().mockResolvedValue({ id: 'mem_1' }),
     },
     organization: {
+      create: jest.fn().mockResolvedValue(createdOrg),
       findUnique: jest.fn().mockResolvedValue(null),
+      delete: jest.fn().mockResolvedValue(null),
       count: jest.fn().mockResolvedValue(0),
     },
-    $transaction: jest.fn().mockImplementation((fn) =>
-      typeof fn === 'function' ? fn(tx) : Promise.all(fn),
-    ),
   } as any;
 
   const audit = { log: jest.fn().mockResolvedValue(undefined) } as any;
   const service = new OrganizationsService(prisma, audit);
-  return { prisma, audit, service, createdOrg, tx };
+  return { prisma, audit, service, createdOrg };
 }
 
 // ── OrganizationsService tests ─────────────────────────────────────────────
 
 describe('OrganizationsService.register', () => {
-  const DTO = { name: 'Acme Events', city: 'Manila' };
   const USER_ID = 'user_1';
 
   it('U-O1: creates org + membership and returns pending status', async () => {
-    const { audit, service, createdOrg, tx } = buildOrgsMocks();
+    const { audit, prisma, service, createdOrg } = buildOrgsMocks();
 
-    const result = await service.register(DTO, USER_ID);
+    const result = await service.register(FULL_DTO, USER_ID);
 
-    expect(tx.organization.create).toHaveBeenCalledWith({
+    expect(prisma.organization.create).toHaveBeenCalledWith({
       data: expect.objectContaining({ name: 'Acme Events', createdById: USER_ID }),
     });
-    expect(tx.organizationMember.create).toHaveBeenCalledWith({
+    expect(prisma.organizationMember.create).toHaveBeenCalledWith({
       data: { userId: USER_ID, organizationId: createdOrg.id, role: 'owner' },
     });
     expect(audit.log).toHaveBeenCalledWith(expect.objectContaining({ action: 'ORGANIZER_REGISTERED' }));
@@ -99,7 +111,7 @@ describe('OrganizationsService.register', () => {
       organization: { name: 'Existing Co', approvalStatus: 'pending' },
     });
 
-    await expect(service.register(DTO, USER_ID)).rejects.toBeInstanceOf(ConflictException);
+    await expect(service.register(FULL_DTO, USER_ID)).rejects.toBeInstanceOf(ConflictException);
   });
 
   it('U-O4: throws ConflictException when user already has an approved org', async () => {
@@ -108,23 +120,23 @@ describe('OrganizationsService.register', () => {
       organization: { name: 'Existing Co', approvalStatus: 'approved' },
     });
 
-    await expect(service.register(DTO, USER_ID)).rejects.toBeInstanceOf(ConflictException);
+    await expect(service.register(FULL_DTO, USER_ID)).rejects.toBeInstanceOf(ConflictException);
   });
 
   it('U-O5: allows registration when previous org was rejected', async () => {
     const { service } = buildOrgsMocks();
     // findFirst returns null (no pending/approved) — rejected org is not blocked
-    const result = await service.register(DTO, USER_ID);
+    const result = await service.register(FULL_DTO, USER_ID);
     expect(result.approvalStatus).toBe('pending');
   });
 
   it('U-O1b: trims whitespace from name and description before persisting', async () => {
-    const { tx, service } = buildOrgsMocks();
+    const { prisma, service } = buildOrgsMocks();
 
-    await service.register({ name: '  Trimmed Co  ', description: '  About us  ' }, USER_ID);
+    await service.register({ ...FULL_DTO, name: '  Trimmed Co  ', description: '  About us long enough for validation  ' }, USER_ID);
 
-    expect(tx.organization.create).toHaveBeenCalledWith({
-      data: expect.objectContaining({ name: 'Trimmed Co', description: 'About us' }),
+    expect(prisma.organization.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ name: 'Trimmed Co', description: 'About us long enough for validation' }),
     });
   });
 });

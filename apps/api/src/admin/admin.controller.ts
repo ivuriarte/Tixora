@@ -24,7 +24,7 @@ import { JwtPayload } from '@axon-tickets/types';
 import { AdminService } from './admin.service';
 import { CreateEventDto, UpdateEventDto } from '../events/dto/event.dto';
 import { CreateTierDto, UpdateTierDto } from '../ticket-tiers/dto/tier.dto';
-import { CheckinDto, RejectRegistrationDto, BulkApproveDto, BulkRejectDto, RejectOrganizerDto, SetUserRoleDto } from './dto/admin.dto';
+import { CheckinDto, RejectRegistrationDto, BulkApproveDto, BulkRejectDto, RejectOrganizerDto, SetUserRoleDto, UpdatePlatformSettingsDto } from './dto/admin.dto';
 import { RegistrationsService } from '../registrations/registrations.service';
 
 @ApiTags('admin')
@@ -459,5 +459,22 @@ export class AdminController {
     @CurrentUser() user: JwtPayload,
   ) {
     return this.adminService.rejectOrganizer(id, user.sub, dto.reason);
+  }
+
+  // ── Platform settings ────────────────────────────────────────────────────
+
+  @Get('settings/platform')
+  @ApiOperation({ summary: 'Get platform-wide settings (service fee, etc.)' })
+  getPlatformSettings() {
+    return this.adminService.getPlatformSettings();
+  }
+
+  @Patch('settings/platform')
+  @ApiOperation({ summary: 'Update platform-wide settings. Admin only.' })
+  updatePlatformSettings(
+    @Body() dto: UpdatePlatformSettingsDto,
+    @CurrentUser() user: JwtPayload,
+  ) {
+    return this.adminService.updatePlatformSettings(dto.serviceFee, user.sub);
   }
 }

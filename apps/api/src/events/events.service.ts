@@ -175,6 +175,9 @@ export class EventsService {
 
   async create(dto: CreateEventDto, createdById: string) {
     const slug = uniqueSlug(dto.title);
+    const platformFee = dto.platformFee !== undefined
+      ? dto.platformFee
+      : await this.prisma.platformConfig.findUnique({ where: { key: 'service_fee' } }).then((r) => (r ? Number(r.value) : 50));
     const event = await this.prisma.event.create({
       data: {
         slug,
@@ -194,7 +197,7 @@ export class EventsService {
         agenda: (dto.agenda as unknown as Prisma.InputJsonValue | undefined) ?? Prisma.JsonNull,
         sponsors: (dto.sponsors as unknown as Prisma.InputJsonValue | undefined) ?? Prisma.JsonNull,
         faqs: (dto.faqs as unknown as Prisma.InputJsonValue | undefined) ?? Prisma.JsonNull,
-        ...(dto.platformFee !== undefined && { platformFee: dto.platformFee }),
+        platformFee,
         ...(dto.imageUrl && { imageUrl: dto.imageUrl }),
         ...(dto.allowManualPayment !== undefined && { allowManualPayment: dto.allowManualPayment }),
         ...(dto.bankName !== undefined && { bankName: dto.bankName }),

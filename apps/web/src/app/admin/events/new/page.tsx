@@ -126,7 +126,6 @@ export default function AdminNewEventPage() {
         latitude: draft.latitude.trim() ? parseFloat(draft.latitude) : undefined,
         longitude: draft.longitude.trim() ? parseFloat(draft.longitude) : undefined,
         maxCapacity: draft.maxCapacity.trim() === '' ? undefined : parseInt(draft.maxCapacity, 10),
-        platformFee: parseFloat(draft.platformFee) || 50,
         startsAt: startsAtISO,
         endsAt: endsAtISO ?? undefined,
         speakerName: draft.speakerName.trim() || undefined,

@@ -480,20 +480,26 @@ model RegistrationFunnelEvent {
 // ── Organizer Management ──────────────────────────────────────────────────────
 
 model Organization {
-  id              String            @id @default(uuid())
-  name            String
-  description     String?
-  website         String?
-  phone           String?
-  city            String?
-  approvalStatus  OrgApprovalStatus @default(pending) @map("approval_status")
-  approvedById    String?           @map("approved_by_id")
-  approvedAt      DateTime?         @map("approved_at")
-  rejectedAt      DateTime?         @map("rejected_at")
-  rejectionReason String?           @map("rejection_reason")
-  createdById     String            @map("created_by_id")
-  createdAt       DateTime          @default(now()) @map("created_at")
-  updatedAt       DateTime          @updatedAt @map("updated_at")
+  id                 String            @id @default(uuid())
+  name               String
+  description        String
+  contactName        String            @map("contact_name")
+  phone              String
+  city               String
+  idType             String            @map("id_type")
+  idNumber           String            @map("id_number")
+  organizationType   String            @map("organization_type")
+  registrationNumber String?           @map("registration_number")
+  website            String?
+  facebookUrl        String?           @map("facebook_url")
+  approvalStatus     OrgApprovalStatus @default(pending) @map("approval_status")
+  approvedById       String?           @map("approved_by_id")
+  approvedAt         DateTime?         @map("approved_at")
+  rejectedAt         DateTime?         @map("rejected_at")
+  rejectionReason    String?           @map("rejection_reason")
+  createdById        String            @map("created_by_id")
+  createdAt          DateTime          @default(now()) @map("created_at")
+  updatedAt          DateTime          @updatedAt @map("updated_at")
 
   createdBy  User                 @relation("OrgCreatedBy", fields: [createdById], references: [id])
   approvedBy User?                @relation("OrgApprovedBy", fields: [approvedById], references: [id])
@@ -620,4 +626,17 @@ model WorkspaceMilestone {
 
   @@index([workspaceId])
   @@map("workspace_milestones")
+}
+
+// ── Platform-wide configuration ───────────────────────────────────────────────
+// Each row is a key/value pair. Admins manage these via /admin/settings/platform.
+// Keys: "service_fee" (pesos, stored as string, e.g. "50")
+
+model PlatformConfig {
+  key         String   @id
+  value       String
+  updatedById String?  @map("updated_by_id")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@map("platform_configs")
 }
