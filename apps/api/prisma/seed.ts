@@ -75,6 +75,41 @@ async function main() {
     },
   });
 
+  const platformOrg = await prisma.organization.upsert({
+    where: { id: deterministicId('org-platform') },
+    update: {},
+    create: {
+      id: deterministicId('org-platform'),
+      name: 'Axon Tickets Platform',
+      description: 'Internal platform organization for seeded UAT events.',
+      contactName: 'Axon Tickets Admin',
+      phone: '+639171234567',
+      city: 'Manila',
+      idType: 'philsys',
+      idNumber: 'PLATFORM-UAT',
+      organizationType: 'company',
+      approvalStatus: 'approved',
+      approvedById: admin.id,
+      approvedAt: new Date(),
+      createdById: admin.id,
+    },
+  });
+
+  await prisma.organizationMember.upsert({
+    where: {
+      userId_organizationId: {
+        userId: admin.id,
+        organizationId: platformOrg.id,
+      },
+    },
+    update: { role: 'owner' },
+    create: {
+      userId: admin.id,
+      organizationId: platformOrg.id,
+      role: 'owner',
+    },
+  });
+
   process.stdout.write(`✅ Admin:      ${admin.email}\n`);
   if (showGeneratedPassword) {
     process.stdout.write(`🔑 Password:   ${adminPassword}  ← save this now\n`);
@@ -127,7 +162,7 @@ async function main() {
   // ── Event 1: Leadership Conference ──────────────────────────────────────
   const conf = await prisma.event.upsert({
     where: { slug: 'uat-leadership-conference-2026' },
-    update: {},
+    update: { organizationId: platformOrg.id },
     create: {
       id: deterministicId('event-conf'),
       slug: 'uat-leadership-conference-2026',
@@ -151,6 +186,7 @@ async function main() {
       bankAccountNumber: '1234567890',
       bankAccountName: 'UAT Test Account',
       createdById: admin.id,
+      organizationId: platformOrg.id,
     },
   });
 
@@ -205,7 +241,7 @@ async function main() {
   // ── Event 2: Fun Run ─────────────────────────────────────────────────────
   const funrun = await prisma.event.upsert({
     where: { slug: 'uat-fun-run-2026' },
-    update: {},
+    update: { organizationId: platformOrg.id },
     create: {
       id: deterministicId('event-funrun'),
       slug: 'uat-fun-run-2026',
@@ -223,6 +259,7 @@ async function main() {
       allowManualPayment: true,
       gcashNumber: '09181234567',
       createdById: admin.id,
+      organizationId: platformOrg.id,
     },
   });
 

@@ -69,6 +69,7 @@ function OrgDrawer({
 }) {
   const queryClient = useQueryClient();
   const [rejectReason, setRejectReason] = useState('');
+  const [rejectAcknowledged, setRejectAcknowledged] = useState(false);
   const [showRejectInput, setShowRejectInput] = useState(false);
 
   const { data: org, isLoading } = useQuery<OrgDetail>({
@@ -95,6 +96,7 @@ function OrgDrawer({
       toast.success('Organizer rejected.');
       setShowRejectInput(false);
       setRejectReason('');
+      setRejectAcknowledged(false);
       invalidate();
     },
     onError: () => toast.error('Could not reject. Please try again.'),
@@ -225,16 +227,27 @@ function OrgDrawer({
                       placeholder="Explain why this application is being rejected…"
                       className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-400 resize-none"
                     />
+                    <label className="flex items-start gap-2 rounded-lg border border-red-100 bg-red-50 px-3 py-2 text-xs text-red-800">
+                      <input
+                        type="checkbox"
+                        checked={rejectAcknowledged}
+                        onChange={(e) => setRejectAcknowledged(e.target.checked)}
+                        className="mt-0.5 h-4 w-4 rounded border-red-300 text-red-600 focus:ring-red-500"
+                      />
+                      <span>
+                        I confirm this reason is clear and helpful. It will be emailed to the applicant and shown when they update their KYC details.
+                      </span>
+                    </label>
                     <div className="flex gap-3">
                       <button
                         onClick={() => rejectMutation.mutate(rejectReason)}
-                        disabled={rejectReason.trim().length < 5 || rejectMutation.isPending}
+                        disabled={rejectReason.trim().length < 5 || !rejectAcknowledged || rejectMutation.isPending}
                         className="flex-1 bg-red-600 hover:bg-red-700 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors disabled:opacity-50"
                       >
                         {rejectMutation.isPending ? 'Rejecting…' : 'Confirm Reject'}
                       </button>
                       <button
-                        onClick={() => { setShowRejectInput(false); setRejectReason(''); }}
+                        onClick={() => { setShowRejectInput(false); setRejectReason(''); setRejectAcknowledged(false); }}
                         className="flex-1 border border-gray-300 text-gray-600 hover:bg-gray-50 text-sm font-medium px-4 py-2 rounded-lg transition-colors"
                       >
                         Cancel

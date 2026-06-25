@@ -73,15 +73,20 @@ function buildOrgsMocks() {
     },
     organization: {
       create: jest.fn().mockResolvedValue(createdOrg),
+      update: jest.fn().mockResolvedValue(createdOrg),
       findUnique: jest.fn().mockResolvedValue(null),
       delete: jest.fn().mockResolvedValue(null),
       count: jest.fn().mockResolvedValue(0),
     },
+    user: {
+      findUnique: jest.fn().mockResolvedValue({ email: 'user@example.com', firstName: 'Juan' }),
+    },
   } as any;
 
   const audit = { log: jest.fn().mockResolvedValue(undefined) } as any;
-  const service = new OrganizationsService(prisma, audit);
-  return { prisma, audit, service, createdOrg };
+  const email = { sendOrganizerApplicationReceived: jest.fn().mockResolvedValue(undefined) } as any;
+  const service = new OrganizationsService(prisma, audit, email);
+  return { prisma, audit, email, service, createdOrg };
 }
 
 // ── OrganizationsService tests ─────────────────────────────────────────────

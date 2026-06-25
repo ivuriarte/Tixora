@@ -22,14 +22,14 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
   useEffect(() => {
     if (isHydrating) return;
-    if (!isAuthenticated || !user?.isAdmin) {
+    if (!isAuthenticated || (!user?.isAdmin && !user?.isOrganizer)) {
       router.replace('/auth/admin');
     }
   }, [isHydrating, isAuthenticated, user, router]);
 
   // Show spinner while we have a token but hydration is still in-flight,
   // or while we're waiting for the redirect to complete.
-  if (isHydrating || !isAuthenticated || !user?.isAdmin) {
+  if (isHydrating || !isAuthenticated || (!user?.isAdmin && !user?.isOrganizer)) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin" />

@@ -14,6 +14,7 @@ import {
   DefaultValuePipe,
   ParseIntPipe,
   BadRequestException,
+  ForbiddenException,
 } from '@nestjs/common';
 import type { Request, Response } from 'express';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
@@ -37,59 +38,72 @@ export class AdminController {
     private readonly registrationsService: RegistrationsService,
   ) {}
 
+  private requirePlatformAdmin(user: JwtPayload) {
+    if (!user.isAdmin) {
+      throw new ForbiddenException('Platform admin access required');
+    }
+  }
+
   // ── Events ───────────────────────────────────────────────────────────────
 
   @Get('events')
   @ApiOperation({ summary: 'List all events (admin)' })
-  listEvents(@Query('page') page?: string, @Query('limit') limit?: string) {
+  listEvents(
+    @CurrentUser() user: JwtPayload,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+    @Query('organizationId') organizationId?: string,
+  ) {
     return this.adminService.listEvents(
+      user,
       page ? parseInt(page, 10) : 1,
       limit ? Math.min(parseInt(limit, 10), 100) : 20,
+      organizationId,
     );
   }
 
   @Get('events/:id')
   @ApiOperation({ summary: 'Get full event detail (admin)' })
-  getEvent(@Param('id') id: string) {
-    return this.adminService.getEvent(id);
+  getEvent(@Param('id') id: string, @CurrentUser() user: JwtPayload) {
+    return this.adminService.getEvent(id, user);
   }
 
   @Post('events')
   @ApiOperation({ summary: 'Create event' })
   createEvent(@Body() dto: CreateEventDto, @CurrentUser() user: JwtPayload) {
-    return this.adminService.createEvent(dto, user.sub);
+    return this.adminService.createEvent(dto, user);
   }
 
   @Put('events/:id')
   @ApiOperation({ summary: 'Update event' })
   updateEvent(@Param('id') id: string, @Body() dto: UpdateEventDto, @CurrentUser() user: JwtPayload) {
-    return this.adminService.updateEvent(id, dto, user.sub);
+    return this.adminService.updateEvent(id, dto, user);
   }
 
   @Delete('events/:id')
   @ApiOperation({ summary: 'Hard-delete event and all related data' })
-  deleteEvent(@Param('id') id: string) {
-    return this.adminService.deleteEvent(id);
+  deleteEvent(@Param('id') id: string, @CurrentUser() user: JwtPayload) {
+    return this.adminService.deleteEvent(id, user);
   }
 
   // ── Tiers ────────────────────────────────────────────────────────────────
 
   @Post('events/:eventId/tiers')
   @ApiOperation({ summary: 'Create ticket tier for event' })
-  createTier(@Param('eventId') eventId: string, @Body() dto: CreateTierDto) {
-    return this.adminService.createTier(eventId, dto);
+  createTier(@Param('eventId') eventId: string, @Body() dto: CreateTierDto, @CurrentUser() user: JwtPayload) {
+    return this.adminService.createTier(eventId, dto, user);
   }
 
   @Put('tiers/:tierId')
   @ApiOperation({ summary: 'Update ticket tier' })
-  updateTier(@Param('tierId') tierId: string, @Body() dto: UpdateTierDto) {
-    return this.adminService.updateTier(tierId, dto);
+  updateTier(@Param('tierId') tierId: string, @Body() dto: UpdateTierDto, @CurrentUser() user: JwtPayload) {
+    return this.adminService.updateTier(tierId, dto, user);
   }
 
   @Delete('tiers/:tierId')
   @ApiOperation({ summary: 'Delete ticket tier (only if no tickets sold)' })
-  deleteTier(@Param('tierId') tierId: string) {
-    return this.adminService.deleteTier(tierId);
+  deleteTier(@Param('tierId') tierId: string, @CurrentUser() user: JwtPayload) {
+    return this.adminService.deleteTier(tierId, user);
   }
 
   // ── Orders ───────────────────────────────────────────────────────────────
@@ -97,12 +111,14 @@ export class AdminController {
   @Get('orders')
   @ApiOperation({ summary: 'List orders (optionally filter by event/status)' })
   listOrders(
+    @CurrentUser() user: JwtPayload,
     @Query('eventId') eventId?: string,
     @Query('status') status?: string,
     @Query('page') page?: string,
     @Query('limit') limit?: string,
   ) {
     return this.adminService.listOrders(
+      user,
       eventId,
       status,
       page ? parseInt(page, 10) : 1,
@@ -113,10 +129,11 @@ export class AdminController {
   @Get('orders/export')
   @ApiOperation({ summary: 'Export orders as CSV' })
   async exportOrders(
+    @CurrentUser() user: JwtPayload,
     @Query('eventId') eventId: string | undefined,
     @Res() res: Response,
   ) {
-    const csv = await this.adminService.exportOrders(eventId);
+    const csv = await this.adminService.exportOrders(user, eventId);
     res.setHeader('Content-Type', 'text/csv');
     res.setHeader('Content-Disposition', 'attachment; filename="orders.csv"');
     res.send(csv);
@@ -124,27 +141,28 @@ export class AdminController {
 
   @Get('orders/:id')
   @ApiOperation({ summary: 'Get order detail (admin)' })
-  getOrder(@Param('id') id: string) {
-    return this.adminService.getOrder(id);
+  getOrder(@Param('id') id: string, @CurrentUser() user: JwtPayload) {
+    return this.adminService.getOrder(id, user);
   }
 
   @Post('orders/:id/resend-ticket')
   @ApiOperation({ summary: 'Resend ticket confirmation email to buyer' })
-  resendTicket(@Param('id') id: string) {
-    return this.adminService.resendTicket(id);
+  resendTicket(@Param('id') id: string, @CurrentUser() user: JwtPayload) {
+    return this.adminService.resendTicket(id, user);
   }
 
   @Patch('orders/:id/confirm-payment')
   @ApiOperation({ summary: 'Manually confirm payment for an order (admin only)' })
   manualConfirmPayment(@Param('id') id: string, @CurrentUser() user: JwtPayload) {
-    return this.adminService.manualConfirmPayment(id, user.sub);
+    return this.adminService.manualConfirmPayment(id, user);
   }
 
   // ── Check-in ─────────────────────────────────────────────────────────────
 
   @Post('checkin')
   @ApiOperation({ summary: 'Scan QR code and check in attendee' })
-  checkIn(@Body() dto: CheckinDto, @CurrentUser() user: JwtPayload) {
+  async checkIn(@Body() dto: CheckinDto, @CurrentUser() user: JwtPayload) {
+    await this.adminService.assertEventAccess(dto.eventId, user);
     return this.adminService.checkIn(dto.qrToken, dto.eventId, user.sub);
   }
 
@@ -152,12 +170,14 @@ export class AdminController {
 
   @Get('events/:eventId/attendees')
   @ApiOperation({ summary: 'Get attendee list for event' })
-  getAttendees(
+  async getAttendees(
     @Param('eventId') eventId: string,
+    @CurrentUser() user: JwtPayload,
     @Query('page') page?: string,
     @Query('limit') limit?: string,
     @Query('q') q?: string,
   ) {
+    await this.adminService.assertEventAccess(eventId, user);
     return this.adminService.getAttendees(
       eventId,
       page ? parseInt(page, 10) : 1,
@@ -170,8 +190,10 @@ export class AdminController {
   @ApiOperation({ summary: 'Export attendees as CSV' })
   async exportAttendees(
     @Param('eventId') eventId: string,
+    @CurrentUser() user: JwtPayload,
     @Res() res: Response,
   ) {
+    await this.adminService.assertEventAccess(eventId, user);
     const csv = await this.adminService.exportAttendees(eventId);
     res.setHeader('Content-Type', 'text/csv');
     res.setHeader('Content-Disposition', `attachment; filename="attendees-${eventId}.csv"`);
@@ -183,8 +205,10 @@ export class AdminController {
   async generateAttendeeNametags(
     @Param('eventId') eventId: string,
     @Body() body: { attendeeIds?: unknown },
+    @CurrentUser() user: JwtPayload,
     @Res() res: Response,
   ) {
+    await this.adminService.assertEventAccess(eventId, user);
     if (
       body?.attendeeIds !== undefined &&
       (!Array.isArray(body.attendeeIds) || body.attendeeIds.some((id) => typeof id !== 'string'))
@@ -207,29 +231,30 @@ export class AdminController {
 
   @Get('analytics/events/:eventId')
   @ApiOperation({ summary: 'Get sales analytics for event' })
-  getEventAnalytics(@Param('eventId') eventId: string) {
-    return this.adminService.getEventAnalytics(eventId);
+  getEventAnalytics(@Param('eventId') eventId: string, @CurrentUser() user: JwtPayload) {
+    return this.adminService.getEventAnalytics(eventId, user);
   }
 
   @Get('analytics/events/:eventId/timeline')
   @ApiOperation({ summary: 'Get daily revenue + sales timeline for an event' })
   getEventTimeline(
     @Param('eventId') eventId: string,
+    @CurrentUser() user: JwtPayload,
     @Query('days', new DefaultValuePipe(14), ParseIntPipe) days: number,
   ) {
-    return this.adminService.getEventTimeline(eventId, days);
+    return this.adminService.getEventTimeline(eventId, user, days);
   }
 
   @Get('analytics/events/:eventId/funnel')
   @ApiOperation({ summary: 'Get registration funnel counts and recent failures for an event' })
-  getEventFunnel(@Param('eventId') eventId: string) {
-    return this.adminService.getEventFunnel(eventId);
+  getEventFunnel(@Param('eventId') eventId: string, @CurrentUser() user: JwtPayload) {
+    return this.adminService.getEventFunnel(eventId, user);
   }
 
   @Get('analytics/dashboard')
   @ApiOperation({ summary: 'Get dashboard-level aggregate stats' })
-  getDashboardStats(@Query('eventId') eventId?: string) {
-    return this.adminService.getDashboardStats(eventId);
+  getDashboardStats(@CurrentUser() user: JwtPayload, @Query('eventId') eventId?: string) {
+    return this.adminService.getDashboardStats(user, eventId);
   }
 
   // ── Fraud Flags ──────────────────────────────────────────────────────────
@@ -253,12 +278,14 @@ export class AdminController {
 
   @Get('events/:eventId/registrations')
   @ApiOperation({ summary: 'List registrations for an event' })
-  listRegistrations(
+  async listRegistrations(
     @Param('eventId') eventId: string,
+    @CurrentUser() user: JwtPayload,
     @Query('status') status?: string,
     @Query('page') page?: string,
     @Query('limit') limit?: string,
   ) {
+    await this.adminService.assertEventAccess(eventId, user);
     return this.registrationsService.findByEvent(
       eventId,
       status,
@@ -271,8 +298,10 @@ export class AdminController {
   @ApiOperation({ summary: 'Export all registrations for an event as CSV (manual payment backup)' })
   async exportRegistrations(
     @Param('eventId') eventId: string,
+    @CurrentUser() user: JwtPayload,
     @Res() res: Response,
   ) {
+    await this.adminService.assertEventAccess(eventId, user);
     const csv = await this.adminService.exportRegistrations(eventId);
     res.setHeader('Content-Type', 'text/csv');
     res.setHeader(
@@ -371,22 +400,25 @@ export class AdminController {
 
   @Get('checkin/search')
   @ApiOperation({ summary: 'Search attendees by name/email for manual check-in' })
-  checkinSearch(
+  async checkinSearch(
+    @CurrentUser() user: JwtPayload,
     @Query('eventId') eventId: string,
     @Query('q') q: string,
     @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number,
     @Query('limit', new DefaultValuePipe(20), ParseIntPipe) limit: number,
   ) {
+    await this.adminService.assertEventAccess(eventId, user);
     return this.adminService.checkinSearch(eventId, q, page, limit);
   }
 
   @Post('checkin/manual/:attendeeId')
   @ApiOperation({ summary: 'Manually check in an attendee by ID (no QR scan)' })
-  checkinManual(
+  async checkinManual(
     @Param('attendeeId') attendeeId: string,
     @Body('eventId') eventId: string,
     @CurrentUser() user: JwtPayload,
   ) {
+    await this.adminService.assertEventAccess(eventId, user);
     return this.adminService.checkinManual(attendeeId, eventId, user.sub);
   }
 
@@ -395,9 +427,11 @@ export class AdminController {
   @Get('users')
   @ApiOperation({ summary: 'List all users (admin)' })
   listUsers(
+    @CurrentUser() user: JwtPayload,
     @Query('page') page?: string,
     @Query('limit') limit?: string,
   ) {
+    this.requirePlatformAdmin(user);
     return this.adminService.listUsers(
       page ? parseInt(page, 10) : 1,
       limit ? Math.min(parseInt(limit, 10), 100) : 50,
@@ -411,6 +445,7 @@ export class AdminController {
     @Body() dto: SetUserRoleDto,
     @CurrentUser() caller: JwtPayload,
   ) {
+    this.requirePlatformAdmin(caller);
     if (id === caller.sub) {
       throw new BadRequestException('You cannot change your own admin role');
     }
@@ -422,10 +457,12 @@ export class AdminController {
   @Get('organizers')
   @ApiOperation({ summary: 'List organizer applications (optionally filtered by status)' })
   listOrganizers(
+    @CurrentUser() user: JwtPayload,
     @Query('status') status?: string,
     @Query('page') page?: string,
     @Query('limit') limit?: string,
   ) {
+    this.requirePlatformAdmin(user);
     return this.adminService.listOrganizers(
       status,
       page ? parseInt(page, 10) : 1,
@@ -435,19 +472,22 @@ export class AdminController {
 
   @Get('organizers/count')
   @ApiOperation({ summary: 'Count of pending organizer applications (for nav badge)' })
-  pendingOrganizersCount() {
+  pendingOrganizersCount(@CurrentUser() user: JwtPayload) {
+    this.requirePlatformAdmin(user);
     return this.adminService.pendingOrganizersCount();
   }
 
   @Get('organizers/:id')
   @ApiOperation({ summary: 'Get organizer application detail' })
-  getOrganizer(@Param('id') id: string) {
+  getOrganizer(@Param('id') id: string, @CurrentUser() user: JwtPayload) {
+    this.requirePlatformAdmin(user);
     return this.adminService.getOrganizer(id);
   }
 
   @Patch('organizers/:id/approve')
   @ApiOperation({ summary: 'Approve an organizer application' })
   approveOrganizer(@Param('id') id: string, @CurrentUser() user: JwtPayload) {
+    this.requirePlatformAdmin(user);
     return this.adminService.approveOrganizer(id, user.sub);
   }
 
@@ -458,6 +498,7 @@ export class AdminController {
     @Body() dto: RejectOrganizerDto,
     @CurrentUser() user: JwtPayload,
   ) {
+    this.requirePlatformAdmin(user);
     return this.adminService.rejectOrganizer(id, user.sub, dto.reason);
   }
 
@@ -465,7 +506,8 @@ export class AdminController {
 
   @Get('settings/platform')
   @ApiOperation({ summary: 'Get platform-wide settings (service fee, etc.)' })
-  getPlatformSettings() {
+  getPlatformSettings(@CurrentUser() user: JwtPayload) {
+    this.requirePlatformAdmin(user);
     return this.adminService.getPlatformSettings();
   }
 
@@ -475,6 +517,7 @@ export class AdminController {
     @Body() dto: UpdatePlatformSettingsDto,
     @CurrentUser() user: JwtPayload,
   ) {
+    this.requirePlatformAdmin(user);
     return this.adminService.updatePlatformSettings(dto.serviceFee, user.sub);
   }
 }

@@ -19,11 +19,20 @@ interface ProfileData {
   isVerified: boolean;
 }
 
+interface OrganizationProfile {
+  name: string;
+  approvalStatus: string;
+  contactName: string;
+  city: string;
+  phone: string;
+}
+
 export default function ProfilePage() {
   const router = useRouter();
   const { isAuthenticated, isHydrating, user: authUser } = useAuthStore();
 
   const [profile, setProfile] = useState<ProfileData | null>(null);
+  const [organization, setOrganization] = useState<OrganizationProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
@@ -58,6 +67,12 @@ export default function ProfilePage() {
           jobTitle: p.jobTitle ?? '',
           city: p.city ?? '',
         });
+        if (authUser?.isOrganizer) {
+          api
+            .get<{ data: OrganizationProfile }>('/organizations/me')
+            .then((orgRes) => setOrganization(orgRes.data.data))
+            .catch(() => setOrganization(null));
+        }
       })
       .catch(() => toast.error('Could not load your profile. Please refresh the page to try again.'))
       .finally(() => setLoading(false));
@@ -115,12 +130,23 @@ export default function ProfilePage() {
   const initials = profile
     ? `${profile.firstName[0] ?? ''}${profile.lastName[0] ?? ''}`.toUpperCase()
     : '?';
+  const accountLabel = authUser?.isAdmin ? 'Platform Admin' : authUser?.isOrganizer ? 'Organizer' : 'Customer';
+  const detailTitle = authUser?.isAdmin
+    ? 'Admin Details'
+    : authUser?.isOrganizer
+      ? 'Organizer Contact Details'
+      : 'Professional Details';
+  const detailHelp = authUser?.isAdmin
+    ? 'Used for internal admin identification, audit trails, and support handoffs.'
+    : authUser?.isOrganizer
+      ? 'Used for organizer support, event operations, and workspace coordination.'
+      : 'Used on conference registrations and event name badges.';
 
   return (
     <>
       <Navbar />
       <main className="max-w-2xl mx-auto px-4 py-10">
-        <h1 className="text-2xl font-bold text-gray-900 mb-6">My Profile</h1>
+        <h1 className="text-2xl font-bold text-gray-900 mb-6">{accountLabel} Profile</h1>
 
         {/* Avatar + email header */}
         <div className="flex items-center gap-4 bg-white border border-gray-100 rounded-2xl shadow-sm px-6 py-5 mb-6">
@@ -140,8 +166,35 @@ export default function ProfilePage() {
                 Verified
               </span>
             )}
+            <span className="inline-flex items-center gap-1 mt-1 ml-2 text-xs text-primary font-medium">
+              {accountLabel}
+            </span>
           </div>
         </div>
+
+        {organization && (
+          <div className="bg-white border border-gray-100 rounded-2xl shadow-sm px-6 py-5 mb-6">
+            <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-widest">Organizer Account</h2>
+            <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+              <div>
+                <p className="text-gray-400">Organization</p>
+                <p className="font-medium text-gray-900">{organization.name}</p>
+              </div>
+              <div>
+                <p className="text-gray-400">KYC status</p>
+                <p className="font-medium text-gray-900 capitalize">{organization.approvalStatus}</p>
+              </div>
+              <div>
+                <p className="text-gray-400">Primary contact</p>
+                <p className="font-medium text-gray-900">{organization.contactName}</p>
+              </div>
+              <div>
+                <p className="text-gray-400">Organizer city</p>
+                <p className="font-medium text-gray-900">{organization.city}</p>
+              </div>
+            </div>
+          </div>
+        )}
 
         <form onSubmit={handleSave} className="space-y-6">
           {/* Basic Info */}
@@ -196,8 +249,8 @@ export default function ProfilePage() {
           {/* Professional Details */}
           <div className="bg-white border border-gray-100 rounded-2xl shadow-sm p-6 space-y-4">
             <div>
-              <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-widest">Professional Details</h2>
-              <p className="text-xs text-gray-400 mt-1">Used on conference registrations and event name badges.</p>
+              <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-widest">{detailTitle}</h2>
+              <p className="text-xs text-gray-400 mt-1">{detailHelp}</p>
             </div>
 
             <div>

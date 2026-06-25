@@ -6,6 +6,7 @@ import { useEffect, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { useAuthStore } from '@/store/auth.store';
 import api from '@/lib/api';
+import { getRefreshToken } from '@/lib/auth';
 import toast from 'react-hot-toast';
 
 interface NavItem {
@@ -170,7 +171,7 @@ const SECTIONS: NavSection[] = [
 export default function AdminSidebar() {
   const pathname = usePathname();
   const router = useRouter();
-  const { logout } = useAuthStore();
+  const { user, logout } = useAuthStore();
   const [pendingCount, setPendingCount] = useState(0);
   const [orgPendingCount, setOrgPendingCount] = useState(0);
 
@@ -178,12 +179,11 @@ export default function AdminSidebar() {
     let cancelled = false;
     const load = async () => {
       try {
-        const [verRes, orgRes] = await Promise.all([
-          api.get('/admin/verifications/count'),
-          api.get('/admin/organizers/count'),
-        ]);
+        const requests = [api.get('/admin/verifications/count')];
+        if (user?.isAdmin) requests.push(api.get('/admin/organizers/count'));
+        const [verRes, orgRes] = await Promise.all(requests);
         const verBody = verRes.data as { count?: number; data?: { count?: number } };
-        const orgBody = orgRes.data as { count?: number; data?: { count?: number } };
+        const orgBody = orgRes?.data as { count?: number; data?: { count?: number } } | undefined;
         if (!cancelled) {
           setPendingCount(verBody?.data?.count ?? verBody?.count ?? 0);
           setOrgPendingCount(orgBody?.data?.count ?? orgBody?.count ?? 0);
@@ -198,7 +198,7 @@ export default function AdminSidebar() {
       cancelled = true;
       clearInterval(t);
     };
-  }, []);
+  }, [user?.isAdmin]);
 
   function isItemActive(item: NavItem): boolean {
     if (item.exactMatch) return pathname === item.href;
@@ -210,7 +210,8 @@ export default function AdminSidebar() {
 
   async function handleLogout() {
     try {
-      await api.post('/auth/logout');
+      const refreshToken = getRefreshToken();
+      if (refreshToken) await api.post('/auth/logout', { refreshToken });
     } catch {
       /* ignore */
     }
@@ -238,7 +239,7 @@ export default function AdminSidebar() {
 
       {/* Navigation */}
       <nav className="flex-1 px-3 py-4 space-y-5">
-        {SECTIONS.map((section) => (
+        {SECTIONS.filter((section) => user?.isAdmin || !['Organizers', 'Settings'].includes(section.label)).map((section) => (
           <div key={section.label}>
             <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider px-2 mb-1.5">
               {section.label}

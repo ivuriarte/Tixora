@@ -17,6 +17,7 @@ import { ConfigService } from '@nestjs/config';
 import { AuditService } from '../audit/audit.service';
 import { EmailService } from '../email/email.service';
 import { PDFDocument, PDFFont, PDFPage, StandardFonts, rgb } from 'pdf-lib';
+import { JwtPayload } from '@axon-tickets/types';
 
 interface NametagRow {
   id: string;
@@ -39,6 +40,25 @@ export class AdminService {
     private readonly audit: AuditService,
     private readonly emailService: EmailService,
   ) {}
+
+  private eventOwnerWhere(user: JwtPayload): Prisma.EventWhereInput {
+    return user.isAdmin
+      ? {}
+      : {
+          organization: {
+            approvalStatus: 'approved',
+            members: { some: { userId: user.sub } },
+          },
+        };
+  }
+
+  async assertEventAccess(eventId: string, user: JwtPayload): Promise<void> {
+    const event = await this.prisma.event.findFirst({
+      where: { id: eventId, ...this.eventOwnerWhere(user) },
+      select: { id: true },
+    });
+    if (!event) throw new NotFoundException('Event not found');
+  }
 
   // ── User Management ────────────────────────────────────────────────────
 
@@ -76,13 +96,29 @@ export class AdminService {
 
   // ── Events ──────────────────────────────────────────────────────────────
 
-  async createEvent(dto: CreateEventDto, adminId: string) {
-    return this.eventsService.create(dto, adminId);
+  async createEvent(dto: CreateEventDto, user: JwtPayload) {
+    const organizationId = user.isAdmin
+      ? undefined
+      : await this.getApprovedOrganizationIdForUser(user.sub);
+    return this.eventsService.create(dto, user.sub, organizationId);
   }
 
-  async getEvent(id: string) {
-    const event = await this.prisma.event.findUnique({
-      where: { id },
+  private async getApprovedOrganizationIdForUser(userId: string): Promise<string> {
+    const membership = await this.prisma.organizationMember.findFirst({
+      where: {
+        userId,
+        organization: { approvalStatus: 'approved' },
+      },
+      orderBy: [{ role: 'asc' }, { createdAt: 'asc' }],
+      select: { organizationId: true },
+    });
+    if (!membership) throw new BadRequestException('Approved organizer account required to create events');
+    return membership.organizationId;
+  }
+
+  async getEvent(id: string, user: JwtPayload) {
+    const event = await this.prisma.event.findFirst({
+      where: { id, ...this.eventOwnerWhere(user) },
       include: {
         tiers: {
           orderBy: { sortOrder: 'asc' },
@@ -94,13 +130,14 @@ export class AdminService {
     return { ...event, tiers };
   }
 
-  async updateEvent(id: string, dto: UpdateEventDto, adminId: string) {
+  async updateEvent(id: string, dto: UpdateEventDto, user: JwtPayload) {
+    await this.assertEventAccess(id, user);
     const updated = await this.eventsService.update(id, dto);
     await this.audit.log({
       action: 'EVENT_UPDATED',
       entityType: 'Event',
       entityId: id,
-      performedById: adminId,
+      performedById: user.sub,
       metadata: Object.fromEntries(
         Object.entries(dto).filter(([, v]) => v !== undefined),
       ) as Record<string, unknown>,
@@ -108,8 +145,8 @@ export class AdminService {
     return updated;
   }
 
-  async deleteEvent(id: string) {
-    const event = await this.prisma.event.findUnique({ where: { id }, select: { id: true } });
+  async deleteEvent(id: string, user: JwtPayload) {
+    const event = await this.prisma.event.findFirst({ where: { id, ...this.eventOwnerWhere(user) }, select: { id: true } });
     if (!event) throw new NotFoundException('Event not found');
 
     // Single transaction: remove all dependents without a prior findMany round-trip
@@ -122,17 +159,23 @@ export class AdminService {
     return this.prisma.event.delete({ where: { id } });                  // cascades TicketTiers, EventViews
   }
 
-  async listEvents(page = 1, limit = 20) {
+  async listEvents(user: JwtPayload, page = 1, limit = 20, organizationId?: string) {
     await this.eventsService.autoCompleteExpiredEvents();
     const skip = (page - 1) * limit;
+    const where: Prisma.EventWhereInput = {
+      ...this.eventOwnerWhere(user),
+      ...(user.isAdmin && organizationId ? { organizationId } : {}),
+    };
     const [total, events] = await Promise.all([
-      this.prisma.event.count(),
+      this.prisma.event.count({ where }),
       this.prisma.event.findMany({
+        where,
         skip,
         take: limit,
         orderBy: { createdAt: 'desc' },
         include: {
           _count: { select: { tickets: true, orders: true } },
+          organization: { select: { id: true, name: true } },
           tiers: { select: { id: true, name: true, price: true, totalQuantity: true, soldQuantity: true } },
         },
       }),
@@ -153,6 +196,7 @@ export class AdminService {
         city: e.city,
         startsAt: e.startsAt.toISOString(),
         status: e.status,
+        organization: e.organization ? { id: e.organization.id, name: e.organization.name } : null,
         maxCapacity: e.maxCapacity ?? null,
         ticketsSold: tiersByEvent[index].reduce((sum, tier) => sum + tier.soldQuantity, 0),
         ordersCount: e._count.orders,
@@ -179,22 +223,30 @@ export class AdminService {
 
   // ── Tiers ──────────────────────────────────────────────────────────────
 
-  async createTier(eventId: string, dto: CreateTierDto) {
+  async createTier(eventId: string, dto: CreateTierDto, user: JwtPayload) {
+    await this.assertEventAccess(eventId, user);
     return this.tiersService.create(eventId, dto);
   }
 
-  async updateTier(tierId: string, dto: UpdateTierDto) {
+  async updateTier(tierId: string, dto: UpdateTierDto, user: JwtPayload) {
+    const tier = await this.prisma.ticketTier.findUnique({ where: { id: tierId }, select: { eventId: true } });
+    if (!tier) throw new NotFoundException('Ticket tier not found');
+    await this.assertEventAccess(tier.eventId, user);
     return this.tiersService.update(tierId, dto);
   }
 
-  async deleteTier(tierId: string) {
+  async deleteTier(tierId: string, user: JwtPayload) {
+    const tier = await this.prisma.ticketTier.findUnique({ where: { id: tierId }, select: { eventId: true } });
+    if (!tier) throw new NotFoundException('Ticket tier not found');
+    await this.assertEventAccess(tier.eventId, user);
     return this.tiersService.delete(tierId);
   }
 
   // ── Orders ──────────────────────────────────────────────────────────────
 
-  async listOrders(eventId?: string, status?: string, page = 1, limit = 20) {
+  async listOrders(user: JwtPayload, eventId?: string, status?: string, page = 1, limit = 20) {
     const skip = (page - 1) * limit;
+    if (eventId) await this.assertEventAccess(eventId, user);
 
     // Map a single UI status value to the corresponding DB values for each table.
     const VALID_STATUSES = ['pending', 'paid', 'failed', 'refunded', 'cancelled'] as const;
@@ -222,11 +274,13 @@ export class AdminService {
 
     const orderWhere = {
       ...(eventId ? { eventId } : {}),
+      ...(!user.isAdmin ? { event: this.eventOwnerWhere(user) } : {}),
       ...(orderStatusFilter ? { status: { in: orderStatusFilter as Prisma.EnumOrderStatusFilter['in'] } } : {}),
     };
 
     const regWhere = {
       ...(eventId ? { eventId } : {}),
+      ...(!user.isAdmin ? { event: this.eventOwnerWhere(user) } : {}),
       ...(regStatusFilter && regStatusFilter.length
         ? { status: { in: regStatusFilter as Prisma.EnumRegistrationStatusFilter['in'] } }
         : {}),
@@ -324,9 +378,9 @@ export class AdminService {
     };
   }
 
-  async getOrder(orderId: string) {
-    const order = await this.prisma.order.findUnique({
-      where: { id: orderId },
+  async getOrder(orderId: string, user: JwtPayload) {
+    const order = await this.prisma.order.findFirst({
+      where: { id: orderId, ...(!user.isAdmin ? { event: this.eventOwnerWhere(user) } : {}) },
       include: {
         user: { select: { id: true, email: true, firstName: true, lastName: true } },
         event: { select: { id: true, title: true, slug: true, startsAt: true, venue: true } },
@@ -369,9 +423,9 @@ export class AdminService {
     };
   }
 
-  async resendTicket(orderId: string) {
-    const order = await this.prisma.order.findUnique({
-      where: { id: orderId },
+  async resendTicket(orderId: string, user: JwtPayload) {
+    const order = await this.prisma.order.findFirst({
+      where: { id: orderId, ...(!user.isAdmin ? { event: this.eventOwnerWhere(user) } : {}) },
       include: {
         user: { select: { email: true, firstName: true, lastName: true } },
         event: { select: { title: true, startsAt: true, venue: true } },
@@ -829,7 +883,8 @@ export class AdminService {
 
   // ── Analytics ──────────────────────────────────────────────────────────
 
-  async getEventAnalytics(eventId: string) {
+  async getEventAnalytics(eventId: string, user: JwtPayload) {
+    await this.assertEventAccess(eventId, user);
     const [
       event,
       orderRevenueStats,
@@ -956,9 +1011,8 @@ export class AdminService {
    * P7 — Daily revenue + sales timeline for an event (last N days).
    * Returns one row per calendar day in the requested range.
    */
-  async getEventTimeline(eventId: string, days = 14) {
-    const event = await this.prisma.event.findUnique({ where: { id: eventId }, select: { id: true } });
-    if (!event) throw new NotFoundException('Event not found');
+  async getEventTimeline(eventId: string, user: JwtPayload, days = 14) {
+    await this.assertEventAccess(eventId, user);
 
     const safeDays = Math.min(Math.max(1, days), 90);
     const since = new Date();
@@ -1024,9 +1078,9 @@ export class AdminService {
     };
   }
 
-  async getEventFunnel(eventId: string) {
-    const event = await this.prisma.event.findUnique({
-      where: { id: eventId },
+  async getEventFunnel(eventId: string, user: JwtPayload) {
+    const event = await this.prisma.event.findFirst({
+      where: { id: eventId, ...this.eventOwnerWhere(user) },
       select: { id: true, title: true, slug: true },
     });
     if (!event) throw new NotFoundException('Event not found');
@@ -1148,24 +1202,26 @@ export class AdminService {
 
   // ── Manual Payment Confirmation ────────────────────────────────────────
 
-  async manualConfirmPayment(orderId: string, adminId: string) {
-    const order = await this.prisma.order.findUnique({ where: { id: orderId } });
+  async manualConfirmPayment(orderId: string, user: JwtPayload) {
+    const order = await this.prisma.order.findFirst({
+      where: { id: orderId, ...(!user.isAdmin ? { event: this.eventOwnerWhere(user) } : {}) },
+    });
     if (!order) throw new NotFoundException('Order not found');
     if (order.status === 'paid') throw new BadRequestException('Order is already paid');
 
     // Reuse the same confirmPayment logic (generates QR tickets + sends email)
-    await this.ordersService.confirmPayment(orderId, `manual:${adminId}`);
+    await this.ordersService.confirmPayment(orderId, `manual:${user.sub}`);
 
     // Record audit trail
     await this.prisma.order.update({
       where: { id: orderId },
       data: {
-        confirmedByAdminId: adminId,
+        confirmedByAdminId: user.sub,
         confirmedAt: new Date(),
       },
     });
 
-    this.logger.log({ msg: 'Order manually confirmed by admin', orderId, adminId });
+    this.logger.log({ msg: 'Order manually confirmed by admin', orderId, adminId: user.sub });
     return { confirmed: true, orderId };
   }
 
@@ -1180,10 +1236,12 @@ export class AdminService {
     return value;
   }
 
-  async exportOrders(eventId?: string): Promise<string> {
+  async exportOrders(user: JwtPayload, eventId?: string): Promise<string> {
+    if (eventId) await this.assertEventAccess(eventId, user);
+    const ownershipFilter = !user.isAdmin ? { event: this.eventOwnerWhere(user) } : {};
     const [orders, registrations] = await Promise.all([
       this.prisma.order.findMany({
-        where: eventId ? { eventId } : {},
+        where: { ...(eventId ? { eventId } : {}), ...ownershipFilter },
         orderBy: { createdAt: 'desc' },
         include: {
           user: { select: { email: true, firstName: true, lastName: true, company: true, jobTitle: true, city: true } },
@@ -1194,6 +1252,7 @@ export class AdminService {
       this.prisma.registration.findMany({
         where: {
           ...(eventId ? { eventId } : {}),
+          ...ownershipFilter,
           status: 'verified',
         },
         orderBy: { createdAt: 'desc' },
@@ -1653,7 +1712,7 @@ export class AdminService {
 
   // ── Dashboard Stats ─────────────────────────────────────────────────────
 
-  async getDashboardStats(eventId?: string) {
+  async getDashboardStats(user: JwtPayload, eventId?: string) {
     // Build an explicit eventId filter so every query uses a direct scalar
     // comparison rather than a relation-based filter, which is unambiguous.
     // For the global dashboard we resolve all completed-event IDs up front;
@@ -1661,10 +1720,11 @@ export class AdminService {
     let scopeFilter: { eventId: string } | { eventId: { in: string[] } };
 
     if (eventId) {
+      await this.assertEventAccess(eventId, user);
       scopeFilter = { eventId };
     } else {
       const completedEvents = await this.prisma.event.findMany({
-        where: { status: 'completed' },
+        where: { status: 'completed', ...this.eventOwnerWhere(user) },
         select: { id: true },
       });
       const ids = completedEvents.map((e) => e.id);
@@ -1849,7 +1909,12 @@ export class AdminService {
   async approveOrganizer(id: string, adminId: string) {
     const org = await this.prisma.organization.findUnique({
       where: { id },
-      select: { id: true, approvalStatus: true, name: true },
+      select: {
+        id: true,
+        approvalStatus: true,
+        name: true,
+        createdBy: { select: { email: true, firstName: true } },
+      },
     });
     if (!org) throw new NotFoundException('Organization not found');
     if (org.approvalStatus === 'approved') {
@@ -1876,6 +1941,14 @@ export class AdminService {
       metadata: { organizationName: org.name },
     });
 
+    const webUrl = this.config.get<string>('webUrl') ?? 'https://axontickets.online';
+    await this.emailService.sendOrganizerApprovedEmail(
+      org.createdBy.email,
+      org.createdBy.firstName ?? 'there',
+      org.name,
+      `${webUrl}/admin`,
+    );
+
     return {
       id: updated.id,
       name: updated.name,
@@ -1887,7 +1960,12 @@ export class AdminService {
   async rejectOrganizer(id: string, adminId: string, reason: string) {
     const org = await this.prisma.organization.findUnique({
       where: { id },
-      select: { id: true, approvalStatus: true, name: true },
+      select: {
+        id: true,
+        approvalStatus: true,
+        name: true,
+        createdBy: { select: { email: true, firstName: true } },
+      },
     });
     if (!org) throw new NotFoundException('Organization not found');
     if (org.approvalStatus === 'rejected') {
@@ -1919,6 +1997,15 @@ export class AdminService {
       performedById: adminId,
       metadata: { organizationName: org.name, reason },
     });
+
+    const webUrl = this.config.get<string>('webUrl') ?? 'https://axontickets.online';
+    await this.emailService.sendOrganizerRejectedEmail(
+      org.createdBy.email,
+      org.createdBy.firstName ?? 'there',
+      org.name,
+      reason,
+      `${webUrl}/become-organizer?reapply=1`,
+    );
 
     return {
       id: updated.id,
