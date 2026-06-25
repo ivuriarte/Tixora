@@ -7,7 +7,6 @@ import axios from 'axios';
 import api from '@/lib/api';
 import { useAuthStore } from '@/store/auth.store';
 import toast from 'react-hot-toast';
-import Navbar from '@/components/Navbar';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -134,25 +133,9 @@ function ApprovedCard({ org }: { org: OrgData }) {
       <div className="bg-violet-50 border border-violet-100 rounded-2xl px-6 py-4 text-left mb-6">
         <p className="text-sm font-semibold text-violet-800 mb-1">What&apos;s next?</p>
         <p className="text-sm text-violet-700">
-          Your organizer dashboard is ready. You can create and manage your own events, review registrations, run check-in, and monitor your event data.
+          Your organizer access is active. Sign in from the Axon Tickets homepage whenever you are ready to manage your events, registrations, check-in, workspace, transactions, and reports.
         </p>
       </div>
-      <Link
-        href="/admin"
-        className="inline-flex items-center justify-center bg-violet-600 hover:bg-violet-700 text-white font-semibold px-6 py-3 rounded-xl transition-colors mb-4"
-      >
-        Open organizer dashboard
-      </Link>
-      <br />
-      <Link
-        href="/"
-        className="inline-flex items-center gap-2 text-sm text-gray-500 hover:text-gray-900 transition-colors"
-      >
-        <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" aria-hidden="true">
-          <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18" />
-        </svg>
-        Back to homepage
-      </Link>
     </div>
   );
 }
@@ -1469,11 +1452,8 @@ export default function BecomeOrganizerPage() {
   }
 
   return (
-    <>
-      <Navbar />
-      <main className="min-h-screen bg-gray-50 px-4 py-12 sm:py-16">
-        {renderContent()}
-      </main>
-    </>
+    <main className="min-h-screen bg-gray-50 px-4 py-12 sm:py-16">
+      {renderContent()}
+    </main>
   );
 }

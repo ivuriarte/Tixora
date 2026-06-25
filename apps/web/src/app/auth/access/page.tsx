@@ -48,7 +48,7 @@ function AccessForm() {
   useEffect(() => {
     if (!isHydrating && isAuthenticated && user) {
       const redirect = searchParams.get('redirect');
-      const dest = redirect && redirect.startsWith('/') ? redirect : user.isAdmin ? '/admin' : '/';
+      const dest = redirect && redirect.startsWith('/') ? redirect : user.isAdmin || user.isOrganizer ? '/admin' : '/';
       router.replace(dest);
     }
   }, [isHydrating, isAuthenticated, user, router, searchParams]);
@@ -81,9 +81,9 @@ function AccessForm() {
   }, []);
 
   const redirectAfterAuth = useCallback(
-    (isAdmin: boolean) => {
+    (isAdmin: boolean, isOrganizer = false) => {
       const redirect = searchParams.get('redirect');
-      const dest = redirect && redirect.startsWith('/') ? redirect : isAdmin ? '/admin' : '/';
+      const dest = redirect && redirect.startsWith('/') ? redirect : isAdmin || isOrganizer ? '/admin' : '/';
       router.replace(dest);
     },
     [searchParams, router],
@@ -178,7 +178,7 @@ function AccessForm() {
     try {
       const res = await api.post<{
         data: {
-          user: { id: string; email: string; firstName: string | null; lastName: string | null; isAdmin: boolean; isVerified: boolean };
+          user: { id: string; email: string; firstName: string | null; lastName: string | null; isAdmin: boolean; isOrganizer?: boolean; isVerified: boolean };
           accessToken: string;
           refreshToken: string;
           isNewUser: boolean;
@@ -226,13 +226,14 @@ function AccessForm() {
             firstName: verifiedUser.firstName ?? '',
             lastName: verifiedUser.lastName ?? '',
             isAdmin: verifiedUser.isAdmin,
+            isOrganizer: Boolean(verifiedUser.isOrganizer),
             isVerified: verifiedUser.isVerified,
           },
           accessToken,
           refreshToken,
         );
         toast.success(`Welcome back!`);
-        redirectAfterAuth(verifiedUser.isAdmin);
+        redirectAfterAuth(verifiedUser.isAdmin, verifiedUser.isOrganizer);
       }
     } catch (err: any) {
       const msg = err?.response?.data?.message ?? 'Verification failed';
@@ -287,7 +288,7 @@ function AccessForm() {
       const phone = `+63${profile.phoneDigits}`;
 
       const res = await axios.patch<{
-        data: { id: string; email: string; firstName: string; lastName: string; isAdmin: boolean; isVerified: boolean };
+        data: { id: string; email: string; firstName: string; lastName: string; isAdmin: boolean; isOrganizer?: boolean; isVerified: boolean };
       }>(
         `${API_URL}/users/me`,
         { firstName: profile.firstName, lastName: profile.lastName, phone },
@@ -311,13 +312,14 @@ function AccessForm() {
           firstName: updatedUser.firstName,
           lastName: updatedUser.lastName,
           isAdmin: updatedUser.isAdmin,
+          isOrganizer: Boolean(updatedUser.isOrganizer),
           isVerified: updatedUser.isVerified,
         },
         pendingAuth.accessToken,
         pendingAuth.refreshToken,
       );
       toast.success(`Welcome, ${updatedUser.firstName}!`);
-      redirectAfterAuth(updatedUser.isAdmin);
+      redirectAfterAuth(updatedUser.isAdmin, updatedUser.isOrganizer);
     } catch (err: any) {
       const msg = err?.response?.data?.message ?? 'Could not save profile';
       toast.error(Array.isArray(msg) ? msg.join(', ') : msg);

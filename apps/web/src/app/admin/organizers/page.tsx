@@ -26,7 +26,13 @@ interface OrgRow {
 }
 
 interface OrgDetail extends OrgRow {
+  contactName: string;
+  organizationType: string;
+  registrationNumber: string | null;
+  idType: string;
+  idNumber: string;
   phone: string | null;
+  facebookUrl: string | null;
   members: Array<{
     id: string;
     role: string;
@@ -49,6 +55,22 @@ const STATUS_STYLES: Record<ApprovalStatus, string> = {
   rejected:  'bg-red-50 text-red-700 border-red-200',
   suspended: 'bg-gray-100 text-gray-600 border-gray-200',
 };
+
+function DetailItem({ label, value, href }: { label: string; value?: string | null; href?: string | null }) {
+  const display = value?.trim() || 'Not provided';
+  return (
+    <div>
+      <p className="text-[11px] font-medium text-gray-400 uppercase tracking-wide">{label}</p>
+      {href && value ? (
+        <a href={href} target="_blank" rel="noopener noreferrer" className="text-sm font-medium text-violet-600 hover:underline break-words">
+          {display}
+        </a>
+      ) : (
+        <p className={`text-sm font-medium break-words ${value ? 'text-gray-900' : 'text-gray-400'}`}>{display}</p>
+      )}
+    </div>
+  );
+}
 
 function StatusBadge({ status }: { status: ApprovalStatus }) {
   return (
@@ -155,6 +177,26 @@ function OrgDrawer({
                     {org.website}
                   </a>
                 )}
+              </div>
+            </div>
+
+            {/* KYC details */}
+            <div className="rounded-lg border border-gray-100 bg-gray-50 px-4 py-3">
+              <p className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-3">KYC details</p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <DetailItem label="Organization name" value={org.name} />
+                <DetailItem label="Organization type" value={org.organizationType} />
+                <DetailItem label="Registration no." value={org.registrationNumber} />
+                <DetailItem label="Contact person" value={org.contactName} />
+                <DetailItem label="Contact phone" value={org.phone} />
+                <DetailItem label="City" value={org.city} />
+                <DetailItem label="Government ID type" value={org.idType} />
+                <DetailItem label="ID number" value={org.idNumber} />
+                <DetailItem label="Website" value={org.website} href={org.website} />
+                <DetailItem label="Facebook page" value={org.facebookUrl} href={org.facebookUrl} />
+              </div>
+              <div className="mt-3">
+                <DetailItem label="Description" value={org.description} />
               </div>
             </div>
 

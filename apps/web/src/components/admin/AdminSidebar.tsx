@@ -281,7 +281,7 @@ export default function AdminSidebar() {
       {/* Footer — profile & logout */}
       <div className="flex-shrink-0 border-t border-gray-100 px-3 py-3 space-y-0.5">
         <Link
-          href="/profile"
+          href="/admin/profile"
           className="flex items-center gap-2.5 px-2 py-2 rounded-lg text-sm text-gray-600 hover:bg-gray-50 hover:text-gray-900 transition-colors"
         >
           <svg className="w-5 h-5 flex-shrink-0 text-gray-400" fill="none" stroke="currentColor" strokeWidth={1.75} viewBox="0 0 24 24" aria-hidden>
