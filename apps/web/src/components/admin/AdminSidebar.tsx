@@ -179,7 +179,7 @@ const SECTIONS: NavSection[] = [
   },
 ];
 
-export default function AdminSidebar() {
+export default function AdminSidebar({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
   const pathname = usePathname();
   const router = useRouter();
   const { user, logout } = useAuthStore();
@@ -232,20 +232,47 @@ export default function AdminSidebar() {
   }
 
   return (
-    <aside className="sticky top-0 h-screen w-56 flex-shrink-0 flex flex-col bg-white border-r border-gray-200 overflow-y-auto z-30">
+    <>
+      {/* Mobile overlay backdrop */}
+      {isOpen && (
+        <div
+          className="md:hidden fixed inset-0 z-40 bg-black/30"
+          onClick={onClose}
+          aria-hidden
+        />
+      )}
+
+      <aside className={`
+        fixed inset-y-0 left-0 z-50 w-64 flex flex-col bg-white border-r border-gray-200 overflow-y-auto
+        transition-transform duration-200 ease-in-out
+        md:sticky md:top-0 md:h-screen md:w-56 md:flex-shrink-0 md:translate-x-0 md:z-30
+        ${isOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}
+      `}>
       {/* Logo */}
-      <div className="px-4 pt-5 pb-4 border-b border-gray-100 flex-shrink-0">
-        <Link href="/admin" className="flex items-center">
-          <Image
-            src="/axon-logo.svg"
-            alt="Axon Tickets"
-            width={120}
-            height={24}
-            priority
-            unoptimized
-          />
-        </Link>
-        <p className="text-[11px] text-gray-400 mt-1.5">Admin panel</p>
+      <div className="px-4 pt-5 pb-4 border-b border-gray-100 flex-shrink-0 flex items-center justify-between">
+        <div>
+          <Link href="/admin" className="flex items-center" onClick={onClose}>
+            <Image
+              src="/axon-logo.svg"
+              alt="Axon Tickets"
+              width={120}
+              height={24}
+              priority
+              unoptimized
+            />
+          </Link>
+          <p className="text-[11px] text-gray-400 mt-1.5">Admin panel</p>
+        </div>
+        {/* Close button — mobile only */}
+        <button
+          className="md:hidden p-1.5 rounded-lg text-gray-400 hover:bg-gray-100 transition-colors"
+          onClick={onClose}
+          aria-label="Close navigation"
+        >
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" aria-hidden>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
       </div>
 
       {/* Navigation */}
@@ -263,6 +290,7 @@ export default function AdminSidebar() {
                   <Link
                     key={item.href}
                     href={item.href}
+                    onClick={onClose}
                     className={`flex items-center gap-2.5 px-2 py-2 rounded-lg text-sm font-medium transition-colors ${
                       active
                         ? 'bg-violet-50 text-primary'
@@ -310,6 +338,7 @@ export default function AdminSidebar() {
           Log out
         </button>
       </div>
-    </aside>
+      </aside>
+    </>
   );
 }
