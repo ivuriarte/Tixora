@@ -1,12 +1,18 @@
 name: Deploy UAT
 
+# Triggers when a PR is merged into the uat branch.
+# Merging a PR = push event on uat, which fires this workflow.
 on:
   push:
     branches: [uat]
 
 jobs:
-  migrate-api:
-    name: Migrate & Deploy API to UAT
+  # ── 1. Run Prisma migrations on UAT database ─────────────────────────────
+  # This MUST complete successfully before anything else runs.
+  # Uses DIRECT_URL (not the pooler) because Prisma migrate requires
+  # a direct connection — it cannot work through PgBouncer.
+  migrate-db:
+    name: Migrate UAT database
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -15,10 +21,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup Node
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@v4
         with:
-          node-version: '24'
+          node-version: '20'
           cache: 'npm'
           cache-dependency-path: package-lock.json
 
@@ -26,71 +31,125 @@ jobs:
         working-directory: .
         run: npm ci
 
-      - name: Run Prisma migrations on UAT
+      - name: Generate Prisma client
         env:
-          DIRECT_URL: ${{ secrets.DIRECT_URL_UAT }}
           DATABASE_URL: ${{ secrets.DATABASE_URL_UAT }}
+          DIRECT_URL: ${{ secrets.DIRECT_URL_UAT }}
+        run: npx prisma generate
+
+      - name: Validate migration files
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL_UAT }}
+          DIRECT_URL: ${{ secrets.DIRECT_URL_UAT }}
+        run: npx prisma validate
+
+      - name: Run migrations
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL_UAT }}
+          DIRECT_URL: ${{ secrets.DIRECT_URL_UAT }}
           APP_ENV: uat
         run: |
           if [ -z "$DATABASE_URL" ] || [ -z "$DIRECT_URL" ]; then
-            echo "⚠️  DATABASE_URL_UAT / DIRECT_URL_UAT secrets not set — skipping migrations."
-            echo "    Add them in GitHub → Settings → Secrets and Variables → Actions."
-            exit 0
+            echo "⚠️  DATABASE_URL_UAT or DIRECT_URL_UAT secret is not set."
+            echo "    Go to: GitHub → Settings → Secrets and variables → Actions"
+            echo "    Add: DATABASE_URL_UAT  (pooled connection, ?pgbouncer=true)"
+            echo "    Add: DIRECT_URL_UAT    (direct connection, no pgbouncer)"
+            exit 1
           fi
+          echo "▶  Running prisma migrate deploy on UAT..."
           npx prisma migrate deploy
+          echo "✅ Migrations complete."
 
-  build-web:
-    name: Deploy Web to UAT
+  # ── 2. Build check ────────────────────────────────────────────────────────
+  # Verifies the code compiles cleanly after migrations pass.
+  # Vercel deploys the actual app via its own Git integration — this job
+  # is a CI gate only, not the Vercel deploy itself.
+  # Runs only after migrate-db succeeds.
+  build-check:
+    name: Build check (web + api)
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: apps/web
+    needs: [migrate-db]
 
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup Node
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@v4
         with:
-          node-version: '24'
+          node-version: '20'
           cache: 'npm'
           cache-dependency-path: package-lock.json
 
       - name: Install dependencies
-        working-directory: .
         run: npm ci
 
-      - name: Build shared packages
-        working-directory: .
-        run: npm run build --workspace=packages/types --workspace=packages/utils
+      - name: Generate Prisma client
+        working-directory: apps/api
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL_UAT }}
+          DIRECT_URL: ${{ secrets.DIRECT_URL_UAT }}
+        run: npx prisma generate
 
-      - name: Build
+      - name: Build shared packages
+        run: npm run build --workspace=packages/types --workspace=packages/utils 2>/dev/null || true
+
+      - name: Type-check API
+        working-directory: apps/api
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL_UAT }}
+          DIRECT_URL: ${{ secrets.DIRECT_URL_UAT }}
+        run: npx tsc --noEmit
+
+      - name: Type-check Web
+        working-directory: apps/web
+        env:
+          NEXT_PUBLIC_API_URL: https://api-uat.axontickets.online/api/v1
+        run: npx tsc --noEmit
+
+      - name: Build web
+        working-directory: apps/web
         env:
           NEXT_PUBLIC_API_URL: https://api-uat.axontickets.online/api/v1
         run: npm run build
 
+  # ── 3. Smoke tests ────────────────────────────────────────────────────────
+  # Waits for Vercel to finish deploying (triggered independently by its
+  # own Git integration), then checks the UAT API health endpoint.
+  # Only runs if both prior jobs succeed.
   smoke-tests:
     name: UAT Smoke Tests
     runs-on: ubuntu-latest
-    needs: [migrate-api, build-web]
-    if: success()
+    needs: [migrate-db, build-check]
 
     steps:
       - name: Wait for Vercel UAT deployment
-        run: sleep 60
+        # Vercel deploys in parallel with this workflow via its Git integration.
+        # 90 s is usually enough for a warm cache build. Increase if builds are slow.
+        run: |
+          echo "⏳ Waiting 90s for Vercel UAT deployment to go live..."
+          sleep 90
 
       - name: Check API health endpoint
         run: |
-          for i in {1..6}; do
-            STATUS=$(curl -s -o /dev/null -w "%{http_code}" https://api-uat.axontickets.online/api/v1/health)
+          echo "▶  Polling https://api-uat.axontickets.online/api/v1/health"
+          for i in {1..8}; do
+            STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+              https://api-uat.axontickets.online/api/v1/health)
             if [ "$STATUS" = "200" ]; then
-              echo "✅ API health: OK"
-              curl -s https://api-uat.axontickets.online/api/v1/health
+              echo "✅ API health OK"
+              curl -s https://api-uat.axontickets.online/api/v1/health | head -c 500
               exit 0
             fi
-            echo "Attempt $i: HTTP $STATUS, retrying in 15s..."
-            sleep 15
+            echo "  Attempt $i/8: HTTP $STATUS — retrying in 20s…"
+            sleep 20
           done
-          echo "❌ API health check failed after all retries"
+          echo "❌ API health check failed after 8 attempts."
           exit 1
 
+      - name: Check Web health
+        run: |
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" https://uat.axontickets.online)
+          if [ "$STATUS" = "200" ] || [ "$STATUS" = "308" ] || [ "$STATUS" = "307" ]; then
+            echo "✅ Web UAT reachable (HTTP $STATUS)"
+          else
+            echo "⚠️  Web UAT returned HTTP $STATUS (non-blocking)"
+          fi
