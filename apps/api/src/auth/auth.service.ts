@@ -439,6 +439,7 @@ export class AuthService {
     refreshToken: string;
     isNewUser: boolean;
     isExistingAccount: boolean;
+    orgApprovalStatus: string | null;
   }> {
     const userAgent = req?.headers['user-agent'] as string | undefined;
     const referrer = (req?.headers['referer'] as string | undefined) ?? undefined;
@@ -527,7 +528,14 @@ export class AuthService {
       this.generateAccessToken(user.id, user.email, user.isAdmin),
       this.generateRefreshToken(user.id),
     ]);
-    const isOrganizer = await this.isApprovedOrganizer(user.id);
+    const [isOrganizer, orgMembership] = await Promise.all([
+      this.isApprovedOrganizer(user.id),
+      this.prisma.organizationMember.findFirst({
+        where: { userId: user.id },
+        select: { organization: { select: { approvalStatus: true } } },
+      }),
+    ]);
+    const orgApprovalStatus = orgMembership?.organization.approvalStatus ?? null;
 
     await this.funnel.track(
       {
@@ -555,6 +563,7 @@ export class AuthService {
       isNewUser,
       // true when the email already belonged to a verified account before this OTP flow
       isExistingAccount: user.isVerified,
+      orgApprovalStatus,
     };
   }
 

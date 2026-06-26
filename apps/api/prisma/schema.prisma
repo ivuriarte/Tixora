@@ -53,6 +53,7 @@ enum OrgApprovalStatus {
   approved
   rejected
   suspended
+  revoked
 }
 
 enum OrgMemberRole {

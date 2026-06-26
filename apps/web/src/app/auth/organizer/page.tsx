@@ -111,13 +111,28 @@ function OrganizerSignInForm() {
           accessToken: string;
           refreshToken: string;
           isNewUser: boolean;
+          orgApprovalStatus: string | null;
         };
       }>('/auth/verify-access', { userId: pendingAuth.userId, otp });
 
-      const { user: verifiedUser, accessToken, refreshToken, isNewUser } = res.data.data;
+      const { user: verifiedUser, accessToken, refreshToken, isNewUser, orgApprovalStatus } = res.data.data;
 
       if (verifiedUser.isAdmin) {
         setError('Admin accounts must sign in at /auth/admin.');
+        setOtp('');
+        setLoading(false);
+        return;
+      }
+
+      if (orgApprovalStatus === 'suspended') {
+        setError('Your organizer account has been suspended. Please contact support for assistance.');
+        setOtp('');
+        setLoading(false);
+        return;
+      }
+
+      if (orgApprovalStatus === 'revoked') {
+        setError('Your organizer account has been permanently banned from this platform.');
         setOtp('');
         setLoading(false);
         return;

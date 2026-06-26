@@ -226,8 +226,9 @@ export default function AdminSidebar({ isOpen, onClose }: { isOpen: boolean; onC
     } catch {
       /* ignore */
     }
+    const isAdmin = user?.isAdmin ?? false;
     logout();
-    router.push('/');
+    router.push(isAdmin ? '/auth/admin' : '/');
     toast.success('You have been signed out.');
   }
 

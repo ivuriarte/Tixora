@@ -523,6 +523,38 @@ export class AdminController {
     return this.adminService.rejectOrganizer(id, user.sub, dto.reason);
   }
 
+  @Patch('organizers/:id/suspend')
+  @ApiOperation({ summary: 'Suspend an approved organizer account' })
+  suspendOrganizer(
+    @Param('id') id: string,
+    @Body() dto: { reason?: string },
+    @CurrentUser() user: JwtPayload,
+  ) {
+    this.requirePlatformAdmin(user);
+    return this.adminService.suspendOrganizer(id, user.sub, dto.reason);
+  }
+
+  @Patch('organizers/:id/revoke')
+  @ApiOperation({ summary: 'Permanently revoke (ban) an organizer account' })
+  revokeOrganizer(
+    @Param('id') id: string,
+    @Body() dto: { reason?: string },
+    @CurrentUser() user: JwtPayload,
+  ) {
+    this.requirePlatformAdmin(user);
+    return this.adminService.revokeOrganizer(id, user.sub, dto.reason);
+  }
+
+  @Patch('organizers/:id/reinstate')
+  @ApiOperation({ summary: 'Reinstate a suspended or revoked organizer account' })
+  reinstateOrganizer(
+    @Param('id') id: string,
+    @CurrentUser() user: JwtPayload,
+  ) {
+    this.requirePlatformAdmin(user);
+    return this.adminService.reinstateOrganizer(id, user.sub);
+  }
+
   // ── Platform settings ────────────────────────────────────────────────────
 
   @Get('settings/platform')
