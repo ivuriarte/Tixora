@@ -11,6 +11,8 @@ import { useAuthStore } from '@/store/auth.store';
 import { useIsInAppBrowser } from '@/lib/useIsInAppBrowser';
 import { getOrCreateFunnelSessionId, trackInternalFunnelEvent } from '@/lib/funnel';
 import { trackPixelCustomEvent, trackPixelEvent } from '@/lib/metaPixel';
+import LegalModal from '@/components/LegalModal';
+import { USER_TERMS, PRIVACY_POLICY } from '@/lib/legal';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.axontickets.online/api/v1';
 const RESEND_COOLDOWN = 60;
@@ -38,6 +40,9 @@ function AccessForm() {
   const [secondsLeft, setSecondsLeft] = useState(0);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const otpInputRef = useRef<HTMLInputElement>(null);
+  const [termsAccepted, setTermsAccepted] = useState(false);
+  const [privacyAccepted, setPrivacyAccepted] = useState(false);
+  const [legalModal, setLegalModal] = useState<'terms' | 'privacy' | null>(null);
 
   const eventId = searchParams.get('eventId') ?? undefined;
   const eventSlug = searchParams.get('eventSlug') ?? undefined;
@@ -424,6 +429,26 @@ function AccessForm() {
               )}
             </div>
 
+            <p className="text-center text-xs text-gray-400 leading-relaxed">
+              By continuing, you agree to our{' '}
+              <button
+                type="button"
+                onClick={() => setLegalModal('terms')}
+                className="text-primary underline underline-offset-2 hover:text-primary/80 transition-colors"
+              >
+                Terms &amp; Conditions
+              </button>{' '}
+              and{' '}
+              <button
+                type="button"
+                onClick={() => setLegalModal('privacy')}
+                className="text-primary underline underline-offset-2 hover:text-primary/80 transition-colors"
+              >
+                Privacy Policy
+              </button>
+              .
+            </p>
+
           </form>
         )}
 
@@ -554,9 +579,52 @@ function AccessForm() {
               </div>
             </div>
 
+            {/* Legal consent — required for new accounts */}
+            <div className="space-y-3 rounded-xl border border-gray-100 bg-gray-50 px-4 py-4">
+              <label className="flex items-start gap-3 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={termsAccepted}
+                  onChange={(e) => setTermsAccepted(e.target.checked)}
+                  className="mt-0.5 h-4 w-4 rounded border-gray-300 text-primary accent-primary shrink-0 cursor-pointer"
+                />
+                <span className="text-xs text-gray-600 leading-relaxed">
+                  I have read and agree to the{' '}
+                  <button
+                    type="button"
+                    onClick={() => setLegalModal('terms')}
+                    className="text-primary underline underline-offset-2 hover:text-primary/80 transition-colors font-medium"
+                  >
+                    Terms &amp; Conditions
+                  </button>
+                  <span className="text-red-500 ml-0.5">*</span>
+                </span>
+              </label>
+
+              <label className="flex items-start gap-3 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={privacyAccepted}
+                  onChange={(e) => setPrivacyAccepted(e.target.checked)}
+                  className="mt-0.5 h-4 w-4 rounded border-gray-300 text-primary accent-primary shrink-0 cursor-pointer"
+                />
+                <span className="text-xs text-gray-600 leading-relaxed">
+                  I have read and agree to the{' '}
+                  <button
+                    type="button"
+                    onClick={() => setLegalModal('privacy')}
+                    className="text-primary underline underline-offset-2 hover:text-primary/80 transition-colors font-medium"
+                  >
+                    Privacy Policy
+                  </button>
+                  <span className="text-red-500 ml-0.5">*</span>
+                </span>
+              </label>
+            </div>
+
             <button
               type="submit"
-              disabled={loading || !profile.firstName || !profile.lastName || profile.phoneDigits.length < 10}
+              disabled={loading || !profile.firstName || !profile.lastName || profile.phoneDigits.length < 10 || !termsAccepted || !privacyAccepted}
               className="w-full py-2.5 rounded-xl bg-primary text-white text-sm font-semibold hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
             >
               {loading ? (
@@ -577,6 +645,19 @@ function AccessForm() {
           </p>
         )}
       </div>
+
+      <LegalModal
+        open={legalModal === 'terms'}
+        onClose={() => setLegalModal(null)}
+        title="Axon Tickets – End-User Terms & Conditions"
+        content={USER_TERMS}
+      />
+      <LegalModal
+        open={legalModal === 'privacy'}
+        onClose={() => setLegalModal(null)}
+        title="Axon Tickets – Privacy Policy"
+        content={PRIVACY_POLICY}
+      />
     </div>
   );
 }

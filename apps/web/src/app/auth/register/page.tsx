@@ -1,8 +1,13 @@
 'use client';
 
+import { useState } from 'react';
 import Link from 'next/link';
+import LegalModal from '@/components/LegalModal';
+import { USER_TERMS, PRIVACY_POLICY } from '@/lib/legal';
 
 export default function RegisterPage() {
+  const [legalModal, setLegalModal] = useState<'terms' | 'privacy' | null>(null);
+
   return (
     <div className="min-h-screen flex items-center justify-center px-4 py-12 bg-gray-50">
       <div className="w-full max-w-sm">
@@ -32,7 +37,41 @@ export default function RegisterPage() {
               Sign in
             </Link>
           </p>
+
+          <p className="text-center text-xs text-gray-400 pt-2 leading-relaxed">
+            By continuing, you agree to our{' '}
+            <button
+              type="button"
+              onClick={() => setLegalModal('terms')}
+              className="text-primary underline underline-offset-2 hover:text-primary/80 transition-colors"
+            >
+              Terms &amp; Conditions
+            </button>{' '}
+            and{' '}
+            <button
+              type="button"
+              onClick={() => setLegalModal('privacy')}
+              className="text-primary underline underline-offset-2 hover:text-primary/80 transition-colors"
+            >
+              Privacy Policy
+            </button>
+            .
+          </p>
         </div>
+
+        <LegalModal
+          open={legalModal === 'terms'}
+          onClose={() => setLegalModal(null)}
+          title="Axon Tickets – End-User Terms & Conditions"
+          content={USER_TERMS}
+        />
+        <LegalModal
+          open={legalModal === 'privacy'}
+          onClose={() => setLegalModal(null)}
+          title="Axon Tickets – Privacy Policy"
+          content={PRIVACY_POLICY}
+        />
+
         <div className="mt-6 text-center">
           <Link
             href="/"
