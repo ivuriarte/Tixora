@@ -108,7 +108,7 @@ export default function ProfilePage() {
           jobTitle: p.jobTitle ?? '',
           city: p.city ?? '',
         });
-        if (authUser?.isOrganizer) {
+        if (authUser?.loginPortal === 'organizer') {
           api
             .get<{ data: OrganizationProfile }>('/organizations/me')
             .then((orgRes) => {
@@ -264,15 +264,16 @@ export default function ProfilePage() {
   const initials = profile
     ? `${profile.firstName[0] ?? ''}${profile.lastName[0] ?? ''}`.toUpperCase()
     : '?';
-  const accountLabel = authUser?.isAdmin ? 'Platform Admin' : authUser?.isOrganizer ? 'Organizer' : 'Customer';
+  const isOrganizerPortal = authUser?.loginPortal === 'organizer';
+  const accountLabel = authUser?.isAdmin ? 'Platform Admin' : isOrganizerPortal ? 'Organizer' : 'Customer';
   const detailTitle = authUser?.isAdmin
     ? 'Admin Details'
-    : authUser?.isOrganizer
+    : isOrganizerPortal
       ? 'Organizer Contact Details'
       : 'Professional Details';
   const detailHelp = authUser?.isAdmin
     ? 'Used for internal admin identification, audit trails, and support handoffs.'
-    : authUser?.isOrganizer
+    : isOrganizerPortal
       ? 'Used for organizer support, event operations, and workspace coordination.'
       : 'Used on conference registrations and event name badges.';
 
@@ -306,7 +307,7 @@ export default function ProfilePage() {
           </div>
         </div>
 
-        {organization && authUser?.isOrganizer && (
+        {organization && isOrganizerPortal && (
           <form onSubmit={handleOrgSave} className="bg-white border border-gray-100 rounded-2xl shadow-sm px-6 py-5 mb-6 space-y-4">
             <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-widest">Organizer Account</h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
@@ -379,7 +380,7 @@ export default function ProfilePage() {
           </form>
         )}
 
-        {!authUser?.isOrganizer && (
+        {!isOrganizerPortal && (
         <form onSubmit={handleSave} className="space-y-6">
           {/* Basic Info */}
           <div className="bg-white border border-gray-100 rounded-2xl shadow-sm p-6 space-y-4">

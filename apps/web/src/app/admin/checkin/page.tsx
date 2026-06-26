@@ -367,7 +367,7 @@ export default function AdminCheckinPage() {
 
   return (
     <main className="max-w-2xl mx-auto px-4 py-10 space-y-6">
-        <h1 className="text-2xl font-bold text-gray-900">Check-In Scanner</h1>
+        <h1 className="text-2xl font-bold text-gray-900">Guest Check-In</h1>
 
         {/* Event selector */}
         <div>

@@ -278,23 +278,12 @@ function RaciInput({
 }) {
   const invalidate = useInvalidateWorkspace(eventId);
   const field = role === 'R' ? 'assignedToId' : 'accountableId';
-  const [localName, setLocalName] = useState(value?.name ?? '');
-  const [isFocused, setIsFocused] = useState(false);
-
-  // Sync with server value when not focused
-  const serverName = value?.name ?? '';
-  if (!isFocused && localName !== serverName) {
-    setLocalName(serverName);
-  }
 
   const mutation = useMutation({
     mutationFn: (id: string | null) =>
       api.patch(`/admin/events/${eventId}/workspace/items/${itemId}`, { [field]: id }),
     onSuccess: invalidate,
-    onError: () => {
-      toast.error('Assignment failed.');
-      setLocalName(value?.name ?? '');
-    },
+    onError: () => toast.error('Assignment failed.'),
   });
 
   if (!canEdit) {
@@ -312,55 +301,28 @@ function RaciInput({
 
   const isEmpty = !userId;
 
-  function handleBlur(e: React.FocusEvent<HTMLInputElement>) {
-    setIsFocused(false);
-    const inputVal = e.target.value.trim();
-    if (!inputVal) {
-      if (userId) mutation.mutate(null);
-      setLocalName('');
-      return;
-    }
-    const matched = assignableUsers.find(
-      (u) => u.name.toLowerCase() === inputVal.toLowerCase(),
-    );
-    if (matched) {
-      if (matched.id !== userId) mutation.mutate(matched.id);
-      setLocalName(matched.name);
-    } else {
-      setLocalName(value?.name ?? '');
-    }
-  }
-
-  function handleChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const inputVal = e.target.value;
-    setLocalName(inputVal);
-    const matched = assignableUsers.find(
-      (u) => u.name.toLowerCase() === inputVal.toLowerCase(),
-    );
-    if (matched && matched.id !== userId) {
-      mutation.mutate(matched.id);
-    } else if (!inputVal && userId) {
-      mutation.mutate(null);
-    }
+  function handleChange(e: React.ChangeEvent<HTMLSelectElement>) {
+    const newId = e.target.value || null;
+    if (newId !== userId) mutation.mutate(newId);
   }
 
   return (
-    <input
+    <select
       id={`raci-${role}-${itemId}`}
-      type="text"
-      value={localName}
+      value={userId ?? ''}
       onChange={handleChange}
-      onFocus={() => setIsFocused(true)}
-      onBlur={handleBlur}
-      placeholder={role === 'R' ? 'Responsible…' : 'Accountable…'}
       disabled={mutation.isPending}
-      autoComplete="off"
-      className={`w-full text-xs rounded-md border px-2 py-1 focus:outline-none focus:ring-1 focus:ring-violet-400 disabled:opacity-60 truncate ${
+      className={`w-full text-xs rounded-md border px-2 py-1 focus:outline-none focus:ring-1 focus:ring-violet-400 disabled:opacity-60 truncate bg-white ${
         isEmpty && isUnowned && role === 'R'
-          ? 'border-amber-200 bg-amber-50 text-amber-700 placeholder:text-amber-400'
-          : 'border-gray-200 bg-gray-50 text-gray-700 placeholder:text-gray-300'
+          ? 'border-amber-200 bg-amber-50 text-amber-700'
+          : 'border-gray-200 bg-gray-50 text-gray-700'
       }`}
-    />
+    >
+      <option value="">{role === 'R' ? 'Responsible…' : 'Accountable…'}</option>
+      {assignableUsers.map((u) => (
+        <option key={u.id} value={u.id}>{u.name}</option>
+      ))}
+    </select>
   );
 }
 
@@ -806,23 +768,14 @@ export default function EventWorkspacePage() {
             </button>
             <button
               onClick={() => handleDownloadPostEventReport(false)}
-              disabled={downloadingPE}
-              className="flex items-center gap-1.5 border border-gray-200 hover:border-gray-300 text-sm text-gray-600 hover:text-gray-800 font-medium px-3 py-2 rounded-lg transition-colors disabled:opacity-50"
+              disabled={downloadingPE || summary.event.status !== 'complete'}
+              title={summary.event.status !== 'complete' ? 'Available once the event is marked complete' : undefined}
+              className="flex items-center gap-1.5 border border-gray-200 hover:border-gray-300 text-sm text-gray-600 hover:text-gray-800 font-medium px-3 py-2 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={1.75} viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
               </svg>
               {downloadingPE ? 'Generating…' : 'Post-Event Report'}
-            </button>
-            <button
-              onClick={() => handleDownloadPostEventReport(true)}
-              disabled={downloadingPEExt}
-              className="flex items-center gap-1.5 border border-violet-200 hover:border-violet-400 text-sm text-violet-600 hover:text-violet-800 font-medium px-3 py-2 rounded-lg transition-colors disabled:opacity-50"
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={1.75} viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M7.217 10.907a2.25 2.25 0 100 2.186m0-2.186c.18.324.283.696.283 1.093s-.103.77-.283 1.093m0-2.186l9.566-5.314m-9.566 7.5l9.566 5.314m0 0a2.25 2.25 0 103.935 2.186 2.25 2.25 0 00-3.935-2.186zm0-12.814a2.25 2.25 0 103.933-2.185 2.25 2.25 0 00-3.933 2.185z" />
-              </svg>
-              {downloadingPEExt ? 'Generating…' : 'Share-Safe Export'}
             </button>
             {canEdit && (
               <button onClick={() => setShowTemplate(true)}

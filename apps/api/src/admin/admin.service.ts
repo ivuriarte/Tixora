@@ -1824,7 +1824,7 @@ export class AdminService {
   // ── Organizer Management ────────────────────────────────────────────────
 
   async listOrganizers(status?: string, page = 1, limit = 20) {
-    const VALID_STATUSES = ['pending', 'approved', 'rejected', 'suspended'] as const;
+    const VALID_STATUSES = ['pending', 'approved', 'rejected', 'suspended', 'revoked'] as const;
     const safeStatus = status && (VALID_STATUSES as readonly string[]).includes(status)
       ? (status as (typeof VALID_STATUSES)[number])
       : undefined;
@@ -2055,6 +2055,84 @@ export class AdminService {
       where: { approvalStatus: 'pending' },
     });
     return { count };
+  }
+
+  async suspendOrganizer(id: string, adminId: string, reason?: string) {
+    const org = await this.prisma.organization.findUnique({
+      where: { id },
+      select: { id: true, approvalStatus: true, name: true, createdBy: { select: { email: true, firstName: true } } },
+    });
+    if (!org) throw new NotFoundException('Organization not found');
+    if (org.approvalStatus === 'suspended') throw new BadRequestException('Organization is already suspended');
+    if (org.approvalStatus === 'revoked') throw new BadRequestException('Organization is revoked and cannot be suspended');
+
+    const updated = await this.prisma.organization.update({
+      where: { id },
+      data: { approvalStatus: 'suspended' },
+      select: { id: true, name: true, approvalStatus: true },
+    });
+
+    await this.audit.log({
+      action: 'ORGANIZER_SUSPENDED',
+      entityType: 'Organization',
+      entityId: id,
+      performedById: adminId,
+      metadata: { organizationName: org.name, reason: reason ?? null },
+    });
+
+    return { id: updated.id, name: updated.name, approvalStatus: updated.approvalStatus };
+  }
+
+  async revokeOrganizer(id: string, adminId: string, reason?: string) {
+    const org = await this.prisma.organization.findUnique({
+      where: { id },
+      select: { id: true, approvalStatus: true, name: true, createdBy: { select: { email: true, firstName: true } } },
+    });
+    if (!org) throw new NotFoundException('Organization not found');
+    if (org.approvalStatus === 'revoked') throw new BadRequestException('Organization is already revoked');
+
+    const updated = await this.prisma.organization.update({
+      where: { id },
+      data: { approvalStatus: 'revoked' },
+      select: { id: true, name: true, approvalStatus: true },
+    });
+
+    await this.audit.log({
+      action: 'ORGANIZER_REVOKED',
+      entityType: 'Organization',
+      entityId: id,
+      performedById: adminId,
+      metadata: { organizationName: org.name, reason: reason ?? null },
+    });
+
+    return { id: updated.id, name: updated.name, approvalStatus: updated.approvalStatus };
+  }
+
+  async reinstateOrganizer(id: string, adminId: string) {
+    const org = await this.prisma.organization.findUnique({
+      where: { id },
+      select: { id: true, approvalStatus: true, name: true },
+    });
+    if (!org) throw new NotFoundException('Organization not found');
+    if (!['suspended', 'revoked'].includes(org.approvalStatus)) {
+      throw new BadRequestException('Organization is not suspended or revoked');
+    }
+
+    const updated = await this.prisma.organization.update({
+      where: { id },
+      data: { approvalStatus: 'approved', approvedById: adminId, approvedAt: new Date() },
+      select: { id: true, name: true, approvalStatus: true, approvedAt: true },
+    });
+
+    await this.audit.log({
+      action: 'ORGANIZER_REINSTATED',
+      entityType: 'Organization',
+      entityId: id,
+      performedById: adminId,
+      metadata: { organizationName: org.name },
+    });
+
+    return { id: updated.id, name: updated.name, approvalStatus: updated.approvalStatus, approvedAt: updated.approvedAt?.toISOString() ?? null };
   }
 
   // ── Platform settings ─────────────────────────────────────────────────────
