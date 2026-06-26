@@ -252,18 +252,18 @@ export class EmailService implements OnModuleDestroy {
     const safeReason = this.escapeHtml(reason);
     await this.send(
       to,
-      `Organizer application needs updates — ${safeOrg}`,
+      `Organizer application was not approved — ${safeOrg}`,
       `<div style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:24px">
-        <h1 style="color:#991b1b;margin-bottom:4px">Your application needs updates</h1>
+        <h1 style="color:#991b1b;margin-bottom:4px">Your application was not approved</h1>
         <p style="color:#374151">Hi ${safeName}, we reviewed the organizer application for <strong>${safeOrg}</strong>. We cannot approve it yet.</p>
         <div style="background:#fef2f2;border-left:4px solid #dc2626;padding:14px 16px;margin:20px 0;border-radius:0 8px 8px 0;color:#991b1b">
           <strong>Reason:</strong> ${safeReason}
         </div>
-        <p style="color:#374151">You can update the same application record instead of starting from zero. The form will load your latest submitted details so you only need to change what is necessary.</p>
+        <p style="color:#374151">If you have corrected the issue above, you may apply again from the organizer program page. Please submit the updated organizer details you want our team to review.</p>
         <p style="margin:24px 0">
-          <a href="${reapplyUrl}" style="background:#1A3A5C;color:white;padding:12px 24px;text-decoration:none;border-radius:8px;display:inline-block;font-weight:600">Update application</a>
+          <a href="${reapplyUrl}" style="background:#1A3A5C;color:white;padding:12px 24px;text-decoration:none;border-radius:8px;display:inline-block;font-weight:600">Apply again</a>
         </p>
-        <p style="color:#64748b;font-size:13px">After you resubmit, we will ask you to verify by email again and then review the updated details.</p>
+        <p style="color:#64748b;font-size:13px">After you apply again, we will ask you to verify by email and then review the new submission.</p>
         <p style="margin-top:24px;color:#9ca3af;font-size:12px">Axon Tickets · Online Ticketing Platform</p>
       </div>`,
     );

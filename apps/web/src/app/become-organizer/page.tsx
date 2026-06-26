@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import axios from 'axios';
 import api from '@/lib/api';
 import { useAuthStore } from '@/store/auth.store';
@@ -171,13 +171,13 @@ function RejectedCard({ org, onReapply }: { org: OrgData; onReapply: () => void 
         </div>
       )}
       <p className="text-sm text-gray-500 mb-6">
-        If you believe this was a mistake or have addressed the issue, you can update this same application.
+        If you have addressed the issue, you can apply again with corrected organizer details.
       </p>
       <button
         onClick={onReapply}
         className="inline-flex items-center gap-2 bg-violet-600 hover:bg-violet-700 text-white font-semibold px-6 py-3 rounded-xl transition-colors"
       >
-        Update application
+        Apply again
       </button>
     </div>
   );
@@ -1495,11 +1495,19 @@ function GuestApplicationFlow({ onSuccess }: { onSuccess: (org: OrgData) => void
 
 export default function BecomeOrganizerPage() {
   const router = useRouter();
-  const { isAuthenticated, isHydrating, user } = useAuthStore();
+  const searchParams = useSearchParams();
+  const { isAuthenticated, isHydrating, user, logout } = useAuthStore();
   const [pageState, setPageState] = useState<PageState>({ kind: 'loading' });
+  const applyAgain = searchParams.get('applyAgain') === '1' || searchParams.get('reapply') === '1';
 
   useEffect(() => {
     if (isHydrating) return;
+
+    if (applyAgain) {
+      if (isAuthenticated) logout();
+      setPageState({ kind: 'unauthenticated' });
+      return;
+    }
 
     if (!isAuthenticated) {
       setPageState({ kind: 'unauthenticated' });
@@ -1529,7 +1537,7 @@ export default function BecomeOrganizerPage() {
         // 404 = no org yet; any other error → still show the form
         setPageState({ kind: 'form' });
       });
-  }, [isHydrating, isAuthenticated, user, router]);
+  }, [applyAgain, isHydrating, isAuthenticated, user, router, logout]);
 
   function handleRegistrationSuccess(org: OrgData) {
     setPageState({ kind: 'status', org });

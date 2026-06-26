@@ -2038,7 +2038,7 @@ export class AdminService {
       org.createdBy.firstName ?? 'there',
       org.name,
       reason,
-      `${webUrl}/become-organizer?reapply=1`,
+      `${webUrl}/become-organizer?applyAgain=1`,
     );
 
     return {
