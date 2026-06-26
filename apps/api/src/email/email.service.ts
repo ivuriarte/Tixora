@@ -406,6 +406,9 @@ export class EmailService implements OnModuleDestroy {
             <img src="cid:${cid}" alt="QR Code for ${a.firstName} ${a.lastName}"
                  width="200" height="200"
                  style="display:block;margin:0 auto;border:1px solid #e5e7eb;border-radius:8px" />
+            <p style="margin:8px 0 0;font-size:13px;font-weight:600;color:#1A3A5C;text-align:center">
+              ${a.firstName} ${a.lastName}
+            </p>
           </td>
         </tr>`;
       }),

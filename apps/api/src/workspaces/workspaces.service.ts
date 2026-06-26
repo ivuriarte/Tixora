@@ -542,14 +542,21 @@ export class WorkspacesService {
     });
     if (!item) throw new NotFoundException('Item not found');
 
-    // Verify that any provided assignee IDs are valid admin users (#2)
+    // Verify that any provided assignee IDs belong to the event's assignable pool
     const idsToVerify = [
       'assignedToId'  in dto && dto.assignedToId  ? dto.assignedToId  : null,
       'accountableId' in dto && dto.accountableId ? dto.accountableId : null,
     ].filter((id): id is string => id !== null);
     if (idsToVerify.length > 0) {
+      const ev = await this.prisma.event.findUnique({
+        where: { id: eventId },
+        select: { createdById: true },
+      });
       const validCount = await this.prisma.user.count({
-        where: { id: { in: idsToVerify }, isAdmin: true },
+        where: {
+          id: { in: idsToVerify },
+          OR: [{ isAdmin: true }, ...(ev?.createdById ? [{ id: ev.createdById }] : [])],
+        },
       });
       if (validCount !== idsToVerify.length) {
         throw new BadRequestException('One or more assigned users are not valid assignees');
@@ -648,20 +655,36 @@ export class WorkspacesService {
   // ── Assignable users ────────────────────────────────────────────────────────
 
   async getAssignableUsers(eventId: string) {
-    // Pool: all platform admins (workspace roles will expand this in a future story)
-    void eventId; // reserved for future workspace-scoped member filtering
-    const users = await this.prisma.user.findMany({
+    // Pool: all platform admins + the event creator (organizer)
+    const event = await this.prisma.event.findUnique({
+      where: { id: eventId },
+      select: { createdById: true },
+    });
+
+    const adminUsers = await this.prisma.user.findMany({
       where: { isAdmin: true },
       select: { id: true, firstName: true, lastName: true, email: true },
       orderBy: [{ firstName: 'asc' }, { lastName: 'asc' }],
       take: 200,
     });
 
-    return users.map((u) => ({
-      id: u.id,
-      name: userDisplayName(u),
-      email: u.email,
-    }));
+    const userMap = new Map(adminUsers.map((u) => [u.id, u]));
+
+    if (event?.createdById && !userMap.has(event.createdById)) {
+      const organizer = await this.prisma.user.findUnique({
+        where: { id: event.createdById },
+        select: { id: true, firstName: true, lastName: true, email: true },
+      });
+      if (organizer) userMap.set(organizer.id, organizer);
+    }
+
+    return Array.from(userMap.values())
+      .sort((a, b) => (a.firstName ?? '').localeCompare(b.firstName ?? ''))
+      .map((u) => ({
+        id: u.id,
+        name: userDisplayName(u),
+        email: u.email,
+      }));
   }
 
   // ── Templates ───────────────────────────────────────────────────────────────
@@ -1665,6 +1688,9 @@ export class WorkspacesService {
   // ── Serialization ───────────────────────────────────────────────────────────
 
   private serializeItem(item: any) {
+    // If an item is 'done' but lacks completedAt (e.g. pre-migration data), fall back to updatedAt
+    const resolvedCompletedAt =
+      item.completedAt ?? (item.status === 'done' ? (item.updatedAt ?? null) : null);
     return {
       id: item.id,
       title: item.title,
@@ -1675,7 +1701,7 @@ export class WorkspacesService {
       startDate: item.startDate?.toISOString() ?? null,
       dueDate: item.dueDate?.toISOString() ?? null,
       notes: item.notes,
-      completedAt: item.completedAt?.toISOString() ?? null,
+      completedAt: resolvedCompletedAt instanceof Date ? resolvedCompletedAt.toISOString() : (resolvedCompletedAt ?? null),
       sortOrder: item.sortOrder,
       assignedToId: item.assignedToId ?? null,
       assignedTo: item.assignedTo

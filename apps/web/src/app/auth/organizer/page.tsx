@@ -411,8 +411,8 @@ function OrganizerSignInForm() {
         </div>
 
         <p className="mt-6 text-center text-sm text-gray-400">
-          <Link href="/become-organizer" className="hover:text-gray-600 transition-colors">
-            ← Back to organizer program
+          <Link href="/" className="hover:text-gray-600 transition-colors">
+            ← Back to homepage
           </Link>
         </p>
 
