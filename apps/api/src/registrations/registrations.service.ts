@@ -875,16 +875,16 @@ export class RegistrationsService {
     if (status) where.status = status as Prisma.RegistrationWhereInput['status'];
 
     // Inclusive date range on createdAt. Accepts YYYY-MM-DD or ISO timestamps.
-    // dateFrom -> start of day UTC; dateTo -> end of day UTC.
+    // dateFrom -> start of day Manila (UTC+8); dateTo -> end of day Manila (UTC+8).
     const created: Prisma.DateTimeFilter = {};
     const parseFrom = (s?: string): Date | undefined => {
       if (!s) return undefined;
-      const d = /^\d{4}-\d{2}-\d{2}$/.test(s) ? new Date(`${s}T00:00:00.000Z`) : new Date(s);
+      const d = /^\d{4}-\d{2}-\d{2}$/.test(s) ? new Date(`${s}T00:00:00+08:00`) : new Date(s);
       return isNaN(d.getTime()) ? undefined : d;
     };
     const parseTo = (s?: string): Date | undefined => {
       if (!s) return undefined;
-      const d = /^\d{4}-\d{2}-\d{2}$/.test(s) ? new Date(`${s}T23:59:59.999Z`) : new Date(s);
+      const d = /^\d{4}-\d{2}-\d{2}$/.test(s) ? new Date(`${s}T23:59:59.999+08:00`) : new Date(s);
       return isNaN(d.getTime()) ? undefined : d;
     };
     const gte = parseFrom(dateFrom);
@@ -937,10 +937,17 @@ export class RegistrationsService {
     };
   }
 
-  async pendingCount() {
-    const count = await this.prisma.registration.count({
-      where: { status: 'proof_submitted' },
-    });
+  async pendingCount(organizerUserId?: string) {
+    const where: Prisma.RegistrationWhereInput = { status: 'proof_submitted' };
+    if (organizerUserId) {
+      where.event = {
+        organization: {
+          approvalStatus: 'approved',
+          members: { some: { userId: organizerUserId } },
+        },
+      };
+    }
+    const count = await this.prisma.registration.count({ where });
     return { count };
   }
 

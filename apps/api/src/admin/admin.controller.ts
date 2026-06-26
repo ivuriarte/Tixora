@@ -261,7 +261,12 @@ export class AdminController {
 
   @Get('fraud-flags')
   @ApiOperation({ summary: 'List unresolved fraud flags' })
-  getFraudFlags(@Query('page') page?: string, @Query('limit') limit?: string) {
+  getFraudFlags(
+    @CurrentUser() user: JwtPayload,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ) {
+    this.requirePlatformAdmin(user);
     return this.adminService.getFraudFlags(
       page ? parseInt(page, 10) : 1,
       limit ? Math.min(parseInt(limit, 10), 100) : 20,
@@ -270,7 +275,8 @@ export class AdminController {
 
   @Patch('fraud-flags/:id/resolve')
   @ApiOperation({ summary: 'Mark fraud flag as resolved' })
-  resolveFraudFlag(@Param('id') id: string) {
+  resolveFraudFlag(@Param('id') id: string, @CurrentUser() user: JwtPayload) {
+    this.requirePlatformAdmin(user);
     return this.adminService.resolveFraudFlag(id);
   }
 
@@ -313,28 +319,31 @@ export class AdminController {
 
   @Get('registrations/:id')
   @ApiOperation({ summary: 'Get registration detail (admin)' })
-  getRegistration(@Param('id') id: string) {
+  async getRegistration(@Param('id') id: string, @CurrentUser() user: JwtPayload) {
+    await this.adminService.assertRegistrationAccess(id, user);
     return this.registrationsService.findByIdAdmin(id);
   }
 
   @Patch('registrations/:id/approve')
   @ApiOperation({ summary: 'Approve a registration (verifies payment proof)' })
-  approveRegistration(
+  async approveRegistration(
     @Param('id') id: string,
     @CurrentUser() user: JwtPayload,
     @Req() req: Request,
   ) {
+    await this.adminService.assertRegistrationAccess(id, user);
     return this.registrationsService.approve(id, user.sub, req.ip);
   }
 
   @Patch('registrations/:id/reject')
   @ApiOperation({ summary: 'Reject a registration with a reason' })
-  rejectRegistration(
+  async rejectRegistration(
     @Param('id') id: string,
     @Body() dto: RejectRegistrationDto,
     @CurrentUser() user: JwtPayload,
     @Req() req: Request,
   ) {
+    await this.adminService.assertRegistrationAccess(id, user);
     return this.registrationsService.reject(id, user.sub, dto.reason, req.ip);
   }
 
@@ -342,7 +351,8 @@ export class AdminController {
 
   @Get('verifications')
   @ApiOperation({ summary: 'List registrations pending verification (cross-event)' })
-  listVerifications(
+  async listVerifications(
+    @CurrentUser() user: JwtPayload,
     @Query('eventId') eventId?: string,
     @Query('status') status?: string,
     @Query('page') page?: string,
@@ -350,6 +360,10 @@ export class AdminController {
     @Query('dateFrom') dateFrom?: string,
     @Query('dateTo') dateTo?: string,
   ) {
+    if (!user.isAdmin) {
+      if (!eventId) throw new BadRequestException('eventId is required');
+      await this.adminService.assertEventAccess(eventId, user);
+    }
     return this.registrationsService.listPendingVerifications(
       eventId,
       status ?? 'proof_submitted',
@@ -362,37 +376,44 @@ export class AdminController {
 
   @Get('verifications/count')
   @ApiOperation({ summary: 'Count of pending verifications (for nav badge)' })
-  verificationsCount() {
-    return this.registrationsService.pendingCount();
+  verificationsCount(@CurrentUser() user: JwtPayload) {
+    return this.registrationsService.pendingCount(user.isAdmin ? undefined : user.sub);
   }
 
   @Post('verifications/bulk-approve')
   @ApiOperation({ summary: 'Approve up to 20 registrations in one call' })
-  bulkApprove(
+  async bulkApprove(
     @Body() dto: BulkApproveDto,
     @CurrentUser() user: JwtPayload,
     @Req() req: Request,
   ) {
+    if (!user.isAdmin) {
+      await Promise.all(dto.ids.map((id) => this.adminService.assertRegistrationAccess(id, user)));
+    }
     return this.registrationsService.bulkApprove(dto.ids, user.sub, req.ip);
   }
 
   @Post('verifications/bulk-reject')
   @ApiOperation({ summary: 'Reject up to 20 registrations in one call (shared reason)' })
-  bulkReject(
+  async bulkReject(
     @Body() dto: BulkRejectDto,
     @CurrentUser() user: JwtPayload,
     @Req() req: Request,
   ) {
+    if (!user.isAdmin) {
+      await Promise.all(dto.ids.map((id) => this.adminService.assertRegistrationAccess(id, user)));
+    }
     return this.registrationsService.bulkReject(dto.ids, user.sub, dto.reason, req.ip);
   }
 
   @Post('registrations/:id/resend')
   @ApiOperation({ summary: 'Resend QR delivery email for a verified registration' })
-  resendRegistration(
+  async resendRegistration(
     @Param('id') id: string,
     @CurrentUser() user: JwtPayload,
     @Req() req: Request,
   ) {
+    await this.adminService.assertRegistrationAccess(id, user);
     return this.registrationsService.resend(id, user.sub, req.ip);
   }
 

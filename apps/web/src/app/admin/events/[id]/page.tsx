@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { useAuthStore } from '@/store/auth.store';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '@/lib/api';
 import ConfirmModal from '@/components/ConfirmModal';
@@ -131,6 +132,8 @@ export default function AdminEventEditPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
   const queryClient = useQueryClient();
+  const { user } = useAuthStore();
+  const isAdmin = Boolean(user?.isAdmin);
 
   const { data: event, isLoading } = useQuery<ApiEvent>({
     queryKey: ['admin-event', id],
@@ -144,13 +147,11 @@ export default function AdminEventEditPage() {
   const nextPMKey = useRef(1);
 
   const [status, setStatus] = useState('draft');
-  const [feeValue, setFeeValue] = useState('50');
 
   const initialised = useRef(false);
   useEffect(() => {
     if (!event || initialised.current) return;
     initialised.current = true;
-    setFeeValue(event.platformFee != null ? String(event.platformFee) : '50');
     const start = toLocalParts(event.startsAt);
     const end = toLocalParts(event.endsAt);
     setDraft({
@@ -677,6 +678,10 @@ export default function AdminEventEditPage() {
                   onEdit={editPM}
                   onRemove={removePM}
                   onReorder={setPaymentMethods}
+                  platformFee={event.platformFee != null ? Number(event.platformFee) : 50}
+                  onSaveFee={(fee) => feeMutation.mutate(fee)}
+                  feeSaving={feeMutation.isPending}
+                  isAdmin={isAdmin}
                 />
               );
             case 'review':
@@ -692,52 +697,6 @@ export default function AdminEventEditPage() {
         }}
       />
 
-      {/* ── Admin Controls ── Only admins reach this page; organizers never see it */}
-      <div className="max-w-5xl mx-auto px-6 pb-12">
-        <div className="rounded-xl border border-amber-200 bg-amber-50 p-6">
-          <div className="flex items-center gap-2 mb-4">
-            <svg className="w-5 h-5 text-amber-600 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth={1.75} viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z" />
-            </svg>
-            <h3 className="text-sm font-semibold text-amber-900">Admin Controls</h3>
-          </div>
-          <p className="text-xs text-amber-700 mb-4">
-            These settings override platform defaults for this specific event. Only admins can edit this section.
-          </p>
-          <div className="max-w-xs">
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Service Fee Override (₱)
-            </label>
-            <div className="flex items-center gap-2">
-              <input
-                type="number"
-                min="0"
-                max="9999"
-                step="0.01"
-                className="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-violet-500 focus:ring-2 focus:ring-violet-200 focus:outline-none"
-                value={feeValue}
-                onChange={(e) => setFeeValue(e.target.value)}
-              />
-              <button
-                type="button"
-                disabled={feeMutation.isPending}
-                onClick={() => {
-                  const fee = parseFloat(feeValue);
-                  if (isNaN(fee) || fee < 0) { toast.error('Enter a valid fee (₱0 or more).'); return; }
-                  feeMutation.mutate(fee);
-                }}
-                className="flex-shrink-0 rounded-lg bg-amber-600 px-4 py-2 text-sm font-medium text-white hover:bg-amber-700 disabled:opacity-50 transition-colors"
-              >
-                {feeMutation.isPending ? 'Saving…' : 'Save'}
-              </button>
-            </div>
-            <p className="text-xs text-gray-500 mt-1">
-              Flat service fee added to each order for this event. Leave at platform default (₱50) if no override is needed.{' '}
-              <a href="/admin/settings/platform" className="text-violet-600 hover:underline">Edit platform default →</a>
-            </p>
-          </div>
-        </div>
-      </div>
     </>
   );
 }

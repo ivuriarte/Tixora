@@ -60,6 +60,16 @@ export class AdminService {
     if (!event) throw new NotFoundException('Event not found');
   }
 
+  async assertRegistrationAccess(registrationId: string, user: JwtPayload): Promise<void> {
+    if (user.isAdmin) return;
+    const reg = await this.prisma.registration.findUnique({
+      where: { id: registrationId },
+      select: { eventId: true },
+    });
+    if (!reg) throw new NotFoundException('Registration not found');
+    await this.assertEventAccess(reg.eventId, user);
+  }
+
   // ── User Management ────────────────────────────────────────────────────
 
   async listUsers(page = 1, limit = 50) {
@@ -664,12 +674,30 @@ export class AdminService {
 
     if (q?.trim()) {
       const term = q.trim();
-      where.OR = [
+      const parts = term.split(/\s+/).filter(Boolean);
+      const orClauses: Prisma.AttendeeWhereInput[] = [
         { firstName: { contains: term, mode: 'insensitive' } },
         { lastName: { contains: term, mode: 'insensitive' } },
         { email: { contains: term, mode: 'insensitive' } },
         { registration: { referenceNumber: { contains: term, mode: 'insensitive' } } },
       ];
+      if (parts.length >= 2) {
+        // "First Last" → firstName contains first word, lastName contains rest
+        orClauses.push({
+          AND: [
+            { firstName: { contains: parts[0], mode: 'insensitive' } },
+            { lastName: { contains: parts.slice(1).join(' '), mode: 'insensitive' } },
+          ],
+        } as Prisma.AttendeeWhereInput);
+        // "First Middle Last" → firstName contains all but last, lastName contains last
+        orClauses.push({
+          AND: [
+            { firstName: { contains: parts.slice(0, -1).join(' '), mode: 'insensitive' } },
+            { lastName: { contains: parts[parts.length - 1], mode: 'insensitive' } },
+          ],
+        } as Prisma.AttendeeWhereInput);
+      }
+      where.OR = orClauses;
     }
 
     const [total, attendees] = await Promise.all([
