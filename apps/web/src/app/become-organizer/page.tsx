@@ -60,7 +60,10 @@ function extractApiError(err: unknown): string | null {
 // ── Status cards ──────────────────────────────────────────────────────────────
 
 function PendingCard({ org }: { org: OrgData }) {
+  const logout = useAuthStore((state) => state.logout);
+
   function goHome() {
+    logout();
     window.location.assign('/');
   }
 
