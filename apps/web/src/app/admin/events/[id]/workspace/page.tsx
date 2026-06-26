@@ -278,23 +278,12 @@ function RaciInput({
 }) {
   const invalidate = useInvalidateWorkspace(eventId);
   const field = role === 'R' ? 'assignedToId' : 'accountableId';
-  const [localName, setLocalName] = useState(value?.name ?? '');
-  const [isFocused, setIsFocused] = useState(false);
-
-  // Sync with server value when not focused
-  const serverName = value?.name ?? '';
-  if (!isFocused && localName !== serverName) {
-    setLocalName(serverName);
-  }
 
   const mutation = useMutation({
     mutationFn: (id: string | null) =>
       api.patch(`/admin/events/${eventId}/workspace/items/${itemId}`, { [field]: id }),
     onSuccess: invalidate,
-    onError: () => {
-      toast.error('Assignment failed.');
-      setLocalName(value?.name ?? '');
-    },
+    onError: () => toast.error('Assignment failed.'),
   });
 
   if (!canEdit) {
@@ -312,55 +301,28 @@ function RaciInput({
 
   const isEmpty = !userId;
 
-  function handleBlur(e: React.FocusEvent<HTMLInputElement>) {
-    setIsFocused(false);
-    const inputVal = e.target.value.trim();
-    if (!inputVal) {
-      if (userId) mutation.mutate(null);
-      setLocalName('');
-      return;
-    }
-    const matched = assignableUsers.find(
-      (u) => u.name.toLowerCase() === inputVal.toLowerCase(),
-    );
-    if (matched) {
-      if (matched.id !== userId) mutation.mutate(matched.id);
-      setLocalName(matched.name);
-    } else {
-      setLocalName(value?.name ?? '');
-    }
-  }
-
-  function handleChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const inputVal = e.target.value;
-    setLocalName(inputVal);
-    const matched = assignableUsers.find(
-      (u) => u.name.toLowerCase() === inputVal.toLowerCase(),
-    );
-    if (matched && matched.id !== userId) {
-      mutation.mutate(matched.id);
-    } else if (!inputVal && userId) {
-      mutation.mutate(null);
-    }
+  function handleChange(e: React.ChangeEvent<HTMLSelectElement>) {
+    const newId = e.target.value || null;
+    if (newId !== userId) mutation.mutate(newId);
   }
 
   return (
-    <input
+    <select
       id={`raci-${role}-${itemId}`}
-      type="text"
-      value={localName}
+      value={userId ?? ''}
       onChange={handleChange}
-      onFocus={() => setIsFocused(true)}
-      onBlur={handleBlur}
-      placeholder={role === 'R' ? 'Responsible…' : 'Accountable…'}
       disabled={mutation.isPending}
-      autoComplete="off"
-      className={`w-full text-xs rounded-md border px-2 py-1 focus:outline-none focus:ring-1 focus:ring-violet-400 disabled:opacity-60 truncate ${
+      className={`w-full text-xs rounded-md border px-2 py-1 focus:outline-none focus:ring-1 focus:ring-violet-400 disabled:opacity-60 truncate bg-white ${
         isEmpty && isUnowned && role === 'R'
-          ? 'border-amber-200 bg-amber-50 text-amber-700 placeholder:text-amber-400'
-          : 'border-gray-200 bg-gray-50 text-gray-700 placeholder:text-gray-300'
+          ? 'border-amber-200 bg-amber-50 text-amber-700'
+          : 'border-gray-200 bg-gray-50 text-gray-700'
       }`}
-    />
+    >
+      <option value="">{role === 'R' ? 'Responsible…' : 'Accountable…'}</option>
+      {assignableUsers.map((u) => (
+        <option key={u.id} value={u.id}>{u.name}</option>
+      ))}
+    </select>
   );
 }
 

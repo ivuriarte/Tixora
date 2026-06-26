@@ -33,10 +33,17 @@ async function postWithRetry(url: string, body: object): Promise<{ data: unknown
 export default function AdminNewEventPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
+  const [platformFee, setPlatformFee] = useState<number | null>(null);
 
   const [draft, setDraft] = useState<EventDraft>(emptyDraft());
   const [tiers, setTiers] = useState<LocalTier[]>([]);
   const [paymentMethods, setPaymentMethods] = useState<LocalPaymentMethod[]>([]);
+
+  useEffect(() => {
+    api.get<{ data: { serviceFee: number } }>('/admin/settings/platform')
+      .then((res) => setPlatformFee(res.data.data.serviceFee))
+      .catch(() => setPlatformFee(50));
+  }, []);
 
   // ── Draft restoration banner ───────────────────────────────────────────
   const [restorePrompt, setRestorePrompt] = useState<null | {
@@ -282,6 +289,7 @@ export default function AdminNewEventPage() {
                   paymentMethods={paymentMethods}
                   onAdd={addPM} onEdit={editPM} onRemove={removePM}
                   onReorder={setPaymentMethods}
+                  platformFee={platformFee}
                 />
               );
             case 'review':
