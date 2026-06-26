@@ -3,7 +3,6 @@ import {
   IsOptional,
   MinLength,
   MaxLength,
-  IsUrl,
   IsIn,
   Matches,
 } from 'class-validator';
@@ -64,13 +63,13 @@ export class RegisterOrganizationDto {
 
   @ApiPropertyOptional({ example: 'https://acme.com' })
   @IsOptional()
-  @IsUrl({ protocols: ['http', 'https'], require_protocol: true })
+  @IsString()
   @MaxLength(200)
   website?: string | null;
 
   @ApiPropertyOptional({ example: 'https://facebook.com/acmeevents' })
   @IsOptional()
-  @IsUrl({ protocols: ['http', 'https'], require_protocol: true })
+  @IsString()
   @MaxLength(200)
   facebookUrl?: string | null;
 }
@@ -135,13 +134,13 @@ export class UpdateOrganizationDto {
 
   @ApiPropertyOptional({ example: 'https://acme.com' })
   @IsOptional()
-  @IsUrl({ protocols: ['http', 'https'], require_protocol: true })
+  @IsString()
   @MaxLength(200)
   website?: string | null;
 
   @ApiPropertyOptional({ example: 'https://facebook.com/acmeevents' })
   @IsOptional()
-  @IsUrl({ protocols: ['http', 'https'], require_protocol: true })
+  @IsString()
   @MaxLength(200)
   facebookUrl?: string | null;
 }

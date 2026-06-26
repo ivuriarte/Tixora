@@ -133,7 +133,7 @@ export default function ProfilePage() {
       })
       .catch(() => toast.error('Could not load your profile. Please refresh the page to try again.'))
       .finally(() => setLoading(false));
-  }, [isHydrating, isAuthenticated, authUser?.isOrganizer, isAdminShell, router]);
+  }, [isHydrating, isAuthenticated, authUser?.loginPortal, isAdminShell, router]);
 
   function update(e: React.ChangeEvent<HTMLInputElement>) {
     setForm((f) => ({ ...f, [e.target.name]: e.target.value }));
@@ -146,16 +146,6 @@ export default function ProfilePage() {
 
   function updateOrg(e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) {
     setOrgForm((f) => ({ ...f, [e.target.name]: e.target.value }));
-  }
-
-  function validateUrl(value: string): boolean {
-    if (!value.trim()) return true;
-    try {
-      const url = new URL(value.trim());
-      return url.protocol === 'http:' || url.protocol === 'https:';
-    } catch {
-      return false;
-    }
   }
 
   async function handleSave(e: React.FormEvent) {
@@ -201,11 +191,6 @@ export default function ProfilePage() {
       toast.error('Please enter a valid organizer contact phone number.');
       return;
     }
-    if (!validateUrl(orgForm.website) || !validateUrl(orgForm.facebookUrl)) {
-      toast.error('Website and Facebook URLs must start with http:// or https://.');
-      return;
-    }
-
     setOrgSaving(true);
     try {
       const payload = {

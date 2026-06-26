@@ -480,6 +480,11 @@ function RegistrationForm({ onSuccess, initialOrg }: { onSuccess: (org: OrgData)
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!validate()) return;
+    if (!orgTermsAccepted) {
+      toast.error('Please agree to the organizer terms before submitting.');
+      setOrgLegalOpen(true);
+      return;
+    }
 
     if (initialOrg?.approvalStatus === 'rejected') {
       if (!authUser?.email) {
@@ -818,10 +823,10 @@ function RegistrationForm({ onSuccess, initialOrg }: { onSuccess: (org: OrgData)
             </label>
             <input
               id="org-field-website"
-              type="url"
+              type="text"
               value={form.website}
               onChange={set('website')}
-              placeholder="https://yourcompany.com"
+              placeholder="yourcompany.com"
               maxLength={200}
               aria-invalid={!!errors.website}
               className={INP(errors.website)}
@@ -835,10 +840,10 @@ function RegistrationForm({ onSuccess, initialOrg }: { onSuccess: (org: OrgData)
             </label>
             <input
               id="org-field-facebookUrl"
-              type="url"
+              type="text"
               value={form.facebookUrl}
               onChange={set('facebookUrl')}
-              placeholder="https://facebook.com/yourpage"
+              placeholder="facebook.com/yourpage or @yourpage"
               maxLength={200}
               aria-invalid={!!errors.facebookUrl}
               className={INP(errors.facebookUrl)}
@@ -960,6 +965,8 @@ function GuestApplicationFlow({ onSuccess }: { onSuccess: (org: OrgData) => void
   const [submitting, setSubmitting] = useState(false);
   const [secondsLeft, setSecondsLeft] = useState(0);
   const [otpError, setOtpError] = useState('');
+  const [orgTermsAccepted, setOrgTermsAccepted] = useState(false);
+  const [orgLegalOpen, setOrgLegalOpen] = useState(false);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const otpRef = useRef<HTMLInputElement>(null);
   const nameRef = useRef<HTMLInputElement>(null);
@@ -1032,6 +1039,11 @@ function GuestApplicationFlow({ onSuccess }: { onSuccess: (org: OrgData) => void
   async function handleFormSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!validate()) return;
+    if (!orgTermsAccepted) {
+      toast.error('Please agree to the organizer terms before submitting.');
+      setOrgLegalOpen(true);
+      return;
+    }
     setSubmitting(true);
     try {
       const res = await api.post<{ data: { userId: string } }>(
@@ -1397,12 +1409,12 @@ function GuestApplicationFlow({ onSuccess }: { onSuccess: (org: OrgData) => void
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
             <label htmlFor="guest-field-website" className="block text-sm font-medium text-gray-700 mb-1.5">Website</label>
-            <input id="guest-field-website" type="url" value={form.website} onChange={setField('website')} placeholder="https://yourcompany.com" maxLength={200} aria-invalid={!!errors.website} className={fieldCls(errors.website)} />
+            <input id="guest-field-website" type="text" value={form.website} onChange={setField('website')} placeholder="yourcompany.com" maxLength={200} aria-invalid={!!errors.website} className={fieldCls(errors.website)} />
             {errors.website && <p role="alert" className="text-xs text-red-600 mt-1">{errors.website}</p>}
           </div>
           <div>
             <label htmlFor="guest-field-facebookUrl" className="block text-sm font-medium text-gray-700 mb-1.5">Facebook page URL</label>
-            <input id="guest-field-facebookUrl" type="url" value={form.facebookUrl} onChange={setField('facebookUrl')} placeholder="https://facebook.com/yourpage" maxLength={200} aria-invalid={!!errors.facebookUrl} className={fieldCls(errors.facebookUrl)} />
+            <input id="guest-field-facebookUrl" type="text" value={form.facebookUrl} onChange={setField('facebookUrl')} placeholder="facebook.com/yourpage or @yourpage" maxLength={200} aria-invalid={!!errors.facebookUrl} className={fieldCls(errors.facebookUrl)} />
             {errors.facebookUrl && <p role="alert" className="text-xs text-red-600 mt-1">{errors.facebookUrl}</p>}
           </div>
         </div>
@@ -1416,6 +1428,29 @@ function GuestApplicationFlow({ onSuccess }: { onSuccess: (org: OrgData) => void
           </p>
         </div>
 
+        <div className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-4">
+          <label className="flex items-start gap-3 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={orgTermsAccepted}
+              onChange={(e) => setOrgTermsAccepted(e.target.checked)}
+              className="mt-0.5 h-4 w-4 rounded border-gray-300 accent-violet-600 shrink-0 cursor-pointer"
+              aria-required="true"
+            />
+            <span className="text-xs text-gray-600 leading-relaxed">
+              I have read and agree to the{' '}
+              <button
+                type="button"
+                onClick={() => setOrgLegalOpen(true)}
+                className="text-violet-600 underline underline-offset-2 hover:text-violet-500 transition-colors font-medium"
+              >
+                Merchant / Organizer Terms of Service
+              </button>
+              <span className="text-red-500 ml-0.5">*</span>
+            </span>
+          </label>
+        </div>
+
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <button
             type="button"
@@ -1427,7 +1462,7 @@ function GuestApplicationFlow({ onSuccess }: { onSuccess: (org: OrgData) => void
           </button>
           <button
             type="submit"
-            disabled={submitting}
+            disabled={submitting || !orgTermsAccepted}
             className="w-full bg-violet-600 hover:bg-violet-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold px-4 py-3 rounded-xl transition-colors flex items-center justify-center gap-2"
           >
             {submitting ? (
@@ -1442,6 +1477,13 @@ function GuestApplicationFlow({ onSuccess }: { onSuccess: (org: OrgData) => void
           </button>
         </div>
       </form>
+
+      <LegalModal
+        open={orgLegalOpen}
+        onClose={() => setOrgLegalOpen(false)}
+        title="Axon Tickets – Merchant / Organizer Terms of Service"
+        content={ORGANIZER_TERMS}
+      />
     </div>
   );
 }
