@@ -1,14 +1,17 @@
 'use client';
 
-import { Suspense, useEffect } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuthStore } from '@/store/auth.store';
+import LegalModal from '@/components/LegalModal';
+import { USER_TERMS, PRIVACY_POLICY } from '@/lib/legal';
 
 function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { isAuthenticated, isHydrating, user } = useAuthStore();
+  const [legalModal, setLegalModal] = useState<'terms' | 'privacy' | null>(null);
 
   useEffect(() => {
     if (!isHydrating && isAuthenticated && user) {
@@ -49,7 +52,41 @@ function LoginForm() {
               Join free
             </Link>
           </p>
+
+          <p className="text-center text-xs text-gray-400 pt-2 leading-relaxed">
+            By continuing, you agree to our{' '}
+            <button
+              type="button"
+              onClick={() => setLegalModal('terms')}
+              className="text-primary underline underline-offset-2 hover:text-primary/80 transition-colors"
+            >
+              Terms &amp; Conditions
+            </button>{' '}
+            and{' '}
+            <button
+              type="button"
+              onClick={() => setLegalModal('privacy')}
+              className="text-primary underline underline-offset-2 hover:text-primary/80 transition-colors"
+            >
+              Privacy Policy
+            </button>
+            .
+          </p>
         </div>
+
+        <LegalModal
+          open={legalModal === 'terms'}
+          onClose={() => setLegalModal(null)}
+          title="Axon Tickets – End-User Terms & Conditions"
+          content={USER_TERMS}
+        />
+        <LegalModal
+          open={legalModal === 'privacy'}
+          onClose={() => setLegalModal(null)}
+          title="Axon Tickets – Privacy Policy"
+          content={PRIVACY_POLICY}
+        />
+
         <div className="mt-6 text-center">
           <Link
             href="/"

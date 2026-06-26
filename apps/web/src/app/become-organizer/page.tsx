@@ -7,6 +7,8 @@ import axios from 'axios';
 import api from '@/lib/api';
 import { useAuthStore } from '@/store/auth.store';
 import toast from 'react-hot-toast';
+import LegalModal from '@/components/LegalModal';
+import { ORGANIZER_TERMS } from '@/lib/legal';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -392,6 +394,8 @@ function RegistrationForm({ onSuccess, initialOrg }: { onSuccess: (org: OrgData)
   const [otpError, setOtpError] = useState('');
   const nameRef = useRef<HTMLInputElement>(null);
   const otpRef = useRef<HTMLInputElement>(null);
+  const [orgTermsAccepted, setOrgTermsAccepted] = useState(false);
+  const [orgLegalOpen, setOrgLegalOpen] = useState(false);
 
   function set(field: keyof FormFields) {
     return (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
@@ -853,6 +857,29 @@ function RegistrationForm({ onSuccess, initialOrg }: { onSuccess: (org: OrgData)
           </p>
         </div>
 
+        {/* Organizer T&C consent */}
+        <div className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-4">
+          <label className="flex items-start gap-3 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={orgTermsAccepted}
+              onChange={(e) => setOrgTermsAccepted(e.target.checked)}
+              className="mt-0.5 h-4 w-4 rounded border-gray-300 accent-violet-600 shrink-0 cursor-pointer"
+            />
+            <span className="text-xs text-gray-600 leading-relaxed">
+              I have read and agree to the{' '}
+              <button
+                type="button"
+                onClick={() => setOrgLegalOpen(true)}
+                className="text-violet-600 underline underline-offset-2 hover:text-violet-500 transition-colors font-medium"
+              >
+                Merchant / Organizer Terms of Service
+              </button>
+              <span className="text-red-500 ml-0.5">*</span>
+            </span>
+          </label>
+        </div>
+
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <button
             type="button"
@@ -864,7 +891,7 @@ function RegistrationForm({ onSuccess, initialOrg }: { onSuccess: (org: OrgData)
           </button>
           <button
             type="submit"
-            disabled={submitting}
+            disabled={submitting || !orgTermsAccepted}
             className="w-full bg-violet-600 hover:bg-violet-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold px-4 py-3 rounded-xl transition-colors flex items-center justify-center gap-2"
           >
             {submitting ? (
@@ -879,6 +906,13 @@ function RegistrationForm({ onSuccess, initialOrg }: { onSuccess: (org: OrgData)
           </button>
         </div>
       </form>
+
+      <LegalModal
+        open={orgLegalOpen}
+        onClose={() => setOrgLegalOpen(false)}
+        title="Axon Tickets – Merchant / Organizer Terms of Service"
+        content={ORGANIZER_TERMS}
+      />
     </div>
   );
 }
