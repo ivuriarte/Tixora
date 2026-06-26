@@ -294,6 +294,18 @@ function UnauthenticatedLanding({ onApply }: { onApply: () => void }) {
           </div>
         ))}
       </div>
+
+      <div className="mt-10 text-center">
+        <Link
+          href="/"
+          className="inline-flex items-center gap-2 text-sm text-gray-400 hover:text-gray-700 transition-colors"
+        >
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" aria-hidden="true">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18" />
+          </svg>
+          Back to homepage
+        </Link>
+      </div>
     </div>
   );
 }
@@ -1423,7 +1435,16 @@ export default function BecomeOrganizerPage() {
     api
       .get<{ data: OrgData }>('/organizations/me')
       .then((res) => {
-        setPageState({ kind: 'status', org: res.data.data });
+        const org = res.data.data;
+        if (org.approvalStatus === 'approved') {
+          const seenKey = `axon_approved_seen_${org.id}`;
+          if (typeof window !== 'undefined' && localStorage.getItem(seenKey)) {
+            router.replace('/admin');
+            return;
+          }
+          if (typeof window !== 'undefined') localStorage.setItem(seenKey, '1');
+        }
+        setPageState({ kind: 'status', org });
       })
       .catch(() => {
         // 404 = no org yet; any other error → still show the form
