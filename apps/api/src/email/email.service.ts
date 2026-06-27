@@ -600,6 +600,19 @@ export class EmailService implements OnModuleDestroy {
     eventDate: string,
     eventVenue: string,
     attendees: { firstName: string; lastName: string; email: string; qrToken: string | null }[],
+    receipt?: {
+      referenceNumber?: string;
+      transactionDate?: string;
+      paymentMethod?: string;
+      tierName?: string;
+      quantity?: number;
+      unitPrice?: number;
+      subtotal?: number;
+      fees?: number;
+      total?: number;
+      organizerName?: string;
+      eventCity?: string;
+    },
   ): Promise<void> {
     // Build one PNG attachment per attendee.
     // Each QR is embedded inline (via CID) so it displays directly in the email body
@@ -660,47 +673,93 @@ export class EmailService implements OnModuleDestroy {
       }),
     );
 
-    const isSingle = attendees.length === 1;
+    // ── Receipt section ──────────────────────────────────────────────────────
+    const fmt = (n: number) =>
+      'PHP ' + n.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+    const receiptRows: string[] = [];
+    if (receipt?.organizerName)
+      receiptRows.push(`<tr><td style="padding:7px 0;color:#6b7280;font-size:14px;width:50%">Organizer</td><td style="padding:7px 0;font-size:14px;font-weight:600;color:#111827;text-align:right">${this.escapeHtml(receipt.organizerName)}</td></tr>`);
+    if (receipt?.tierName)
+      receiptRows.push(`<tr><td style="padding:7px 0;color:#6b7280;font-size:14px">Ticket tier</td><td style="padding:7px 0;font-size:14px;font-weight:600;color:#111827;text-align:right">${this.escapeHtml(receipt.tierName)}</td></tr>`);
+    if (receipt?.quantity)
+      receiptRows.push(`<tr><td style="padding:7px 0;color:#6b7280;font-size:14px">Quantity</td><td style="padding:7px 0;font-size:14px;font-weight:600;color:#111827;text-align:right">${receipt.quantity}</td></tr>`);
+    if (receipt?.unitPrice !== undefined)
+      receiptRows.push(`<tr><td style="padding:7px 0;color:#6b7280;font-size:14px">Price per ticket</td><td style="padding:7px 0;font-size:14px;font-weight:600;color:#111827;text-align:right">${fmt(receipt.unitPrice)}</td></tr>`);
+    if (receipt?.subtotal !== undefined)
+      receiptRows.push(`<tr><td style="padding:7px 0;color:#6b7280;font-size:14px">Subtotal</td><td style="padding:7px 0;font-size:14px;color:#374151;text-align:right">${fmt(receipt.subtotal)}</td></tr>`);
+    if (receipt?.fees !== undefined)
+      receiptRows.push(`<tr><td style="padding:7px 0;color:#6b7280;font-size:14px">Service fee</td><td style="padding:7px 0;font-size:14px;color:#374151;text-align:right">${fmt(receipt.fees)}</td></tr>`);
+    if (receipt?.total !== undefined)
+      receiptRows.push(`<tr style="border-top:2px solid #e5e7eb"><td style="padding:10px 0 4px;font-size:15px;font-weight:700;color:#111827">Total paid</td><td style="padding:10px 0 4px;font-size:15px;font-weight:700;color:#111827;text-align:right">${fmt(receipt.total)}</td></tr>`);
+    if (receipt?.paymentMethod)
+      receiptRows.push(`<tr><td style="padding:4px 0 7px;color:#6b7280;font-size:14px">Payment method</td><td style="padding:4px 0 7px;font-size:14px;font-weight:600;color:#111827;text-align:right">${this.escapeHtml(receipt.paymentMethod)}</td></tr>`);
+    if (receipt?.transactionDate)
+      receiptRows.push(`<tr><td style="padding:7px 0;color:#6b7280;font-size:14px">Transaction date</td><td style="padding:7px 0;font-size:14px;font-weight:600;color:#111827;text-align:right">${receipt.transactionDate}</td></tr>`);
+    if (receipt?.referenceNumber)
+      receiptRows.push(`<tr><td style="padding:7px 0;color:#6b7280;font-size:14px">Reference #</td><td style="padding:7px 0;font-size:14px;font-weight:700;color:#7C3AED;text-align:right">${this.escapeHtml(receipt.referenceNumber)}</td></tr>`);
+
+    const receiptSection = receiptRows.length > 0 ? `
+      <!-- Receipt -->
+      <div style="margin:28px 0">
+        <p style="margin:0 0 12px;font-size:13px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:0.06em">Purchase summary</p>
+        <table style="width:100%;border-collapse:collapse;background:#f8fafc;border-radius:10px;padding:4px 16px;display:block">
+          <tbody style="display:table;width:100%;padding:4px 16px">
+            ${receiptRows.join('\n')}
+          </tbody>
+        </table>
+      </div>` : '';
 
     await this.send(
       to,
-      `✅ Your ticket is ready! — ${eventTitle}`,
-      `<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:0;background:#f8fafc">
+      `Your ticket is ready — ${eventTitle}`,
+      `<div style="font-family:Arial,Helvetica,sans-serif;max-width:600px;margin:0 auto;padding:0;background:#f8fafc">
 
         <!-- Header -->
         <div style="background:#1A3A5C;padding:28px 32px;text-align:center">
           <p style="margin:0;font-size:13px;color:#93c5fd;letter-spacing:1px;text-transform:uppercase">Axon Tickets</p>
-          <h1 style="margin:8px 0 0;font-size:28px;color:#ffffff">🎉 Your ticket is ready!</h1>
+          <p style="margin:10px 0 0;font-size:26px;font-weight:bold;color:#ffffff">Your ticket is ready!</p>
         </div>
 
         <!-- Body -->
-        <div style="background:#ffffff;padding:32px">
+        <div style="background:#ffffff;padding:28px 32px">
 
-          <p style="font-size:16px;color:#1A3A5C;margin-top:0">
-            Hi <strong>${firstName}</strong>, your payment was approved!
+          <p style="font-size:16px;color:#111827;margin-top:0">
+            Hi <strong>${this.escapeHtml(firstName)}</strong>, your payment was approved!
           </p>
-          <p style="font-size:15px;color:#374151;margin-top:0">
-            Your ${isSingle ? 'ticket' : 'tickets'} for <strong>${eventTitle}</strong> ${isSingle ? 'is' : 'are'} below.
-          </p>
-          <p style="color:#64748b;font-size:14px;margin-top:0">
-            📅 ${eventDate} &nbsp;|&nbsp; 📍 ${eventVenue}
-          </p>
+
+          <!-- Event summary -->
+          <table style="width:100%;border-collapse:collapse;background:#f0f4ff;border-radius:10px;padding:0;margin-bottom:4px">
+            <tr>
+              <td style="padding:16px 20px">
+                <p style="margin:0;font-size:18px;font-weight:bold;color:#1A3A5C">${this.escapeHtml(eventTitle)}</p>
+                <p style="margin:6px 0 0;font-size:14px;color:#374151">
+                  Date: <strong>${this.escapeHtml(eventDate)}</strong>
+                </p>
+                <p style="margin:4px 0 0;font-size:14px;color:#374151">
+                  Venue: <strong>${this.escapeHtml(eventVenue)}${receipt?.eventCity ? ', ' + this.escapeHtml(receipt.eventCity) : ''}</strong>
+                </p>
+              </td>
+            </tr>
+          </table>
+
+          ${receiptSection}
 
           <!-- What to do box -->
-          <div style="background:#f0fdf4;border:2px solid #86efac;border-radius:12px;padding:20px;margin:24px 0">
-            <p style="margin:0 0 12px;font-size:15px;font-weight:bold;color:#166534">
+          <div style="background:#f0fdf4;border:2px solid #86efac;border-radius:10px;padding:18px 20px;margin:24px 0">
+            <p style="margin:0 0 10px;font-size:15px;font-weight:bold;color:#166534">
               What do I do with this ticket?
             </p>
-            <ol style="margin:0;padding-left:20px;color:#15803d;font-size:14px;line-height:1.8">
-              <li>Find your QR code below in this email.</li>
-              <li><strong>Screenshot or save</strong> the QR code to your phone's photo gallery.</li>
-              <li>On event day, <strong>show the QR code to the staff at the entrance.</strong></li>
-              <li>No printing needed — your phone screen is enough!</li>
-            </ol>
+            <table style="border-collapse:collapse;width:100%">
+              <tr><td style="padding:3px 0;vertical-align:top;width:24px;color:#15803d;font-size:15px">1.</td><td style="padding:3px 0;color:#15803d;font-size:14px;line-height:1.6">Find your QR code below in this email.</td></tr>
+              <tr><td style="padding:3px 0;vertical-align:top;color:#15803d;font-size:15px">2.</td><td style="padding:3px 0;color:#15803d;font-size:14px;line-height:1.6"><strong>Screenshot or save</strong> the QR code to your phone's photo gallery.</td></tr>
+              <tr><td style="padding:3px 0;vertical-align:top;color:#15803d;font-size:15px">3.</td><td style="padding:3px 0;color:#15803d;font-size:14px;line-height:1.6">On event day, <strong>show the QR code to the staff at the entrance.</strong></td></tr>
+              <tr><td style="padding:3px 0;vertical-align:top;color:#15803d;font-size:15px">4.</td><td style="padding:3px 0;color:#15803d;font-size:14px;line-height:1.6">No printing needed — your phone screen is enough!</td></tr>
+            </table>
           </div>
 
           <!-- QR table -->
-          <table style="width:100%;border-collapse:collapse;margin-top:8px;border:1px solid #e5e7eb;border-radius:12px;overflow:hidden">
+          <table style="width:100%;border-collapse:collapse;margin-top:8px;border:1px solid #e5e7eb;border-radius:10px;overflow:hidden">
             <thead>
               <tr style="background:#f7f9fc">
                 <th style="padding:12px 16px;text-align:left;color:#1A3A5C;font-size:13px;font-weight:600">Attendee Name</th>
@@ -711,26 +770,26 @@ export class EmailService implements OnModuleDestroy {
           </table>
 
           <!-- Tip box -->
-          <div style="background:#fffbeb;border-left:4px solid #f59e0b;padding:14px 16px;margin-top:24px;border-radius:0 8px 8px 0">
+          <div style="background:#fffbeb;border-left:4px solid #f59e0b;padding:14px 16px;margin-top:20px;border-radius:0 8px 8px 0">
             <p style="margin:0;font-size:13px;color:#92400e">
-              <strong>💡 Tip:</strong> Can't see the QR code above?
+              <strong>Tip:</strong> Can't see the QR code above?
               The QR code is also saved as a <strong>.png image file</strong> attached to this email.
               Open the attachment to view and save it to your phone.
               If you still can't find it, check your <strong>Spam</strong> or <strong>Promotions</strong> folder.
             </p>
           </div>
 
-          <p style="font-size:13px;color:#64748b;margin-top:24px">
-            You can also view your ticket anytime by logging in to
-            <a href="https://axontickets.online/account/tickets" style="color:#7C3AED">axontickets.online</a>
-            and going to <strong>My Events</strong>.
+          <p style="font-size:13px;color:#64748b;margin-top:20px">
+            You can view your ticket anytime at
+            <a href="https://axontickets.online/account/tickets" style="color:#7C3AED;text-decoration:none">axontickets.online</a>
+            under <strong>My Events</strong>.
           </p>
 
         </div>
 
         <!-- Footer -->
-        <div style="background:#f1f5f9;padding:16px 32px;text-align:center">
-          <p style="margin:0;font-size:12px;color:#94a3b8">Axon Tickets · Online Ticketing Platform · axontickets.online</p>
+        <div style="background:#f1f5f9;padding:14px 32px;text-align:center">
+          <p style="margin:0;font-size:12px;color:#94a3b8">Axon Tickets &middot; Online Ticketing Platform &middot; axontickets.online</p>
         </div>
 
       </div>`,

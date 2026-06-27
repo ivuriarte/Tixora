@@ -956,27 +956,73 @@ export class RegistrationsService {
       where: { id: registrationId },
       include: {
         attendees: { orderBy: [{ isLead: 'desc' }, { createdAt: 'asc' }] },
-        event: { select: { title: true, startsAt: true, venue: true } },
+        event: {
+          select: {
+            id: true,
+            title: true,
+            startsAt: true,
+            venue: true,
+            city: true,
+            organization: { select: { name: true } },
+          },
+        },
       },
     });
     if (!reg) return;
     if (reg.attendees.length === 0) return;
 
+    const qrSecret = this.config.get<string>('qr.hmacSecret') ?? '';
     const eventDate = reg.event.startsAt.toISOString().slice(0, 10);
 
+    const receipt = {
+      referenceNumber: reg.referenceNumber,
+      transactionDate: reg.createdAt.toISOString().slice(0, 10),
+      paymentMethod: reg.paymentMethod ?? undefined,
+      tierName: reg.tierName ?? undefined,
+      quantity: reg.attendeeCount,
+      unitPrice: reg.unitPrice ? Number(reg.unitPrice) : undefined,
+      subtotal: Number(reg.subtotal),
+      fees: Number(reg.fees),
+      total: Number(reg.total),
+      organizerName: reg.event.organization?.name ?? undefined,
+      eventCity: reg.event.city,
+    };
+
     // Send an individual QR email to every attendee at their own email address.
+    // If qrToken is unexpectedly null after approval (e.g. replica lag), regenerate on the fly.
     // Using allSettled so a single bad address does not block the rest of the group.
     const results = await Promise.allSettled(
-      reg.attendees.map((a) =>
-        this.emailService.sendQrCodeEmail(
+      reg.attendees.map((a) => {
+        let qrToken = a.qrToken;
+        if (!qrToken) {
+          qrToken = generateAttendeeQrToken(
+            { attendeeId: a.id, registrationId: reg.id, eventId: reg.event.id },
+            qrSecret,
+          );
+          this.logger.warn({
+            msg: 'QR token was null at email send time — regenerated on the fly',
+            regId: registrationId,
+            attendeeId: a.id,
+          });
+          // Persist the recovered token (fire-and-forget — do not block the email)
+          this.prisma.attendee.update({ where: { id: a.id }, data: { qrToken } }).catch(() => void 0);
+        }
+        this.logger.log({
+          msg: 'Sending QR email to attendee',
+          regId: registrationId,
+          attendeeId: a.id,
+          hasQrToken: !!qrToken,
+        });
+        return this.emailService.sendQrCodeEmail(
           a.email,
           a.firstName,
           reg.event.title,
           eventDate,
           reg.event.venue,
-          [{ firstName: a.firstName, lastName: a.lastName, email: a.email, qrToken: a.qrToken }],
-        ),
-      ),
+          [{ firstName: a.firstName, lastName: a.lastName, email: a.email, qrToken }],
+          receipt,
+        );
+      }),
     );
 
     results.forEach((r, i) => {

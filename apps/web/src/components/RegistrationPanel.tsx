@@ -173,6 +173,28 @@ export default function RegistrationPanel({
         </div>
       )}
 
+      {/* Running total */}
+      {selected && !disabled && qty > 0 && (
+        <div className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm space-y-1.5">
+          <div className="flex justify-between text-gray-600">
+            <span>{selected.name}</span>
+            <span>{selected.price === 0 ? 'Free' : formatPHP(centavosToPeso(selected.price))}</span>
+          </div>
+          {qty > 1 && (
+            <div className="flex justify-between text-gray-500 text-xs">
+              <span>Quantity</span>
+              <span>× {qty}</span>
+            </div>
+          )}
+          <div className="flex justify-between font-semibold text-gray-900 border-t border-gray-200 pt-2">
+            <span>Total</span>
+            <span className="text-primary">
+              {selected.price === 0 ? 'Free' : formatPHP(centavosToPeso(selected.price) * qty)}
+            </span>
+          </div>
+        </div>
+      )}
+
       {/* Group booking — single-receipt policy notice */}
       {selected && !disabled && qty > 1 && (
         <div className="flex items-start gap-2.5 rounded-xl border border-amber-200 bg-amber-50 px-3 py-3">
