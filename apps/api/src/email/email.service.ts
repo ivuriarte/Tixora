@@ -280,21 +280,82 @@ export class EmailService implements OnModuleDestroy {
     const safeName = this.escapeHtml(firstName);
     const safeOrg = this.escapeHtml(organizationName);
     const reasonBlock = reason
-      ? `<div style="background:#fffbeb;border-left:4px solid #f59e0b;padding:14px 16px;margin:20px 0;border-radius:0 8px 8px 0;color:#92400e"><strong>Reason:</strong> ${this.escapeHtml(reason)}</div>`
+      ? `<div style="background:#fffbeb;border:1px solid #fde68a;border-radius:10px;padding:16px 20px;margin:24px 0">
+           <p style="margin:0 0 6px;font-size:12px;font-weight:700;color:#92400e;text-transform:uppercase;letter-spacing:0.06em">Reason for suspension</p>
+           <p style="margin:0;color:#78350f;font-size:15px;line-height:1.6">${this.escapeHtml(reason)}</p>
+         </div>`
       : '';
     await this.send(
       to,
-      `Your organizer account has been suspended — ${safeOrg}`,
-      `<div style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:24px">
-        <h1 style="color:#92400e;margin-bottom:4px">Your organizer account is suspended</h1>
-        <p style="color:#374151">Hi ${safeName}, we are writing to let you know that your organizer account for <strong>${safeOrg}</strong> on Axon Tickets has been temporarily suspended.</p>
-        ${reasonBlock}
-        <p style="color:#374151">While your account is suspended, you will not be able to sign in or manage your events. Your existing event data is safe and will remain intact.</p>
-        <p style="color:#374151">If you believe this is a mistake or you would like to discuss this further, please reach out to us. We are here to help.</p>
-        <p style="margin:24px 0">
-          <a href="mailto:support@axontickets.online" style="background:#1A3A5C;color:white;padding:12px 24px;text-decoration:none;border-radius:8px;display:inline-block;font-weight:600">Contact support</a>
-        </p>
-        <p style="margin-top:24px;color:#9ca3af;font-size:12px">Axon Tickets · Online Ticketing Platform</p>
+      `Important: Your organizer account has been temporarily suspended — ${safeOrg}`,
+      `<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;max-width:600px;margin:0 auto;background:#ffffff">
+        <!-- Header -->
+        <div style="background:#1A3A5C;padding:28px 32px;border-radius:12px 12px 0 0">
+          <p style="margin:0;color:#ffffff;font-size:18px;font-weight:700;letter-spacing:-0.3px">Axon Tickets</p>
+          <p style="margin:4px 0 0;color:#94a3b8;font-size:12px">Online Ticketing Platform</p>
+        </div>
+
+        <!-- Body -->
+        <div style="padding:32px;border:1px solid #e5e7eb;border-top:none;border-radius:0 0 12px 12px">
+
+          <!-- Status banner -->
+          <div style="background:#fffbeb;border:1px solid #fde68a;border-radius:10px;padding:14px 18px;margin-bottom:28px;display:flex;align-items:center;gap:10px">
+            <span style="font-size:20px">⚠️</span>
+            <span style="color:#92400e;font-weight:600;font-size:14px">Your organizer account is temporarily suspended</span>
+          </div>
+
+          <p style="margin:0 0 8px;color:#111827;font-size:22px;font-weight:700">Hi ${safeName},</p>
+          <p style="margin:0 0 20px;color:#374151;font-size:15px;line-height:1.7">
+            We are reaching out to let you know that your organizer account for
+            <strong>${safeOrg}</strong> on Axon Tickets has been <strong>temporarily suspended</strong>
+            by our team.
+          </p>
+
+          ${reasonBlock}
+
+          <!-- What this means -->
+          <div style="background:#f8fafc;border-radius:10px;padding:20px 24px;margin:24px 0">
+            <p style="margin:0 0 14px;font-size:13px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:0.06em">What this means for you</p>
+            <table style="border-collapse:collapse;width:100%">
+              <tr>
+                <td style="padding:8px 0;vertical-align:top;width:24px;color:#ef4444;font-size:16px">✗</td>
+                <td style="padding:8px 0 8px 8px;color:#374151;font-size:14px;line-height:1.6">You will not be able to sign in to your organizer dashboard right now.</td>
+              </tr>
+              <tr>
+                <td style="padding:8px 0;vertical-align:top;color:#ef4444;font-size:16px">✗</td>
+                <td style="padding:8px 0 8px 8px;color:#374151;font-size:14px;line-height:1.6">You cannot manage or create events while suspended.</td>
+              </tr>
+              <tr>
+                <td style="padding:8px 0;vertical-align:top;color:#16a34a;font-size:16px">✓</td>
+                <td style="padding:8px 0 8px 8px;color:#374151;font-size:14px;line-height:1.6">All your event data, attendee information, and records are <strong>safe and untouched</strong>. Nothing has been deleted.</td>
+              </tr>
+              <tr>
+                <td style="padding:8px 0;vertical-align:top;color:#16a34a;font-size:16px">✓</td>
+                <td style="padding:8px 0 8px 8px;color:#374151;font-size:14px;line-height:1.6">This suspension is <strong>temporary</strong>. Your account can be reinstated once the matter is resolved.</td>
+              </tr>
+            </table>
+          </div>
+
+          <p style="color:#374151;font-size:15px;line-height:1.7;margin:0 0 24px">
+            If you believe this is a mistake, or you have questions about why this happened,
+            please get in touch with us. We will review the situation and get back to you as
+            soon as possible.
+          </p>
+
+          <p style="margin:0 0 28px">
+            <a href="mailto:support@axontickets.online"
+               style="background:#1A3A5C;color:#ffffff;padding:13px 28px;text-decoration:none;border-radius:8px;display:inline-block;font-weight:600;font-size:15px">
+              Contact our support team
+            </a>
+          </p>
+
+          <p style="color:#6b7280;font-size:13px;line-height:1.6;margin:0">
+            You can also reply directly to this email and we will receive your message.
+          </p>
+
+          <hr style="border:none;border-top:1px solid #e5e7eb;margin:28px 0" />
+          <p style="margin:0;color:#9ca3af;font-size:12px">Axon Tickets · Online Ticketing Platform · <a href="mailto:support@axontickets.online" style="color:#9ca3af">support@axontickets.online</a></p>
+        </div>
       </div>`,
     );
   }
@@ -309,19 +370,71 @@ export class EmailService implements OnModuleDestroy {
     const safeOrg = this.escapeHtml(organizationName);
     await this.send(
       to,
-      `Your organizer account has been reinstated — ${safeOrg}`,
-      `<div style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:24px">
-        <h1 style="color:#166534;margin-bottom:4px">Your organizer account is back</h1>
-        <p style="color:#374151">Hi ${safeName}, good news — your organizer account for <strong>${safeOrg}</strong> on Axon Tickets has been reinstated.</p>
-        <div style="background:#f0fdf4;border-left:4px solid #16a34a;padding:14px 16px;margin:20px 0;border-radius:0 8px 8px 0;color:#166534">
-          You now have full access to your organizer dashboard, events, and all organizer tools.
+      `Great news — your organizer account has been reinstated — ${safeOrg}`,
+      `<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;max-width:600px;margin:0 auto;background:#ffffff">
+        <!-- Header -->
+        <div style="background:#1A3A5C;padding:28px 32px;border-radius:12px 12px 0 0">
+          <p style="margin:0;color:#ffffff;font-size:18px;font-weight:700;letter-spacing:-0.3px">Axon Tickets</p>
+          <p style="margin:4px 0 0;color:#94a3b8;font-size:12px">Online Ticketing Platform</p>
         </div>
-        <p style="color:#374151">You can sign in right away and pick up where you left off.</p>
-        <p style="margin:24px 0">
-          <a href="${homepageUrl}" style="background:#1A3A5C;color:white;padding:12px 24px;text-decoration:none;border-radius:8px;display:inline-block;font-weight:600">Go to Axon Tickets</a>
-        </p>
-        <p style="color:#64748b;font-size:13px">If you need any help getting started, reply to this email and we will be happy to assist.</p>
-        <p style="margin-top:24px;color:#9ca3af;font-size:12px">Axon Tickets · Online Ticketing Platform</p>
+
+        <!-- Body -->
+        <div style="padding:32px;border:1px solid #e5e7eb;border-top:none;border-radius:0 0 12px 12px">
+
+          <!-- Status banner -->
+          <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:14px 18px;margin-bottom:28px">
+            <span style="font-size:20px">✅</span>
+            <span style="color:#166534;font-weight:600;font-size:14px;margin-left:8px">Your organizer account is active again</span>
+          </div>
+
+          <p style="margin:0 0 8px;color:#111827;font-size:22px;font-weight:700">Hi ${safeName},</p>
+          <p style="margin:0 0 20px;color:#374151;font-size:15px;line-height:1.7">
+            We are happy to let you know that your organizer account for
+            <strong>${safeOrg}</strong> on Axon Tickets has been <strong>reinstated</strong>.
+            You now have full access again.
+          </p>
+
+          <!-- What you can do -->
+          <div style="background:#f8fafc;border-radius:10px;padding:20px 24px;margin:24px 0">
+            <p style="margin:0 0 14px;font-size:13px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:0.06em">You can now</p>
+            <table style="border-collapse:collapse;width:100%">
+              <tr>
+                <td style="padding:7px 0;vertical-align:top;width:24px;color:#16a34a;font-size:16px">✓</td>
+                <td style="padding:7px 0 7px 8px;color:#374151;font-size:14px;line-height:1.6">Sign in to your organizer dashboard</td>
+              </tr>
+              <tr>
+                <td style="padding:7px 0;vertical-align:top;color:#16a34a;font-size:16px">✓</td>
+                <td style="padding:7px 0 7px 8px;color:#374151;font-size:14px;line-height:1.6">Create and manage your events</td>
+              </tr>
+              <tr>
+                <td style="padding:7px 0;vertical-align:top;color:#16a34a;font-size:16px">✓</td>
+                <td style="padding:7px 0 7px 8px;color:#374151;font-size:14px;line-height:1.6">View attendees, check-in, and track registrations</td>
+              </tr>
+              <tr>
+                <td style="padding:7px 0;vertical-align:top;color:#16a34a;font-size:16px">✓</td>
+                <td style="padding:7px 0 7px 8px;color:#374151;font-size:14px;line-height:1.6">Access your workspace, reports, and all your previous data</td>
+              </tr>
+            </table>
+          </div>
+
+          <p style="color:#374151;font-size:15px;line-height:1.7;margin:0 0 28px">
+            Everything is exactly as you left it. You can sign in now and pick up right where you stopped.
+          </p>
+
+          <p style="margin:0 0 28px">
+            <a href="${homepageUrl}"
+               style="background:#7C3AED;color:#ffffff;padding:13px 28px;text-decoration:none;border-radius:8px;display:inline-block;font-weight:600;font-size:15px">
+              Sign in to your dashboard
+            </a>
+          </p>
+
+          <p style="color:#6b7280;font-size:13px;line-height:1.6;margin:0">
+            If you need help or have any questions, reply to this email and our team will be glad to assist.
+          </p>
+
+          <hr style="border:none;border-top:1px solid #e5e7eb;margin:28px 0" />
+          <p style="margin:0;color:#9ca3af;font-size:12px">Axon Tickets · Online Ticketing Platform · <a href="mailto:support@axontickets.online" style="color:#9ca3af">support@axontickets.online</a></p>
+        </div>
       </div>`,
     );
   }
@@ -336,15 +449,68 @@ export class EmailService implements OnModuleDestroy {
     await this.send(
       to,
       `Your organizer account has been removed — ${safeOrg}`,
-      `<div style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:24px">
-        <h1 style="color:#991b1b;margin-bottom:4px">Your organizer account has been removed</h1>
-        <p style="color:#374151">Hi ${safeName}, we are writing to let you know that the organizer account for <strong>${safeOrg}</strong> on Axon Tickets has been permanently removed by our team.</p>
-        <p style="color:#374151">This means you will no longer be able to access the organizer dashboard or manage events under this account. Your personal account on Axon Tickets is not affected.</p>
-        <p style="color:#374151">If you think this was done in error or you have questions, please contact us and we will look into it for you.</p>
-        <p style="margin:24px 0">
-          <a href="mailto:support@axontickets.online" style="background:#1A3A5C;color:white;padding:12px 24px;text-decoration:none;border-radius:8px;display:inline-block;font-weight:600">Contact support</a>
-        </p>
-        <p style="margin-top:24px;color:#9ca3af;font-size:12px">Axon Tickets · Online Ticketing Platform</p>
+      `<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;max-width:600px;margin:0 auto;background:#ffffff">
+        <!-- Header -->
+        <div style="background:#1A3A5C;padding:28px 32px;border-radius:12px 12px 0 0">
+          <p style="margin:0;color:#ffffff;font-size:18px;font-weight:700;letter-spacing:-0.3px">Axon Tickets</p>
+          <p style="margin:4px 0 0;color:#94a3b8;font-size:12px">Online Ticketing Platform</p>
+        </div>
+
+        <!-- Body -->
+        <div style="padding:32px;border:1px solid #e5e7eb;border-top:none;border-radius:0 0 12px 12px">
+
+          <!-- Status banner -->
+          <div style="background:#fef2f2;border:1px solid #fecaca;border-radius:10px;padding:14px 18px;margin-bottom:28px">
+            <span style="font-size:20px">🗑️</span>
+            <span style="color:#991b1b;font-weight:600;font-size:14px;margin-left:8px">Your organizer account has been permanently removed</span>
+          </div>
+
+          <p style="margin:0 0 8px;color:#111827;font-size:22px;font-weight:700">Hi ${safeName},</p>
+          <p style="margin:0 0 20px;color:#374151;font-size:15px;line-height:1.7">
+            We are writing to let you know that the organizer account for
+            <strong>${safeOrg}</strong> on Axon Tickets has been <strong>permanently removed</strong>
+            by our team. This action has already taken effect.
+          </p>
+
+          <!-- What this means -->
+          <div style="background:#f8fafc;border-radius:10px;padding:20px 24px;margin:24px 0">
+            <p style="margin:0 0 14px;font-size:13px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:0.06em">What this means</p>
+            <table style="border-collapse:collapse;width:100%">
+              <tr>
+                <td style="padding:8px 0;vertical-align:top;width:24px;color:#ef4444;font-size:16px">✗</td>
+                <td style="padding:8px 0 8px 8px;color:#374151;font-size:14px;line-height:1.6">The organizer account and all its associated event data have been removed.</td>
+              </tr>
+              <tr>
+                <td style="padding:8px 0;vertical-align:top;color:#ef4444;font-size:16px">✗</td>
+                <td style="padding:8px 0 8px 8px;color:#374151;font-size:14px;line-height:1.6">You will no longer be able to log in as an organizer or access the organizer dashboard.</td>
+              </tr>
+              <tr>
+                <td style="padding:8px 0;vertical-align:top;color:#16a34a;font-size:16px">✓</td>
+                <td style="padding:8px 0 8px 8px;color:#374151;font-size:14px;line-height:1.6">Your <strong>personal Axon Tickets account</strong> (used to buy or attend events) has <strong>not been affected</strong>.</td>
+              </tr>
+            </table>
+          </div>
+
+          <p style="color:#374151;font-size:15px;line-height:1.7;margin:0 0 24px">
+            If you believe this was done in error, or if you have any questions about what
+            happened, please do not hesitate to contact us. We will be happy to look into it
+            for you and explain the next steps.
+          </p>
+
+          <p style="margin:0 0 28px">
+            <a href="mailto:support@axontickets.online"
+               style="background:#1A3A5C;color:#ffffff;padding:13px 28px;text-decoration:none;border-radius:8px;display:inline-block;font-weight:600;font-size:15px">
+              Contact our support team
+            </a>
+          </p>
+
+          <p style="color:#6b7280;font-size:13px;line-height:1.6;margin:0">
+            You can also reply directly to this email and we will receive your message.
+          </p>
+
+          <hr style="border:none;border-top:1px solid #e5e7eb;margin:28px 0" />
+          <p style="margin:0;color:#9ca3af;font-size:12px">Axon Tickets · Online Ticketing Platform · <a href="mailto:support@axontickets.online" style="color:#9ca3af">support@axontickets.online</a></p>
+        </div>
       </div>`,
     );
   }
