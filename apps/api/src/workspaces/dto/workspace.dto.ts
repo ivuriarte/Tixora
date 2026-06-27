@@ -6,7 +6,6 @@ import {
   MaxLength,
   IsIn,
   MinLength,
-  IsUUID,
   ValidateIf,
 } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
@@ -61,17 +60,19 @@ export class UpdateWorkspaceItemDto {
   @MaxLength(1000)
   notes?: string | null;
 
-  @ApiProperty({ required: false, description: 'User ID (UUID) responsible for this item, or null to unassign' })
+  @ApiProperty({ required: false, description: 'Name of the person responsible for this item, or null to clear' })
   @IsOptional()
-  @ValidateIf((o) => o.assignedToId !== null)
-  @IsUUID()
-  assignedToId?: string | null;
+  @ValidateIf((o) => o.assignedToName !== null)
+  @IsString()
+  @MaxLength(200)
+  assignedToName?: string | null;
 
-  @ApiProperty({ required: false, description: 'User ID (UUID) accountable for this item, or null to unassign' })
+  @ApiProperty({ required: false, description: 'Name of the person accountable for this item, or null to clear' })
   @IsOptional()
-  @ValidateIf((o) => o.accountableId !== null)
-  @IsUUID()
-  accountableId?: string | null;
+  @ValidateIf((o) => o.accountableName !== null)
+  @IsString()
+  @MaxLength(200)
+  accountableName?: string | null;
 }
 
 export class CreateWorkspaceItemDto {

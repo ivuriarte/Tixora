@@ -112,8 +112,6 @@ model User {
   organizationsApproved Organization[]  @relation("OrgApprovedBy")
   organizationMembers   OrganizationMember[]
   workspaceMembers            WorkspaceMember[]
-  workspaceItemAssignments    WorkspaceItem[] @relation("WorkspaceItemResponsible")
-  workspaceItemAccountable    WorkspaceItem[] @relation("WorkspaceItemAccountable")
 
   @@map("users")
 }
@@ -601,8 +599,8 @@ model WorkspaceItem {
   isBlocker    Boolean           @default(false) @map("is_blocker")
   startDate    DateTime?         @map("start_date")
   dueDate      DateTime?         @map("due_date")
-  assignedToId  String?           @map("assigned_to_id")
-  accountableId String?           @map("accountable_id")
+  assignedToName  String?       @map("assigned_to_name")
+  accountableName String?       @map("accountable_name")
   notes         String?
   completedAt   DateTime?         @map("completed_at")
   sortOrder     Int               @default(0) @map("sort_order")
@@ -610,8 +608,6 @@ model WorkspaceItem {
   updatedAt     DateTime          @updatedAt @map("updated_at")
 
   workspace     EventWorkspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  assignedTo    User?          @relation("WorkspaceItemResponsible", fields: [assignedToId], references: [id], onDelete: SetNull)
-  accountableTo User?          @relation("WorkspaceItemAccountable", fields: [accountableId], references: [id], onDelete: SetNull)
 
   @@index([workspaceId])
   @@map("workspace_items")

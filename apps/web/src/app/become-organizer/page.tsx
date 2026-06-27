@@ -1496,7 +1496,7 @@ function GuestApplicationFlow({ onSuccess }: { onSuccess: (org: OrgData) => void
 export default function BecomeOrganizerPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { isAuthenticated, isHydrating, user, logout } = useAuthStore();
+  const { isAuthenticated, isHydrating, user } = useAuthStore();
   const [pageState, setPageState] = useState<PageState>({ kind: 'loading' });
   const applyAgain = searchParams.get('applyAgain') === '1' || searchParams.get('reapply') === '1';
 
@@ -1504,8 +1504,23 @@ export default function BecomeOrganizerPage() {
     if (isHydrating) return;
 
     if (applyAgain) {
-      if (isAuthenticated) logout();
-      setPageState({ kind: 'unauthenticated' });
+      if (!isAuthenticated) {
+        setPageState({ kind: 'unauthenticated' });
+        return;
+      }
+      api
+        .get<{ data: OrgData }>('/organizations/me')
+        .then((res) => {
+          const org = res.data.data;
+          if (org.approvalStatus === 'rejected') {
+            setPageState({ kind: 'form', org });
+          } else {
+            setPageState({ kind: 'status', org });
+          }
+        })
+        .catch(() => {
+          setPageState({ kind: 'form' });
+        });
       return;
     }
 
@@ -1537,7 +1552,7 @@ export default function BecomeOrganizerPage() {
         // 404 = no org yet; any other error → still show the form
         setPageState({ kind: 'form' });
       });
-  }, [applyAgain, isHydrating, isAuthenticated, user, router, logout]);
+  }, [applyAgain, isHydrating, isAuthenticated, user, router]);
 
   function handleRegistrationSuccess(org: OrgData) {
     setPageState({ kind: 'status', org });

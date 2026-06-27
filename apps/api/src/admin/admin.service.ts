@@ -2080,6 +2080,13 @@ export class AdminService {
       metadata: { organizationName: org.name, reason: reason ?? null },
     });
 
+    void this.emailService.sendOrganizerSuspendedEmail(
+      org.createdBy.email,
+      org.createdBy.firstName ?? 'there',
+      org.name,
+      reason,
+    ).catch((err: unknown) => this.logger.error('Failed to send organizer suspended email', err));
+
     return { id: updated.id, name: updated.name, approvalStatus: updated.approvalStatus };
   }
 
@@ -2111,7 +2118,7 @@ export class AdminService {
   async reinstateOrganizer(id: string, adminId: string) {
     const org = await this.prisma.organization.findUnique({
       where: { id },
-      select: { id: true, approvalStatus: true, name: true },
+      select: { id: true, approvalStatus: true, name: true, createdBy: { select: { email: true, firstName: true } } },
     });
     if (!org) throw new NotFoundException('Organization not found');
     if (!['suspended', 'revoked'].includes(org.approvalStatus)) {
@@ -2132,7 +2139,41 @@ export class AdminService {
       metadata: { organizationName: org.name },
     });
 
+    const webUrl = this.config.get<string>('webUrl') ?? 'https://axontickets.online';
+    void this.emailService.sendOrganizerReinstatedEmail(
+      org.createdBy.email,
+      org.createdBy.firstName ?? 'there',
+      org.name,
+      webUrl,
+    ).catch((err: unknown) => this.logger.error('Failed to send organizer reinstated email', err));
+
     return { id: updated.id, name: updated.name, approvalStatus: updated.approvalStatus, approvedAt: updated.approvedAt?.toISOString() ?? null };
+  }
+
+  async deleteOrganizer(id: string, adminId: string) {
+    const org = await this.prisma.organization.findUnique({
+      where: { id },
+      select: { id: true, name: true, createdBy: { select: { email: true, firstName: true } } },
+    });
+    if (!org) throw new NotFoundException('Organization not found');
+
+    await this.prisma.organization.delete({ where: { id } });
+
+    await this.audit.log({
+      action: 'ORGANIZER_DELETED',
+      entityType: 'Organization',
+      entityId: id,
+      performedById: adminId,
+      metadata: { organizationName: org.name },
+    });
+
+    void this.emailService.sendOrganizerDeletedEmail(
+      org.createdBy.email,
+      org.createdBy.firstName ?? 'there',
+      org.name,
+    ).catch((err: unknown) => this.logger.error('Failed to send organizer deleted email', err));
+
+    return { deleted: true };
   }
 
   // ── Platform settings ─────────────────────────────────────────────────────

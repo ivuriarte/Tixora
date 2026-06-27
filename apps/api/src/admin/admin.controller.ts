@@ -555,6 +555,16 @@ export class AdminController {
     return this.adminService.reinstateOrganizer(id, user.sub);
   }
 
+  @Delete('organizers/:id')
+  @ApiOperation({ summary: 'Permanently delete an organizer account and notify by email' })
+  deleteOrganizer(
+    @Param('id') id: string,
+    @CurrentUser() user: JwtPayload,
+  ) {
+    this.requirePlatformAdmin(user);
+    return this.adminService.deleteOrganizer(id, user.sub);
+  }
+
   // ── Platform settings ────────────────────────────────────────────────────
 
   @Get('settings/platform')
