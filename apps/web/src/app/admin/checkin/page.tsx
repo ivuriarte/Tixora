@@ -155,8 +155,7 @@ export default function AdminCheckinPage() {
   // ── Camera ─────────────────────────────────────────────────────────────────
 
   // Full teardown — stop scanning, destroy the instance, release the video element.
-  // Called on tab switch, event change, and component unmount. NOT called by the
-  // Stop Camera button, which only pauses so the instance can be restarted cheaply.
+  // Called on tab switch, event change, and component unmount.
   const teardownCamera = useCallback(() => {
     cameraSessionRef.current += 1;
     scanLockRef.current = false;
@@ -166,18 +165,6 @@ export default function AdminCheckinPage() {
       scannerRef.current = null;
     }
     if (videoRef.current) videoRef.current.srcObject = null;
-    setCameraActive(false);
-    setCameraStarting(false);
-  }, []);
-
-  // Pause-only — keeps the QrScanner instance alive so Start Camera can call
-  // scanner.start() directly without recreating it. This fixes the bug where
-  // stop → start required a full page refresh.
-  const stopCamera = useCallback(() => {
-    cameraSessionRef.current += 1;
-    if (scannerRef.current) {
-      scannerRef.current.stop();
-    }
     setCameraActive(false);
     setCameraStarting(false);
   }, []);
@@ -203,8 +190,7 @@ export default function AdminCheckinPage() {
     setCameraStarting(true);
 
     try {
-      // Reuse the existing instance when available (stop → start cycle).
-      // Only create a new QrScanner when there is no live instance.
+      // Guard against double-start: only create an instance when none exists.
       if (!scannerRef.current) {
         const { default: QrScanner } = await import('qr-scanner');
 
@@ -489,22 +475,13 @@ export default function AdminCheckinPage() {
                 </div>
               )}
             </div>
-            <div className="flex gap-3">
-              <Button
-                onClick={startCamera}
-                disabled={!selectedEventId || cameraActive || cameraStarting}
-                className="flex-1"
-              >
-                {cameraStarting ? 'Starting…' : 'Start Camera'}
-              </Button>
-              <Button
-                onClick={stopCamera}
-                disabled={!cameraActive && !cameraStarting}
-                className="flex-1 !bg-gray-200 !text-gray-700 hover:!bg-gray-300"
-              >
-                Stop Camera
-              </Button>
-            </div>
+            <Button
+              onClick={startCamera}
+              disabled={!selectedEventId || cameraActive || cameraStarting}
+              className="w-full"
+            >
+              {cameraStarting ? 'Starting…' : 'Start Camera'}
+            </Button>
             <p className="text-xs text-gray-400 text-center">
               Point at a QR code to scan automatically.
             </p>
