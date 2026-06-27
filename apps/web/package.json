@@ -9,7 +9,8 @@
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
     "test:e2e": "playwright test",
-    "test:e2e:headed": "playwright test --headed"
+    "test:e2e:headed": "playwright test --headed",
+    "postinstall": "cp ../../node_modules/qr-scanner/qr-scanner-worker.min.js public/qr-scanner-worker.min.js"
   },
   "dependencies": {
     "@axon-tickets/types": "*",
@@ -21,8 +22,6 @@
     "@tanstack/react-query-devtools": "^5.56.0",
     "@vercel/analytics": "^2.0.1",
     "@vercel/speed-insights": "^2.0.0",
-    "@zxing/browser": "^0.2.0",
-    "@zxing/library": "^0.22.0",
     "autoprefixer": "^10.4.20",
     "axios": "^1.7.7",
     "class-variance-authority": "^0.7.0",
@@ -31,6 +30,7 @@
     "lucide-react": "^0.447.0",
     "next": "^14.2.0",
     "postcss": "^8.4.47",
+    "qr-scanner": "^1.4.2",
     "qrcode.react": "^4.0.1",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
