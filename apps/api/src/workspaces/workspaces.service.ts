@@ -362,10 +362,6 @@ export class WorkspacesService {
       include: {
         event: { select: { id: true, title: true, startsAt: true, status: true } },
         items: {
-          include: {
-            assignedTo:    { select: { id: true, firstName: true, lastName: true, email: true } },
-            accountableTo: { select: { id: true, firstName: true, lastName: true, email: true } },
-          },
           orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }],
           take: 500,
         },
@@ -398,7 +394,7 @@ export class WorkspacesService {
 
     // Unowned = scorable items not done/NA with neither responsible nor accountable set
     const unownedCount = scorable.filter(
-      (i) => i.status !== 'done' && !i.assignedToId && !i.accountableId,
+      (i) => i.status !== 'done' && !i.assignedToName && !i.accountableName,
     ).length;
 
     // Overdue = scorable, not done, past due date
@@ -434,16 +430,16 @@ export class WorkspacesService {
         status: i.status,
         priority: i.priority,
         dueDate: i.dueDate?.toISOString() ?? null,
-        assignedTo:    i.assignedTo    ? { id: i.assignedTo.id,    name: userDisplayName(i.assignedTo)    } : null,
-        accountableTo: i.accountableTo ? { id: i.accountableTo.id, name: userDisplayName(i.accountableTo) } : null,
+        assignedTo:    i.assignedToName    ? { name: i.assignedToName    } : null,
+        accountableTo: i.accountableName ? { name: i.accountableName } : null,
       })),
       blockedItems: blockedItems.map((i) => ({
         id: i.id,
         title: i.title,
         category: i.category,
         notes: i.notes,
-        assignedTo:    i.assignedTo    ? { id: i.assignedTo.id,    name: userDisplayName(i.assignedTo)    } : null,
-        accountableTo: i.accountableTo ? { id: i.accountableTo.id, name: userDisplayName(i.accountableTo) } : null,
+        assignedTo:    i.assignedToName    ? { name: i.assignedToName    } : null,
+        accountableTo: i.accountableName ? { name: i.accountableName } : null,
       })),
       upcomingMilestones: workspace.milestones.map((m) => ({
         id: m.id,
@@ -463,10 +459,6 @@ export class WorkspacesService {
       select: {
         id: true,
         items: {
-          include: {
-            assignedTo:    { select: { id: true, firstName: true, lastName: true, email: true } },
-            accountableTo: { select: { id: true, firstName: true, lastName: true, email: true } },
-          },
           orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }],
           take: 500,
         },
@@ -513,10 +505,6 @@ export class WorkspacesService {
         notes: dto.notes ?? null,
         sortOrder: (maxOrder._max.sortOrder ?? -1) + 1,
       },
-      include: {
-            assignedTo:    { select: { id: true, firstName: true, lastName: true, email: true } },
-            accountableTo: { select: { id: true, firstName: true, lastName: true, email: true } },
-          },
     });
 
     await this.audit.log({
@@ -542,27 +530,6 @@ export class WorkspacesService {
     });
     if (!item) throw new NotFoundException('Item not found');
 
-    // Verify that any provided assignee IDs belong to the event's assignable pool
-    const idsToVerify = [
-      'assignedToId'  in dto && dto.assignedToId  ? dto.assignedToId  : null,
-      'accountableId' in dto && dto.accountableId ? dto.accountableId : null,
-    ].filter((id): id is string => id !== null);
-    if (idsToVerify.length > 0) {
-      const ev = await this.prisma.event.findUnique({
-        where: { id: eventId },
-        select: { createdById: true },
-      });
-      const validCount = await this.prisma.user.count({
-        where: {
-          id: { in: idsToVerify },
-          OR: [{ isAdmin: true }, ...(ev?.createdById ? [{ id: ev.createdById }] : [])],
-        },
-      });
-      if (validCount !== idsToVerify.length) {
-        throw new BadRequestException('One or more assigned users are not valid assignees');
-      }
-    }
-
     const wasNotDone = item.status !== 'done';
     const becomingDone = dto.status === 'done';
 
@@ -577,16 +544,11 @@ export class WorkspacesService {
         ...(dto.startDate !== undefined && { startDate: dto.startDate ? new Date(dto.startDate) : null }),
         ...(dto.dueDate !== undefined && { dueDate: dto.dueDate ? new Date(dto.dueDate) : null }),
         ...(dto.notes !== undefined && { notes: dto.notes }),
-        // explicit null means unassign; undefined means unchanged
-        ...('assignedToId'  in dto && { assignedToId:  dto.assignedToId  ?? null }),
-        ...('accountableId' in dto && { accountableId: dto.accountableId ?? null }),
+        ...('assignedToName'  in dto && { assignedToName:  dto.assignedToName  ?? null }),
+        ...('accountableName' in dto && { accountableName: dto.accountableName ?? null }),
         ...(wasNotDone && becomingDone && { completedAt: new Date() }),
         ...(!becomingDone && item.completedAt && { completedAt: null }),
       },
-      include: {
-            assignedTo:    { select: { id: true, firstName: true, lastName: true, email: true } },
-            accountableTo: { select: { id: true, firstName: true, lastName: true, email: true } },
-          },
     });
 
     if (dto.status !== undefined && dto.status !== item.status) {
@@ -642,10 +604,6 @@ export class WorkspacesService {
         dueDate: { lt: new Date() },
         status: { notIn: ['done', 'not_applicable'] },
       },
-      include: {
-            assignedTo:    { select: { id: true, firstName: true, lastName: true, email: true } },
-            accountableTo: { select: { id: true, firstName: true, lastName: true, email: true } },
-          },
       orderBy: { dueDate: 'asc' },
     });
 
@@ -1703,14 +1661,10 @@ export class WorkspacesService {
       notes: item.notes,
       completedAt: resolvedCompletedAt instanceof Date ? resolvedCompletedAt.toISOString() : (resolvedCompletedAt ?? null),
       sortOrder: item.sortOrder,
-      assignedToId: item.assignedToId ?? null,
-      assignedTo: item.assignedTo
-        ? { id: item.assignedTo.id, name: userDisplayName(item.assignedTo) }
-        : null,
-      accountableId: item.accountableId ?? null,
-      accountableTo: item.accountableTo
-        ? { id: item.accountableTo.id, name: userDisplayName(item.accountableTo) }
-        : null,
+      assignedToName: item.assignedToName ?? null,
+      assignedTo: item.assignedToName ? { name: item.assignedToName } : null,
+      accountableName: item.accountableName ?? null,
+      accountableTo: item.accountableName ? { name: item.accountableName } : null,
     };
   }
 }

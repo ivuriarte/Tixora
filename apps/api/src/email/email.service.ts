@@ -252,18 +252,98 @@ export class EmailService implements OnModuleDestroy {
     const safeReason = this.escapeHtml(reason);
     await this.send(
       to,
-      `Organizer application was not approved — ${safeOrg}`,
+      `Your organizer application needs attention — ${safeOrg}`,
       `<div style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:24px">
         <h1 style="color:#991b1b;margin-bottom:4px">Your application was not approved</h1>
-        <p style="color:#374151">Hi ${safeName}, we reviewed the organizer application for <strong>${safeOrg}</strong>. We cannot approve it yet.</p>
+        <p style="color:#374151">Hi ${safeName}, thank you for applying to become an organizer on Axon Tickets. We reviewed the details for <strong>${safeOrg}</strong>, but we are not able to approve it just yet.</p>
+        <p style="color:#374151">Here is why:</p>
         <div style="background:#fef2f2;border-left:4px solid #dc2626;padding:14px 16px;margin:20px 0;border-radius:0 8px 8px 0;color:#991b1b">
           <strong>Reason:</strong> ${safeReason}
         </div>
-        <p style="color:#374151">If you have corrected the issue above, you may apply again from the organizer program page. Please submit the updated organizer details you want our team to review.</p>
+        <p style="color:#374151">To move forward, you need to go through the registration process again with the correct information. The button below will take you back to the organizer application form, where your previous details are pre-filled so you only need to update what is missing or incorrect.</p>
         <p style="margin:24px 0">
-          <a href="${reapplyUrl}" style="background:#1A3A5C;color:white;padding:12px 24px;text-decoration:none;border-radius:8px;display:inline-block;font-weight:600">Apply again</a>
+          <a href="${reapplyUrl}" style="background:#1A3A5C;color:white;padding:12px 24px;text-decoration:none;border-radius:8px;display:inline-block;font-weight:600">Start registration again</a>
         </p>
-        <p style="color:#64748b;font-size:13px">After you apply again, we will ask you to verify by email and then review the new submission.</p>
+        <p style="color:#374151">Once you complete the form and verify your email, your updated application will go back to our team for review. You will hear from us within 1–2 business days.</p>
+        <p style="color:#64748b;font-size:13px">If you have questions or need help, reply to this email and we will be glad to assist.</p>
+        <p style="margin-top:24px;color:#9ca3af;font-size:12px">Axon Tickets · Online Ticketing Platform</p>
+      </div>`,
+    );
+  }
+
+  async sendOrganizerSuspendedEmail(
+    to: string,
+    firstName: string,
+    organizationName: string,
+    reason?: string,
+  ): Promise<void> {
+    const safeName = this.escapeHtml(firstName);
+    const safeOrg = this.escapeHtml(organizationName);
+    const reasonBlock = reason
+      ? `<div style="background:#fffbeb;border-left:4px solid #f59e0b;padding:14px 16px;margin:20px 0;border-radius:0 8px 8px 0;color:#92400e"><strong>Reason:</strong> ${this.escapeHtml(reason)}</div>`
+      : '';
+    await this.send(
+      to,
+      `Your organizer account has been suspended — ${safeOrg}`,
+      `<div style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:24px">
+        <h1 style="color:#92400e;margin-bottom:4px">Your organizer account is suspended</h1>
+        <p style="color:#374151">Hi ${safeName}, we are writing to let you know that your organizer account for <strong>${safeOrg}</strong> on Axon Tickets has been temporarily suspended.</p>
+        ${reasonBlock}
+        <p style="color:#374151">While your account is suspended, you will not be able to sign in or manage your events. Your existing event data is safe and will remain intact.</p>
+        <p style="color:#374151">If you believe this is a mistake or you would like to discuss this further, please reach out to us. We are here to help.</p>
+        <p style="margin:24px 0">
+          <a href="mailto:support@axontickets.online" style="background:#1A3A5C;color:white;padding:12px 24px;text-decoration:none;border-radius:8px;display:inline-block;font-weight:600">Contact support</a>
+        </p>
+        <p style="margin-top:24px;color:#9ca3af;font-size:12px">Axon Tickets · Online Ticketing Platform</p>
+      </div>`,
+    );
+  }
+
+  async sendOrganizerReinstatedEmail(
+    to: string,
+    firstName: string,
+    organizationName: string,
+    homepageUrl: string,
+  ): Promise<void> {
+    const safeName = this.escapeHtml(firstName);
+    const safeOrg = this.escapeHtml(organizationName);
+    await this.send(
+      to,
+      `Your organizer account has been reinstated — ${safeOrg}`,
+      `<div style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:24px">
+        <h1 style="color:#166534;margin-bottom:4px">Your organizer account is back</h1>
+        <p style="color:#374151">Hi ${safeName}, good news — your organizer account for <strong>${safeOrg}</strong> on Axon Tickets has been reinstated.</p>
+        <div style="background:#f0fdf4;border-left:4px solid #16a34a;padding:14px 16px;margin:20px 0;border-radius:0 8px 8px 0;color:#166534">
+          You now have full access to your organizer dashboard, events, and all organizer tools.
+        </div>
+        <p style="color:#374151">You can sign in right away and pick up where you left off.</p>
+        <p style="margin:24px 0">
+          <a href="${homepageUrl}" style="background:#1A3A5C;color:white;padding:12px 24px;text-decoration:none;border-radius:8px;display:inline-block;font-weight:600">Go to Axon Tickets</a>
+        </p>
+        <p style="color:#64748b;font-size:13px">If you need any help getting started, reply to this email and we will be happy to assist.</p>
+        <p style="margin-top:24px;color:#9ca3af;font-size:12px">Axon Tickets · Online Ticketing Platform</p>
+      </div>`,
+    );
+  }
+
+  async sendOrganizerDeletedEmail(
+    to: string,
+    firstName: string,
+    organizationName: string,
+  ): Promise<void> {
+    const safeName = this.escapeHtml(firstName);
+    const safeOrg = this.escapeHtml(organizationName);
+    await this.send(
+      to,
+      `Your organizer account has been removed — ${safeOrg}`,
+      `<div style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:24px">
+        <h1 style="color:#991b1b;margin-bottom:4px">Your organizer account has been removed</h1>
+        <p style="color:#374151">Hi ${safeName}, we are writing to let you know that the organizer account for <strong>${safeOrg}</strong> on Axon Tickets has been permanently removed by our team.</p>
+        <p style="color:#374151">This means you will no longer be able to access the organizer dashboard or manage events under this account. Your personal account on Axon Tickets is not affected.</p>
+        <p style="color:#374151">If you think this was done in error or you have questions, please contact us and we will look into it for you.</p>
+        <p style="margin:24px 0">
+          <a href="mailto:support@axontickets.online" style="background:#1A3A5C;color:white;padding:12px 24px;text-decoration:none;border-radius:8px;display:inline-block;font-weight:600">Contact support</a>
+        </p>
         <p style="margin-top:24px;color:#9ca3af;font-size:12px">Axon Tickets · Online Ticketing Platform</p>
       </div>`,
     );

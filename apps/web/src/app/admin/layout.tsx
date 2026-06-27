@@ -14,7 +14,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
   useEffect(() => {
     if (!getRefreshToken()) {
-      router.replace('/auth/organizer');
+      router.replace('/auth/admin');
       return;
     }
   }, [router]);
@@ -22,7 +22,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   useEffect(() => {
     if (isHydrating) return;
     if (!isAuthenticated || (!user?.isAdmin && user?.loginPortal !== 'organizer')) {
-      router.replace(getRefreshToken() ? '/' : '/auth/organizer');
+      router.replace(getRefreshToken() ? '/' : '/auth/admin');
     }
   }, [isHydrating, isAuthenticated, user, router]);
 

@@ -152,7 +152,7 @@ function ConfirmModal({
 
 // ── Drawer ───────────────────────────────────────────────────────────────────
 
-type ModalAction = 'suspend' | 'revoke' | 'reinstate' | null;
+type ModalAction = 'suspend' | 'delete' | 'reinstate' | null;
 
 function OrgDrawer({
   orgId,
@@ -203,10 +203,10 @@ function OrgDrawer({
     onError: () => { toast.error('Could not suspend. Please try again.'); setModalAction(null); },
   });
 
-  const revokeMutation = useMutation({
-    mutationFn: (reason?: string) => api.patch(`/admin/organizers/${orgId}/revoke`, { reason }),
-    onSuccess: () => { toast.success('Organizer account permanently revoked.'); setModalAction(null); invalidate(); },
-    onError: () => { toast.error('Could not revoke. Please try again.'); setModalAction(null); },
+  const deleteMutation = useMutation({
+    mutationFn: () => api.delete(`/admin/organizers/${orgId}`),
+    onSuccess: () => { toast.success('Organizer account deleted.'); setModalAction(null); invalidate(); onClose(); },
+    onError: () => { toast.error('Could not delete organizer. Please try again.'); setModalAction(null); },
   });
 
   const reinstateMutation = useMutation({
@@ -230,17 +230,16 @@ function OrgDrawer({
           isPending={suspendMutation.isPending}
         />
       )}
-      {modalAction === 'revoke' && (
+      {modalAction === 'delete' && (
         <ConfirmModal
-          title="Permanently revoke organizer account"
-          description="This will permanently ban the organizer. They will not be able to log in. This action cannot be undone via normal reinstatement."
-          confirmLabel="Revoke & ban account"
+          title="Delete organizer account"
+          description="This will permanently delete the organizer account. This cannot be undone. The organizer will be notified by email."
+          confirmLabel="Delete account"
           confirmClass="bg-red-600 hover:bg-red-700"
-          requireReason={true}
-          reasonPlaceholder="Explain why this account is being permanently banned…"
-          onConfirm={(reason) => revokeMutation.mutate(reason)}
+          requireReason={false}
+          onConfirm={() => deleteMutation.mutate()}
           onCancel={() => setModalAction(null)}
-          isPending={revokeMutation.isPending}
+          isPending={deleteMutation.isPending}
         />
       )}
       {modalAction === 'reinstate' && (
@@ -472,23 +471,32 @@ function OrgDrawer({
                       Suspend
                     </button>
                     <button
-                      onClick={() => setModalAction('revoke')}
+                      onClick={() => setModalAction('delete')}
                       className="flex-1 border border-red-300 text-red-600 hover:bg-red-50 text-sm font-medium px-4 py-2 rounded-lg transition-colors"
                     >
-                      Revoke & ban
+                      Delete
                     </button>
                   </div>
                 </div>
               )}
 
               {(org.approvalStatus === 'suspended' || org.approvalStatus === 'revoked') && (
-                <div className="pt-2 border-t border-gray-100">
-                  <button
-                    onClick={() => setModalAction('reinstate')}
-                    className="w-full bg-violet-600 hover:bg-violet-700 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors"
-                  >
-                    Reinstate account
-                  </button>
+                <div className="pt-2 border-t border-gray-100 space-y-2">
+                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Account actions</p>
+                  <div className="flex gap-3">
+                    <button
+                      onClick={() => setModalAction('reinstate')}
+                      className="flex-1 bg-violet-600 hover:bg-violet-700 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors"
+                    >
+                      Reinstate account
+                    </button>
+                    <button
+                      onClick={() => setModalAction('delete')}
+                      className="flex-1 border border-red-300 text-red-600 hover:bg-red-50 text-sm font-medium px-4 py-2 rounded-lg transition-colors"
+                    >
+                      Delete
+                    </button>
+                  </div>
                 </div>
               )}
             </div>

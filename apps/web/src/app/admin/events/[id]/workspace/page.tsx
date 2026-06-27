@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -14,8 +14,6 @@ type ChecklistPriority = 'low' | 'medium' | 'high' | 'critical';
 type MilestoneStatus = 'upcoming' | 'at_risk' | 'done' | 'overdue';
 type ScoreLabel = 'Complete' | 'On Track' | 'At Risk' | 'Needs Attention' | 'Blocked';
 
-interface AssignedUser { id: string; name: string }
-
 interface WorkspaceItem {
   id: string;
   title: string;
@@ -28,10 +26,8 @@ interface WorkspaceItem {
   notes: string | null;
   completedAt: string | null;
   sortOrder: number;
-  assignedToId: string | null;
-  assignedTo: AssignedUser | null;
-  accountableId: string | null;
-  accountableTo: AssignedUser | null;
+  assignedToName: string | null;
+  accountableName: string | null;
 }
 
 interface CategoryGroup {
@@ -72,11 +68,11 @@ interface WorkspaceSummary {
   criticalBlockers: Array<{
     id: string; title: string; category: string; status: string;
     priority: string; dueDate: string | null;
-    assignedTo: AssignedUser | null; accountableTo: AssignedUser | null;
+    assignedTo: { name: string } | null; accountableTo: { name: string } | null;
   }>;
   blockedItems: Array<{
     id: string; title: string; category: string; notes: string | null;
-    assignedTo: AssignedUser | null; accountableTo: AssignedUser | null;
+    assignedTo: { name: string } | null; accountableTo: { name: string } | null;
   }>;
   upcomingMilestones: Array<{ id: string; title: string; dueDate: string; status: string }>;
   createdAt: string;
@@ -265,29 +261,31 @@ function TemplatePicker({ eventId, hasItems, onClose }: { eventId: string; hasIt
 // ── RACI assignment input ─────────────────────────────────────────────────────
 
 function RaciInput({
-  role, value, userId, itemId, eventId, assignableUsers, isUnowned, canEdit,
+  role, currentName, itemId, eventId, isUnowned, canEdit,
 }: {
   role: 'R' | 'A';
-  value: AssignedUser | null;
-  userId: string | null;
+  currentName: string | null;
   itemId: string;
   eventId: string;
-  assignableUsers: AssignedUser[];
   isUnowned: boolean;
   canEdit: boolean;
 }) {
   const invalidate = useInvalidateWorkspace(eventId);
-  const field = role === 'R' ? 'assignedToId' : 'accountableId';
+  const field = role === 'R' ? 'assignedToName' : 'accountableName';
+  const [localValue, setLocalValue] = useState(currentName ?? '');
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const mutation = useMutation({
-    mutationFn: (id: string | null) =>
-      api.patch(`/admin/events/${eventId}/workspace/items/${itemId}`, { [field]: id }),
+    mutationFn: (name: string | null) =>
+      api.patch(`/admin/events/${eventId}/workspace/items/${itemId}`, { [field]: name || null }),
     onSuccess: invalidate,
-    onError: () => toast.error('Assignment failed.'),
+    onError: () => toast.error('Could not save assignment.'),
   });
 
+  useEffect(() => { setLocalValue(currentName ?? ''); }, [currentName]);
+
   if (!canEdit) {
-    if (!value) {
+    if (!currentName) {
       return (
         <span className={`text-xs ${isUnowned && role === 'R' ? 'text-amber-400' : 'text-gray-300'}`}>
           {isUnowned && role === 'R' ? 'Unassigned' : '—'}
@@ -295,34 +293,40 @@ function RaciInput({
       );
     }
     return (
-      <span className="text-xs text-gray-700 truncate" title={value.name}>{value.name}</span>
+      <span className="text-xs text-gray-700 truncate" title={currentName}>{currentName}</span>
     );
   }
 
-  const isEmpty = !userId;
-
-  function handleChange(e: React.ChangeEvent<HTMLSelectElement>) {
-    const newId = e.target.value || null;
-    if (newId !== userId) mutation.mutate(newId);
+  function handleChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const val = e.target.value;
+    setLocalValue(val);
+    if (timerRef.current) clearTimeout(timerRef.current);
+    timerRef.current = setTimeout(() => {
+      mutation.mutate(val.trim() || null);
+    }, 600);
   }
 
+  function handleBlur() {
+    if (timerRef.current) clearTimeout(timerRef.current);
+    mutation.mutate(localValue.trim() || null);
+  }
+
+  const isEmpty = !localValue.trim();
+
   return (
-    <select
-      id={`raci-${role}-${itemId}`}
-      value={userId ?? ''}
+    <input
+      type="text"
+      value={localValue}
       onChange={handleChange}
+      onBlur={handleBlur}
+      placeholder={role === 'R' ? 'Responsible…' : 'Accountable…'}
       disabled={mutation.isPending}
-      className={`w-full text-xs rounded-md border px-2 py-1 focus:outline-none focus:ring-1 focus:ring-violet-400 disabled:opacity-60 truncate bg-white ${
+      className={`w-full text-xs rounded-md border px-2 py-1 focus:outline-none focus:ring-1 focus:ring-violet-400 disabled:opacity-60 bg-white ${
         isEmpty && isUnowned && role === 'R'
-          ? 'border-amber-200 bg-amber-50 text-amber-700'
-          : 'border-gray-200 bg-gray-50 text-gray-700'
+          ? 'border-amber-200 bg-amber-50 text-amber-700 placeholder:text-amber-400'
+          : 'border-gray-200 bg-gray-50 text-gray-700 placeholder:text-gray-400'
       }`}
-    >
-      <option value="">{role === 'R' ? 'Responsible…' : 'Accountable…'}</option>
-      {assignableUsers.map((u) => (
-        <option key={u.id} value={u.id}>{u.name}</option>
-      ))}
-    </select>
+    />
   );
 }
 
@@ -359,9 +363,9 @@ function StatusSelect({ value, itemId, eventId }: { value: ChecklistStatus; item
 // ── Item row ──────────────────────────────────────────────────────────────────
 
 function ItemRow({
-  item, eventId, canEdit, assignableUsers,
+  item, eventId, canEdit,
 }: {
-  item: WorkspaceItem; eventId: string; canEdit: boolean; assignableUsers: AssignedUser[];
+  item: WorkspaceItem; eventId: string; canEdit: boolean;
 }) {
   const invalidate = useInvalidateWorkspace(eventId);
   const isNA = item.status === 'not_applicable';
@@ -374,7 +378,7 @@ function ItemRow({
   });
 
   const isDoneOrNA = isDone || isNA;
-  const isUnowned = !item.assignedToId && !item.accountableId && !isDoneOrNA;
+  const isUnowned = !item.assignedToName && !item.accountableName && !isDoneOrNA;
 
   return (
     <div
@@ -400,12 +404,12 @@ function ItemRow({
         )}
       </div>
 
-      <RaciInput role="R" value={item.assignedTo} userId={item.assignedToId}
-        itemId={item.id} eventId={eventId} assignableUsers={assignableUsers}
+      <RaciInput role="R" currentName={item.assignedToName}
+        itemId={item.id} eventId={eventId}
         isUnowned={isUnowned} canEdit={canEdit} />
 
-      <RaciInput role="A" value={item.accountableTo} userId={item.accountableId}
-        itemId={item.id} eventId={eventId} assignableUsers={assignableUsers}
+      <RaciInput role="A" currentName={item.accountableName}
+        itemId={item.id} eventId={eventId}
         isUnowned={false} canEdit={canEdit} />
 
       <span />
@@ -434,9 +438,9 @@ function ItemRow({
 // ── Category section ──────────────────────────────────────────────────────────
 
 function CategorySection({
-  category, items, eventId, canEdit, assignableUsers,
+  category, items, eventId, canEdit,
 }: {
-  category: string; items: WorkspaceItem[]; eventId: string; canEdit: boolean; assignableUsers: AssignedUser[];
+  category: string; items: WorkspaceItem[]; eventId: string; canEdit: boolean;
 }) {
   const scorable = items.filter((i) => i.status !== 'not_applicable');
   const done = scorable.filter((i) => i.status === 'done').length;
@@ -458,7 +462,7 @@ function CategorySection({
       </div>
       <div className="space-y-0.5">
         {items.map((item) => (
-          <ItemRow key={item.id} item={item} eventId={eventId} canEdit={canEdit} assignableUsers={assignableUsers} />
+          <ItemRow key={item.id} item={item} eventId={eventId} canEdit={canEdit} />
         ))}
       </div>
     </div>
@@ -664,15 +668,6 @@ export default function EventWorkspacePage() {
       api.get<{ data: Milestone[] | null }>(`/admin/events/${id}/workspace/milestones`)
         .then((r) => r.data.data),
     enabled: !!summary,
-  });
-
-  const { data: assignableUsers = [] } = useQuery<AssignedUser[]>({
-    queryKey: ['workspace-assignable-users', id],
-    queryFn: () =>
-      api.get<{ data: AssignedUser[] }>(`/admin/events/${id}/workspace/assignable-users`)
-        .then((r) => r.data.data),
-    enabled: !!summary,
-    staleTime: 5 * 60 * 1000,
   });
 
   const enableMutation = useMutation({
@@ -940,7 +935,7 @@ export default function EventWorkspacePage() {
             ) : (
               itemsData.categories.map(({ category, items }) => (
                 <CategorySection key={category} category={category} items={items}
-                  eventId={id} canEdit={canEdit} assignableUsers={assignableUsers} />
+                  eventId={id} canEdit={canEdit} />
               ))
             )}
           </div>
