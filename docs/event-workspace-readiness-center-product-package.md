@@ -4,11 +4,17 @@ Master product, business, solution design, and backlog package.
 
 Prepared for CEO review, product review, business review, solution architecture review, backlog grooming, and development planning.
 
+## Current System Baseline
+
+This package was re-audited against the current repository implementation on 2026-06-27. The codebase already includes ticketing, manual-payment registration, payment proof review, attendee QR check-in, organizer application and approval, event creation, event workspaces, readiness checklist templates, milestone tracking, weighted readiness scoring, share-safe readiness PDF export, post-event PDF generation, and admin analytics with sales, attendance, and registration funnel views.
+
+The system is not yet a full event operating system. The largest remaining gaps are event-scoped workspace authorization, first-class event team management, true event role permissions, live stakeholder read-only access, explicit workspace closure with locked readiness snapshots, volunteer management, risk register, dependency graph, report snapshot history, and historical or predictive intelligence.
+
 ## 1. Executive Summary
 
-Axon Tickets should expand from a ticketing and registration platform into an event operating system focused on execution readiness, accountability, and stakeholder visibility. The core opportunity is not to compete head-on with Eventbrite on discovery, Ticket Fairy on marketing, or HelixPay on payments. Axon can own the operational layer that happens after an event is created and before the event is delivered.
+Axon Tickets is expanding from a ticketing and registration platform into an event operating system focused on execution readiness, accountability, and stakeholder visibility. The core opportunity is not to compete head-on with Eventbrite on discovery, Ticket Fairy on marketing, or HelixPay on payments. Axon can own the operational layer that happens after an event is created and before the event is delivered.
 
-The recommended initiative is Event Workspace & Event Readiness Center: a centralized, event-centric workspace where organizers can manage readiness checklists, milestones, ownership, blocked items, and stakeholder reporting. The MVP should be intentionally small and validate whether organizers will replace spreadsheets with Axon as the source of truth for event execution.
+The current initiative is Event Workspace & Event Readiness Center: a centralized, event-centric workspace where organizers can manage readiness checklists, milestones, ownership, blocked items, and stakeholder reporting. The MVP should remain intentionally small and validate whether organizers will replace spreadsheets with Axon as the source of truth for event execution.
 
 The strongest recommendation is to launch an 8-week MVP with six tightly scoped capabilities only: Organizer Management, Event Workspace, Event Readiness Center, Task Ownership/RACI, lightweight Stakeholder Reporting, and a Post-Event Report Suite. Volunteer management, sponsor CRM, advanced risks, dependencies, automation, AI, analytics, and portfolio intelligence should be deferred.
 
@@ -45,7 +51,7 @@ If Axon stays focused only on ticketing and registration, organizers will contin
 | Eventbrite | Event discovery, marketplace reach, broad self-service tooling | Less focused on localized operational governance and readiness accountability | Position Axon as the operating layer for real-world event execution. |
 | Ticket Fairy | Ticket sales acceleration, marketing, fan growth | Execution readiness is not the core product promise | Own post-sale readiness and team accountability. |
 | HelixPay | Payments, commerce, transaction handling | Operational planning and stakeholder visibility are not central | Combine transaction visibility with readiness visibility. |
-| Axon Tickets | Ticketing, registration, payments, QR validation, attendance, reporting | Current scope does not yet solve event execution fragmentation | Build the Event Workspace as the single source of truth. |
+| Axon Tickets | Ticketing, registration, manual payment proof review, QR validation, attendance, organizer approval, event workspaces, readiness scoring, PDF reporting, admin analytics | Current scope partially addresses event execution fragmentation, but event-team permissions, live stakeholder access, closure snapshots, and advanced operations are not complete | Harden the Event Workspace into the single source of truth. |
 
 ## 4. Product Vision
 
@@ -69,7 +75,7 @@ The product is less compelling for very small one-person events, simple meetups,
 
 ### Smallest MVP That Validates the Concept
 
-The smallest MVP is a readiness workspace attached to each event, with checklist templates, owners, due dates, status, blocked flags, readiness score, a share-safe progress report, and a post-event report suite that covers the most important organizer and executive closeout needs.
+The smallest MVP is a readiness workspace attached to each event, with checklist templates, owners, due dates, status, blocked flags, readiness score, a share-safe progress report, and a post-event report suite that covers the most important organizer and executive closeout needs. The current codebase implements much of this, but the role model, event-team assignment model, and post-event web gating still need correction before the MVP can be called complete.
 
 ### Highest Value MVP Modules
 
@@ -89,7 +95,7 @@ The smallest MVP is a readiness workspace attached to each event, with checklist
 | 1 | Event Workspace overview | Mostly structured presentation of event operational state. |
 | 2 | Checklist templates | Bounded workflow with reusable items. |
 | 3 | Ownership assignment | Simple role and assignee model. |
-| 4 | Stakeholder read-only view | Narrow visibility surface if kept read-only. |
+| 4 | Downloadable stakeholder report | Narrow visibility surface because manual PDF sharing avoids external access. |
 | 5 | Organizer approval | Simple but requires operational policy clarity. |
 
 ### Features To Postpone
@@ -165,13 +171,13 @@ The Event Workspace is the operational home automatically created for each event
 
 ### Primary Workspace Views
 
-| View | Purpose | MVP content |
-|---|---|---|
-| Overview | Executive snapshot | Readiness score, open items, blocked items, upcoming milestones. |
-| Team | Ownership clarity | Event roles, assignees, contact visibility, RACI summary. |
-| Timeline | Near-term planning | Milestones, due dates, event day countdown. |
-| Readiness Center | Operational control | Checklist categories, item statuses, blockers, owners. |
-| Stakeholder Report | External visibility | Share-safe progress summary and readiness indicators for manual sending or strictly view-only access. |
+| View | Purpose | Target MVP content | Current implementation state |
+|---|---|---|---|
+| Overview | Executive snapshot | Readiness score, open items, blocked items, upcoming milestones. | Implemented in event detail readiness banner and workspace summary. |
+| Team | Ownership clarity | Event roles, assignees, contact visibility, RACI summary. | Partial. Responsible and Accountable assignment exists, but event team membership, invitations, contact visibility, and grouped RACI summary are not implemented. |
+| Timeline | Near-term planning | Milestones, due dates, event day countdown. | Partial. Milestone CRUD and item due dates exist; no calendar view or formal countdown module. |
+| Readiness Center | Operational control | Checklist categories, item statuses, blockers, owners. | Implemented. Templates, custom items, statuses, blocker panels, due dates, notes, and R/A assignment exist. |
+| Stakeholder Report | External visibility | Share-safe progress summary and readiness indicators for manual sending or strictly view-only access. | PDF download implemented. Live strictly read-only stakeholder dashboard is not implemented. |
 
 ### Design Principles
 
@@ -213,67 +219,67 @@ The Event Readiness Center is the operational control room for an event. It comb
 
 ## 10. Multi-Tenant Strategy
 
-| Area | Recommendation |
-|---|---|
-| Organizer isolation | Each organizer belongs to an organization tenant. Organization data is isolated by tenant. |
-| Event isolation | Each event belongs to one organization. Event workspace data is scoped to that event. |
-| User membership | A user may belong to multiple organizations, but permissions are evaluated per organization and event. |
-| Admin visibility | Platform admins can view organizer and readiness health for support, compliance, and governance. |
-| Stakeholder access | Stakeholders receive scoped read-only access to specific event visibility surfaces only. |
+| Area | Target recommendation | Current implementation state |
+|---|---|---|
+| Organizer isolation | Each organizer belongs to an organization tenant. Organization data is isolated by tenant. | Partial. `Organization` and `OrganizationMember` exist, approved organizers can own events, and core admin event queries are organization-scoped for non-admin users. |
+| Event isolation | Each event belongs to one organization. Event workspace data is scoped to that event. | Partial. Events have optional `organizationId` and workspaces have `eventId`, but workspace endpoints currently rely on approved-organizer access and do not consistently enforce event ownership per endpoint. |
+| User membership | A user may belong to multiple organizations, but permissions are evaluated per organization and event. | Partial. Membership model supports multiple organizations, but the UI and workflows mostly create one owner membership and do not provide full multi-org switching or event-role permissions. |
+| Admin visibility | Platform admins can view organizer and readiness health for support, compliance, and governance. | Partial. Admins can view organizer queues, events, analytics, and workspace readiness; no portfolio-level readiness health dashboard exists yet. |
+| Stakeholder access | Stakeholders receive scoped read-only access to specific event visibility surfaces only. | Not implemented for live access. Manual PDF exports are the only stakeholder sharing path. |
 
 ## 11. Access Control Model
 
 ### Platform Roles
 
-| Role | Purpose |
-|---|---|
-| Platform Admin | Manages platform operations, organizer approvals, and support visibility. |
-| Platform Support | Views limited operational data for support cases. |
-| Platform Finance | Views payment and reconciliation reports where authorized. |
+| Role | Purpose | Current implementation state |
+|---|---|---|
+| Platform Admin | Manages platform operations, organizer approvals, and support visibility. | Implemented through `isAdmin` and admin routes. |
+| Platform Support | Views limited operational data for support cases. | Not implemented as a separate role. |
+| Platform Finance | Views payment and reconciliation reports where authorized. | Not implemented as a separate role. |
 
 ### Organizer Roles
 
-| Role | Purpose |
-|---|---|
-| Organization Owner | Owns organization account, billing relationship, and user access. |
-| Organization Admin | Manages organization settings and event-level access. |
-| Organization Member | Participates in assigned events. |
+| Role | Purpose | Current implementation state |
+|---|---|---|
+| Organization Owner | Owns organization account, billing relationship, and user access. | Partially implemented. Registration creates an owner membership. |
+| Organization Admin | Manages organization settings and event-level access. | Enum exists, but member management UI and permission behavior are not implemented. |
+| Organization Member | Participates in assigned events. | Enum exists, but invitation, assignment, and event-role workflows are not implemented. |
 
 ### Event Roles
 
-| Role | Primary responsibility |
-|---|---|
-| Event Owner | Accountable for event outcome and final readiness. |
-| Event Manager | Manages day-to-day event execution. |
-| Operations Lead | Owns logistics, venue, staffing, safety, and execution readiness. |
-| Finance Lead | Owns payment readiness and financial reporting. |
-| Registration Lead | Owns registration flow, ticketing setup, and check-in readiness. |
-| Volunteer Lead | Future owner for volunteer coordination. |
-| Check-In Team | Executes attendee validation and attendance flow. |
-| Viewer | Read-only internal access. |
-| Stakeholder Viewer | Read-only external/event-specific visibility when enabled. |
+| Role | Primary responsibility | Current implementation state |
+|---|---|---|
+| Event Owner | Accountable for event outcome and final readiness. | Implicit through event creator / organization ownership, not a first-class event role. |
+| Event Manager | Manages day-to-day event execution. | Not implemented as a distinct role. |
+| Operations Lead | Owns logistics, venue, staffing, safety, and execution readiness. | Not implemented as a distinct role. |
+| Finance Lead | Owns payment readiness and financial reporting. | Not implemented as a distinct role. |
+| Registration Lead | Owns registration flow, ticketing setup, and check-in readiness. | Not implemented as a distinct role. |
+| Volunteer Lead | Future owner for volunteer coordination. | Not implemented. |
+| Check-In Team | Executes attendee validation and attendance flow. | Check-in page exists, but Check-In Team is not a distinct event role. |
+| Viewer | Read-only internal access. | `WorkspaceRole.viewer` exists in schema, but read-only behavior is not enforced in the workspace UI. |
+| Stakeholder Viewer | Read-only external/event-specific visibility when enabled. | Not implemented. |
 
 ## 12. Governance Model
 
-| Governance area | MVP approach |
-|---|---|
-| Organizer approval | Platform admin reviews organizer profile and approves activation. |
-| Event ownership | Every event must have one Event Owner. |
-| Accountability | Every readiness item must have an owner before it can be counted as operationally controlled. |
-| Auditability | Track who changed item status, owner, due date, and blocked state. |
-| Stakeholder visibility | Event Owner controls whether a downloadable report or strictly read-only view is enabled. |
-| Closure | Event can be marked closed after event date and final review. |
+| Governance area | Target MVP approach | Current implementation state |
+|---|---|---|
+| Organizer approval | Platform admin reviews organizer profile and approves activation. | Implemented, including pending/approved/rejected/suspended/revoked states and audit logs. |
+| Event ownership | Every event must have one Event Owner. | Partial. Events have `createdById` and optional `organizationId`; Event Owner is not modeled as a separate event role. |
+| Accountability | Every readiness item must have an owner before it can be counted as operationally controlled. | Partial. Unowned items are counted and surfaced, but unowned items are still valid and not blocked from scoring. |
+| Auditability | Track who changed item status, owner, due date, and blocked state. | Partial. Workspace creation, item creation/deletion, template application, report generation, and item status changes are audited. Owner, accountable, due date, notes, blocker flag, milestone, and closure changes are not all audited consistently. |
+| Stakeholder visibility | Event Owner controls whether a downloadable report or strictly read-only view is enabled. | Partial. Downloadable reports exist; live read-only stakeholder access and enable/disable controls do not. |
+| Closure | Event can be marked closed after event date and final review. | Partial. Events auto-transition to `completed` after end date/grace window; no explicit workspace closure review or locked readiness snapshot exists. |
 
 ## 13. Data Ownership Model
 
-| Data type | Owner | Access notes |
+| Data type | Owner | Current access notes |
 |---|---|---|
-| Organization profile | Organizer organization | Platform admins can review for approval and support. |
-| Event details | Organizer organization | Event roles can access according to permissions. |
-| Readiness items | Event workspace | Event Owner accountable; item owner responsible. |
-| RACI assignments | Event workspace | Visible to assigned event team members. |
-| Stakeholder reporting data | Event workspace | Share-safe subset controlled by Event Owner. |
-| Platform approval/audit records | Axon platform | Used for governance, support, and compliance. |
+| Organization profile | Organizer organization | Platform admins can review for approval and support; owner can view/update their own organization. |
+| Event details | Organizer organization | Platform admins and approved organization members can access via admin routes that perform event access checks. |
+| Readiness items | Event workspace | Stored per workspace/event. Current workspace endpoints need stronger event ownership enforcement. |
+| RACI assignments | Event workspace | Responsible and Accountable fields exist. Consulted/Informed fields and event-team visibility rules do not. |
+| Stakeholder reporting data | Event workspace | Share-safe PDFs are generated from limited Prisma selects. Live stakeholder data access does not exist. |
+| Platform approval/audit records | Axon platform | Used for governance, support, and compliance; audit coverage is partial for readiness field changes. |
 
 ## 14. Readiness Framework
 
@@ -285,38 +291,44 @@ Readiness Score = completed weighted points / applicable weighted points.
 
 Do not count Not Applicable items. Treat Blocked items as zero completed points and show a blocker warning beside the score.
 
-### MVP Weights
+### Implemented Weights
 
 | Item criticality | Weight |
 |---|---:|
-| Critical | 3 |
-| Important | 2 |
-| Standard | 1 |
+| Critical | 5 |
+| High | 3 |
+| Medium | 2 |
+| Low | 1 |
 
-### Readiness Thresholds
+The original product recommendation was Critical=3, Important=2, Standard=1. The current code uses the four-level priority model above. Product and engineering should either retain the implemented model or intentionally migrate the code and templates to the simpler three-level model.
+
+### Implemented Readiness Thresholds
 
 | Score | Status | Meaning |
 |---:|---|---|
-| 85-100 | On Track | Event appears operationally ready, assuming no critical blockers. |
-| 65-84 | Needs Attention | Event can proceed but has meaningful readiness gaps. |
-| 0-64 | At Risk | Event requires active intervention. |
-| Any score with critical blocker | Blocked | Executive attention required. |
+| 100 | Complete | All applicable weighted items are done. |
+| 70-99 | On Track | Good progress, assuming no force blocker. |
+| 40-69 | At Risk | Readiness gaps need active attention. |
+| 0-39 | Needs Attention | Significant gaps remain. |
+| Any score with a blocked critical item or blocked `isBlocker` item | Blocked | Executive attention required regardless of numeric score. |
 
 ### Executive Visibility
 
-Executives should see the score, status label, critical blockers, overdue milestones, top incomplete categories, and report-safe summaries. They should not see internal chatter, sensitive operational notes, sponsor contacts, or attendee-level personal data in the MVP.
+Executives currently see the score, status label, critical blockers, blocked item count, unowned count, overdue count, and upcoming milestones in the workspace/admin views. The share-safe report excludes internal notes, assignee PII, sponsor contacts, and attendee-level personal data. Top incomplete categories and owner completion summaries are not yet fully implemented as dashboard/report sections.
 
 ## 15. Stakeholder Visibility Framework
 
 ### Stakeholders Can See
+
+In the current system, stakeholders can only see what organizers manually send as downloaded PDFs:
 
 - Event name, date, venue, and status.
 - Readiness score and status.
 - Progress by readiness category.
 - Upcoming milestones.
 - Blocked item count and high-level blocker labels.
-- Last updated timestamp.
-- Post-event report sections that are explicitly marked share-safe.
+- Generated timestamp.
+- Privacy-safe post-event report sections in the external export.
 
 ### Stakeholders Cannot Access
 
@@ -328,20 +340,22 @@ Executives should see the score, status label, critical blockers, overdue milest
 - Editable checklist or RACI controls.
 - Other events in the organization.
 
+There is no live stakeholder portal today, so there is no external dashboard authentication, token revocation, or live read-only data surface.
+
 ## 16. Role & Permission Matrix
 
-| Capability | Event Owner | Event Manager | Lead roles | Check-In Team | Viewer | Stakeholder Viewer | Platform Admin |
-|---|---|---|---|---|---|---|---|
-| View event workspace | Yes | Yes | Yes | Limited | Yes | No | Yes |
-| Edit event workspace | Yes | Yes | Limited | No | No | No | Support-limited |
-| Manage team roles | Yes | Limited | No | No | No | No | Yes |
-| Manage readiness checklist | Yes | Yes | Assigned categories | No | No | No | Support-limited |
-| Update assigned items | Yes | Yes | Yes | Limited | No | No | No |
-| Mark item blocked | Yes | Yes | Yes | No | No | No | No |
-| View stakeholder dashboard/report | Yes | Yes | Yes | No | Yes | Yes | Yes |
-| Generate stakeholder report | Yes | Limited | No | No | No | No | No |
-| Generate post-event report | Yes | Yes | Finance/Registration leads | No | No | No | No |
-| Close event workspace | Yes | No | No | No | No | No | Support-limited |
+| Capability | Current implementation state |
+|---|---|
+| View event workspace | Available to authenticated platform admins and approved organizers through admin/workspace routes. Needs per-event ownership enforcement on workspace endpoints. |
+| Edit event workspace | Frontend currently sets `canEdit = true`; workspace edit endpoints do not enforce event role permissions. |
+| Manage team roles | Not implemented. `WorkspaceMember` exists in schema but no full UI/workflow. |
+| Manage readiness checklist | Implemented for users who can access the workspace route; role-specific limits are not enforced. |
+| Update assigned items | Implemented technically for accessible items; assigned-only restrictions are not enforced. |
+| Mark item blocked | Implemented through item status/blocker fields; role-specific restrictions are not enforced. |
+| View stakeholder dashboard/report | Downloadable report exists. Live stakeholder dashboard does not. |
+| Generate stakeholder report | Implemented for users with workspace route access. Event-owner-only generation is not enforced. |
+| Generate post-event report | API implemented; web UI currently gates on `complete` instead of enum value `completed`. |
+| Close event workspace | Not implemented. |
 
 ## 17. Process Workflows
 
@@ -356,14 +370,14 @@ Executives should see the score, status label, critical blockers, overdue milest
 | Volunteer Onboarding | No, Phase 2 | Volunteer Lead |
 | Checklist Management | Yes | Event Manager |
 | Task Assignment | Yes | Event Manager |
-| RACI Assignment | Yes | Event Owner/Event Manager |
-| Dependency Management | Partial | Event Manager |
+| RACI Assignment | Partial | Event Owner/Event Manager |
+| Dependency Management | Blocked status only | Event Manager |
 | Risk Management | No, Phase 2 | Operations Lead |
-| Stakeholder Reporting | Yes | Event Owner |
-| Executive Reporting | Yes | Event Owner |
-| Post-Event Reporting | Yes | Event Owner |
+| Stakeholder Reporting | PDF only | Event Owner |
+| Executive Reporting | PDF/dashboard summary only | Event Owner |
+| Post-Event Reporting | API implemented, UI gate needs fix | Event Owner |
 | Event Readiness Review | Yes | Event Owner/Event Manager |
-| Event Closure | Yes | Event Owner |
+| Event Closure | Partial | Event Owner |
 
 ## 18. Process Flow Diagrams
 
@@ -387,10 +401,10 @@ flowchart TD
 flowchart TD
   A["Organizer creates event"] --> B["Event record created"]
   B --> C["Event Workspace auto-created"]
-  C --> D["Apply default readiness template"]
-  D --> E["Assign Event Owner"]
-  E --> F["Invite event team"]
-  F --> G["Begin readiness tracking"]
+  C --> D["Seed default readiness items"]
+  D --> E["Creator added as workspace manager"]
+  E --> F["Begin readiness tracking"]
+  F --> G["Optional: replace items with checklist template"]
 ```
 
 ### Readiness Review
@@ -417,33 +431,30 @@ flowchart TD
 flowchart TD
   A["Checklist item created"] --> B["Assign responsible owner"]
   B --> C["Assign accountable lead"]
-  C --> D["Add consulted roles if needed"]
-  D --> E["Add informed stakeholders if needed"]
-  E --> F["Set due date and priority"]
-  F --> G["Track status until done or blocked"]
+  C --> D["Set due date and priority"]
+  D --> E["Track status until done or blocked"]
+  E --> F["Future: Consulted/Informed roles and grouped RACI summary"]
 ```
 
 ### Event Closure
 
 ```mermaid
 flowchart TD
-  A["Event date completed"] --> B["Event Owner starts closure review"]
-  B --> C["Confirm attendance and operational reports"]
-  C --> D["Review incomplete readiness items"]
-  D --> E["Capture lessons learned"]
-  E --> F["Close workspace"]
-  F --> G["Lock historical readiness snapshot"]
+  A["Event end date or grace window passes"] --> B["System marks event completed"]
+  B --> C["Post-event report API can generate closeout PDF"]
+  C --> D["Current gap: web UI gate must use completed status"]
+  D --> E["Future: closure review, lessons learned, locked readiness snapshot"]
 ```
 
 ## 19. Existing Axon Impact Analysis
 
 | Module | Current state | Future state | Business justification | Priority | Migration considerations |
 |---|---|---|---|---|---|
-| Event Creation | Basic event setup | Event creation automatically creates Event Workspace | Turns event setup into operational kickoff | Must Have | Existing events may need optional workspace creation. |
-| Organizer Dashboard | Registrations and payments | Adds readiness, milestones, blockers, tasks | Keeps organizers returning before event day | Must Have | Preserve current sales/payment KPIs. |
-| Admin Dashboard | Platform monitoring | Adds organizer approval and readiness monitoring | Enables governance and support intervention | Should Have for MVP admin ops | Avoid exposing sensitive event internals unnecessarily. |
-| Reporting | Registration reporting | Adds operational, readiness, and post-event report suite generation | Supports organizers, executives, and institutional buyers without exposing attendee-level personal data | Must Have | Start with summary-safe reports and keep PII inside the platform. |
-| User Management | Basic user management | Adds organization and event-based roles | Enables accountability and scoped access | Must Have | Existing users need default organization/event membership mapping. |
+| Event Creation | Event setup with ticket tiers, payment methods, agenda/FAQ/sponsor metadata, organization ownership, and workspace auto-create | Harden workspace creation observability and existing-event backfill | Turns event setup into operational kickoff | Must Have | Existing events may need optional workspace creation. |
+| Organizer Dashboard | Registrations, payments, event analytics, check-in, and workspace readiness views | Add event-team, role-based workspace access, and closure workflow | Keeps organizers returning before event day | Must Have | Preserve current sales/payment KPIs. |
+| Admin Dashboard | Platform monitoring, organizer approval, event analytics, registration review, readiness banner/workspace access | Add readiness portfolio health and support-limited visibility | Enables governance and support intervention | Should Have for MVP admin ops | Avoid exposing sensitive event internals unnecessarily. |
+| Reporting | Registration/payment analytics, readiness PDF, post-event PDF API, external export API | Fix post-event UI gate; add report history/snapshots and advanced reports | Supports organizers, executives, and institutional buyers without exposing attendee-level personal data | Must Have | Keep PII inside the platform and enforce no-PII query boundaries. |
+| User Management | Basic users, admin flag, organization owner membership, approved-organizer access | Add organization member invitations, event roles, workspace roles, and per-event permission checks | Enables accountability and scoped access | Must Have | Existing users need default organization/event membership mapping. |
 
 ## 20. Product Backlog
 
@@ -468,22 +479,46 @@ Backlog is separated into MVP, Phase 2, Phase 3, and Future Vision. Priorities u
 | Organizer Management | Organization profile | Must Have | ✅ Complete |
 | Organizer Management | Admin approval workflow | Must Have | ✅ Complete |
 | Event Workspace | Auto-create workspace from event | Must Have | ✅ Complete |
-| Event Workspace | Event overview dashboard | Must Have | ✅ Complete |
-| Event Workspace | Event team and timeline | Must Have | ✅ Complete |
+| Event Workspace | Event overview dashboard | Must Have | 🔶 Partial - readiness dashboard exists; true viewer/read-only role behavior is not wired yet |
+| Event Workspace | Event team and timeline | Must Have | 🔶 Partial - milestones/timeline exist; event team management is limited to creator/admin assignment pool |
 | Event Readiness Center | Checklist templates | Must Have | ✅ Complete |
 | Event Readiness Center | Item status and blocked tracking | Must Have | ✅ Complete |
 | Event Readiness Center | Readiness scoring | Must Have | ✅ Complete |
-| Task Ownership & RACI | Assign owner, accountable lead, due date | Must Have | ✅ Complete |
-| Task Ownership & RACI | RACI view | Should Have | ✅ Complete |
+| Task Ownership & RACI | Assign owner, accountable lead, due date | Must Have | 🔶 Partial - responsible/accountable and due date exist; assignable users are not full event-team members yet |
+| Task Ownership & RACI | RACI view | Should Have | 🔶 Partial - R and A exist inline; C/I and grouped RACI summary are deferred |
 | Stakeholder Reporting | Downloadable progress report | Must Have | ✅ Complete |
-| Stakeholder Reporting | Strictly read-only dashboard view | Could Have | 🔶 Partial |
-| Post-Event Report Suite | Executive summary report | Must Have | ✅ Complete |
-| Post-Event Report Suite | Sales and revenue report | Must Have | ✅ Complete |
-| Post-Event Report Suite | Registration report | Must Have | ✅ Complete |
-| Post-Event Report Suite | Attendance and check-in report | Must Have | ✅ Complete |
-| Post-Event Report Suite | Operations and blockers report | Must Have | ✅ Complete |
-| Post-Event Report Suite | Demographics report with aggregated charts only | Must Have | ✅ Complete |
-| Post-Event Report Suite | Privacy-safe shareable export | Must Have | ✅ Complete |
+| Stakeholder Reporting | Strictly read-only dashboard view | Could Have | ⬜ Not Yet Built - no tokenized/scoped live stakeholder route yet |
+| Post-Event Report Suite | Executive summary report | Must Have | 🔶 Partial - API PDF exists; web completion gate uses `complete` instead of `completed` |
+| Post-Event Report Suite | Sales and revenue report | Must Have | 🔶 Partial - API PDF exists; web completion gate uses `complete` instead of `completed` |
+| Post-Event Report Suite | Registration report | Must Have | 🔶 Partial - API PDF exists; web completion gate uses `complete` instead of `completed` |
+| Post-Event Report Suite | Attendance and check-in report | Must Have | 🔶 Partial - API PDF exists; web completion gate uses `complete` instead of `completed` |
+| Post-Event Report Suite | Operations and blockers report | Must Have | 🔶 Partial - API PDF exists; web completion gate uses `complete` instead of `completed` |
+| Post-Event Report Suite | Demographics report with aggregated charts only | Must Have | 🔶 Partial - API PDF exists; web completion gate uses `complete` instead of `completed` |
+| Post-Event Report Suite | Privacy-safe shareable export | Must Have | 🔶 Partial - external export exists in API; web completion gate uses `complete` instead of `completed` |
+
+### Current Implementation Audit
+
+Status was checked against the current repository implementation on 2026-06-27.
+
+| Area | Current state | Future work needed |
+|---|---|---|
+| Organizer registration | Done - `/become-organizer` form, `/organizations` API, `Organization` and `OrganizationMember` models, validation DTOs, audit/email hooks. | Add richer KYC document upload only if business policy requires it. |
+| Organizer approval workflow | Done - admin organizer queue, approve/reject/suspend/revoke/reinstate API actions, approval actor/timestamp fields, audit logs. | Tighten reinstatement policy and expose clearer reason history if needed. |
+| Organization tenant foundation | Partial - events can belong to an organization; non-admin event lists are scoped to approved organization membership. | Add full multi-organization switching, member invitations, role management UI, and tenant-aware workspace guards. |
+| Event workspace lifecycle | Done - `EventsService.create` calls `ensureWorkspace`; manual "Enable Workspace" path exists; default readiness items are seeded. | Consider surfacing failures from fire-and-forget workspace creation through admin health checks. |
+| Workspace overview | Partial - event detail page and workspace page show readiness score, blocker counts, unowned/overdue counts, and milestones. | Replace `canEdit = true` and broad approved-organizer workspace access with event-role based read/edit behavior. |
+| Event team | Partial - `WorkspaceMember` model exists and assignees can be selected from admins plus event creator. | Build event team invite/member UI, workspace role editing, and assignment from organization/event members. |
+| Timeline/milestones | Done - workspace milestones can be created, marked done/upcoming, deleted, and included in summaries/reports. | Add automatic overdue status updates and calendar-style timeline if needed. |
+| Checklist templates | Done - conference, concert, community, and general templates are implemented and can replace workspace items. | Align template categories with the product package's canonical readiness categories if product wants stricter consistency. |
+| Checklist status/blockers | Done - items support `open`, `in_progress`, `done`, `blocked`, `not_applicable`, blocker flag, notes, due dates, and blocked lists. | Rename `open` to "Not Started" at the API/type layer only if consistency matters outside UI labels. |
+| Readiness scoring | Done - weighted score, non-applicable exclusion, critical/blocker override, and dashboard labels exist. | Current document now matches the implemented four-level scoring model. |
+| Ownership and RACI | Partial - items support responsible user, accountable user, due date, unowned flag, and overdue flag. | Add Consulted/Informed fields only if still desired; build grouped RACI summary and enforce event-team membership. |
+| Stakeholder progress report | Done - share-safe PDF endpoint excludes attendee PII, internal notes, and assignee PII; UI download button exists. | Add report snapshot history if recurring stakeholder updates matter. |
+| Live stakeholder read-only dashboard | None - no public/tokenized stakeholder route, scoped auth guard, token model, invite flow, or revocation mechanism found. | Implement `StakeholderAccessToken`, scoped read-only API, stakeholder route, expiry/revocation, and audit logging. |
+| Post-event report suite usable flow | Partial - API PDF generator includes executive summary, revenue, registration, attendance/check-in, operations/blockers, and demographics. | Fix web status gate from `complete` to `completed`; add end-to-end verification that completed events can download both internal and external PDFs. |
+| Privacy-safe post-event export usable flow | Partial - API external export suppresses small demographic groups and avoids attendee names/emails/phones/QR tokens. | Same UI gate fix as post-event report; add tests around small cohort suppression and no-PII query boundaries. |
+| Event closure | Partial - events auto-complete after end date/grace window; no explicit workspace closure workflow or locked readiness snapshot exists. | Add close workspace action, closure review, lessons learned, and immutable readiness snapshot. |
+| Auditability | Partial - organizer and workspace create/status/delete/template/report actions are audited. | Audit owner, accountable, due date, blocker flag, milestone create/update/delete, and workspace closure changes consistently. |
 
 ### Recommended Report Coverage Model
 
@@ -494,9 +529,9 @@ Backlog is separated into MVP, Phase 2, Phase 3, and Future Vision. Priorities u
 | Registration Report | Event Owner, registration lead | Registration totals, registration timeline, approval or payment status mix, historical registration curve | Aggregated counts only | MVP |
 | Attendance and Check-In Report | Event Owner, operations lead | Attendance totals, check-in rate, no-show estimate, check-in timing distribution | Aggregated counts only | MVP |
 | Operations and Blockers Report | Event Owner, operations lead, executives | Final blockers, unresolved items, incident summary, overdue work, lessons captured | No sensitive internal notes in external export | MVP |
-| Demographics Report | Event Owner, executives, institutional buyers | Aggregated charts for age band, geography band, ticket type mix, other approved segmentation | Suppress or group tiny cohorts | MVP |
+| Demographics Report | Event Owner, executives, institutional buyers | Current API covers aggregated company/organization and job-title/function groups; ticket mix is covered in sales/revenue. Age and geography charts are not currently collected/generated. | Suppress or group tiny cohorts in external export | MVP partial |
 | Readiness and Delivery Report | Event Owner, PMO-style internal leads | Final readiness score, category completion, milestone delivery, owner completion summary | Internal or share-safe mode | Phase 2 |
-| Marketing and Conversion Report | Event Owner, marketing lead | Registration source mix, campaign conversion, promo code performance, traffic-to-registration funnel | No attendee-level journey export | Phase 2 |
+| Marketing and Conversion Report | Event Owner, marketing lead | Admin funnel analytics currently exist; formal downloadable marketing/conversion report with campaign and promo-code attribution is not implemented. | No attendee-level journey export | Phase 2 partial foundation |
 | Stakeholder Delivery Report | Event Owner, external partners | Deliverables completed, reporting commitments met, visibility assets delivered | No sponsor contacts or relationship notes | Phase 2 |
 | Historical Event Comparison Report | Organization Owner, leadership | Comparison versus prior events for registrations, attendance, readiness, blockers, and delivery quality | Cross-event views must stay tenant-safe and aggregated | Phase 3 |
 
@@ -554,7 +589,7 @@ Dependencies: Event creation, organizer approval.
 
 Priority: Must Have.
 
-#### Story EW-02: Event Overview Dashboard `✅ Complete`
+#### Story EW-02: Event Overview Dashboard `🔶 Partial - readiness summary implemented; role-based read-only behavior still needs wiring`
 
 As an Event Manager, I want to see the event's readiness summary, so that I know what needs attention first.
 
@@ -622,7 +657,7 @@ Priority: Must Have.
 
 ### MVP-E4 Task Ownership & RACI
 
-#### Story TR-01: Assign Ownership And Due Dates `✅ Complete`
+#### Story TR-01: Assign Ownership And Due Dates `🔶 Partial - R/A and due dates implemented; event-team assignment model still limited`
 
 As an Event Manager, I want to assign owners and due dates to readiness items, so that every item has accountable follow-through.
 
@@ -638,7 +673,7 @@ Dependencies: Event team roles.
 
 Priority: Must Have.
 
-#### Story TR-02: Lightweight RACI `✅ Complete — R and A implemented; C and I intentionally deferred per MVP scope`
+#### Story TR-02: Lightweight RACI `🔶 Partial - R and A implemented; C/I and grouped RACI summary deferred`
 
 As an Event Owner, I want to identify responsible and accountable people for key items, so that ownership is clear.
 
@@ -672,7 +707,7 @@ Dependencies: Readiness score, event overview.
 
 Priority: Must Have.
 
-#### Story SD-02: Optional Strictly Read-Only Stakeholder View `🔶 Partial — PDF download (manual share) implemented; live token-based view deferred. Requires: StakeholderToken model, scoped auth guard, invite flow, revocation mechanism.`
+#### Story SD-02: Optional Strictly Read-Only Stakeholder View `⬜ Not Yet Built - PDF download is covered by SD-01; live token-based stakeholder view is not implemented. Requires: StakeholderToken model, scoped auth guard, invite flow, revocation mechanism.`
 
 As an Event Owner, I want any stakeholder-facing live view to be strictly read-only, so that external audiences can never change operational data.
 
@@ -690,7 +725,7 @@ Priority: Could Have.
 
 ### MVP-E6 Post-Event Report Suite
 
-#### Story PR-01: Generate Post-Event Report Suite `✅ Complete`
+#### Story PR-01: Generate Post-Event Report Suite `🔶 Partial - API report generator implemented; web download gate uses complete instead of completed`
 
 As an Event Owner, I want Axon to generate a post-event report suite, so that I can close the event with a professional summary without exporting raw personal data.
 
@@ -708,7 +743,7 @@ Dependencies: Ticketing data, registration data, readiness data, reporting layer
 
 Priority: Must Have.
 
-#### Story PR-02: Privacy-Safe External Report Export `✅ Complete`
+#### Story PR-02: Privacy-Safe External Report Export `🔶 Partial - external API export implemented; web download gate uses complete instead of completed`
 
 As an Event Owner, I want a privacy-safe export version of the post-event report suite, so that I can share outcomes externally without leaking protected or commercially sensitive data.
 
@@ -740,6 +775,15 @@ The MVP is acceptable when:
 - Organizers can generate a share-safe stakeholder progress report without exposing sensitive internal data.
 - Axon can generate a post-event report suite with executive summary, sales, registration, attendance, blockers, and demographic graphs without exposing attendee-level personal data.
 - Pilot organizers can reduce or retire their event readiness spreadsheet for at least one event.
+
+Current acceptance gaps before declaring the full MVP complete:
+
+- Replace broad approved-organizer workspace access and the `canEdit = true` frontend shortcut with organization/event/workspace role checks.
+- Build event team membership and assignment beyond platform admins plus event creator.
+- Decide whether to align code to the scoring spec or update the product spec to match the implemented scoring model.
+- Fix post-event report web gating to use the `completed` event status.
+- Add live stakeholder read-only access only if the Could Have item remains desired for MVP.
+- Add explicit workspace closure and locked readiness snapshot if closure remains a Must Have governance item.
 
 ## 25. Phase 2 Backlog: Event Operations
 
@@ -1059,31 +1103,41 @@ Priority: Future.
 
 ## 31. Recommended MVP Scope
 
-Build:
+Already built or partially built:
 
 - Organizer registration and approval.
 - Organization profile.
 - Automatic Event Workspace creation.
-- Event overview, team, timeline, and readiness dashboard.
+- Event overview and readiness dashboard.
+- Milestones and checklist due dates.
 - Readiness checklist templates.
 - Checklist statuses, due dates, owners, blocked flags, Not Applicable.
 - Weighted readiness score with critical blocker override.
-- Lightweight RACI.
+- Lightweight RACI for Responsible and Accountable only.
 - Downloadable stakeholder progress report.
-- Post-event report suite generation.
-- Basic governance and audit trail for approval and readiness status changes.
+- Post-event report suite API generation.
+- Basic governance and audit trail for organizer approval and selected readiness actions.
+
+Still required before declaring MVP complete:
+
+- Event-scoped workspace authorization on all workspace endpoints.
+- Real event team membership, invitations, and assignment from organization/event members.
+- Frontend role checks instead of `canEdit = true`.
+- Post-event report UI gate fix from `complete` to `completed`.
+- Explicit workspace closure and locked readiness snapshot if closure remains in MVP scope.
+- Audit coverage for owner/accountable/due date/blocker/milestone/closure changes.
 
 The MVP post-event report suite should include:
 
 | Report | Required coverage |
 |---|---|
-| Executive Summary Report | Event outcome, final readiness state, top wins, top issues, and closeout summary |
-| Sales and Revenue Report | Sales totals, revenue totals, ticket mix, and commercial trend summary |
-| Registration Report | Registration totals, registration timeline, and historical registration trend |
-| Attendance and Check-In Report | Attendance totals, check-in rate, and event-day arrival pattern summary |
-| Operations and Blockers Report | Final blockers, unresolved items, delays, incidents, and lessons captured |
-| Demographics Report | Aggregated charts only; no attendee-level personal data |
-| Privacy-Safe External Export | Shareable version with no attendee PII, no sponsor contacts, and small-group suppression where needed |
+| Executive Summary Report | Implemented in API: event outcome, final readiness state, top wins, top issues. Closeout/lessons workflow is not implemented. |
+| Sales and Revenue Report | Implemented in API: sales totals, revenue totals, ticket mix, payment method summary. |
+| Registration Report | Implemented in API: registration totals, status mix, daily registration timeline. |
+| Attendance and Check-In Report | Implemented in API: attendance totals, check-in rate, no-show count, event-day arrival pattern. |
+| Operations and Blockers Report | Implemented in API: final readiness, completed item count, unresolved blockers, blocked items, milestone completion. Incident and lessons-captured fields are not implemented. |
+| Demographics Report | Implemented in API for aggregated company/organization and job-title/function groups. Age/geography charts are not implemented. |
+| Privacy-Safe External Export | Implemented in API with no attendee PII and small-group suppression; web UI gate needs the `completed` status fix. |
 
 Do not build:
 
@@ -1110,28 +1164,37 @@ Status key: ✅ Complete · 🔶 Partial · ⬜ Not Yet Built
 | Epic | Story | Status | Notes |
 |---|---|---|---|
 | MVP-E1 Organizer Management | OM-01: Organizer Registration | ✅ Complete | `POST /organizations` — registration creates organization with pending approval status |
-| MVP-E1 Organizer Management | OM-02: Organizer Approval | ✅ Complete | `PATCH /admin/organizers/:id/approve` and `reject` — admin approval with audit trail |
+| MVP-E1 Organizer Management | OM-02: Organizer Approval | ✅ Complete | `PATCH /admin/organizers/:id/approve`, `reject`, `suspend`, `revoke`, and `reinstate` with audit trail |
 | MVP-E2 Event Workspace | EW-01: Auto-Create Event Workspace | ✅ Complete | `ensureWorkspace` idempotent call on event creation; workspace auto-provisioned |
-| MVP-E2 Event Workspace | EW-02: Event Overview Dashboard | ✅ Complete | Readiness summary with score, blockers, overdue count, milestones, unowned count |
+| MVP-E2 Event Workspace | EW-02: Event Overview Dashboard | 🔶 Partial | Readiness summary exists with score, blockers, overdue count, milestones, and unowned count. Missing role-based read-only behavior and event-scoped workspace authorization. |
 | MVP-E3 Event Readiness Center | RC-01: Apply Checklist Template | ✅ Complete | Multiple categorised templates; replaces all items atomically; Not Applicable excluded from score |
 | MVP-E3 Event Readiness Center | RC-02: Track Checklist Status And Blockers | ✅ Complete | Five statuses (Not Started, In Progress, Blocked, Done, N/A); isBlocker flag; critical blocker panel |
-| MVP-E3 Event Readiness Center | RC-03: Readiness Score | ✅ Complete | Weighted score (critical=5, high=3, medium=2, low=1); force-Blocked override for critical/isBlocker items; four threshold labels |
-| MVP-E4 Task Ownership & RACI | TR-01: Assign Ownership And Due Dates | ✅ Complete | `assignedToId`, `dueDate`; overdue items endpoint; unowned count in summary |
-| MVP-E4 Task Ownership & RACI | TR-02: Lightweight RACI | ✅ Complete | Responsible (`assignedToId`) and Accountable (`accountableId`) fields; C and I intentionally deferred per MVP scope |
+| MVP-E3 Event Readiness Center | RC-03: Readiness Score | ✅ Complete | Weighted score (critical=5, high=3, medium=2, low=1); force-Blocked override for blocked critical/isBlocker items; implemented thresholds are Complete=100, On Track>=70, At Risk>=40, Needs Attention<40. |
+| MVP-E4 Task Ownership & RACI | TR-01: Assign Ownership And Due Dates | 🔶 Partial | `assignedToId`, `accountableId`, and `dueDate` exist; overdue and unowned counts exist. Assignment pool is limited and not backed by full event-team membership. |
+| MVP-E4 Task Ownership & RACI | TR-02: Lightweight RACI | 🔶 Partial | Responsible (`assignedToId`) and Accountable (`accountableId`) fields exist. Consulted/Informed and grouped RACI summary are not implemented. |
 | MVP-E5 Stakeholder Reporting | SD-01: Downloadable Stakeholder Progress Report | ✅ Complete | Privacy-safe PDF via `GET /workspace/report`; privacy enforced at Prisma select layer; audit logged |
-| MVP-E5 Stakeholder Reporting | SD-02: Strictly Read-Only Stakeholder View | 🔶 Partial | Manual share via PDF download works. Live stakeholder URL (token-based, scoped auth, revocable) deferred — requires new auth subsystem: `StakeholderToken` model, scoped guard, invite flow, revocation |
-| MVP-E6 Post-Event Report Suite | PR-01: Generate Post-Event Report Suite | ✅ Complete | Six-section PDF: Executive Summary, Sales & Revenue, Registration, Attendance & Check-In, Operations & Blockers, Demographics — all aggregated, no PII |
-| MVP-E6 Post-Event Report Suite | PR-02: Privacy-Safe External Report Export | ✅ Complete | Same endpoint, `?export=external` — demographics small-group suppression (threshold < 5), stricter footer notice, audit logged as `post_event_external` |
+| MVP-E5 Stakeholder Reporting | SD-02: Strictly Read-Only Stakeholder View | ⬜ Not Yet Built | Manual share via PDF belongs to SD-01. Live stakeholder URL, token auth, scoped read-only endpoint, and revocation are not implemented. |
+| MVP-E6 Post-Event Report Suite | PR-01: Generate Post-Event Report Suite | 🔶 Partial | API generates a six-section PDF. Web button currently checks `complete` instead of enum value `completed`, so completed-event downloads may stay disabled in UI. |
+| MVP-E6 Post-Event Report Suite | PR-02: Privacy-Safe External Report Export | 🔶 Partial | API supports `?export=external` with small-group suppression and no attendee PII. Same web status-gate issue remains. |
 
 ### Phase 2+ Status
 
-All Phase 2 (Volunteer Management, Risk & Dependency Management, Advanced Reporting), Phase 3 (Operational Intelligence), and Future Vision (AI, Predictive, Forecasting) stories are **⬜ Not Yet Built** and remain in the backlog.
+| Area | Status | Notes |
+|---|---|---|
+| Volunteer management | ⬜ Not Yet Built | No volunteer roster, shifts, assignments, or volunteer attendance model/UI. |
+| Risk register | ⬜ Not Yet Built | No risk model, risk dashboard, severity, owner, or resolution workflow. |
+| Dependency graph | ⬜ Not Yet Built | Only item `blocked` status exists; no item-to-item dependency model. |
+| Advanced readiness/delivery reports | 🔶 Partial | Readiness PDF and post-event operations section exist; no report history, closure summary, owner completion summary, or snapshot archive. |
+| Marketing/conversion reporting | 🔶 Partial | Admin registration funnel analytics exist; downloadable marketing/conversion report, campaign source mix, promo code reporting, and attribution are not implemented. |
+| Stakeholder delivery report | ⬜ Not Yet Built | No stakeholder commitments/deliverables model or report. |
+| Historical analytics and benchmarks | ⬜ Not Yet Built | No closed-workspace snapshots, cross-event readiness trends, benchmark cohorts, or recurring gap insights. |
+| AI, predictive readiness, performance forecasting | ⬜ Not Yet Built | No recommendation, prediction, benchmark, or model-governance subsystem. |
 
-### SD-02 Partial Development Context
+### Permission and Security Gaps
 
-SD-02's safety contract (stakeholder-facing view is strictly read-only) is partially satisfied: the PDF download path enforces read-only by design — there are no editable controls and no live data connection. The gap is that a stakeholder must receive the PDF manually rather than accessing a live URL.
+The current workspace implementation should not be described as permission-complete. `AdminGuard` allows platform admins and approved organizers. Core admin event routes often call `assertEventAccess`, but workspace routes do not consistently enforce that the requesting approved organizer belongs to the event's organization. The frontend workspace page also sets `canEdit = true`. These are product and security completion gaps for MVP-grade event-scoped workspace permissions.
 
-Full SD-02 completion requires building a separate auth subsystem:
+### SD-02 Required Components
 
 | Component | Status |
 |---|---|
