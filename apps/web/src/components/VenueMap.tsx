@@ -39,10 +39,13 @@ export default function VenueMap({ mapSrc, venue, address, city, latitude, longi
     ? `https://www.google.com/maps/search/?api=1&query=${latitude},${longitude}`
     : `https://www.google.com/maps/search/?api=1&query=${mapsQuery}`;
 
-  // Google Maps embed URL — no API key required for iframe embed.
-  // &z=15 gives a close-enough zoom to clearly show the venue block.
+  // Google Maps Embed API (production) — free, unlimited, no per-load charge.
+  // Requires NEXT_PUBLIC_GOOGLE_MAPS_API_KEY. Falls back to OSM when key is absent (local dev).
+  const googleMapsKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY ?? null;
   const embedUrl = hasCoords
-    ? `https://maps.google.com/maps?q=${latitude},${longitude}&z=15&output=embed`
+    ? googleMapsKey
+      ? `https://www.google.com/maps/embed/v1/place?key=${googleMapsKey}&q=${latitude},${longitude}&zoom=15`
+      : `https://www.openstreetmap.org/export/embed.html?bbox=${longitude! - 0.004},${latitude! - 0.004},${longitude! + 0.004},${latitude! + 0.004}&layer=mapnik&marker=${latitude},${longitude}`
     : null;
 
   return (
