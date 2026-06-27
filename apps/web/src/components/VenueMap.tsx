@@ -39,10 +39,13 @@ export default function VenueMap({ mapSrc, venue, address, city, latitude, longi
     ? `https://www.google.com/maps/search/?api=1&query=${latitude},${longitude}`
     : `https://www.google.com/maps/search/?api=1&query=${mapsQuery}`;
 
-  // OpenStreetMap embed — no API key required, CSP-friendly, always embeddable.
-  // bbox: ±0.004° (~440 m) around the pin gives a tight neighbourhood view.
+  // Google Maps Embed API (production) — free, unlimited, no per-load charge.
+  // Requires NEXT_PUBLIC_GOOGLE_MAPS_API_KEY. Falls back to OSM when key is absent (local dev).
+  const googleMapsKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY ?? null;
   const embedUrl = hasCoords
-    ? `https://www.openstreetmap.org/export/embed.html?bbox=${longitude! - 0.004},${latitude! - 0.004},${longitude! + 0.004},${latitude! + 0.004}&layer=mapnik&marker=${latitude},${longitude}`
+    ? googleMapsKey
+      ? `https://www.google.com/maps/embed/v1/place?key=${googleMapsKey}&q=${latitude},${longitude}&zoom=15`
+      : `https://www.openstreetmap.org/export/embed.html?bbox=${longitude! - 0.004},${latitude! - 0.004},${longitude! + 0.004},${latitude! + 0.004}&layer=mapnik&marker=${latitude},${longitude}`
     : null;
 
   return (
