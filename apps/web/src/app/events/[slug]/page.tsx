@@ -45,6 +45,7 @@ interface Event {
   agenda?: AgendaItem[] | null;
   sponsors?: Sponsor[] | null;
   faqs?: Faq[] | null;
+  organizerName?: string | null;
   // Payment
   allowManualPayment?: boolean;
   bankName?: string | null;
@@ -189,6 +190,8 @@ export default async function EventPage({ params, searchParams }: { params: { sl
                 venue={event.venue}
                 address={event.address}
                 city={event.city}
+                latitude={event.latitude}
+                longitude={event.longitude}
               />
             </div>
 
@@ -264,6 +267,12 @@ export default async function EventPage({ params, searchParams }: { params: { sl
           <div className="mt-8 lg:mt-0 space-y-4">
             {/* Date & venue card */}
             <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+              {event.organizerName && (
+                <div className="mb-4 pb-4 border-b border-gray-100">
+                  <p className="text-gray-400 uppercase tracking-wide text-xs font-medium mb-1">Organizer</p>
+                  <p className="font-semibold text-gray-900 text-sm">{event.organizerName}</p>
+                </div>
+              )}
               <div className="grid grid-cols-2 gap-x-6 gap-y-4 text-sm">
                 <div>
                   <p className="text-gray-400 uppercase tracking-wide text-xs font-medium">Date</p>

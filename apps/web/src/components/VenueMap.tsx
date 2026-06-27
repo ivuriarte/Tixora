@@ -1,14 +1,16 @@
 'use client';
 
 /**
- * VenueMap — static Mapbox map for an event venue.
+ * VenueMap — event venue map component.
  *
- * Renders a click-through static map image served by /api/map-image (server-side
- * Mapbox proxy, token never exposed to the browser).  Clicking the map or the
- * "Get directions" button opens Google Maps in a new tab.
+ * When latitude + longitude are provided: renders an interactive Google Maps
+ * iframe (no API key required). The iframe is lazy-loaded so it never blocks
+ * the initial paint.
  *
- * On image load failure (token not configured, venue not found, network error)
- * the component gracefully degrades to a plain text directions link.
+ * When coordinates are absent: falls back to the signed Mapbox static image
+ * served by /api/map-image.
+ *
+ * When both fail: degrades to a plain text "View on Google Maps" link.
  */
 
 import Image from 'next/image';
@@ -20,21 +22,46 @@ interface Props {
   venue: string;
   address?: string | null;
   city: string;
+  latitude?: number | null;
+  longitude?: number | null;
 }
 
-export default function VenueMap({ mapSrc, venue, address, city }: Props) {
+export default function VenueMap({ mapSrc, venue, address, city, latitude, longitude }: Props) {
   const [imgError, setImgError] = useState(false);
+
+  const hasCoords = latitude != null && longitude != null;
 
   // Deep-link query that works for both Google Maps web and the native Maps apps.
   const mapsQuery = encodeURIComponent(
     [venue, address, city, 'Philippines'].filter(Boolean).join(', '),
   );
-  const googleMapsUrl = `https://www.google.com/maps/search/?api=1&query=${mapsQuery}`;
+  const googleMapsUrl = hasCoords
+    ? `https://www.google.com/maps/search/?api=1&query=${latitude},${longitude}`
+    : `https://www.google.com/maps/search/?api=1&query=${mapsQuery}`;
+
+  // Google Maps embed URL — no API key required for iframe embed.
+  // &z=15 gives a close-enough zoom to clearly show the venue block.
+  const embedUrl = hasCoords
+    ? `https://maps.google.com/maps?q=${latitude},${longitude}&z=15&output=embed`
+    : null;
 
   return (
     <div className="rounded-2xl overflow-hidden border border-gray-100 shadow-sm bg-white">
-      {/* Map image — or text fallback on error */}
-      {!imgError ? (
+
+      {/* ── Interactive Google Maps iframe (when coordinates are known) ── */}
+      {hasCoords && embedUrl ? (
+        <div className="relative aspect-[2/1] bg-gray-100">
+          <iframe
+            src={embedUrl}
+            title={`Map showing ${venue}, ${city}`}
+            loading="lazy"
+            referrerPolicy="no-referrer-when-downgrade"
+            className="absolute inset-0 w-full h-full border-0"
+            aria-label={`Interactive map for ${venue}`}
+          />
+        </div>
+      ) : !imgError ? (
+        /* ── Static Mapbox image fallback (when no coordinates) ── */
         <a
           href={googleMapsUrl}
           target="_blank"
@@ -49,52 +76,31 @@ export default function VenueMap({ mapSrc, venue, address, city }: Props) {
             className="object-cover transition-opacity duration-300"
             sizes="(min-width: 1024px) 640px, 100vw"
             onError={() => setImgError(true)}
-            // Skip Next.js image optimizer — our route handler already returns an
-            // appropriately-sized, cached Mapbox retina PNG.
             unoptimized
           />
-          {/* "Open in Maps" hint badge */}
           <div className="absolute bottom-2 right-2 bg-white/90 backdrop-blur-sm text-xs font-medium text-gray-700 px-2 py-1 rounded-md shadow-sm flex items-center gap-1 pointer-events-none select-none">
-            <svg
-              className="w-3.5 h-3.5 text-primary"
-              fill="currentColor"
-              viewBox="0 0 20 20"
-              aria-hidden="true"
-            >
-              <path
-                fillRule="evenodd"
-                d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z"
-                clipRule="evenodd"
-              />
+            <svg className="w-3.5 h-3.5 text-primary" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true">
+              <path fillRule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clipRule="evenodd" />
             </svg>
             Open in Maps
           </div>
         </a>
       ) : (
-        /* Fallback: plain directions link shown when map cannot load */
+        /* ── Text fallback when static image also fails ── */
         <a
           href={googleMapsUrl}
           target="_blank"
           rel="noopener noreferrer"
           className="flex items-center gap-2 px-4 py-5 text-sm font-medium text-primary hover:text-purple-800 transition-colors"
         >
-          <svg
-            className="w-4 h-4 shrink-0"
-            fill="currentColor"
-            viewBox="0 0 20 20"
-            aria-hidden="true"
-          >
-            <path
-              fillRule="evenodd"
-              d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z"
-              clipRule="evenodd"
-            />
+          <svg className="w-4 h-4 shrink-0" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true">
+            <path fillRule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clipRule="evenodd" />
           </svg>
           View {venue} on Google Maps →
         </a>
       )}
 
-      {/* Venue name + address footer */}
+      {/* ── Venue name + address + directions footer ── */}
       <div className="px-4 py-3 flex items-start justify-between gap-4 border-t border-gray-50">
         <div className="min-w-0">
           <p className="text-sm font-semibold text-gray-900 truncate">{venue}</p>
@@ -110,19 +116,8 @@ export default function VenueMap({ mapSrc, venue, address, city }: Props) {
           className="shrink-0 text-xs font-semibold text-primary hover:text-purple-800 transition-colors flex items-center gap-1 mt-0.5 whitespace-nowrap"
         >
           Get directions
-          <svg
-            className="w-3.5 h-3.5"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-            aria-hidden="true"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"
-            />
+          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
           </svg>
         </a>
       </div>

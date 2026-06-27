@@ -116,6 +116,7 @@ export class EventsService {
           where: { isVisible: true },
           orderBy: { sortOrder: 'asc' },
         },
+        organization: { select: { id: true, name: true } },
       },
     });
     if (!event) throw new NotFoundException('Event not found');
@@ -169,6 +170,7 @@ export class EventsService {
       latitude: event.latitude ? Number(event.latitude) : null,
       longitude: event.longitude ? Number(event.longitude) : null,
       tiers: tiersWithAvailable,
+      organizerName: event.organization?.name ?? null,
       createdAt: event.createdAt.toISOString(),
     };
   }

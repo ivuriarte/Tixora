@@ -219,24 +219,57 @@ export default function RegistrationDetailPage() {
 
         {/* Attendees */}
         <div className="bg-white border border-gray-200 rounded-2xl p-5">
-          <h2 className="font-semibold text-gray-900 mb-4">Attendees</h2>
-          <div className="divide-y divide-gray-100">
-            {reg.attendees.map((att, i) => (
-              <div key={att.id} className="py-3 text-sm">
-                <div className="flex items-center gap-2">
-                  <span className="font-medium text-gray-900">
-                    {att.firstName} {att.lastName}
-                  </span>
-                  {att.isLead && (
-                    <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full">
-                      Lead
-                    </span>
-                  )}
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="font-semibold text-gray-900">Attendees</h2>
+            <span className="text-xs font-medium text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">
+              {reg.attendees.length} {reg.attendees.length === 1 ? 'person' : 'people'}
+            </span>
+          </div>
+          <div className="space-y-3">
+            {reg.attendees.map((att, i) => {
+              const qrStatus = att.checkedInAt
+                ? { label: 'Checked In', cls: 'bg-green-100 text-green-700' }
+                : att.hasQr
+                ? { label: 'QR Ready', cls: 'bg-blue-100 text-blue-700' }
+                : { label: 'QR Pending', cls: 'bg-gray-100 text-gray-500' };
+
+              return (
+                <div key={att.id} className="rounded-xl border border-gray-100 bg-gray-50 p-3 text-sm">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className="shrink-0 w-6 h-6 rounded-full bg-primary/10 text-primary text-xs font-bold flex items-center justify-center">
+                        {i + 1}
+                      </span>
+                      <span className="font-semibold text-gray-900 truncate">
+                        {att.firstName} {att.lastName}
+                      </span>
+                      {att.isLead && (
+                        <span className="shrink-0 text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full">
+                          Lead
+                        </span>
+                      )}
+                    </div>
+                    {reg.status === 'verified' && (
+                      <span className={`shrink-0 text-xs font-medium px-2 py-0.5 rounded-full ${qrStatus.cls}`}>
+                        {qrStatus.label}
+                      </span>
+                    )}
+                  </div>
+                  <div className="mt-2 pl-8 space-y-0.5 text-xs text-gray-500">
+                    <p>{att.email}</p>
+                    {att.phone && <p>{att.phone}</p>}
+                    {reg.tierName && (
+                      <p className="font-medium text-gray-700">{reg.tierName}</p>
+                    )}
+                    {att.checkedInAt && (
+                      <p className="text-green-600 font-medium">
+                        Checked in {formatManila(new Date(att.checkedInAt))}
+                      </p>
+                    )}
+                  </div>
                 </div>
-                <p className="text-gray-500 mt-0.5">{att.email}</p>
-                {att.phone && <p className="text-gray-400">{att.phone}</p>}
-              </div>
-            ))}
+              );
+            })}
           </div>
           <div className="mt-4 flex items-start gap-2 rounded-lg bg-amber-50 border border-amber-200 px-3 py-2 text-xs text-amber-800">
             <svg className="w-4 h-4 mt-0.5 shrink-0 text-amber-600" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
