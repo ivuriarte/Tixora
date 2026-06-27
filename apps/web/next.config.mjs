@@ -46,7 +46,7 @@ const nextConfig = {
               "connect-src 'self' https://api.axontickets.online https://api-uat.axontickets.online https://*.vercel.app https://*.sentry.io https://*.ingest.sentry.io https://vercel.live https://connect.facebook.net https://www.facebook.com wss://ws-us3.pusher.com",
               // Sentry Replay and Vercel toolbar use blob: workers
               "worker-src 'self' blob:",
-              "frame-src https://hcaptcha.com https://*.hcaptcha.com https://vercel.live",
+              "frame-src https://hcaptcha.com https://*.hcaptcha.com https://vercel.live https://www.openstreetmap.org",
               "object-src 'none'",
               "base-uri 'self'",
             ].join('; '),

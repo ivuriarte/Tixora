@@ -39,10 +39,10 @@ export default function VenueMap({ mapSrc, venue, address, city, latitude, longi
     ? `https://www.google.com/maps/search/?api=1&query=${latitude},${longitude}`
     : `https://www.google.com/maps/search/?api=1&query=${mapsQuery}`;
 
-  // Google Maps embed URL — no API key required for iframe embed.
-  // &z=15 gives a close-enough zoom to clearly show the venue block.
+  // OpenStreetMap embed — no API key required, CSP-friendly, always embeddable.
+  // bbox: ±0.004° (~440 m) around the pin gives a tight neighbourhood view.
   const embedUrl = hasCoords
-    ? `https://maps.google.com/maps?q=${latitude},${longitude}&z=15&output=embed`
+    ? `https://www.openstreetmap.org/export/embed.html?bbox=${longitude! - 0.004},${latitude! - 0.004},${longitude! + 0.004},${latitude! + 0.004}&layer=mapnik&marker=${latitude},${longitude}`
     : null;
 
   return (
