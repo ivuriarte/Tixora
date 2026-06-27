@@ -94,8 +94,9 @@ export default function AdminCheckinPage() {
       clearTimeout(popupTimerRef.current);
       popupTimerRef.current = null;
     }
-    // Reset scan lock whenever a new popup opens so state is consistent
-    scanLockRef.current = false;
+    // Do NOT release scanLockRef here — the lock must stay held for the entire
+    // duration the popup is visible so the camera cannot re-scan the same code.
+    // It is released only when the popup closes (auto-dismiss timer or user tap).
     setPopup(config);
     if (config.autoDismiss) {
       const ms = config.dismissMs ?? 3000;
@@ -153,8 +154,10 @@ export default function AdminCheckinPage() {
 
   // ── Camera ─────────────────────────────────────────────────────────────────
 
-  const stopCamera = useCallback(() => {
-    // Invalidate any in-flight startCamera promise so it discards its result
+  // Full teardown — stop scanning, destroy the instance, release the video element.
+  // Called on tab switch, event change, and component unmount. NOT called by the
+  // Stop Camera button, which only pauses so the instance can be restarted cheaply.
+  const teardownCamera = useCallback(() => {
     cameraSessionRef.current += 1;
     scanLockRef.current = false;
     if (scannerRef.current) {
@@ -163,6 +166,18 @@ export default function AdminCheckinPage() {
       scannerRef.current = null;
     }
     if (videoRef.current) videoRef.current.srcObject = null;
+    setCameraActive(false);
+    setCameraStarting(false);
+  }, []);
+
+  // Pause-only — keeps the QrScanner instance alive so Start Camera can call
+  // scanner.start() directly without recreating it. This fixes the bug where
+  // stop → start required a full page refresh.
+  const stopCamera = useCallback(() => {
+    cameraSessionRef.current += 1;
+    if (scannerRef.current) {
+      scannerRef.current.stop();
+    }
     setCameraActive(false);
     setCameraStarting(false);
   }, []);
@@ -180,53 +195,58 @@ export default function AdminCheckinPage() {
       return;
     }
 
-    // AudioContext must be created inside a user-gesture handler on iOS
+    // AudioContext must be initialised inside a user-gesture handler on iOS.
     initAudio();
 
-    stopCamera(); // increments cameraSessionRef, tears down any running scanner
-    const session = cameraSessionRef.current;
+    // Bump the session counter to invalidate any concurrent in-flight start.
+    const session = ++cameraSessionRef.current;
     setCameraStarting(true);
 
     try {
-      const { default: QrScanner } = await import('qr-scanner');
+      // Reuse the existing instance when available (stop → start cycle).
+      // Only create a new QrScanner when there is no live instance.
+      if (!scannerRef.current) {
+        const { default: QrScanner } = await import('qr-scanner');
 
-      // Worker is served from /public — explicit path avoids bundler ambiguity
-      (QrScanner as unknown as { WORKER_PATH: string }).WORKER_PATH =
-        '/qr-scanner-worker.min.js';
+        // Explicit worker path — avoids bundler path-resolution ambiguity.
+        (QrScanner as unknown as { WORKER_PATH: string }).WORKER_PATH =
+          '/qr-scanner-worker.min.js';
 
-      if (cameraSessionRef.current !== session) return; // stopCamera was called while importing
+        if (cameraSessionRef.current !== session) return; // stopCamera while importing
 
-      const scanner = new QrScanner(
-        videoRef.current,
-        (result: { data: string }) => {
-          if (scanLockRef.current) return;
-          scanLockRef.current = true;
-          handleCheckinRef.current(result.data);
-        },
-        {
-          preferredCamera: 'environment',
-          highlightScanRegion: true,
-          highlightCodeOutline: true,
-          maxScansPerSecond: 5,
-          returnDetailedScanResult: true,
-        },
-      );
+        scannerRef.current = new QrScanner(
+          videoRef.current,
+          (result: { data: string }) => {
+            if (scanLockRef.current) return;
+            scanLockRef.current = true;
+            handleCheckinRef.current(result.data);
+          },
+          {
+            preferredCamera: 'environment',
+            highlightScanRegion: true,
+            highlightCodeOutline: true,
+            maxScansPerSecond: 5,
+            returnDetailedScanResult: true,
+          },
+        );
+      }
 
-      await scanner.start();
+      await scannerRef.current.start();
 
-      // Discard if stopCamera was called while scanner.start() was resolving
+      // Discard if stop was called while scanner.start() was resolving.
       if (cameraSessionRef.current !== session) {
-        scanner.stop();
-        scanner.destroy();
+        scannerRef.current?.stop();
         return;
       }
 
-      scannerRef.current = scanner;
       setCameraActive(true);
       setCameraStarting(false);
     } catch (err: unknown) {
-      if (cameraSessionRef.current !== session) return; // stale error — ignore
-      stopCamera();
+      if (cameraSessionRef.current !== session) return; // stale — ignore
+
+      // On any start error the instance may be in an unknown state — fully
+      // tear it down so the next attempt builds a clean one.
+      teardownCamera();
 
       const msg =
         err instanceof Error ? err.message : typeof err === 'string' ? err : '';
@@ -237,7 +257,7 @@ export default function AdminCheckinPage() {
         lower.includes('notallowed') ||
         lower.includes('permission')
       ) {
-        // Manual dismiss — organizer must go to browser settings
+        // Manual dismiss — organiser must fix browser permissions first.
         openPopup({
           type: 'error',
           title: 'Camera access denied',
@@ -274,13 +294,13 @@ export default function AdminCheckinPage() {
         });
       }
     }
-  }, [stopCamera, openPopup]);
+  }, [teardownCamera, openPopup]);
 
   useEffect(() => {
-    if (tab !== 'camera') stopCamera();
-  }, [tab, stopCamera]);
+    if (tab !== 'camera') teardownCamera();
+  }, [tab, teardownCamera]);
 
-  useEffect(() => () => stopCamera(), [stopCamera]);
+  useEffect(() => () => teardownCamera(), [teardownCamera]);
 
   // ── Check-in logic ─────────────────────────────────────────────────────────
 
@@ -396,7 +416,7 @@ export default function AdminCheckinPage() {
   }
 
   function handleEventChange(eventId: string) {
-    stopCamera();
+    teardownCamera();
     selectedEventIdRef.current = eventId;
     setSelectedEventId(eventId);
     setSearchResults([]);
