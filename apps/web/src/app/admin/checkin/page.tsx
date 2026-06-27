@@ -1,20 +1,10 @@
 'use client';
 
 import { useState, useRef, useEffect, useCallback } from 'react';
+import type QrScannerType from 'qr-scanner';
 import api from '@/lib/api';
-import toast from 'react-hot-toast';
 import Button from '@/components/Button';
-
-interface CheckinResult {
-  valid: boolean;
-  attendeeName: string;
-  tierName: string | null;
-  eventTitle: string;
-  checkedInAt: string;
-  checkInMethod?: string;
-  orderStatus?: string;
-  paymentMethod?: string;
-}
+import CheckinPopup, { type PopupConfig, type CheckinResult } from '@/components/admin/CheckinPopup';
 
 interface AttendeeRow {
   id: string;
@@ -43,26 +33,27 @@ export default function AdminCheckinPage() {
   // Event selector
   const [events, setEvents] = useState<Event[]>([]);
   const [selectedEventId, setSelectedEventId] = useState('');
-
-  // Camera
-  const videoRef = useRef<HTMLVideoElement>(null);
-  const scannerControlsRef = useRef<{ stop: () => void } | null>(null);
-  const cameraActiveRef = useRef(false);
-  const cameraStartingRef = useRef(false);
-  const scannerSessionRef = useRef(0);
   const selectedEventIdRef = useRef('');
-  // Set to true the moment stopCamera() is called so in-flight ZXing frame
-  // callbacks immediately bail out and don't re-show errors or re-call stopCamera.
-  const stoppingRef = useRef(false);
+
+  // Camera state
   const [cameraActive, setCameraActive] = useState(false);
   const [cameraStarting, setCameraStarting] = useState(false);
-  const [cameraError, setCameraError] = useState('');
-  // Scan lock: prevents the ZXing per-frame callback from firing handleCheckin multiple times
+
+  // Scanner
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const scannerRef = useRef<QrScannerType | null>(null);
+  const cameraSessionRef = useRef(0);
   const scanLockRef = useRef(false);
+
+  // Stable ref to the latest handleCheckin so the scanner callback never captures a stale closure
   const handleCheckinRef = useRef<(token: string) => void>(() => {});
-  // Cooldown timer: keeps the camera running while preventing repeat reads of
-  // the same QR frame while the phone is still pointed at it.
-  const scanCooldownRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Audio — created inside a user-gesture handler so iOS allows playback
+  const audioCtxRef = useRef<AudioContext | null>(null);
+
+  // Popup
+  const [popup, setPopup] = useState<PopupConfig | null>(null);
+  const popupTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Search
   const [searchQ, setSearchQ] = useState('');
@@ -70,9 +61,8 @@ export default function AdminCheckinPage() {
   const [searching, setSearching] = useState(false);
   const [checkingInId, setCheckingInId] = useState<string | null>(null);
 
-  const [result, setResult] = useState<CheckinResult | null>(null);
+  // ── Load events ────────────────────────────────────────────────────────────
 
-  // Load active events on mount
   useEffect(() => {
     api
       .get<{ data: { data: Event[] } }>('/admin/events?limit=100')
@@ -83,236 +73,260 @@ export default function AdminCheckinPage() {
       .catch(() => {});
   }, []);
 
-  // ── Camera (ZXing) ─────────────────────────────────────────────────────────
-
   useEffect(() => {
     selectedEventIdRef.current = selectedEventId;
   }, [selectedEventId]);
 
-  const stopCamera = useCallback(() => {
-    scannerSessionRef.current += 1;
-    // Signal immediately so any in-flight ZXing frame callback exits at the top
-    // before it can call stopCamera() or setCameraError() a second time.
-    stoppingRef.current = true;
-    cameraStartingRef.current = false;
-    cameraActiveRef.current = false;
-    // Clear any pending scan cooldown timer
-    if (scanCooldownRef.current) {
-      clearTimeout(scanCooldownRef.current);
-      scanCooldownRef.current = null;
+  // ── Popup ──────────────────────────────────────────────────────────────────
+
+  const closePopup = useCallback(() => {
+    if (popupTimerRef.current) {
+      clearTimeout(popupTimerRef.current);
+      popupTimerRef.current = null;
     }
-    // Reset scan lock so the next camera session starts fresh
+    // Unlock scan immediately so the organizer can scan the next attendee without waiting
     scanLockRef.current = false;
-    if (scannerControlsRef.current) {
-      try { scannerControlsRef.current.stop(); } catch {}
-      scannerControlsRef.current = null;
+    setPopup(null);
+  }, []);
+
+  const openPopup = useCallback((config: PopupConfig) => {
+    if (popupTimerRef.current) {
+      clearTimeout(popupTimerRef.current);
+      popupTimerRef.current = null;
+    }
+    // Reset scan lock whenever a new popup opens so state is consistent
+    scanLockRef.current = false;
+    setPopup(config);
+    if (config.autoDismiss) {
+      const ms = config.dismissMs ?? 3000;
+      popupTimerRef.current = setTimeout(() => {
+        popupTimerRef.current = null;
+        scanLockRef.current = false;
+        setPopup(null);
+      }, ms);
+    }
+  }, []);
+
+  // ── Audio ──────────────────────────────────────────────────────────────────
+
+  function initAudio() {
+    if (audioCtxRef.current) return;
+    try {
+      const Ctx = window.AudioContext ?? (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+      if (Ctx) audioCtxRef.current = new Ctx();
+    } catch {}
+  }
+
+  function playBeep(type: 'success' | 'error') {
+    const ctx = audioCtxRef.current;
+    if (!ctx) return;
+    if (ctx.state === 'suspended') ctx.resume().catch(() => {});
+
+    if (type === 'success') {
+      // Single clean 880 Hz sine — like a supermarket scanner
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(880, ctx.currentTime);
+      gain.gain.setValueAtTime(0.35, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.18);
+      osc.start(ctx.currentTime);
+      osc.stop(ctx.currentTime + 0.18);
+    } else {
+      // Two short low beeps at 380 Hz to signal a problem
+      [0, 0.21].forEach((offset) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(380, ctx.currentTime + offset);
+        gain.gain.setValueAtTime(0.28, ctx.currentTime + offset);
+        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + offset + 0.09);
+        osc.start(ctx.currentTime + offset);
+        osc.stop(ctx.currentTime + offset + 0.09);
+      });
+    }
+  }
+
+  // ── Camera ─────────────────────────────────────────────────────────────────
+
+  const stopCamera = useCallback(() => {
+    // Invalidate any in-flight startCamera promise so it discards its result
+    cameraSessionRef.current += 1;
+    scanLockRef.current = false;
+    if (scannerRef.current) {
+      scannerRef.current.stop();
+      scannerRef.current.destroy();
+      scannerRef.current = null;
     }
     if (videoRef.current) videoRef.current.srcObject = null;
-    setCameraStarting(false);
     setCameraActive(false);
-    // Always clear errors when stopping camera to prevent stale messages
-    setCameraError('');
+    setCameraStarting(false);
   }, []);
 
   const startCamera = useCallback(async () => {
-    const eventId = selectedEventIdRef.current;
-    stoppingRef.current = false; // New session — allow callbacks to fire again
-    setCameraError('');
-    if (!videoRef.current) {
-      setCameraError('Camera preview is not ready. Try again in a moment.');
-      return;
-    }
-    if (cameraStartingRef.current) return;
-    if (cameraActiveRef.current && scannerControlsRef.current) return;
-    if (!eventId) {
-      setCameraError('Select an event before starting the camera.');
-      return;
-    }
-    if (!navigator.mediaDevices?.getUserMedia) {
-      setCameraError('Camera is unavailable in this browser. Open this page in Chrome over HTTPS.');
+    if (!videoRef.current) return;
+    if (!selectedEventIdRef.current) {
+      openPopup({
+        type: 'error',
+        title: 'No event selected',
+        body: 'Choose an event from the dropdown before starting the camera.',
+        autoDismiss: true,
+        dismissMs: 3000,
+      });
       return;
     }
 
-    // On Android Chrome, once a permission is permanently blocked, getUserMedia throws
-    // NotAllowedError immediately without showing any dialog. Detect this first so we
-    // can show actionable instructions instead of looping into the same error.
-    try {
-      if (navigator.permissions?.query) {
-        const ps = await navigator.permissions.query({ name: 'camera' as PermissionName });
-        if (ps.state === 'denied') {
-          setCameraError('permission_blocked');
-          return;
-        }
-      }
-    } catch {}
+    // AudioContext must be created inside a user-gesture handler on iOS
+    initAudio();
 
-    stopCamera();
-    const sessionId = scannerSessionRef.current + 1;
-    scannerSessionRef.current = sessionId;
-    stoppingRef.current = false;
-    cameraStartingRef.current = true;
-    cameraActiveRef.current = false;
+    stopCamera(); // increments cameraSessionRef, tears down any running scanner
+    const session = cameraSessionRef.current;
     setCameraStarting(true);
 
-    // Preflight: call getUserMedia directly first to trigger Android Chrome's
-    // permission prompt and confirm the camera is accessible. Android can return
-    // NotAllowedError even with permission granted when ZXing's constrained request
-    // is the first call — this plain call forces the real system prompt to appear.
     try {
-      const preflightStream = await navigator.mediaDevices.getUserMedia({ video: true });
-      preflightStream.getTracks().forEach((t) => t.stop());
-    } catch (err: any) {
-      if (scannerSessionRef.current !== sessionId) return;
-      stopCamera();
-      const name = (err?.name ?? '') as string;
-      if (name === 'NotAllowedError' || name === 'PermissionDeniedError') {
-        setCameraError('permission_denied');
-      } else if (name === 'NotFoundError' || name === 'DevicesNotFoundError') {
-        setCameraError('No camera was found on this device.');
-      } else {
-        setCameraError(`Camera error${name ? ` (${name})` : ''}: ${err?.message ?? 'Unknown error'}`);
-      }
-      return;
-    }
+      const { default: QrScanner } = await import('qr-scanner');
 
-    if (stoppingRef.current || scannerSessionRef.current !== sessionId) return;
+      // Worker is served from /public — explicit path avoids bundler ambiguity
+      (QrScanner as unknown as { WORKER_PATH: string }).WORKER_PATH =
+        '/qr-scanner-worker.min.js';
 
-    try {
-      const { BrowserQRCodeReader } = await import('@zxing/browser');
-      const reader = new BrowserQRCodeReader();
+      if (cameraSessionRef.current !== session) return; // stopCamera was called while importing
 
-      const controls = await reader.decodeFromConstraints({
-        video: {
-          facingMode: { ideal: 'environment' },
-        },
-        audio: false,
-      }, videoRef.current, (result, err) => {
-        // Camera is being torn down — ignore every in-flight callback unconditionally.
-        if (stoppingRef.current || scannerSessionRef.current !== sessionId) return;
-
-        if (result) {
-          // Guard: ZXing fires this callback on every frame where a QR is visible.
-          // Without the lock, handleCheckin would be called 10-30 times before
-          // the backend returns, flooding the UI with toasts.
+      const scanner = new QrScanner(
+        videoRef.current,
+        (result: { data: string }) => {
           if (scanLockRef.current) return;
           scanLockRef.current = true;
-          handleCheckinRef.current(result.getText());
-        }
+          handleCheckinRef.current(result.data);
+        },
+        {
+          preferredCamera: 'environment',
+          highlightScanRegion: true,
+          highlightCodeOutline: true,
+          maxScansPerSecond: 5,
+          returnDetailedScanResult: true,
+        },
+      );
 
-        if (err) {
-          // ZXing fires NotFoundException, ChecksumException, FormatException, and
-          // ReedSolomonException on every frame where no valid QR code is visible.
-          // These are normal scanning behaviour — NOT errors to show the user.
-          // Only surface genuine device/permission failures (DOMExceptions).
-          const isDeviceError = err instanceof DOMException ||
-            ['NotAllowedError', 'PermissionDeniedError', 'NotFoundError',
-             'NotReadableError', 'OverconstrainedError', 'AbortError'].includes((err as any).name ?? '');
-          if (!isDeviceError) return; // silently ignore frame-level decode misses
+      await scanner.start();
 
-          if (scanLockRef.current) return; // scan already succeeded, camera stopping
-          // IMPORTANT: set stoppingRef then call stopCamera() BEFORE setCameraError()
-          // so stopCamera's own setCameraError('') does not overwrite our message.
-          stoppingRef.current = true;
-          stopCamera();
-          const errName = (err as any).name ?? '';
-          if (errName === 'NotAllowedError' || errName === 'PermissionDeniedError') {
-            setCameraError('permission_denied');
-          } else {
-            setCameraError('Camera device error (' + errName + '). Try refreshing the page.');
-          }
-        }
-      });
-
-      if (stoppingRef.current || scannerSessionRef.current !== sessionId) {
-        try { controls.stop(); } catch {}
+      // Discard if stopCamera was called while scanner.start() was resolving
+      if (cameraSessionRef.current !== session) {
+        scanner.stop();
+        scanner.destroy();
         return;
       }
-      scannerControlsRef.current = controls;
-      cameraActiveRef.current = true;
-      cameraStartingRef.current = false;
+
+      scannerRef.current = scanner;
       setCameraActive(true);
       setCameraStarting(false);
-    } catch (err: any) {
-      const isCurrentSession = scannerSessionRef.current === sessionId;
-      if (!isCurrentSession) return;
+    } catch (err: unknown) {
+      if (cameraSessionRef.current !== session) return; // stale error — ignore
       stopCamera();
-      const name = (err?.name ?? '') as string;
-      if (name === 'NotAllowedError' || name === 'PermissionDeniedError') {
-        setCameraError('permission_denied');
-      } else if (name === 'NotFoundError' || name === 'DevicesNotFoundError') {
-        setCameraError('No camera was found on this device.');
-      } else if (name === 'NotReadableError' || name === 'TrackStartError') {
-        setCameraError('Chrome could not start the camera. Close other apps using the camera, then try again.');
+
+      const msg =
+        err instanceof Error ? err.message : typeof err === 'string' ? err : '';
+      const lower = msg.toLowerCase();
+
+      if (
+        lower.includes('denied') ||
+        lower.includes('notallowed') ||
+        lower.includes('permission')
+      ) {
+        // Manual dismiss — organizer must go to browser settings
+        openPopup({
+          type: 'error',
+          title: 'Camera access denied',
+          body: 'Open Chrome → Settings → Site Settings → Camera, find this site, and set it to Allow. Then tap Start Camera again.',
+          autoDismiss: false,
+        });
+      } else if (
+        lower.includes('not found') ||
+        lower.includes('notfound') ||
+        lower.includes('no camera')
+      ) {
+        openPopup({
+          type: 'error',
+          title: 'No camera found',
+          body: 'No camera was detected on this device.',
+          autoDismiss: true,
+          dismissMs: 3000,
+        });
+      } else if (lower.includes('insecure') || lower.includes('https')) {
+        openPopup({
+          type: 'error',
+          title: 'HTTPS required',
+          body: 'Camera access requires a secure HTTPS connection.',
+          autoDismiss: true,
+          dismissMs: 3000,
+        });
       } else {
-        setCameraError(`Could not start QR scanner${name ? ` (${name})` : ''}: ${err?.message ?? 'Unknown error'}`);
+        openPopup({
+          type: 'error',
+          title: 'Camera error',
+          body: msg || 'Could not start the camera. Try refreshing the page.',
+          autoDismiss: true,
+          dismissMs: 3000,
+        });
       }
     }
-  }, [stopCamera]);
+  }, [stopCamera, openPopup]);
 
-  // Runs the same user-gesture camera start path Chrome uses for permission prompts.
-  const requestCameraAccess = useCallback(async () => {
-    // If the permission is permanently blocked, calling getUserMedia again won't
-    // show the system dialog — it just throws immediately. Show instructions instead.
-    try {
-      if (navigator.permissions?.query) {
-        const ps = await navigator.permissions.query({ name: 'camera' as PermissionName });
-        if (ps.state === 'denied') {
-          setCameraError('permission_blocked');
-          return;
-        }
-      }
-    } catch {}
-    await startCamera();
-  }, [startCamera]);
-
-  // Stop camera when switching tabs
   useEffect(() => {
     if (tab !== 'camera') stopCamera();
   }, [tab, stopCamera]);
 
-  // Stop camera on unmount
   useEffect(() => () => stopCamera(), [stopCamera]);
 
-  // ── Check-in actions ───────────────────────────────────────────────────────
+  // ── Check-in logic ─────────────────────────────────────────────────────────
 
   async function handleCheckin(token: string) {
     const t = token.trim();
-    if (!t) return;
-    setResult(null);
-    // Clear any previous camera error on successful scan
-    setCameraError('');
+    if (!t) {
+      scanLockRef.current = false;
+      return;
+    }
+    if (!selectedEventIdRef.current) {
+      openPopup({
+        type: 'error',
+        title: 'No event selected',
+        body: 'Choose an event before scanning.',
+        autoDismiss: true,
+        dismissMs: 3000,
+      });
+      scanLockRef.current = false;
+      return;
+    }
     try {
-      if (!selectedEventId) {
-        toast.error('Select an event before scanning.');
-        scanLockRef.current = false;
-        return;
-      }
       const res = await api.post<{ data: CheckinResult }>('/admin/checkin', {
         qrToken: t,
-        eventId: selectedEventId,
+        eventId: selectedEventIdRef.current,
       });
       const r = res.data.data;
-      setResult(r);
-      // Use a fixed toast ID so rapid duplicate calls replace the toast instead of stacking
-      toast.success(`✅ ${r.attendeeName} checked in!`, { id: 'checkin', duration: 2500 });
-      scanCooldownRef.current = setTimeout(() => {
-        setResult(null);
-        scanLockRef.current = false;
-        scanCooldownRef.current = null;
-      }, 2500);
-    } catch (err: any) {
-      const status = err?.response?.status;
-      const msg = err?.response?.data?.message ?? 'Invalid ticket';
-      if (status === 409) {
-        toast.error(`Already checked in — ${msg}`, { id: 'checkin', duration: 3500 });
-      } else {
-        toast.error(msg, { id: 'checkin', duration: 3500 });
-      }
-      scanCooldownRef.current = setTimeout(() => {
-        setResult(null);
-        scanLockRef.current = false;
-        scanCooldownRef.current = null;
-      }, 3500);
+      playBeep('success');
+      openPopup({
+        type: 'success',
+        title: r.attendeeName,
+        autoDismiss: true,
+        dismissMs: 3000,
+        result: r,
+      });
+    } catch (err: unknown) {
+      const e = err as { response?: { status?: number; data?: { message?: string } } };
+      const status = e?.response?.status;
+      const msg = e?.response?.data?.message ?? 'Invalid ticket';
+      playBeep('error');
+      openPopup({
+        type: 'error',
+        title: status === 409 ? 'Already checked in' : 'Invalid ticket',
+        body: msg,
+        autoDismiss: true,
+        dismissMs: 3500,
+      });
     }
   }
 
@@ -325,22 +339,43 @@ export default function AdminCheckinPage() {
         eventId: selectedEventId,
       });
       const r = res.data.data;
-      setResult(r);
-      toast.success(`✅ ${r.attendeeName} checked in!`, { id: 'checkin', duration: 2500 });
-      // Refresh search results to show updated checkedInAt
+      playBeep('success');
+      openPopup({
+        type: 'success',
+        title: r.attendeeName,
+        autoDismiss: true,
+        dismissMs: 3000,
+        result: r,
+      });
       if (searchQ || selectedEventId) await runSearch();
-    } catch (err: any) {
-      const status = err?.response?.status;
-      const msg = err?.response?.data?.message ?? 'Check-in failed';
-      if (status === 409) toast.error(`Already checked in — ${msg}`, { id: 'checkin', duration: 3500 });
-      else toast.error(msg, { id: 'checkin', duration: 3500 });
+    } catch (err: unknown) {
+      const e = err as { response?: { status?: number; data?: { message?: string } } };
+      const status = e?.response?.status;
+      const msg = e?.response?.data?.message ?? 'Check-in failed';
+      playBeep('error');
+      openPopup({
+        type: 'error',
+        title: status === 409 ? 'Already checked in' : 'Check-in failed',
+        body: msg,
+        autoDismiss: true,
+        dismissMs: 3500,
+      });
     } finally {
       setCheckingInId(null);
     }
   }
 
   async function runSearch() {
-    if (!selectedEventId) { toast.error('Please select an event from the dropdown above before searching.'); return; }
+    if (!selectedEventId) {
+      openPopup({
+        type: 'error',
+        title: 'No event selected',
+        body: 'Please select an event before searching.',
+        autoDismiss: true,
+        dismissMs: 3000,
+      });
+      return;
+    }
     setSearching(true);
     try {
       const res = await api.get<{ data: { data: AttendeeRow[] } }>(
@@ -348,7 +383,13 @@ export default function AdminCheckinPage() {
       );
       setSearchResults(res.data?.data?.data ?? []);
     } catch {
-      toast.error('Attendee search failed. Check your connection and try again.');
+      openPopup({
+        type: 'error',
+        title: 'Search failed',
+        body: 'Could not load attendees. Check your connection and try again.',
+        autoDismiss: true,
+        dismissMs: 3000,
+      });
     } finally {
       setSearching(false);
     }
@@ -358,7 +399,6 @@ export default function AdminCheckinPage() {
     stopCamera();
     selectedEventIdRef.current = eventId;
     setSelectedEventId(eventId);
-    setResult(null);
     setSearchResults([]);
     setCheckingInId(null);
   }
@@ -366,7 +406,10 @@ export default function AdminCheckinPage() {
   // ── Render ─────────────────────────────────────────────────────────────────
 
   return (
-    <main className="max-w-2xl mx-auto px-4 py-10 space-y-6">
+    <>
+      <CheckinPopup popup={popup} onClose={closePopup} />
+
+      <main className="max-w-2xl mx-auto px-4 py-10 space-y-6">
         <h1 className="text-2xl font-bold text-gray-900">Guest Check-In</h1>
 
         {/* Event selector */}
@@ -379,7 +422,9 @@ export default function AdminCheckinPage() {
           >
             <option value="">— Select an event —</option>
             {events.map((ev) => (
-              <option key={ev.id} value={ev.id}>{ev.title}</option>
+              <option key={ev.id} value={ev.id}>
+                {ev.title}
+              </option>
             ))}
           </select>
         </div>
@@ -391,7 +436,9 @@ export default function AdminCheckinPage() {
               key={t}
               onClick={() => setTab(t)}
               className={`flex-1 py-1.5 text-sm font-medium rounded-lg transition-colors ${
-                tab === t ? 'bg-white shadow text-gray-900' : 'text-gray-500 hover:text-gray-700'
+                tab === t
+                  ? 'bg-white shadow text-gray-900'
+                  : 'text-gray-500 hover:text-gray-700'
               }`}
             >
               {t === 'camera' ? '📷 Camera' : '🔍 Search'}
@@ -408,44 +455,23 @@ export default function AdminCheckinPage() {
               </p>
             )}
             <div className="relative bg-black rounded-xl overflow-hidden aspect-square">
-              <video ref={videoRef} className="w-full h-full object-cover" playsInline muted />
+              <video
+                ref={videoRef}
+                className="w-full h-full object-cover"
+                playsInline
+                muted
+              />
               {!cameraActive && (
                 <div className="absolute inset-0 flex items-center justify-center">
-                  <span className="text-white/60 text-sm">Camera off</span>
+                  <span className="text-white/60 text-sm">
+                    {cameraStarting ? 'Starting camera…' : 'Camera off'}
+                  </span>
                 </div>
               )}
             </div>
-            {cameraError && (
-              <div className="bg-red-50 border border-red-200 rounded-lg p-4 space-y-3">
-                <div className="flex items-start gap-2">
-                  <span className="text-red-600 text-sm flex-1">
-                    {cameraError === 'permission_denied'
-                      ? 'Camera access was denied. Tap "Request Camera Access" below — or open Chrome → Settings → Site Settings → Camera and allow this site.'
-                      : cameraError === 'permission_blocked'
-                      ? 'Camera is blocked in Chrome. To fix: tap the 🔒 lock icon in the address bar → Permissions → Camera → Allow. Then tap "Start Camera" again.'
-                      : cameraError}
-                  </span>
-                  <button
-                    onClick={() => setCameraError('')}
-                    className="text-red-400 hover:text-red-600 font-bold text-lg leading-none -mt-0.5 flex-shrink-0"
-                    aria-label="Dismiss error"
-                  >
-                    ×
-                  </button>
-                </div>
-                {(cameraError === 'permission_denied' || cameraError === 'permission_blocked') && (
-                  <button
-                    onClick={cameraError === 'permission_blocked' ? () => setCameraError('') : requestCameraAccess}
-                    className="w-full bg-red-600 hover:bg-red-700 text-white text-sm font-medium rounded-lg py-2 px-4 transition-colors"
-                  >
-                    {cameraError === 'permission_blocked' ? 'OK, I\'ll fix it in Settings' : 'Request Camera Access'}
-                  </button>
-                )}
-              </div>
-            )}
             <div className="flex gap-3">
               <Button
-                onClick={() => startCamera()}
+                onClick={startCamera}
                 disabled={!selectedEventId || cameraActive || cameraStarting}
                 className="flex-1"
               >
@@ -453,14 +479,14 @@ export default function AdminCheckinPage() {
               </Button>
               <Button
                 onClick={stopCamera}
-                disabled={!cameraActive}
+                disabled={!cameraActive && !cameraStarting}
                 className="flex-1 !bg-gray-200 !text-gray-700 hover:!bg-gray-300"
               >
                 Stop Camera
               </Button>
             </div>
             <p className="text-xs text-gray-400 text-center">
-              Camera requires HTTPS. Point at a QR code to scan automatically.
+              Point at a QR code to scan automatically.
             </p>
           </div>
         )}
@@ -510,7 +536,9 @@ export default function AdminCheckinPage() {
                           Check In
                         </Button>
                       ) : (
-                        <span className="text-xs text-amber-600 capitalize">{a.registrationStatus}</span>
+                        <span className="text-xs text-amber-600 capitalize">
+                          {a.registrationStatus}
+                        </span>
                       )}
                     </div>
                   </div>
@@ -522,45 +550,7 @@ export default function AdminCheckinPage() {
             )}
           </div>
         )}
-
-        {/* Result card */}
-        {result && (
-          <div className="bg-green-50 border-2 border-green-400 rounded-2xl p-6 space-y-2 shadow-lg animate-fade-in-up" role="status" aria-live="polite">
-            <p className="text-4xl text-center">✅</p>
-            <p className="font-bold text-gray-900 text-center text-lg">{result.attendeeName}</p>
-            <div className="text-sm text-gray-600 text-center space-y-0.5">
-              {result.tierName && <p>{result.tierName}</p>}
-              <p>{result.eventTitle}</p>
-              <p className="text-xs text-gray-400">
-                {result.checkInMethod === 'manual' ? 'Manual check-in' : 'Scanned'} ·{' '}
-                {new Date(result.checkedInAt).toLocaleTimeString()}
-              </p>
-              {result.orderStatus && (
-                <span className={`inline-block text-xs font-semibold px-2.5 py-1 rounded-full mt-1 ${
-                  result.orderStatus === 'paid' ? 'bg-green-100 text-green-700' :
-                  result.orderStatus === 'pending' ? 'bg-yellow-100 text-yellow-700' :
-                  'bg-gray-100 text-gray-500'
-                }`}>
-                  Payment: {result.orderStatus}{result.paymentMethod ? ` · ${result.paymentMethod}` : ''}
-                </span>
-              )}
-            </div>
-            <button
-              onClick={() => {
-                // Keep the camera running; only dismiss the result/cooldown.
-                if (scanCooldownRef.current) {
-                  clearTimeout(scanCooldownRef.current);
-                  scanCooldownRef.current = null;
-                }
-                scanLockRef.current = false;
-                setResult(null);
-              }}
-              className="block mx-auto text-xs text-gray-400 hover:text-gray-600 mt-2"
-            >
-              Dismiss
-            </button>
-          </div>
-        )}
-    </main>
+      </main>
+    </>
   );
 }
