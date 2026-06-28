@@ -743,8 +743,29 @@ export class EmailService implements OnModuleDestroy {
             </tr>
           </table>
 
+          <!-- QR ticket(s) -->
+          <p style="margin:0 0 12px;font-size:15px;font-weight:700;color:#1A3A5C">Your Entry Pass${rows.length > 1 ? 'es' : ''}</p>
+          <table style="width:100%;border-collapse:collapse;border:1px solid #e5e7eb;border-radius:10px;overflow:hidden">
+            <thead>
+              <tr style="background:#f7f9fc">
+                <th style="padding:12px 16px;text-align:left;color:#1A3A5C;font-size:13px;font-weight:600">Attendee</th>
+                <th style="padding:12px 16px;text-align:center;color:#1A3A5C;font-size:13px;font-weight:600">QR Code — show this at the entrance</th>
+              </tr>
+            </thead>
+            <tbody>${rows.join('')}</tbody>
+          </table>
+
+          <!-- Tip box -->
+          <div style="background:#fffbeb;border-left:4px solid #f59e0b;padding:14px 16px;margin-top:16px;border-radius:0 8px 8px 0">
+            <p style="margin:0;font-size:13px;color:#92400e;line-height:1.6">
+              <strong>Can't see the QR code above?</strong> No worries. The QR code is also attached to this email as an image file (look for a <strong>.png</strong> attachment). Open it, save it to your phone's photo gallery, or print it. If you cannot find this email, please check your <strong>Spam</strong> or <strong>Promotions</strong> folder.
+            </p>
+          </div>
+
+          ${receiptSection}
+
           <!-- How to use your ticket -->
-          <div style="background:#f0fdf4;border:2px solid #86efac;border-radius:10px;padding:18px 20px;margin-bottom:24px">
+          <div style="background:#f0fdf4;border:2px solid #86efac;border-radius:10px;padding:18px 20px;margin-top:24px">
             <p style="margin:0 0 12px;font-size:16px;font-weight:bold;color:#166534">
               How to use your ticket
             </p>
@@ -752,7 +773,7 @@ export class EmailService implements OnModuleDestroy {
               <tr>
                 <td style="padding:5px 0;vertical-align:top;width:28px;color:#15803d;font-size:15px;font-weight:bold">1.</td>
                 <td style="padding:5px 0;color:#15803d;font-size:14px;line-height:1.7">
-                  <strong>Find your QR code</strong> — it is just below this box. Each attendee has their own unique code.
+                  <strong>Find your QR code</strong> — scroll up to find it above the purchase summary. Each attendee has their own unique code.
                 </td>
               </tr>
               <tr>
@@ -775,27 +796,6 @@ export class EmailService implements OnModuleDestroy {
               </tr>
             </table>
           </div>
-
-          <!-- QR ticket(s) -->
-          <p style="margin:0 0 12px;font-size:15px;font-weight:700;color:#1A3A5C">Your Entry Pass${rows.length > 1 ? 'es' : ''}</p>
-          <table style="width:100%;border-collapse:collapse;border:1px solid #e5e7eb;border-radius:10px;overflow:hidden">
-            <thead>
-              <tr style="background:#f7f9fc">
-                <th style="padding:12px 16px;text-align:left;color:#1A3A5C;font-size:13px;font-weight:600">Attendee</th>
-                <th style="padding:12px 16px;text-align:center;color:#1A3A5C;font-size:13px;font-weight:600">QR Code — show this at the entrance</th>
-              </tr>
-            </thead>
-            <tbody>${rows.join('')}</tbody>
-          </table>
-
-          <!-- Tip box -->
-          <div style="background:#fffbeb;border-left:4px solid #f59e0b;padding:14px 16px;margin-top:16px;border-radius:0 8px 8px 0">
-            <p style="margin:0;font-size:13px;color:#92400e;line-height:1.6">
-              <strong>Can't see the QR code above?</strong> No worries. The QR code is also attached to this email as an image file (look for a <strong>.png</strong> attachment). Open it, save it to your phone's photo gallery, or print it. If you cannot find this email, please check your <strong>Spam</strong> or <strong>Promotions</strong> folder.
-            </p>
-          </div>
-
-          ${receiptSection}
 
           <p style="font-size:13px;color:#64748b;margin-top:20px">
             You can view your ticket anytime at
