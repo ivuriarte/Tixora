@@ -725,11 +725,11 @@ export class EmailService implements OnModuleDestroy {
         <div style="background:#ffffff;padding:28px 32px">
 
           <p style="font-size:16px;color:#111827;margin-top:0">
-            Hi <strong>${this.escapeHtml(firstName)}</strong>, your payment was approved!
+            Hi <strong>${this.escapeHtml(firstName)}</strong>, great news — your payment has been confirmed and your ticket is all set. Everything you need to get in is right here in this email.
           </p>
 
           <!-- Event summary -->
-          <table style="width:100%;border-collapse:collapse;background:#f0f4ff;border-radius:10px;padding:0;margin-bottom:4px">
+          <table style="width:100%;border-collapse:collapse;background:#f0f4ff;border-radius:10px;padding:0;margin-bottom:24px">
             <tr>
               <td style="padding:16px 20px">
                 <p style="margin:0;font-size:18px;font-weight:bold;color:#1A3A5C">${this.escapeHtml(eventTitle)}</p>
@@ -743,46 +743,64 @@ export class EmailService implements OnModuleDestroy {
             </tr>
           </table>
 
-          ${receiptSection}
-
-          <!-- What to do box -->
-          <div style="background:#f0fdf4;border:2px solid #86efac;border-radius:10px;padding:18px 20px;margin:24px 0">
-            <p style="margin:0 0 10px;font-size:15px;font-weight:bold;color:#166534">
-              What do I do with this ticket?
+          <!-- How to use your ticket -->
+          <div style="background:#f0fdf4;border:2px solid #86efac;border-radius:10px;padding:18px 20px;margin-bottom:24px">
+            <p style="margin:0 0 12px;font-size:16px;font-weight:bold;color:#166534">
+              How to use your ticket
             </p>
             <table style="border-collapse:collapse;width:100%">
-              <tr><td style="padding:3px 0;vertical-align:top;width:24px;color:#15803d;font-size:15px">1.</td><td style="padding:3px 0;color:#15803d;font-size:14px;line-height:1.6">Find your QR code below in this email.</td></tr>
-              <tr><td style="padding:3px 0;vertical-align:top;color:#15803d;font-size:15px">2.</td><td style="padding:3px 0;color:#15803d;font-size:14px;line-height:1.6"><strong>Screenshot or save</strong> the QR code to your phone's photo gallery.</td></tr>
-              <tr><td style="padding:3px 0;vertical-align:top;color:#15803d;font-size:15px">3.</td><td style="padding:3px 0;color:#15803d;font-size:14px;line-height:1.6">On event day, <strong>show the QR code to the staff at the entrance.</strong></td></tr>
-              <tr><td style="padding:3px 0;vertical-align:top;color:#15803d;font-size:15px">4.</td><td style="padding:3px 0;color:#15803d;font-size:14px;line-height:1.6">No printing needed — your phone screen is enough!</td></tr>
+              <tr>
+                <td style="padding:5px 0;vertical-align:top;width:28px;color:#15803d;font-size:15px;font-weight:bold">1.</td>
+                <td style="padding:5px 0;color:#15803d;font-size:14px;line-height:1.7">
+                  <strong>Find your QR code</strong> — it is just below this box. Each attendee has their own unique code.
+                </td>
+              </tr>
+              <tr>
+                <td style="padding:5px 0;vertical-align:top;color:#15803d;font-size:15px;font-weight:bold">2.</td>
+                <td style="padding:5px 0;color:#15803d;font-size:14px;line-height:1.7">
+                  <strong>Save it to your phone</strong> — press and hold the QR code image, then tap <em>Save to Photos</em> (iPhone) or <em>Download image</em> (Android). Or simply take a screenshot.
+                </td>
+              </tr>
+              <tr>
+                <td style="padding:5px 0;vertical-align:top;color:#15803d;font-size:15px;font-weight:bold">3.</td>
+                <td style="padding:5px 0;color:#15803d;font-size:14px;line-height:1.7">
+                  <strong>Show it at the entrance</strong> — on the day of the event, open your saved photo and show it to the staff. Your phone screen is enough; no printing required.
+                </td>
+              </tr>
+              <tr>
+                <td style="padding:5px 0;vertical-align:top;color:#15803d;font-size:15px;font-weight:bold">4.</td>
+                <td style="padding:5px 0;color:#15803d;font-size:14px;line-height:1.7">
+                  <strong>Prefer paper?</strong> — you can print this email or open the attached image file and print that instead. Both work perfectly at the entrance.
+                </td>
+              </tr>
             </table>
           </div>
 
-          <!-- QR table -->
-          <table style="width:100%;border-collapse:collapse;margin-top:8px;border:1px solid #e5e7eb;border-radius:10px;overflow:hidden">
+          <!-- QR ticket(s) -->
+          <p style="margin:0 0 12px;font-size:15px;font-weight:700;color:#1A3A5C">Your Entry Pass${rows.length > 1 ? 'es' : ''}</p>
+          <table style="width:100%;border-collapse:collapse;border:1px solid #e5e7eb;border-radius:10px;overflow:hidden">
             <thead>
               <tr style="background:#f7f9fc">
-                <th style="padding:12px 16px;text-align:left;color:#1A3A5C;font-size:13px;font-weight:600">Attendee Name</th>
-                <th style="padding:12px 16px;text-align:center;color:#1A3A5C;font-size:13px;font-weight:600">QR Code (show at entrance)</th>
+                <th style="padding:12px 16px;text-align:left;color:#1A3A5C;font-size:13px;font-weight:600">Attendee</th>
+                <th style="padding:12px 16px;text-align:center;color:#1A3A5C;font-size:13px;font-weight:600">QR Code — show this at the entrance</th>
               </tr>
             </thead>
             <tbody>${rows.join('')}</tbody>
           </table>
 
           <!-- Tip box -->
-          <div style="background:#fffbeb;border-left:4px solid #f59e0b;padding:14px 16px;margin-top:20px;border-radius:0 8px 8px 0">
-            <p style="margin:0;font-size:13px;color:#92400e">
-              <strong>Tip:</strong> Can't see the QR code above?
-              The QR code is also saved as a <strong>.png image file</strong> attached to this email.
-              Open the attachment to view and save it to your phone.
-              If you still can't find it, check your <strong>Spam</strong> or <strong>Promotions</strong> folder.
+          <div style="background:#fffbeb;border-left:4px solid #f59e0b;padding:14px 16px;margin-top:16px;border-radius:0 8px 8px 0">
+            <p style="margin:0;font-size:13px;color:#92400e;line-height:1.6">
+              <strong>Can't see the QR code above?</strong> No worries. The QR code is also attached to this email as an image file (look for a <strong>.png</strong> attachment). Open it, save it to your phone's photo gallery, or print it. If you cannot find this email, please check your <strong>Spam</strong> or <strong>Promotions</strong> folder.
             </p>
           </div>
+
+          ${receiptSection}
 
           <p style="font-size:13px;color:#64748b;margin-top:20px">
             You can view your ticket anytime at
             <a href="https://axontickets.online/account/tickets" style="color:#7C3AED;text-decoration:none">axontickets.online</a>
-            under <strong>My Events</strong>.
+            under <strong>My Events</strong>. See you at the event!
           </p>
 
         </div>
