@@ -20,8 +20,9 @@ interface Tier {
 }
 
 interface AgendaItem { time: string; title: string; description?: string; }
-interface Sponsor { name: string; logoUrl?: string; tier?: string; websiteUrl?: string; }
+interface Sponsor { name: string; logoUrl?: string; tier?: string; websiteUrl?: string; description?: string; isVisible?: boolean; }
 interface Faq { question: string; answer: string; }
+interface CustomSection { title: string; description: string; imageUrl?: string; imageAlt?: string; isVisible?: boolean; }
 
 interface Event {
   id: string;
@@ -45,6 +46,7 @@ interface Event {
   agenda?: AgendaItem[] | null;
   sponsors?: Sponsor[] | null;
   faqs?: Faq[] | null;
+  customSections?: CustomSection[] | null;
   organizerName?: string | null;
   // Payment
   allowManualPayment?: boolean;
@@ -134,8 +136,17 @@ export default async function EventPage({ params, searchParams }: { params: { sl
   const isCancelled = event.status === 'cancelled';
 
   const agenda = sanitizeList<AgendaItem>(event.agenda, ['title']);
-  const sponsors = sanitizeList<Sponsor>(event.sponsors, ['name']);
+  const tierOrder = ['Platinum', 'Gold', 'Silver', 'Bronze', 'Partner', 'Media Partner', 'Community Partner'];
+  const sponsors = sanitizeList<Sponsor>(event.sponsors, ['name'])
+    .filter((s) => s.isVisible !== false)
+    .map((s, index) => ({ ...s, originalIndex: index }))
+    .sort((a, b) => {
+      const rankA = a.tier ? tierOrder.indexOf(a.tier) : tierOrder.length;
+      const rankB = b.tier ? tierOrder.indexOf(b.tier) : tierOrder.length;
+      return (rankA < 0 ? tierOrder.length : rankA) - (rankB < 0 ? tierOrder.length : rankB) || a.originalIndex - b.originalIndex;
+    });
   const faqs = sanitizeList<Faq>(event.faqs, ['question', 'answer']);
+  const customSections = sanitizeList<CustomSection>(event.customSections, ['title', 'description']).filter((section) => section.isVisible !== false);
 
   return (
     <>
@@ -219,28 +230,47 @@ export default async function EventPage({ params, searchParams }: { params: { sl
             {sponsors.length > 0 && (
               <div>
                 <h2 className="text-lg font-semibold text-gray-900 mb-4">Sponsors &amp; Partners</h2>
-                <div className="flex flex-wrap gap-6 items-center">
+                <div className="grid gap-4 sm:grid-cols-2">
                   {sponsors.map((s, i) => {
                     const inner = s.logoUrl ? (
-                      <div className="flex items-center justify-center bg-white border border-gray-200 rounded-xl px-5 py-3 shadow-sm h-16 min-w-[100px] transition-opacity hover:opacity-80">
-                        <Image src={s.logoUrl} alt={s.name} width={120} height={40} className="h-10 w-auto object-contain" unoptimized />
+                      <div className="flex min-h-36 items-center justify-center rounded-2xl border border-gray-200 bg-white px-8 py-6 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md">
+                        {/* External sponsor assets bypass the Next image optimizer to avoid
+                            proxying organizer-controlled hosts through our infrastructure. */}
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={s.logoUrl} alt={`${s.name} logo`} width={220} height={100} loading="lazy" decoding="async" className="max-h-24 w-auto max-w-full object-contain" />
                       </div>
                     ) : (
                       <span className="inline-block bg-gray-100 text-gray-700 font-medium px-4 py-2 rounded-lg text-sm hover:bg-gray-200 transition-colors">{s.name}</span>
                     );
                     return (
-                      <div key={i} className="text-center">
+                      <div key={i} className="rounded-2xl bg-gray-50 p-3 text-center">
+                        {s.tier && <p className="mb-2 text-[10px] font-bold uppercase tracking-[0.18em] text-amber-700">{s.tier}</p>}
                         {s.websiteUrl ? (
                           <a href={s.websiteUrl} target="_blank" rel="noopener noreferrer" aria-label={`Visit ${s.name}`}>
                             {inner}
                           </a>
                         ) : inner}
+                        <p className="mt-3 text-sm font-semibold text-gray-900">{s.name}</p>
+                        {s.description && <p className="mt-1 text-xs leading-relaxed text-gray-500">{s.description}</p>}
                       </div>
                     );
                   })}
                 </div>
               </div>
             )}
+
+            {customSections.map((section, index) => (
+              <section key={`${section.title}-${index}`} className="overflow-hidden rounded-2xl border border-gray-200 bg-white">
+                {section.imageUrl && (
+                  <div className="aspect-[16/7] overflow-hidden">
+                    {/* External organizer asset; deliberately not proxied by next/image. */}
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={section.imageUrl} alt={section.imageAlt || section.title} loading="lazy" decoding="async" className="h-full w-full object-cover" />
+                  </div>
+                )}
+                <div className="p-5 sm:p-6"><h2 className="text-xl font-bold text-gray-900">{section.title}</h2><p className="mt-3 whitespace-pre-line text-sm leading-7 text-gray-600">{section.description}</p></div>
+              </section>
+            ))}
 
             {/* FAQs */}
             {faqs.length > 0 && (

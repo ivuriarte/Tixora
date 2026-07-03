@@ -20,6 +20,7 @@ import CapacityTiersStep from '@/components/event-wizard/steps/CapacityTiersStep
 import ConferenceStep from '@/components/event-wizard/steps/ConferenceStep';
 import PaymentStep from '@/components/event-wizard/steps/PaymentStep';
 import ReviewStep from '@/components/event-wizard/steps/ReviewStep';
+import ReferralCodesPanel from '@/components/event-wizard/ReferralCodesPanel';
 import {
   emptyDraft,
   combineDatetime,
@@ -69,7 +70,7 @@ interface ApiEvent {
   imageUrl?: string | null;
   speakerName?: string | null;
   agenda?: Array<{ time: string; title: string; description?: string }> | null;
-  sponsors?: Array<{ name: string; logoUrl?: string; tier?: string; websiteUrl?: string }> | null;
+  sponsors?: Array<{ name: string; logoUrl?: string; tier?: string; websiteUrl?: string; description?: string; isVisible?: boolean }> | null;
   faqs?: Array<{ question: string; answer: string }> | null;
   allowManualPayment?: boolean;
   bankName?: string | null;
@@ -80,6 +81,7 @@ interface ApiEvent {
   landmark?: string | null;
   tiers: ApiTier[];
   tagline?: string | null;
+  customSections?: Array<{ title: string; description: string; imageUrl?: string; imageAlt?: string; isVisible?: boolean }> | null;
 }
 
 interface WorkspaceSummary {
@@ -190,6 +192,8 @@ export default function AdminEventEditPage() {
               logoUrl: s.logoUrl ?? '',
               tier: s.tier ?? '',
               websiteUrl: s.websiteUrl ?? '',
+              description: s.description ?? '',
+              isVisible: s.isVisible !== false,
             }))
         : [],
       faqs: Array.isArray(event.faqs)
@@ -198,6 +202,7 @@ export default function AdminEventEditPage() {
             .map<FaqItem>((f) => ({ question: f.question, answer: f.answer }))
         : [],
       tagline: event.tagline ?? '',
+      customSections: Array.isArray(event.customSections) ? event.customSections.map((section) => ({ title: section.title, description: section.description, imageUrl: section.imageUrl ?? '', imageAlt: section.imageAlt ?? '', isVisible: section.isVisible !== false })) : [],
     });
     setStatus(event.status ?? 'draft');
 
@@ -466,10 +471,13 @@ export default function AdminEventEditPage() {
               ...(s.logoUrl && { logoUrl: s.logoUrl }),
               ...(s.tier && { tier: s.tier }),
               ...(s.websiteUrl?.trim() && { websiteUrl: s.websiteUrl.trim() }),
+              ...(s.description?.trim() && { description: s.description.trim() }),
+              isVisible: s.isVisible,
             }))
           : null,
       faqs: draft.faqs.length > 0 ? draft.faqs : null,
       tagline: draft.tagline.trim() || null,
+      customSections: draft.customSections.length > 0 ? draft.customSections : null,
     };
     await updateMutation.mutateAsync(payload);
   }
@@ -669,9 +677,9 @@ export default function AdminEventEditPage() {
                   onReorderTiers={handleReorderTiers}
                 />
               );
-            case 'conference': return <ConferenceStep draft={draft} update={update} />;
+            case 'details': return <ConferenceStep draft={draft} update={update} />;
             case 'payment':
-              return (
+              return (<>
                 <PaymentStep
                   paymentMethods={paymentMethods}
                   onAdd={addPM}
@@ -683,7 +691,8 @@ export default function AdminEventEditPage() {
                   feeSaving={feeMutation.isPending}
                   isAdmin={isAdmin}
                 />
-              );
+                <ReferralCodesPanel eventId={id} tiers={tiers} />
+              </>);
             case 'review':
               return (
                 <ReviewStep

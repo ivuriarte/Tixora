@@ -1,5 +1,13 @@
 import type { SponsorItem, FaqItem, AgendaItem } from '@/components/ConferenceFields';
 
+export interface CustomSectionItem {
+  title: string;
+  description: string;
+  imageUrl: string;
+  imageAlt: string;
+  isVisible: boolean;
+}
+
 export interface LocalTier {
   key: number;
   serverId?: string; // present when the tier already exists on the server
@@ -59,6 +67,7 @@ export interface EventDraft
   agenda: AgendaItem[];
   sponsors: SponsorItem[];
   faqs: FaqItem[];
+  customSections: CustomSectionItem[];
 }
 
 export interface StepMeta {
@@ -66,7 +75,7 @@ export interface StepMeta {
     | 'basics'
     | 'location'
     | 'capacity'
-    | 'conference'
+    | 'details'
     | 'payment'
     | 'review';
   readonly label: string;
@@ -78,7 +87,7 @@ export const STEPS: readonly StepMeta[] = [
   { id: 'basics', label: 'Basics', short: '1' },
   { id: 'location', label: 'Location & Schedule', short: '2' },
   { id: 'capacity', label: 'Capacity & Tiers', short: '3' },
-  { id: 'conference', label: 'Conference', short: '4', optional: true },
+  { id: 'details', label: 'Event Program & Details', short: '4', optional: true },
   { id: 'payment', label: 'Payment', short: '5', optional: true },
   { id: 'review', label: 'Review', short: '6' },
 ];
@@ -115,6 +124,7 @@ export function emptyDraft(): EventDraft {
     agenda: [],
     sponsors: [],
     faqs: [],
+    customSections: [],
   };
 }
 
@@ -175,7 +185,7 @@ export function validateStep(
     case 'basics': return validateBasics(draft);
     case 'location': return validateLocation(draft);
     case 'capacity': return validateCapacity(draft, tiers);
-    case 'conference':
+    case 'details':
     case 'payment':
     case 'review':
       return null;

@@ -16,6 +16,8 @@ interface ProfileData {
   company: string | null;
   jobTitle: string | null;
   city: string | null;
+  birthday: string | null;
+  gender: string | null;
   isVerified: boolean;
 }
 
@@ -85,6 +87,8 @@ export default function ProfilePage() {
     company: '',
     jobTitle: '',
     city: '',
+    birthday: '',
+    gender: '',
   });
 
   useEffect(() => {
@@ -107,6 +111,8 @@ export default function ProfilePage() {
           company: p.company ?? '',
           jobTitle: p.jobTitle ?? '',
           city: p.city ?? '',
+          birthday: p.birthday?.slice(0, 10) ?? '',
+          gender: p.gender ?? '',
         });
         if (authUser?.loginPortal === 'organizer') {
           api
@@ -163,6 +169,8 @@ export default function ProfilePage() {
         company: form.company.trim() || undefined,
         jobTitle: form.jobTitle.trim() || undefined,
         city: form.city.trim() || undefined,
+        birthday: form.birthday || undefined,
+        gender: form.gender || undefined,
       });
       toast.success('Profile updated!');
     } catch (err: any) {
@@ -439,9 +447,13 @@ export default function ProfilePage() {
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                City <span className="text-gray-400 font-normal">(optional)</span>
+                City <span className="text-red-500">*</span>
               </label>
-              <input name="city" value={form.city} onChange={update} placeholder="Davao City" className={inputClass} />
+              <input name="city" required value={form.city} onChange={update} placeholder="Davao City" className={inputClass} />
+            </div>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div><label className="block text-sm font-medium text-gray-700 mb-1">Birthday <span className="text-red-500">*</span></label><input name="birthday" type="date" required max={new Date().toISOString().slice(0, 10)} value={form.birthday} onChange={update} className={inputClass} /></div>
+              <div><label className="block text-sm font-medium text-gray-700 mb-1">Gender <span className="text-red-500">*</span></label><select name="gender" required value={form.gender} onChange={(e) => setForm((f) => ({ ...f, gender: e.target.value }))} className={inputClass}><option value="">Select</option><option value="female">Female</option><option value="male">Male</option><option value="non_binary">Non-binary</option><option value="self_described">Self-described</option><option value="prefer_not_to_say">Prefer not to say</option></select></div>
             </div>
           </div>
 

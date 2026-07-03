@@ -19,6 +19,7 @@ import { AuditService } from '../audit/audit.service';
 import { EmailService } from '../email/email.service';
 import { PDFDocument, PDFFont, PDFPage, StandardFonts, rgb } from 'pdf-lib';
 import { JwtPayload } from '@axon-tickets/types';
+import { CreateReferralCodeDto } from './dto/referral-code.dto';
 
 interface NametagRow {
   id: string;
@@ -138,6 +139,129 @@ export class AdminService {
       ) as Record<string, unknown>,
     });
     return updated;
+  }
+
+  async listReferralCodes(eventId: string, user: JwtPayload) {
+    await this.assertEventAccess(eventId, user);
+    const [codes, usageTotals] = await Promise.all([
+      this.prisma.referralCode.findMany({
+        where: { eventId },
+        orderBy: { createdAt: 'desc' },
+        include: { _count: { select: { usages: true } } },
+      }),
+      this.prisma.referralCodeUsage.groupBy({
+        by: ['referralCodeId'],
+        where: { referralCode: { eventId } },
+        _sum: { attendeeCount: true, discountAmount: true },
+      }),
+    ]);
+    const totalsByCode = new Map(usageTotals.map((total) => [total.referralCodeId, total._sum]));
+    return codes.map((code) => ({
+      id: code.id,
+      code: code.code,
+      name: code.name,
+      discountType: code.discountType,
+      discountValue: code.discountType === 'fixed_amount' ? Number(code.discountValue) / 100 : Number(code.discountValue),
+      isActive: code.isActive,
+      maxUses: code.maxUses,
+      validFrom: code.validFrom?.toISOString() ?? null,
+      validUntil: code.validUntil?.toISOString() ?? null,
+      applicableTierIds: Array.isArray(code.applicableTierIds) ? code.applicableTierIds : [],
+      usageCount: code._count.usages,
+      attendeeCount: totalsByCode.get(code.id)?.attendeeCount ?? 0,
+      totalDiscount: Number(totalsByCode.get(code.id)?.discountAmount ?? 0),
+      createdAt: code.createdAt.toISOString(),
+    }));
+  }
+
+  async createReferralCode(eventId: string, dto: CreateReferralCodeDto, user: JwtPayload) {
+    await this.assertEventAccess(eventId, user);
+    const code = dto.code.trim().toUpperCase();
+    if (dto.discountType === 'percentage' && dto.discountValue > 100) {
+      throw new BadRequestException('Percentage discount cannot exceed 100%.');
+    }
+    if (dto.validFrom && dto.validUntil && new Date(dto.validUntil) <= new Date(dto.validFrom)) {
+      throw new BadRequestException('Validity end must be after its start.');
+    }
+    if (dto.applicableTierIds?.length) {
+      const count = await this.prisma.ticketTier.count({
+        where: { eventId, id: { in: dto.applicableTierIds } },
+      });
+      if (count !== new Set(dto.applicableTierIds).size) {
+        throw new BadRequestException('One or more selected ticket tiers do not belong to this event.');
+      }
+    }
+    try {
+      const created = await this.prisma.referralCode.create({
+        data: {
+          eventId,
+          code,
+          name: dto.name.trim(),
+          discountType: dto.discountType,
+          // fixed amounts enter the API in pesos; persist money in centavos
+          discountValue: dto.discountType === 'fixed_amount' ? Math.round(dto.discountValue * 100) : dto.discountValue,
+          maxUses: dto.maxUses ?? null,
+          validFrom: dto.validFrom ? new Date(dto.validFrom) : null,
+          validUntil: dto.validUntil ? new Date(dto.validUntil) : null,
+          applicableTierIds: dto.applicableTierIds ?? Prisma.JsonNull,
+          createdById: user.sub,
+        },
+      });
+      await this.audit.log({
+        action: 'REFERRAL_CODE_CREATED',
+        entityType: 'ReferralCode',
+        entityId: created.id,
+        performedById: user.sub,
+        metadata: { eventId, code, discountType: dto.discountType },
+      });
+      return created;
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+        throw new ConflictException('That referral code already exists for this event.');
+      }
+      throw error;
+    }
+  }
+
+  async setReferralCodeStatus(eventId: string, codeId: string, isActive: boolean, user: JwtPayload) {
+    await this.assertEventAccess(eventId, user);
+    const existing = await this.prisma.referralCode.findFirst({ where: { id: codeId, eventId } });
+    if (!existing) throw new NotFoundException('Referral code not found');
+    const updated = await this.prisma.referralCode.update({
+      where: { id: codeId },
+      data: { isActive, deactivatedAt: isActive ? null : new Date() },
+    });
+    await this.audit.log({
+      action: isActive ? 'REFERRAL_CODE_ACTIVATED' : 'REFERRAL_CODE_DEACTIVATED',
+      entityType: 'ReferralCode',
+      entityId: codeId,
+      performedById: user.sub,
+      metadata: { eventId, code: existing.code },
+    });
+    return updated;
+  }
+
+  async exportReferralCodes(eventId: string, user: JwtPayload): Promise<string> {
+    await this.assertEventAccess(eventId, user);
+    const usages = await this.prisma.referralCodeUsage.findMany({
+      where: { referralCode: { eventId } },
+      orderBy: { createdAt: 'desc' },
+      include: {
+        referralCode: { select: { code: true, name: true } },
+        registration: { select: { referenceNumber: true, tierName: true, total: true } },
+      },
+    });
+    const header = 'Code,Name,Registration,Tier,Attendees,Discount (PHP),Final Total (PHP),Used At\n';
+    return header + usages.map((usage) => [
+      this.escapeCsvCell(usage.referralCode.code),
+      `"${this.escapeCsvCell(usage.referralCode.name)}"`,
+      this.escapeCsvCell(usage.registration.referenceNumber),
+      `"${this.escapeCsvCell(usage.registration.tierName ?? '')}"`,
+      usage.attendeeCount,
+      (Number(usage.discountAmount) / 100).toFixed(2),
+      (Number(usage.registration.total) / 100).toFixed(2),
+      usage.createdAt.toISOString(),
+    ].join(',')).join('\n');
   }
 
   async deleteEvent(id: string, user: JwtPayload) {
@@ -1277,7 +1401,7 @@ export class AdminService {
       }),
     ]);
 
-    const header = 'Source,Reference,Event,Buyer Name,Email,Company,Job Title,City,Status,Tier,Qty,Total (PHP),Payment Method,Created At\n';
+    const header = 'Source,Reference,Event,Buyer Name,Email,Company,Job Title,City,Status,Tier,Qty,Subtotal (PHP),Discount (PHP),Referral Code,Total (PHP),Payment Method,Created At\n';
 
     const orderRows = orders.map((o: (typeof orders)[number]) => {
       const tierNames = o.items.map((i: (typeof o.items)[number]) => `${i.ticketTier.name} x${i.quantity}`).join(' | ');
@@ -1294,6 +1418,9 @@ export class AdminService {
         o.status,
         `"${this.escapeCsvCell(tierNames)}"`,
         qty,
+        (Number(o.subtotal) / 100).toFixed(2),
+        '0.00',
+        '',
         (Number(o.total) / 100).toFixed(2),
         o.paymentMethod ?? '',
         o.createdAt.toISOString(),
@@ -1312,6 +1439,9 @@ export class AdminService {
       'paid',
       `"${this.escapeCsvCell(r.tierName ?? 'Registration')}"`,
       r.attendeeCount,
+      (Number(r.subtotal) / 100).toFixed(2),
+      (Number(r.discount) / 100).toFixed(2),
+      this.escapeCsvCell((r.referralCodeSnapshot as any)?.code ?? ''),
       (Number(r.total) / 100).toFixed(2),
       r.paymentMethod ?? '',
       r.createdAt.toISOString(),
@@ -1355,7 +1485,7 @@ export class AdminService {
       },
     });
 
-    const header = 'ID,Name,Email,Phone,Company,Job Title,City,Tier,Payment Status,Payment Method,Checked In,Checked In At\n';
+    const header = 'ID,Name,Email,Phone,Company,Job Title,Birthday,Gender,City,Tier,Payment Status,Payment Method,Checked In,Checked In At\n';
 
     const attendeeRows = attendees.map((a) => [
       a.id,
@@ -1364,7 +1494,9 @@ export class AdminService {
       this.escapeCsvCell(a.phone ?? ''),
       `"${this.escapeCsvCell(a.company ?? '')}"`,
       `"${this.escapeCsvCell(a.jobTitle ?? '')}"`,
-      `"${this.escapeCsvCell(a.registration.user?.city ?? '')}"`,
+      a.birthday?.toISOString().slice(0, 10) ?? '',
+      this.escapeCsvCell(a.gender ?? ''),
+      `"${this.escapeCsvCell(a.city ?? a.registration.user?.city ?? '')}"`,
       `"${this.escapeCsvCell(a.registration.tierName ?? 'Registration')}"`,
 
       a.registration.status === 'verified' ? 'paid' : 'pending',
@@ -1380,6 +1512,8 @@ export class AdminService {
       this.escapeCsvCell(t.user.phone ?? ''),
       `"${this.escapeCsvCell(t.user.company ?? '')}"`,
       `"${this.escapeCsvCell(t.user.jobTitle ?? '')}"`,
+      '',
+      '',
       `"${this.escapeCsvCell(t.user.city ?? '')}"`,
       `"${this.escapeCsvCell(t.ticketTier.name)}"`,
       t.order?.status ?? '',

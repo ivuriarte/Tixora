@@ -14,6 +14,9 @@ interface ProfileData {
   phone?: string | null;
   company?: string | null;
   jobTitle?: string | null;
+  birthday?: string | null;
+  gender?: string | null;
+  city?: string | null;
 }
 
 interface AttendeeFields {
@@ -23,6 +26,9 @@ interface AttendeeFields {
   phone: string;
   company: string;
   jobTitle: string;
+  birthday: string;
+  gender: string;
+  city: string;
 }
 
 const emptyAttendee = (): AttendeeFields => ({
@@ -32,6 +38,9 @@ const emptyAttendee = (): AttendeeFields => ({
   phone: '',
   company: '',
   jobTitle: '',
+  birthday: '',
+  gender: '',
+  city: '',
 });
 
 interface PaymentMethod {
@@ -87,7 +96,7 @@ export default function RegistrationForm({
   const router = useRouter();
   const currentUser = useAuthStore((s) => s.user);
   const [attendees, setAttendees] = useState<AttendeeFields[]>(() =>
-    initialAttendees ?? Array.from({ length: qty }, emptyAttendee),
+    initialAttendees?.map((attendee) => ({ ...emptyAttendee(), ...attendee })) ?? Array.from({ length: qty }, emptyAttendee),
   );
   // Default ON unless we're in edit mode (initialAttendees already provides the data)
   const [useMyDetails, setUseMyDetails] = useState(!initialAttendees);
@@ -96,6 +105,10 @@ export default function RegistrationForm({
   const [notes, setNotes] = useState(initialNotes ?? '');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [referralCode, setReferralCode] = useState('');
+  const [referralDiscount, setReferralDiscount] = useState(0);
+  const [referralMessage, setReferralMessage] = useState<string | null>(null);
+  const [checkingReferral, setCheckingReferral] = useState(false);
   // Synchronous guard — prevents duplicate submissions during the async gap
   // between the first click and React flushing the loading state update.
   const submittingRef = useRef(false);
@@ -111,7 +124,7 @@ export default function RegistrationForm({
   // unitPrice is in centavos (50000 = ₱500). platformFee is in pesos (e.g. 50).
   const subtotalPesos = centavosToPeso(unitPrice * qty);
   const feesPesos = Number(platformFee) || 0;
-  const totalPesos = subtotalPesos + feesPesos;
+  const totalPesos = Math.max(0, subtotalPesos - centavosToPeso(referralDiscount)) + feesPesos;
 
   const updateAttendee = (index: number, field: keyof AttendeeFields, value: string) => {
     setAttendees((prev) => {
@@ -146,6 +159,9 @@ export default function RegistrationForm({
           phone: profile?.phone ?? '',
           company: profile?.company ?? '',
           jobTitle: profile?.jobTitle ?? '',
+          birthday: profile?.birthday ? profile.birthday.slice(0, 10) : '',
+          gender: profile?.gender ?? '',
+          city: profile?.city ?? '',
         };
         return next;
       });
@@ -157,6 +173,34 @@ export default function RegistrationForm({
       });
     }
   };
+
+  async function applyReferralCode() {
+    if (!referralCode.trim()) {
+      setReferralDiscount(0);
+      setReferralMessage(null);
+      return;
+    }
+    setCheckingReferral(true);
+    try {
+      const response = await api.post<{ data: { discount: number; name: string } }>('/registrations/validate-referral', {
+        eventId,
+        tierId,
+        code: referralCode.trim(),
+        attendeeCount: qty,
+      });
+      const result = response.data.data;
+      setReferralDiscount(result.discount);
+      setReferralCode(referralCode.trim().toUpperCase());
+      setReferralMessage(`${result.name} applied — you save ${formatPHP(centavosToPeso(result.discount))}.`);
+    } catch (err: any) {
+      setReferralDiscount(0);
+      setReferralMessage(null);
+      const message = err?.response?.data?.message ?? 'Referral code could not be applied.';
+      setError(Array.isArray(message) ? message.join(' ') : message);
+    } finally {
+      setCheckingReferral(false);
+    }
+  }
 
   const hasPaymentDetails =
     (paymentMethods && paymentMethods.length > 0) ||
@@ -181,6 +225,9 @@ export default function RegistrationForm({
         ...(a.phone.trim() && { phone: a.phone.trim() }),
         ...(a.company.trim() && { company: a.company.trim() }),
         ...(a.jobTitle.trim() && { jobTitle: a.jobTitle.trim() }),
+        birthday: a.birthday,
+        gender: a.gender as 'female' | 'male' | 'non_binary' | 'prefer_not_to_say' | 'self_described',
+        city: a.city.trim(),
       }));
 
       if (registrationId) {
@@ -196,6 +243,7 @@ export default function RegistrationForm({
           tierId,
           attendees: attendeePayload,
           ...(notes.trim() && { notes: notes.trim() }),
+          ...(referralDiscount > 0 && referralCode.trim() && { referralCode: referralCode.trim() }),
         };
         const res = await api.post('/registrations', payload);
         const reg = res.data?.data ?? res.data;
@@ -228,11 +276,39 @@ export default function RegistrationForm({
           <span>Service fee</span>
           <span>{formatPHP(feesPesos)}</span>
         </div>
+        {referralDiscount > 0 && (
+          <div className="flex justify-between text-sm font-medium text-emerald-700 mt-1">
+            <span>Referral discount ({referralCode})</span>
+            <span>−{formatPHP(centavosToPeso(referralDiscount))}</span>
+          </div>
+        )}
         <div className="flex justify-between font-bold text-gray-900 mt-3 pt-3 border-t border-gray-100">
           <span>Total</span>
           <span className="text-primary">{formatPHP(totalPesos)}</span>
         </div>
       </div>
+
+      {!registrationId && (
+        <div className="rounded-2xl border border-emerald-200 bg-emerald-50/60 p-5">
+          <label htmlFor="referral-code" className="block text-sm font-semibold text-gray-900">Have a referral code?</label>
+          <p className="mt-1 text-xs text-gray-600">Apply it before confirming to preview your final total.</p>
+          <div className="mt-3 flex gap-2">
+            <input
+              id="referral-code"
+              value={referralCode}
+              onChange={(event) => { setReferralCode(event.target.value.toUpperCase()); setReferralDiscount(0); setReferralMessage(null); setError(null); }}
+              maxLength={32}
+              autoComplete="off"
+              placeholder="Enter code"
+              className="min-w-0 flex-1 rounded-xl border border-emerald-300 bg-white px-3 py-2 text-sm font-mono uppercase tracking-wide focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-200"
+            />
+            <button type="button" onClick={applyReferralCode} disabled={checkingReferral || !referralCode.trim()} className="rounded-xl bg-emerald-700 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-800 disabled:opacity-50">
+              {checkingReferral ? 'Checking…' : 'Apply'}
+            </button>
+          </div>
+          {referralMessage && <p role="status" className="mt-2 text-xs font-medium text-emerald-700">✓ {referralMessage}</p>}
+        </div>
+      )}
 
       {/* Group booking — single-receipt policy notice */}
       {qty > 1 && (
@@ -488,6 +564,26 @@ export default function RegistrationForm({
                     readOnly={auto && !!att.jobTitle.trim()}
                     className={`w-full border rounded-lg px-3 py-2 text-sm ${cls(att.jobTitle)}`}
                   />
+                </div>
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">Birthday *</label>
+                    <input type="date" required max={new Date().toISOString().slice(0, 10)} value={att.birthday} onChange={(e) => updateAttendee(i, 'birthday', e.target.value)} readOnly={auto && !!att.birthday} className={`w-full border rounded-lg px-3 py-2 text-sm ${cls(att.birthday)}`} />
+                    {auto && !att.birthday && <MissingHint />}
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">Gender *</label>
+                    <select required value={att.gender} onChange={(e) => updateAttendee(i, 'gender', e.target.value)} disabled={auto && !!att.gender} className={`w-full border rounded-lg px-3 py-2 text-sm ${cls(att.gender)}`}>
+                      <option value="">Select</option>
+                      <option value="female">Female</option><option value="male">Male</option><option value="non_binary">Non-binary</option><option value="self_described">Self-described</option><option value="prefer_not_to_say">Prefer not to say</option>
+                    </select>
+                    {auto && !att.gender && <MissingHint />}
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">City *</label>
+                    <input required value={att.city} onChange={(e) => updateAttendee(i, 'city', e.target.value)} readOnly={auto && !!att.city.trim()} placeholder="Davao City" className={`w-full border rounded-lg px-3 py-2 text-sm ${cls(att.city)}`} />
+                    {auto && !att.city.trim() && <MissingHint />}
+                  </div>
                 </div>
               </>
             );

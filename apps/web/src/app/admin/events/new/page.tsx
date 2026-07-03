@@ -11,6 +11,7 @@ import CapacityTiersStep from '@/components/event-wizard/steps/CapacityTiersStep
 import ConferenceStep from '@/components/event-wizard/steps/ConferenceStep';
 import PaymentStep from '@/components/event-wizard/steps/PaymentStep';
 import ReviewStep from '@/components/event-wizard/steps/ReviewStep';
+import ReferralCodesPanel, { type ReferralDraft } from '@/components/event-wizard/ReferralCodesPanel';
 import {
   emptyDraft,
   combineDatetime,
@@ -38,6 +39,7 @@ export default function AdminNewEventPage() {
   const [draft, setDraft] = useState<EventDraft>(emptyDraft());
   const [tiers, setTiers] = useState<LocalTier[]>([]);
   const [paymentMethods, setPaymentMethods] = useState<LocalPaymentMethod[]>([]);
+  const [referralCodes, setReferralCodes] = useState<ReferralDraft[]>([]);
 
   useEffect(() => {
     api.get<{ data: { serviceFee: number } }>('/admin/settings/platform')
@@ -167,10 +169,13 @@ export default function AdminNewEventPage() {
             ...(s.logoUrl && { logoUrl: s.logoUrl }),
             ...(s.tier && { tier: s.tier }),
             ...(s.websiteUrl?.trim() && { websiteUrl: s.websiteUrl.trim() }),
+            ...(s.description?.trim() && { description: s.description.trim() }),
+            isVisible: s.isVisible,
           }))
           .filter((s) => s.name.length > 0);
         if (cleaned.length > 0) payload.sponsors = cleaned;
       }
+      if (draft.customSections.length > 0) payload.customSections = draft.customSections;
       if (draft.faqs.length > 0) {
         const cleaned = draft.faqs
           .filter((f) => f && typeof f === 'object' && !Array.isArray(f))
@@ -185,8 +190,9 @@ export default function AdminNewEventPage() {
       const { data: eventData } = await api.post<{ data: { id: string } }>('/admin/events', payload);
       const eventId = eventData.data.id;
 
+      let createdTierIds = new Map<number, string>();
       try {
-        await Promise.all(
+        const tierResults = await Promise.all(
           tiers.map((t, idx) =>
             postWithRetry(`/admin/events/${eventId}/tiers`, {
               name: t.name.trim(),
@@ -199,10 +205,29 @@ export default function AdminNewEventPage() {
             }),
           ),
         );
+        createdTierIds = new Map(tierResults.map((result, index) => {
+          const body = result.data as { data?: { id?: string }; id?: string };
+          return [tiers[index].key, body.data?.id ?? body.id ?? ''] as [number, string];
+        }).filter((entry) => Boolean(entry[1])));
       } catch (tierErr) {
         // Roll back the orphaned event so the user can safely retry from scratch
         try { await api.delete(`/admin/events/${eventId}`); } catch { /* best-effort */ }
         throw tierErr;
+      }
+
+      if (referralCodes.length > 0) {
+        try {
+          await Promise.all(referralCodes.map((code) => api.post(`/admin/events/${eventId}/referral-codes`, {
+            name: code.name.trim(), code: code.code.trim().toUpperCase(), discountType: code.discountType,
+            discountValue: Number(code.discountValue), ...(code.maxUses && { maxUses: Number(code.maxUses) }),
+            ...(code.validFrom && { validFrom: new Date(code.validFrom).toISOString() }),
+            ...(code.validUntil && { validUntil: new Date(code.validUntil).toISOString() }),
+            ...(code.applicableTierIds.length > 0 && { applicableTierIds: code.applicableTierIds.map((tierId) => tierId.startsWith('local:') ? createdTierIds.get(Number(tierId.slice(6))) : tierId).filter(Boolean) }),
+          })));
+        } catch (referralError) {
+          try { await api.delete(`/admin/events/${eventId}`); } catch { /* best-effort rollback */ }
+          throw referralError;
+        }
       }
 
       clearDraft();
@@ -282,16 +307,17 @@ export default function AdminNewEventPage() {
                   onReorderTiers={setTiers}
                 />
               );
-            case 'conference': return <ConferenceStep draft={draft} update={update} />;
+            case 'details': return <ConferenceStep draft={draft} update={update} />;
             case 'payment':
-              return (
+              return (<>
                 <PaymentStep
                   paymentMethods={paymentMethods}
                   onAdd={addPM} onEdit={editPM} onRemove={removePM}
                   onReorder={setPaymentMethods}
                   platformFee={platformFee}
                 />
-              );
+                <ReferralCodesPanel tiers={tiers} pending={referralCodes} onPendingChange={setReferralCodes} />
+              </>);
             case 'review':
               return (
                 <ReviewStep

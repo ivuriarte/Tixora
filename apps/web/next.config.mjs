@@ -11,8 +11,6 @@ const nextConfig = {
   images: {
     remotePatterns: [
       { protocol: 'https', hostname: 'res.cloudinary.com' },
-      // Sponsor logos may come from any HTTPS host — allow all via wildcard
-      { protocol: 'https', hostname: '**' },
     ],
   },
   experimental: {
@@ -39,7 +37,8 @@ const nextConfig = {
               // until nonce-based CSP is adopted in a future hardening pass
               "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://hcaptcha.com https://*.hcaptcha.com https://vercel.live https://connect.facebook.net",
               "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
-              // images allowed from any HTTPS host to match next/image remotePatterns wildcard
+              // Organizer-supplied sponsor/section images render directly rather than
+              // being proxied through the Next image optimizer.
               "img-src 'self' data: blob: https:",
               "font-src 'self' https://fonts.gstatic.com",
               // Sentry tunnel and reporting endpoints

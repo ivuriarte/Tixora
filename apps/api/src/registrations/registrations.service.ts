@@ -16,6 +16,7 @@ import {
 } from '@axon-tickets/utils';
 import { CreateRegistrationDto } from './dto/create-registration.dto';
 import { UpdateRegistrationAttendeesDto } from './dto/update-registration-attendees.dto';
+import { ValidateReferralCodeDto } from '../admin/dto/referral-code.dto';
 
 const ACTIVE_REGISTRATION_STATUSES = ['pending_payment', 'proof_submitted', 'verified'] as const;
 const VALID_TICKET_STATUSES = ['valid', 'used'] as const;
@@ -47,6 +48,7 @@ export class RegistrationsService {
   }
 
   private async createImpl(dto: CreateRegistrationDto, userId: string, ip?: string) {
+    this.validateAttendeeDemographics(dto.attendees);
     const event = await this.prisma.event.findUnique({
       where: { id: dto.eventId },
       include: { tiers: { where: { id: dto.tierId } } },
@@ -74,7 +76,6 @@ export class RegistrationsService {
     // Per-event service fee. event.platformFee is configured in pesos (e.g. 50);
     // money columns (subtotal/fees/total) are stored in centavos, so convert.
     const fees = Math.round(Number(event.platformFee ?? 50) * 100);
-    const total = subtotal + fees;
     const referenceNumber = generateReferenceNumber();
     const maxPerUser = event.maxPerUser ?? 0;
 
@@ -166,7 +167,20 @@ export class RegistrationsService {
           data: { soldQuantity: occupied + attendeeCount },
         });
 
-        return tx.registration.create({
+        let discount = 0;
+        let referral: Awaited<ReturnType<typeof tx.referralCode.findFirst>> = null;
+        if (dto.referralCode?.trim()) {
+          const normalizedCode = dto.referralCode.trim().toUpperCase();
+          await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${dto.eventId}), hashtext(${normalizedCode}))`;
+          referral = await tx.referralCode.findFirst({
+            where: { eventId: dto.eventId, code: normalizedCode },
+          });
+          const validation = await this.evaluateReferral(tx, referral, dto.tierId, subtotal);
+          discount = validation.discount;
+        }
+        const total = Math.max(0, subtotal - discount) + fees;
+
+        const created = await tx.registration.create({
           data: {
             referenceNumber,
             userId,
@@ -177,7 +191,18 @@ export class RegistrationsService {
             attendeeCount,
             subtotal,
             fees,
+            discount,
             total,
+            ...(referral && {
+              referralCodeId: referral.id,
+              referralCodeSnapshot: {
+                code: referral.code,
+                name: referral.name,
+                discountType: referral.discountType,
+                discountValue: Number(referral.discountValue),
+                discountAmount: discount,
+              },
+            }),
             currency: tier.currency,
             notes: dto.notes,
             attendees: {
@@ -188,12 +213,34 @@ export class RegistrationsService {
                 phone: a.phone,
                 company: a.company,
                 jobTitle: a.jobTitle,
+                birthday: new Date(`${a.birthday}T00:00:00.000Z`),
+                gender: a.gender,
+                city: a.city.trim(),
                 isLead: i === 0,
               })),
             },
           },
           include: { attendees: true, event: true },
         });
+        if (referral) {
+          await tx.referralCodeUsage.create({
+            data: {
+              referralCodeId: referral.id,
+              registrationId: created.id,
+              discountAmount: discount,
+              attendeeCount,
+            },
+          });
+        }
+        await tx.user.update({
+          where: { id: userId },
+          data: {
+            birthday: new Date(`${dto.attendees[0].birthday}T00:00:00.000Z`),
+            gender: dto.attendees[0].gender,
+            city: dto.attendees[0].city.trim(),
+          },
+        });
+        return created;
       },
       { isolationLevel: 'ReadCommitted' },
     );
@@ -230,6 +277,11 @@ export class RegistrationsService {
       registrationId: registration.id,
       performedById: userId,
       ipAddress: ip,
+      metadata: {
+        referralCode: (registration.referralCodeSnapshot as any)?.code ?? null,
+        discount: Number(registration.discount),
+        attendeeCount: registration.attendeeCount,
+      },
     });
 
     this.logger.log({
@@ -250,11 +302,66 @@ export class RegistrationsService {
       attendeeCount: registration.attendeeCount,
       subtotal: Number(registration.subtotal),
       fees: Number(registration.fees),
+      discount: Number(registration.discount),
       total: Number(registration.total),
       currency: registration.currency,
       status: registration.status,
       createdAt: registration.createdAt.toISOString(),
     };
+  }
+
+  async validateReferralCode(dto: ValidateReferralCodeDto) {
+    const tier = await this.prisma.ticketTier.findFirst({
+      where: { id: dto.tierId, eventId: dto.eventId },
+      select: { price: true },
+    });
+    if (!tier) throw new NotFoundException('Ticket tier not found');
+    const referral = await this.prisma.referralCode.findFirst({
+      where: { eventId: dto.eventId, code: dto.code.trim().toUpperCase() },
+    });
+    const subtotal = Number(tier.price) * dto.attendeeCount;
+    const result = await this.evaluateReferral(this.prisma, referral, dto.tierId, subtotal);
+    return {
+      valid: true,
+      code: referral!.code,
+      name: referral!.name,
+      discount: result.discount,
+      subtotal,
+      discountedSubtotal: Math.max(0, subtotal - result.discount),
+    };
+  }
+
+  private async evaluateReferral(
+    db: Pick<Prisma.TransactionClient, 'referralCodeUsage'>,
+    referral: { id: string; code: string; isActive: boolean; validFrom: Date | null; validUntil: Date | null; maxUses: number | null; applicableTierIds: Prisma.JsonValue; discountType: string; discountValue: Prisma.Decimal } | null,
+    tierId: string,
+    subtotal: number,
+  ) {
+    if (!referral || !referral.isActive) throw new BadRequestException('Referral code is invalid or inactive.');
+    const now = new Date();
+    if (referral.validFrom && referral.validFrom > now) throw new BadRequestException('Referral code is not active yet.');
+    if (referral.validUntil && referral.validUntil < now) throw new BadRequestException('Referral code has expired.');
+    const tierIds = Array.isArray(referral.applicableTierIds) ? referral.applicableTierIds.filter((v): v is string => typeof v === 'string') : [];
+    if (tierIds.length > 0 && !tierIds.includes(tierId)) throw new BadRequestException('Referral code does not apply to this ticket tier.');
+    if (referral.maxUses) {
+      const used = await db.referralCodeUsage.count({ where: { referralCodeId: referral.id } });
+      if (used >= referral.maxUses) throw new BadRequestException('Referral code usage limit has been reached.');
+    }
+    const value = Number(referral.discountValue);
+    const raw = referral.discountType === 'percentage' ? subtotal * (value / 100) : value;
+    return { discount: Math.max(0, Math.min(subtotal, Math.round(raw))) };
+  }
+
+  private validateAttendeeDemographics(attendees: Array<{ birthday: string; city: string }>) {
+    const today = new Date();
+    const earliest = new Date(Date.UTC(today.getUTCFullYear() - 120, today.getUTCMonth(), today.getUTCDate()));
+    for (const attendee of attendees) {
+      const birthday = new Date(`${attendee.birthday}T00:00:00.000Z`);
+      if (!Number.isFinite(birthday.getTime()) || birthday > today || birthday < earliest) {
+        throw new BadRequestException('Birthday must be a valid past date within the last 120 years.');
+      }
+      if (!attendee.city.trim()) throw new BadRequestException('City is required for every attendee.');
+    }
   }
 
   async findMine(userId: string, page = 1, limit = 20) {
@@ -389,6 +496,8 @@ export class RegistrationsService {
       subtotal: Number(reg.subtotal),
       fees: Number(reg.fees),
       total: Number(reg.total),
+      discount: Number(reg.discount),
+      referralCode: (reg.referralCodeSnapshot as any)?.code ?? null,
       currency: reg.currency,
       notes: reg.notes,
       rejectionReason: reg.rejectionReason,
@@ -417,6 +526,9 @@ export class RegistrationsService {
         phone: a.phone,
         company: a.company,
         jobTitle: a.jobTitle,
+        birthday: a.birthday?.toISOString().slice(0, 10) ?? null,
+        gender: a.gender,
+        city: a.city,
         isLead: a.isLead,
         hasQr: !!a.qrToken,
         checkedInAt: a.checkedInAt?.toISOString() ?? null,
@@ -433,6 +545,7 @@ export class RegistrationsService {
   }
 
   async updateAttendees(id: string, userId: string, dto: UpdateRegistrationAttendeesDto) {
+    this.validateAttendeeDemographics(dto.attendees);
     const reg = await this.prisma.registration.findFirst({
       where: { id, userId },
       include: { attendees: { orderBy: { isLead: 'desc' } } },
@@ -460,6 +573,9 @@ export class RegistrationsService {
             phone: dto.attendees[i].phone ?? null,
             company: dto.attendees[i].company ?? null,
             jobTitle: dto.attendees[i].jobTitle ?? null,
+            birthday: new Date(`${dto.attendees[i].birthday}T00:00:00.000Z`),
+            gender: dto.attendees[i].gender,
+            city: dto.attendees[i].city.trim(),
           },
         }),
       ),
@@ -983,6 +1099,8 @@ export class RegistrationsService {
       unitPrice: reg.unitPrice ? Number(reg.unitPrice) / 100 : undefined,
       subtotal: Number(reg.subtotal) / 100,
       fees: Number(reg.fees) / 100,
+      discount: Number(reg.discount) / 100,
+      referralCode: (reg.referralCodeSnapshot as any)?.code,
       total: Number(reg.total) / 100,
       organizerName: reg.event.organization?.name ?? undefined,
       eventCity: reg.event.city,

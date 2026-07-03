@@ -94,9 +94,9 @@ export class UploadController {
     FileInterceptor('image', {
       limits: { fileSize: 2 * 1024 * 1024 }, // 2 MB
       fileFilter: (_req, file, cb) => {
-        const allowed = ['image/jpeg', 'image/png', 'image/webp', 'image/svg+xml'];
+        const allowed = ['image/jpeg', 'image/png', 'image/webp'];
         if (!allowed.includes(file.mimetype)) {
-          cb(new BadRequestException('Only JPG, PNG, WEBP, SVG allowed'), false);
+          cb(new BadRequestException('Only JPG, PNG, and WEBP allowed'), false);
         } else {
           cb(null, true);
         }

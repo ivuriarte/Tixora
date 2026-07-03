@@ -211,6 +211,7 @@ export default function RegistrationDetailPage() {
             <span>Service fee</span>
             <span>{formatPHP(centavosToPeso(reg.fees))}</span>
           </div>
+          {reg.discount > 0 && <div className="flex justify-between font-medium text-emerald-700"><span>Referral discount{reg.referralCode ? ` (${reg.referralCode})` : ''}</span><span>−{formatPHP(centavosToPeso(reg.discount))}</span></div>}
           <div className="flex justify-between font-bold text-gray-900 pt-2 border-t border-gray-100">
             <span>Total Due</span>
             <span className="text-primary">{formatPHP(centavosToPeso(reg.total))}</span>

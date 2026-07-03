@@ -52,6 +52,9 @@ interface AttendeeFields {
   phone: string;
   company: string;
   jobTitle: string;
+  birthday: string;
+  gender: string;
+  city: string;
 }
 
 type WizardStep = 'gate' | 'details' | 'verify';
@@ -59,7 +62,7 @@ type WizardStep = 'gate' | 'details' | 'verify';
 const RESEND_COOLDOWN = 60;
 
 function emptyAttendee(): AttendeeFields {
-  return { firstName: '', lastName: '', email: '', phone: '', company: '', jobTitle: '' };
+  return { firstName: '', lastName: '', email: '', phone: '', company: '', jobTitle: '', birthday: '', gender: '', city: '' };
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -251,6 +254,9 @@ function GuestWizard({ event, tier, qty, existingRegistrationId, onOtpVerified }
         phone: normalizedPhone,
         company: '',
         jobTitle: '',
+        birthday: '',
+        gender: '',
+        city: '',
       };
 
       const extraList: AttendeeFields[] = extraAttendees.map((a) => ({
@@ -260,6 +266,9 @@ function GuestWizard({ event, tier, qty, existingRegistrationId, onOtpVerified }
         phone: a.phone.trim().startsWith('+') ? a.phone.trim() : `+63${a.phone.trim()}`,
         company: a.company.trim(),
         jobTitle: a.jobTitle.trim(),
+        birthday: a.birthday,
+        gender: a.gender,
+        city: a.city.trim(),
       }));
 
       trackPixelCustomEvent('OTP_Verified', { event_id: event.id, event_name: event.title });
@@ -658,9 +667,7 @@ export default function RegisterPage({
 
   const [event, setEvent] = useState<EventData | null>(null);
   const [pageLoading, setPageLoading] = useState(true);
-  const [initialAttendees, setInitialAttendees] = useState<
-    { firstName: string; lastName: string; email: string; phone: string; company: string; jobTitle: string }[] | undefined
-  >(undefined);
+  const [initialAttendees, setInitialAttendees] = useState<AttendeeFields[] | undefined>(undefined);
   const [initialNotes, setInitialNotes] = useState<string | undefined>(undefined);
 
   // 'idle' → 'checking' → 'duplicate' | 'clear'
@@ -728,13 +735,16 @@ export default function RegisterPage({
           (a: { isLead: boolean }, b: { isLead: boolean }) => (b.isLead ? 1 : 0) - (a.isLead ? 1 : 0),
         );
         setInitialAttendees(
-          sorted.map((a: { firstName: string; lastName: string; email: string; phone?: string | null; company?: string | null; jobTitle?: string | null }) => ({
+          sorted.map((a: { firstName: string; lastName: string; email: string; phone?: string | null; company?: string | null; jobTitle?: string | null; birthday?: string | null; gender?: string | null; city?: string | null }) => ({
             firstName: a.firstName,
             lastName: a.lastName,
             email: a.email,
             phone: a.phone ?? '',
             company: a.company ?? '',
             jobTitle: a.jobTitle ?? '',
+            birthday: a.birthday?.slice(0, 10) ?? '',
+            gender: a.gender ?? '',
+            city: a.city ?? '',
           })),
         );
         setInitialNotes(regData.notes ?? '');
