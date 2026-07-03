@@ -78,6 +78,29 @@
   - Status: APPROVED / REJECTED / NEEDS REVISION
   - Notes: 
 
+#### Phase 5: Product Package Verification
+- [ ] **UAT-11:** Referral pricing, event ownership, usage reporting, and concurrent redemption
+  - Status: PASS / FAIL / BLOCKED
+  - Notes:
+
+- [ ] **UAT-12:** Required birthday, gender, and city validation plus privacy boundaries
+  - Status: PASS / FAIL / BLOCKED
+  - Notes:
+
+- [ ] **UAT-13:** Sponsor tier, description, link, visibility, responsive rendering, and safe uploads
+  - Status: PASS / FAIL / BLOCKED
+  - Notes:
+
+- [ ] **UAT-14:** Custom event sections, ordering, visibility, imagery, and accessibility text
+  - Status: PASS / FAIL / BLOCKED
+  - Notes:
+
+### Database Migration Verification
+- [ ] Migration `20260704180000_add_product_packages_mvp` applied successfully
+- [ ] Existing users, events, registrations, and attendees remain readable
+- [ ] Referral tables, indexes, and foreign keys are present
+- [ ] API started only after migration completion
+
 ### Known Issues & Blockers
 
 | Issue | Severity | Status | Action |
@@ -95,6 +118,8 @@
 |---|---|---|---|
 | Public event read (p95) | <500ms | [X]ms | ✓ / ✗ |
 | Registration (p95) | <1s | [X]ms | ✓ / ✗ |
+| Referral validation (p95) | <500ms | [X]ms | ✓ / ✗ |
+| Referral dashboard (p95) | <1s | [X]ms | ✓ / ✗ |
 | Check-in (p95) | <300ms | [X]ms | ✓ / ✗ |
 | Error rate | <1% | [X]% | ✓ / ✗ |
 | Database connections | <50 | [X] | ✓ / ✗ |

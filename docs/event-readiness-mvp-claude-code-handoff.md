@@ -6,6 +6,20 @@ This document is a non-code implementation handoff for the MVP defined in:
 
 It is designed so you can copy-paste prompts into Claude Code in sequence.
 
+## July 2026 Implemented Baseline
+
+Do not rebuild the following capabilities when continuing this handoff:
+
+- Event-scoped referral codes with percentage/fixed discounts, dates, tier restrictions, maximum usage, activation controls, aggregate dashboard data, and CSV export.
+- Server-authoritative referral pricing with transaction-level protection against concurrent over-redemption.
+- Required birthday, gender, and city fields across onboarding, profiles, registrations, pending-attendee edits, and authorized exports.
+- Sponsor presentation metadata including tier, description, HTTPS website, visibility, and safe JPG/PNG/WebP logo upload.
+- Ordered flexible event sections with optional image, required image alt text, visibility, and public rendering.
+- Corrected post-event `completed` status gate.
+- Event Workspace authorization hardening, real organization-member assignment, workspace closure snapshot, and expanded audit coverage.
+
+Migration dependency: `20260704180000_add_product_packages_mvp` must be applied before the July product-package application code is exercised. Sponsor CRM/contact records remain explicitly out of scope. Demographic reports must remain aggregate-only with small-cohort suppression.
+
 ## 1. MVP Build Layout
 
 The MVP should be built in this order so dependencies are handled cleanly and the product stays inside scope.

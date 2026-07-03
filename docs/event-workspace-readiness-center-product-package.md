@@ -4,6 +4,19 @@ Master product, business, solution design, and backlog package.
 
 Prepared for CEO review, product review, business review, solution architecture review, backlog grooming, and development planning.
 
+## July 2026 Implementation Update
+
+The July 4 product-package release adds four production-oriented capabilities adjacent to the Event Workspace initiative:
+
+| Capability | Current state | Business impact |
+|---|---|---|
+| Event referral codes | Implemented, pending UAT sign-off | Controlled event-level promotions, campaign attribution, immutable redemption history, and discount reporting |
+| Attendee demographics | Birthday, gender, and city collected during onboarding and registration | Enables age and geographic analysis once privacy-safe aggregate reporting is completed |
+| Sponsor presentation | Tier, description, website, visibility, and raster logo support | Stronger public sponsor recognition without introducing sponsor CRM/contact storage |
+| Flexible event sections | Ordered, visible/hidden custom content with optional accessible imagery | Supports concerts, conferences, community events, and other formats without conference-only assumptions |
+
+The release also includes an additive database migration, server-authoritative discount calculations, concurrent redemption protection, event-ownership enforcement, upload restrictions, and aggregate referral reporting. These additions do not change the package's exclusion of sponsor CRM, volunteer management, advanced risk/dependency tooling, or attendee-level demographic disclosure.
+
 ## Current System Baseline
 
 This package was re-audited against the current repository implementation on 2026-06-27. The codebase already includes ticketing, manual-payment registration, payment proof review, attendee QR check-in, organizer application and approval, event creation, event workspaces, readiness checklist templates, milestone tracking, weighted readiness scoring, share-safe readiness PDF export, post-event PDF generation, and admin analytics with sales, attendance, and registration funnel views.
@@ -493,7 +506,7 @@ Backlog is separated into MVP, Phase 2, Phase 3, and Future Vision. Priorities u
 | Post-Event Report Suite | Registration report | Must Have | 🔶 Partial - API PDF exists; web completion gate uses `complete` instead of `completed` |
 | Post-Event Report Suite | Attendance and check-in report | Must Have | 🔶 Partial - API PDF exists; web completion gate uses `complete` instead of `completed` |
 | Post-Event Report Suite | Operations and blockers report | Must Have | 🔶 Partial - API PDF exists; web completion gate uses `complete` instead of `completed` |
-| Post-Event Report Suite | Demographics report with aggregated charts only | Must Have | 🔶 Partial - API PDF exists; web completion gate uses `complete` instead of `completed` |
+| Post-Event Report Suite | Demographics report with aggregated charts only | Must Have | 🔶 Partial - API PDF and corrected completed-event UI gate exist; age/geography chart generation remains pending |
 | Post-Event Report Suite | Privacy-safe shareable export | Must Have | 🔶 Partial - external export exists in API; web completion gate uses `complete` instead of `completed` |
 
 ### Current Implementation Audit
@@ -515,8 +528,8 @@ Status was checked against the current repository implementation on 2026-06-27.
 | Ownership and RACI | Partial - items support responsible user, accountable user, due date, unowned flag, and overdue flag. | Add Consulted/Informed fields only if still desired; build grouped RACI summary and enforce event-team membership. |
 | Stakeholder progress report | Done - share-safe PDF endpoint excludes attendee PII, internal notes, and assignee PII; UI download button exists. | Add report snapshot history if recurring stakeholder updates matter. |
 | Live stakeholder read-only dashboard | None - no public/tokenized stakeholder route, scoped auth guard, token model, invite flow, or revocation mechanism found. | Implement `StakeholderAccessToken`, scoped read-only API, stakeholder route, expiry/revocation, and audit logging. |
-| Post-event report suite usable flow | Partial - API PDF generator includes executive summary, revenue, registration, attendance/check-in, operations/blockers, and demographics. | Fix web status gate from `complete` to `completed`; add end-to-end verification that completed events can download both internal and external PDFs. |
-| Privacy-safe post-event export usable flow | Partial - API external export suppresses small demographic groups and avoids attendee names/emails/phones/QR tokens. | Same UI gate fix as post-event report; add tests around small cohort suppression and no-PII query boundaries. |
+| Post-event report suite usable flow | Partial - API PDF generator includes executive summary, revenue, registration, attendance/check-in, operations/blockers, and demographics; the completed-event UI gate is corrected. | Add UAT verification that completed events can download both internal and external PDFs. |
+| Privacy-safe post-event export usable flow | Partial - API external export suppresses small demographic groups and avoids attendee names/emails/phones/QR tokens; the completed-event UI gate is corrected. | Add tests around small cohort suppression and no-PII query boundaries. |
 | Event closure | Partial - events auto-complete after end date/grace window; no explicit workspace closure workflow or locked readiness snapshot exists. | Add close workspace action, closure review, lessons learned, and immutable readiness snapshot. |
 | Auditability | Partial - organizer and workspace create/status/delete/template/report actions are audited. | Audit owner, accountable, due date, blocker flag, milestone create/update/delete, and workspace closure changes consistently. |
 
@@ -529,7 +542,7 @@ Status was checked against the current repository implementation on 2026-06-27.
 | Registration Report | Event Owner, registration lead | Registration totals, registration timeline, approval or payment status mix, historical registration curve | Aggregated counts only | MVP |
 | Attendance and Check-In Report | Event Owner, operations lead | Attendance totals, check-in rate, no-show estimate, check-in timing distribution | Aggregated counts only | MVP |
 | Operations and Blockers Report | Event Owner, operations lead, executives | Final blockers, unresolved items, incident summary, overdue work, lessons captured | No sensitive internal notes in external export | MVP |
-| Demographics Report | Event Owner, executives, institutional buyers | Current API covers aggregated company/organization and job-title/function groups; ticket mix is covered in sales/revenue. Age and geography charts are not currently collected/generated. | Suppress or group tiny cohorts in external export | MVP partial |
+| Demographics Report | Event Owner, executives, institutional buyers | Current API covers aggregated company/organization and job-title/function groups. Birthday, gender, and city are now collected; age, gender, and geography chart generation remains pending. | Suppress or group tiny cohorts in external export | MVP partial |
 | Readiness and Delivery Report | Event Owner, PMO-style internal leads | Final readiness score, category completion, milestone delivery, owner completion summary | Internal or share-safe mode | Phase 2 |
 | Marketing and Conversion Report | Event Owner, marketing lead | Admin funnel analytics currently exist; formal downloadable marketing/conversion report with campaign and promo-code attribution is not implemented. | No attendee-level journey export | Phase 2 partial foundation |
 | Stakeholder Delivery Report | Event Owner, external partners | Deliverables completed, reporting commitments met, visibility assets delivered | No sponsor contacts or relationship notes | Phase 2 |
@@ -1136,7 +1149,7 @@ The MVP post-event report suite should include:
 | Registration Report | Implemented in API: registration totals, status mix, daily registration timeline. |
 | Attendance and Check-In Report | Implemented in API: attendance totals, check-in rate, no-show count, event-day arrival pattern. |
 | Operations and Blockers Report | Implemented in API: final readiness, completed item count, unresolved blockers, blocked items, milestone completion. Incident and lessons-captured fields are not implemented. |
-| Demographics Report | Implemented in API for aggregated company/organization and job-title/function groups. Age/geography charts are not implemented. |
+| Demographics Report | Implemented in API for aggregated company/organization and job-title/function groups. Birthday, gender, and city collection is implemented; privacy-safe age/gender/geography charts are not yet generated. |
 | Privacy-Safe External Export | Implemented in API with no attendee PII and small-group suppression; web UI gate needs the `completed` status fix. |
 
 Do not build:
