@@ -1,13 +1,22 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { PDFDocument, PDFFont, PDFPage, StandardFonts, rgb } from 'pdf-lib';
+import { JwtPayload } from '@axon-tickets/types';
 import {
   CreateWorkspaceItemDto,
   UpdateWorkspaceItemDto,
   CreateMilestoneDto,
   UpdateMilestoneDto,
 } from './dto/workspace.dto';
+
+type WorkspaceRoleLevel = 'manager' | 'editor' | 'viewer';
+
+const ORG_ROLE_TO_WORKSPACE_ROLE: Record<string, WorkspaceRoleLevel> = {
+  owner: 'manager',
+  admin: 'manager',
+  member: 'editor',
+};
 
 // ── Scoring constants ─────────────────────────────────────────────────────────
 
@@ -328,16 +337,45 @@ export class WorkspacesService {
     const existing = await this.prisma.eventWorkspace.findUnique({ where: { eventId } });
     if (existing) return existing;
 
-    const event = await this.prisma.event.findUnique({ where: { id: eventId }, select: { id: true } });
+    const event = await this.prisma.event.findUnique({
+      where: { id: eventId },
+      select: { id: true, organizationId: true },
+    });
     if (!event) throw new NotFoundException('Event not found');
 
     // Create workspace bare, then member and items sequentially — avoids nested createMany
     // which can fail with PgBouncer transaction-mode connection poolers (Supabase).
     const workspace = await this.prisma.eventWorkspace.create({ data: { eventId } });
 
-    await this.prisma.workspaceMember.create({
-      data: { workspaceId: workspace.id, userId: creatorId, role: 'manager' },
-    });
+    // Seed the workspace team from the event's organization membership, so
+    // assignable users / team visibility reflect the real org roster rather
+    // than a single hardcoded manager row.
+    if (event.organizationId) {
+      const orgMembers = await this.prisma.organizationMember.findMany({
+        where: { organizationId: event.organizationId },
+        select: { userId: true, role: true },
+      });
+      const seen = new Set<string>();
+      for (const m of orgMembers) {
+        seen.add(m.userId);
+        await this.prisma.workspaceMember.create({
+          data: {
+            workspaceId: workspace.id,
+            userId: m.userId,
+            role: ORG_ROLE_TO_WORKSPACE_ROLE[m.role] ?? 'editor',
+          },
+        });
+      }
+      if (!seen.has(creatorId)) {
+        await this.prisma.workspaceMember.create({
+          data: { workspaceId: workspace.id, userId: creatorId, role: 'manager' },
+        });
+      }
+    } else {
+      await this.prisma.workspaceMember.create({
+        data: { workspaceId: workspace.id, userId: creatorId, role: 'manager' },
+      });
+    }
 
     await this.prisma.workspaceItem.createMany({
       data: DEFAULT_ITEMS.map((item) => ({ ...item, workspaceId: workspace.id })),
@@ -356,11 +394,11 @@ export class WorkspacesService {
 
   // ── Summary — weighted score, force-blocked, ownership, overdue ─────────────
 
-  async getWorkspaceSummary(eventId: string) {
+  async getWorkspaceSummary(eventId: string, user?: JwtPayload) {
     const workspace = await this.prisma.eventWorkspace.findUnique({
       where: { eventId },
       include: {
-        event: { select: { id: true, title: true, startsAt: true, status: true } },
+        event: { select: { id: true, title: true, startsAt: true, status: true, organizationId: true } },
         items: {
           orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }],
           take: 500,
@@ -370,10 +408,16 @@ export class WorkspacesService {
           orderBy: { dueDate: 'asc' },
           take: 5,
         },
+        closedBy: { select: { firstName: true, lastName: true, email: true } },
       },
     });
 
     if (!workspace) return null;
+
+    const viewerRole = user
+      ? await this.resolveViewerRole(workspace.event.organizationId, workspace.id, user)
+      : 'viewer';
+    const canEdit = !workspace.closedAt && (viewerRole === 'manager' || viewerRole === 'editor');
 
     const items = workspace.items;
     const now = new Date();
@@ -405,7 +449,17 @@ export class WorkspacesService {
     return {
       workspaceId: workspace.id,
       eventId: workspace.eventId,
-      event: workspace.event,
+      event: {
+        id: workspace.event.id,
+        title: workspace.event.title,
+        startsAt: workspace.event.startsAt,
+        status: workspace.event.status,
+      },
+      canEdit,
+      viewerRole,
+      isClosed: !!workspace.closedAt,
+      closedAt: workspace.closedAt?.toISOString() ?? null,
+      closedBy: workspace.closedBy ? { name: userDisplayName(workspace.closedBy) } : null,
       readiness: {
         score,
         label,
@@ -451,6 +505,80 @@ export class WorkspacesService {
     };
   }
 
+  // ── Team & roles ─────────────────────────────────────────────────────────────
+
+  /**
+   * Live role resolution: prefers the event's current OrganizationMember roster
+   * over the WorkspaceMember snapshot, so members added to the org after the
+   * workspace was created still get correct permissions without a separate
+   * invite/sync step. WorkspaceMember is only the source of truth for
+   * organization-less (legacy/admin-created) events.
+   */
+  private async resolveViewerRole(
+    organizationId: string | null,
+    workspaceId: string,
+    user: JwtPayload,
+  ): Promise<WorkspaceRoleLevel> {
+    if (user.isAdmin) return 'manager';
+
+    if (organizationId) {
+      const orgMember = await this.prisma.organizationMember.findUnique({
+        where: { userId_organizationId: { userId: user.sub, organizationId } },
+      });
+      if (orgMember) return ORG_ROLE_TO_WORKSPACE_ROLE[orgMember.role] ?? 'editor';
+    }
+
+    const wsMember = await this.prisma.workspaceMember.findUnique({
+      where: { workspaceId_userId: { workspaceId, userId: user.sub } },
+    });
+    return wsMember?.role ?? 'viewer';
+  }
+
+  private assertWorkspaceNotClosed(workspace: { closedAt: Date | null }) {
+    if (workspace.closedAt) {
+      throw new BadRequestException('Workspace is closed and read-only');
+    }
+  }
+
+  async getWorkspaceMembers(eventId: string) {
+    const event = await this.prisma.event.findUnique({
+      where: { id: eventId },
+      select: { organizationId: true },
+    });
+    if (!event) throw new NotFoundException('Event not found');
+
+    if (event.organizationId) {
+      const members = await this.prisma.organizationMember.findMany({
+        where: { organizationId: event.organizationId },
+        include: { user: { select: { id: true, firstName: true, lastName: true, email: true } } },
+        orderBy: { role: 'asc' },
+      });
+      return members.map((m) => ({
+        id: m.user.id,
+        name: userDisplayName(m.user),
+        email: m.user.email,
+        role: ORG_ROLE_TO_WORKSPACE_ROLE[m.role] ?? 'editor',
+      }));
+    }
+
+    const workspace = await this.prisma.eventWorkspace.findUnique({
+      where: { eventId },
+      select: { id: true },
+    });
+    if (!workspace) return [];
+
+    const members = await this.prisma.workspaceMember.findMany({
+      where: { workspaceId: workspace.id },
+      include: { user: { select: { id: true, firstName: true, lastName: true, email: true } } },
+    });
+    return members.map((m) => ({
+      id: m.user.id,
+      name: userDisplayName(m.user),
+      email: m.user.email,
+      role: m.role,
+    }));
+  }
+
   // ── Checklist items ─────────────────────────────────────────────────────────
 
   async getWorkspaceItems(eventId: string) {
@@ -484,9 +612,10 @@ export class WorkspacesService {
   async createWorkspaceItem(eventId: string, dto: CreateWorkspaceItemDto, performedById: string) {
     const workspace = await this.prisma.eventWorkspace.findUnique({
       where: { eventId },
-      select: { id: true },
+      select: { id: true, closedAt: true },
     });
     if (!workspace) throw new NotFoundException('Workspace not found');
+    this.assertWorkspaceNotClosed(workspace);
 
     const maxOrder = await this.prisma.workspaceItem.aggregate({
       where: { workspaceId: workspace.id },
@@ -521,9 +650,10 @@ export class WorkspacesService {
   async updateWorkspaceItem(eventId: string, itemId: string, dto: UpdateWorkspaceItemDto, performedById: string) {
     const workspace = await this.prisma.eventWorkspace.findUnique({
       where: { eventId },
-      select: { id: true },
+      select: { id: true, closedAt: true },
     });
     if (!workspace) throw new NotFoundException('Workspace not found');
+    this.assertWorkspaceNotClosed(workspace);
 
     const item = await this.prisma.workspaceItem.findFirst({
       where: { id: itemId, workspaceId: workspace.id },
@@ -561,15 +691,60 @@ export class WorkspacesService {
       });
     }
 
+    if ('assignedToName' in dto && (dto.assignedToName ?? null) !== item.assignedToName) {
+      await this.audit.log({
+        action: 'WORKSPACE_ITEM_ASSIGNEE_CHANGED',
+        entityType: 'WorkspaceItem',
+        entityId: itemId,
+        performedById,
+        metadata: { eventId, role: 'responsible', from: item.assignedToName, to: dto.assignedToName ?? null },
+      });
+    }
+
+    if ('accountableName' in dto && (dto.accountableName ?? null) !== item.accountableName) {
+      await this.audit.log({
+        action: 'WORKSPACE_ITEM_ASSIGNEE_CHANGED',
+        entityType: 'WorkspaceItem',
+        entityId: itemId,
+        performedById,
+        metadata: { eventId, role: 'accountable', from: item.accountableName, to: dto.accountableName ?? null },
+      });
+    }
+
+    if (dto.dueDate !== undefined) {
+      const newDue = dto.dueDate ? new Date(dto.dueDate).toISOString() : null;
+      const oldDue = item.dueDate ? item.dueDate.toISOString() : null;
+      if (newDue !== oldDue) {
+        await this.audit.log({
+          action: 'WORKSPACE_ITEM_DUE_DATE_CHANGED',
+          entityType: 'WorkspaceItem',
+          entityId: itemId,
+          performedById,
+          metadata: { eventId, from: oldDue, to: newDue },
+        });
+      }
+    }
+
+    if (dto.isBlocker !== undefined && dto.isBlocker !== item.isBlocker) {
+      await this.audit.log({
+        action: 'WORKSPACE_ITEM_BLOCKER_FLAG_CHANGED',
+        entityType: 'WorkspaceItem',
+        entityId: itemId,
+        performedById,
+        metadata: { eventId, from: item.isBlocker, to: dto.isBlocker },
+      });
+    }
+
     return this.serializeItem(updated);
   }
 
   async deleteWorkspaceItem(eventId: string, itemId: string, performedById: string) {
     const workspace = await this.prisma.eventWorkspace.findUnique({
       where: { eventId },
-      select: { id: true },
+      select: { id: true, closedAt: true },
     });
     if (!workspace) throw new NotFoundException('Workspace not found');
+    this.assertWorkspaceNotClosed(workspace);
 
     const item = await this.prisma.workspaceItem.findFirst({
       where: { id: itemId, workspaceId: workspace.id },
@@ -613,12 +788,26 @@ export class WorkspacesService {
   // ── Assignable users ────────────────────────────────────────────────────────
 
   async getAssignableUsers(eventId: string) {
-    // Pool: all platform admins + the event creator (organizer)
     const event = await this.prisma.event.findUnique({
       where: { id: eventId },
-      select: { createdById: true },
+      select: { createdById: true, organizationId: true },
     });
+    if (!event) return [];
 
+    // Preferred pool: real members of the event's organization.
+    if (event.organizationId) {
+      const orgMembers = await this.prisma.organizationMember.findMany({
+        where: { organizationId: event.organizationId },
+        include: { user: { select: { id: true, firstName: true, lastName: true, email: true } } },
+        take: 200,
+      });
+      return orgMembers
+        .map((m) => m.user)
+        .sort((a, b) => userDisplayName(a).localeCompare(userDisplayName(b)))
+        .map((u) => ({ id: u.id, name: userDisplayName(u), email: u.email }));
+    }
+
+    // Fallback for legacy/admin-created events with no organization: admins + creator.
     const adminUsers = await this.prisma.user.findMany({
       where: { isAdmin: true },
       select: { id: true, firstName: true, lastName: true, email: true },
@@ -628,7 +817,7 @@ export class WorkspacesService {
 
     const userMap = new Map(adminUsers.map((u) => [u.id, u]));
 
-    if (event?.createdById && !userMap.has(event.createdById)) {
+    if (event.createdById && !userMap.has(event.createdById)) {
       const organizer = await this.prisma.user.findUnique({
         where: { id: event.createdById },
         select: { id: true, firstName: true, lastName: true, email: true },
@@ -637,7 +826,7 @@ export class WorkspacesService {
     }
 
     return Array.from(userMap.values())
-      .sort((a, b) => (a.firstName ?? '').localeCompare(b.firstName ?? ''))
+      .sort((a, b) => userDisplayName(a).localeCompare(userDisplayName(b)))
       .map((u) => ({
         id: u.id,
         name: userDisplayName(u),
@@ -663,9 +852,10 @@ export class WorkspacesService {
 
     const workspace = await this.prisma.eventWorkspace.findUnique({
       where: { eventId },
-      select: { id: true },
+      select: { id: true, closedAt: true },
     });
     if (!workspace) throw new NotFoundException('Workspace not found');
+    this.assertWorkspaceNotClosed(workspace);
 
     const items: Array<{
       workspaceId: string;
@@ -731,12 +921,13 @@ export class WorkspacesService {
     }));
   }
 
-  async createMilestone(eventId: string, dto: CreateMilestoneDto) {
+  async createMilestone(eventId: string, dto: CreateMilestoneDto, performedById: string) {
     const workspace = await this.prisma.eventWorkspace.findUnique({
       where: { eventId },
-      select: { id: true },
+      select: { id: true, closedAt: true },
     });
     if (!workspace) throw new NotFoundException('Workspace not found');
+    this.assertWorkspaceNotClosed(workspace);
 
     const milestone = await this.prisma.workspaceMilestone.create({
       data: {
@@ -745,6 +936,14 @@ export class WorkspacesService {
         dueDate: parseSafeDate(dto.dueDate),
         notes: dto.notes ?? null,
       },
+    });
+
+    await this.audit.log({
+      action: 'WORKSPACE_MILESTONE_CREATED',
+      entityType: 'WorkspaceMilestone',
+      entityId: milestone.id,
+      performedById,
+      metadata: { eventId, title: milestone.title, dueDate: milestone.dueDate.toISOString() },
     });
 
     return {
@@ -758,12 +957,13 @@ export class WorkspacesService {
     };
   }
 
-  async updateMilestone(eventId: string, milestoneId: string, dto: UpdateMilestoneDto) {
+  async updateMilestone(eventId: string, milestoneId: string, dto: UpdateMilestoneDto, performedById: string) {
     const workspace = await this.prisma.eventWorkspace.findUnique({
       where: { eventId },
-      select: { id: true },
+      select: { id: true, closedAt: true },
     });
     if (!workspace) throw new NotFoundException('Workspace not found');
+    this.assertWorkspaceNotClosed(workspace);
 
     const milestone = await this.prisma.workspaceMilestone.findFirst({
       where: { id: milestoneId, workspaceId: workspace.id },
@@ -785,6 +985,25 @@ export class WorkspacesService {
       },
     });
 
+    if (dto.status !== undefined && dto.status !== milestone.status) {
+      await this.audit.log({
+        action: 'WORKSPACE_MILESTONE_STATUS_CHANGED',
+        entityType: 'WorkspaceMilestone',
+        entityId: milestoneId,
+        performedById,
+        metadata: { eventId, from: milestone.status, to: dto.status },
+      });
+    }
+    if (dto.title !== undefined || dto.dueDate !== undefined || dto.notes !== undefined) {
+      await this.audit.log({
+        action: 'WORKSPACE_MILESTONE_UPDATED',
+        entityType: 'WorkspaceMilestone',
+        entityId: milestoneId,
+        performedById,
+        metadata: { eventId },
+      });
+    }
+
     return {
       id: updated.id,
       title: updated.title,
@@ -795,12 +1014,13 @@ export class WorkspacesService {
     };
   }
 
-  async deleteMilestone(eventId: string, milestoneId: string) {
+  async deleteMilestone(eventId: string, milestoneId: string, performedById: string) {
     const workspace = await this.prisma.eventWorkspace.findUnique({
       where: { eventId },
-      select: { id: true },
+      select: { id: true, closedAt: true },
     });
     if (!workspace) throw new NotFoundException('Workspace not found');
+    this.assertWorkspaceNotClosed(workspace);
 
     const milestone = await this.prisma.workspaceMilestone.findFirst({
       where: { id: milestoneId, workspaceId: workspace.id },
@@ -808,7 +1028,89 @@ export class WorkspacesService {
     if (!milestone) throw new NotFoundException('Milestone not found');
 
     await this.prisma.workspaceMilestone.delete({ where: { id: milestoneId } });
+
+    await this.audit.log({
+      action: 'WORKSPACE_MILESTONE_DELETED',
+      entityType: 'WorkspaceMilestone',
+      entityId: milestoneId,
+      performedById,
+      metadata: { eventId, title: milestone.title },
+    });
+
     return { deleted: true };
+  }
+
+  // ── Closure ──────────────────────────────────────────────────────────────────
+
+  async closeWorkspace(eventId: string, user: JwtPayload) {
+    const workspace = await this.prisma.eventWorkspace.findUnique({
+      where: { eventId },
+      include: {
+        event: { select: { status: true, organizationId: true } },
+        items: {
+          select: { title: true, category: true, status: true, priority: true, isBlocker: true },
+        },
+      },
+    });
+    if (!workspace) throw new NotFoundException('Workspace not found');
+
+    if (workspace.closedAt) {
+      return {
+        closed: true,
+        alreadyClosed: true,
+        closedAt: workspace.closedAt.toISOString(),
+        closedById: workspace.closedById,
+      };
+    }
+
+    const viewerRole = await this.resolveViewerRole(workspace.event.organizationId, workspace.id, user);
+    if (viewerRole !== 'manager') {
+      throw new ForbiddenException('Only a workspace manager can close this workspace');
+    }
+
+    if (workspace.event.status !== 'completed') {
+      throw new BadRequestException('Workspace can only be closed once the event is marked completed');
+    }
+
+    const scoreResult = computeScore(workspace.items);
+    const snapshot = {
+      score: scoreResult.score,
+      label: scoreResult.label,
+      totalWeight: scoreResult.totalWeight,
+      doneWeight: scoreResult.doneWeight,
+      itemStatuses: workspace.items.map((i) => ({
+        title: i.title,
+        category: i.category,
+        status: i.status,
+        priority: i.priority,
+        isBlocker: i.isBlocker,
+      })),
+      generatedAt: new Date().toISOString(),
+    };
+
+    const updated = await this.prisma.eventWorkspace.update({
+      where: { id: workspace.id },
+      data: {
+        closedAt: new Date(),
+        closedById: user.sub,
+        readinessSnapshot: snapshot as any,
+      },
+    });
+
+    await this.audit.log({
+      action: 'WORKSPACE_CLOSED',
+      entityType: 'EventWorkspace',
+      entityId: workspace.id,
+      performedById: user.sub,
+      metadata: { eventId, score: scoreResult.score, label: scoreResult.label },
+    });
+
+    return {
+      closed: true,
+      alreadyClosed: false,
+      closedAt: updated.closedAt!.toISOString(),
+      closedById: updated.closedById,
+    };
   }
 
   // ── Stakeholder report ──────────────────────────────────────────────────────

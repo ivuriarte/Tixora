@@ -112,6 +112,7 @@ model User {
   organizationsApproved Organization[]  @relation("OrgApprovedBy")
   organizationMembers   OrganizationMember[]
   workspaceMembers            WorkspaceMember[]
+  workspacesClosed            EventWorkspace[] @relation("WorkspaceClosedBy")
 
   @@map("users")
 }
@@ -560,12 +561,16 @@ enum MilestoneStatus {
 }
 
 model EventWorkspace {
-  id        String   @id @default(uuid())
-  eventId   String   @unique @map("event_id")
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
+  id                String    @id @default(uuid())
+  eventId           String    @unique @map("event_id")
+  closedAt          DateTime? @map("closed_at")
+  closedById        String?   @map("closed_by_id")
+  readinessSnapshot Json?     @map("readiness_snapshot")
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
 
   event      Event               @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  closedBy   User?               @relation("WorkspaceClosedBy", fields: [closedById], references: [id])
   members    WorkspaceMember[]
   items      WorkspaceItem[]
   milestones WorkspaceMilestone[]

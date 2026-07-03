@@ -7,6 +7,7 @@ import { LoggerModule } from 'nestjs-pino';
 import configuration from './config/configuration';
 import { validationSchema } from './config/env.validation';
 import { PrismaModule } from './prisma/prisma.module';
+import { CommonModule } from './common/common.module';
 import { RedisModule } from './redis/redis.module';
 import { HealthModule } from './health/health.module';
 import { EmailModule } from './email/email.module';
@@ -59,6 +60,7 @@ import { WorkspacesModule } from './workspaces/workspaces.module';
     }),
 
     PrismaModule,
+    CommonModule,
     RedisModule,
     HealthModule,
     EmailModule,
