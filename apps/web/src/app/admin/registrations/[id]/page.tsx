@@ -23,6 +23,8 @@ interface AdminReg {
   attendeeCount: number;
   subtotal: string | number;
   fees: string | number;
+  discount: string | number;
+  referralCodeSnapshot?: { code?: string } | null;
   total: string | number;
   currency: string;
   rejectionReason: string | null;
@@ -234,6 +236,7 @@ export default function AdminRegistrationDetailPage() {
             <span>Service fee</span>
             <span>{formatPHP(centavosToPeso(Number(reg.fees)))}</span>
           </div>
+          {Number(reg.discount) > 0 && <div className="flex justify-between font-medium text-emerald-700"><span>Referral discount{reg.referralCodeSnapshot?.code ? ` (${reg.referralCodeSnapshot.code})` : ''}</span><span>−{formatPHP(centavosToPeso(Number(reg.discount)))}</span></div>}
           <div className="flex justify-between font-bold text-gray-900 pt-2 border-t border-gray-100">
             <span>Total</span>
             <span className="text-primary">{formatPHP(centavosToPeso(Number(reg.total)))}</span>

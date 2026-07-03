@@ -27,6 +27,7 @@ import { CreateEventDto, UpdateEventDto } from '../events/dto/event.dto';
 import { CreateTierDto, UpdateTierDto } from '../ticket-tiers/dto/tier.dto';
 import { CheckinDto, RejectRegistrationDto, BulkApproveDto, BulkRejectDto, RejectOrganizerDto, SetUserRoleDto, UpdatePlatformSettingsDto } from './dto/admin.dto';
 import { RegistrationsService } from '../registrations/registrations.service';
+import { CreateReferralCodeDto, SetReferralCodeStatusDto } from './dto/referral-code.dto';
 
 @ApiTags('admin')
 @Controller('admin')
@@ -84,6 +85,46 @@ export class AdminController {
   @ApiOperation({ summary: 'Hard-delete event and all related data' })
   deleteEvent(@Param('id') id: string, @CurrentUser() user: JwtPayload) {
     return this.adminService.deleteEvent(id, user);
+  }
+
+  @Get('events/:id/referral-codes')
+  @ApiOperation({ summary: 'List referral codes and usage for an event' })
+  listReferralCodes(@Param('id') id: string, @CurrentUser() user: JwtPayload) {
+    return this.adminService.listReferralCodes(id, user);
+  }
+
+  @Post('events/:id/referral-codes')
+  @ApiOperation({ summary: 'Create an immutable referral code' })
+  createReferralCode(
+    @Param('id') id: string,
+    @Body() dto: CreateReferralCodeDto,
+    @CurrentUser() user: JwtPayload,
+  ) {
+    return this.adminService.createReferralCode(id, dto, user);
+  }
+
+  @Patch('events/:eventId/referral-codes/:codeId/status')
+  @ApiOperation({ summary: 'Activate or deactivate a referral code' })
+  setReferralCodeStatus(
+    @Param('eventId') eventId: string,
+    @Param('codeId') codeId: string,
+    @Body() dto: SetReferralCodeStatusDto,
+    @CurrentUser() user: JwtPayload,
+  ) {
+    return this.adminService.setReferralCodeStatus(eventId, codeId, dto.isActive, user);
+  }
+
+  @Get('events/:id/referral-codes/export')
+  @ApiOperation({ summary: 'Export referral-code usage as CSV' })
+  async exportReferralCodes(
+    @Param('id') id: string,
+    @CurrentUser() user: JwtPayload,
+    @Res() res: Response,
+  ) {
+    const csv = await this.adminService.exportReferralCodes(id, user);
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', 'attachment; filename="referral-usage.csv"');
+    res.send(csv);
   }
 
   // ── Tiers ────────────────────────────────────────────────────────────────

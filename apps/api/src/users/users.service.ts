@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { UpdateProfileDto } from './update-profile.dto';
 
@@ -21,6 +21,8 @@ export class UsersService {
         company: true,
         jobTitle: true,
         city: true,
+        birthday: true,
+        gender: true,
         createdAt: true,
       },
     });
@@ -33,13 +35,23 @@ export class UsersService {
   }
 
   async updateProfile(userId: string, dto: UpdateProfileDto) {
+    if (dto.city !== undefined && dto.city.trim().length < 2) throw new BadRequestException('City is required.');
+    if (dto.birthday) {
+      const birthday = new Date(`${dto.birthday}T00:00:00.000Z`);
+      const earliest = new Date(); earliest.setUTCFullYear(earliest.getUTCFullYear() - 120);
+      if (!Number.isFinite(birthday.getTime()) || birthday > new Date() || birthday < earliest) {
+        throw new BadRequestException('Birthday must be a valid past date within the last 120 years.');
+      }
+    }
     const data: Record<string, string | null | undefined> = {};
     if (dto.firstName !== undefined) data.firstName = dto.firstName;
     if (dto.lastName !== undefined) data.lastName = dto.lastName;
     if (dto.phone !== undefined) data.phone = dto.phone || null;
     if (dto.company !== undefined) data.company = dto.company || null;
     if (dto.jobTitle !== undefined) data.jobTitle = dto.jobTitle || null;
-    if (dto.city !== undefined) data.city = dto.city || null;
+    if (dto.city !== undefined) data.city = dto.city.trim();
+    if (dto.birthday !== undefined) data.birthday = dto.birthday ? new Date(`${dto.birthday}T00:00:00.000Z`) as any : null;
+    if (dto.gender !== undefined) data.gender = dto.gender || null;
 
     return this.prisma.user.update({
       where: { id: userId },
@@ -53,6 +65,8 @@ export class UsersService {
         company: true,
         jobTitle: true,
         city: true,
+        birthday: true,
+        gender: true,
         isVerified: true,
         isAdmin: true,
       },

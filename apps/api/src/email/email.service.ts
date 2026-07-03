@@ -609,6 +609,8 @@ export class EmailService implements OnModuleDestroy {
       unitPrice?: number;
       subtotal?: number;
       fees?: number;
+      discount?: number;
+      referralCode?: string;
       total?: number;
       organizerName?: string;
       eventCity?: string;
@@ -690,6 +692,8 @@ export class EmailService implements OnModuleDestroy {
       receiptRows.push(`<tr><td style="padding:7px 0;color:#6b7280;font-size:14px">Subtotal</td><td style="padding:7px 0;font-size:14px;color:#374151;text-align:right">${fmt(receipt.subtotal)}</td></tr>`);
     if (receipt?.fees !== undefined)
       receiptRows.push(`<tr><td style="padding:7px 0;color:#6b7280;font-size:14px">Service fee</td><td style="padding:7px 0;font-size:14px;color:#374151;text-align:right">${fmt(receipt.fees)}</td></tr>`);
+    if (receipt?.discount && receipt.discount > 0)
+      receiptRows.push(`<tr><td style="padding:7px 0;color:#047857;font-size:14px">Referral discount${receipt.referralCode ? ` (${this.escapeHtml(receipt.referralCode)})` : ''}</td><td style="padding:7px 0;font-size:14px;color:#047857;text-align:right">-${fmt(receipt.discount)}</td></tr>`);
     if (receipt?.total !== undefined)
       receiptRows.push(`<tr style="border-top:2px solid #e5e7eb"><td style="padding:10px 0 4px;font-size:15px;font-weight:700;color:#111827">Total paid</td><td style="padding:10px 0 4px;font-size:15px;font-weight:700;color:#111827;text-align:right">${fmt(receipt.total)}</td></tr>`);
     if (receipt?.paymentMethod)

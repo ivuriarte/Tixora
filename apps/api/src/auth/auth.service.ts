@@ -44,6 +44,11 @@ export class AuthService {
 
   async register(dto: RegisterDto, ip: string): Promise<{ userId: string; message: string }> {
     await this.verifyCaptcha(dto.captchaToken, ip);
+    const birthday = new Date(`${dto.birthday}T00:00:00.000Z`);
+    const earliest = new Date(); earliest.setUTCFullYear(earliest.getUTCFullYear() - 120);
+    if (!Number.isFinite(birthday.getTime()) || birthday > new Date() || birthday < earliest) {
+      throw new BadRequestException('Birthday must be a valid past date within the last 120 years.');
+    }
 
     const existing = await this.prisma.user.findUnique({ where: { email: dto.email } });
     if (existing) throw new ConflictException('Email already registered');
@@ -59,7 +64,9 @@ export class AuthService {
         phone: dto.phone ?? null,
         company: dto.company ?? null,
         jobTitle: dto.jobTitle ?? null,
-        city: dto.city ?? null,
+        city: dto.city.trim(),
+        birthday,
+        gender: dto.gender,
       },
     });
 
