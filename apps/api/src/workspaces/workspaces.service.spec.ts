@@ -173,10 +173,8 @@ function makeItem(overrides: Partial<{
   priority: string;
   isBlocker: boolean;
   dueDate: Date | null;
-  assignedToId: string | null;
-  accountableId: string | null;
-  assignedTo: unknown;
-  accountableTo: unknown;
+  assignedToName: string | null;
+  accountableName: string | null;
 }> = {}) {
   return {
     id: overrides.id ?? 'item_1',
@@ -186,10 +184,8 @@ function makeItem(overrides: Partial<{
     priority: overrides.priority ?? 'medium',
     isBlocker: overrides.isBlocker ?? false,
     dueDate: overrides.dueDate ?? null,
-    assignedToId: overrides.assignedToId ?? null,
-    accountableId: overrides.accountableId ?? null,
-    assignedTo: overrides.assignedTo ?? null,
-    accountableTo: overrides.accountableTo ?? null,
+    assignedToName: overrides.assignedToName ?? null,
+    accountableName: overrides.accountableName ?? null,
     notes: null,
     completedAt: null,
     sortOrder: 0,
@@ -202,17 +198,37 @@ function makeWorkspace(items: ReturnType<typeof makeItem>[]) {
   return {
     id: 'ws_1',
     eventId: 'evt_1',
+    closedAt: null as Date | null,
+    closedById: null as string | null,
+    closedBy: null as { firstName: string | null; lastName: string | null; email: string } | null,
     createdAt: BASE_DATE,
     updatedAt: BASE_DATE,
-    event: { id: 'evt_1', title: 'Test Event', startsAt: BASE_DATE, status: 'on_sale' },
+    event: {
+      id: 'evt_1',
+      title: 'Test Event',
+      startsAt: BASE_DATE,
+      status: 'on_sale',
+      organizationId: null as string | null,
+    },
     items,
     milestones: [],
   };
 }
 
+const ADMIN_USER = { sub: 'admin_1', email: 'admin@example.com', isAdmin: true };
+
 function makePrisma(workspaceFindUnique: unknown, extraMocks: Record<string, unknown> = {}) {
   return {
     eventWorkspace: { findUnique: jest.fn().mockResolvedValue(workspaceFindUnique) },
+    event: { findUnique: jest.fn().mockResolvedValue(null) },
+    organizationMember: {
+      findUnique: jest.fn().mockResolvedValue(null),
+      findMany: jest.fn().mockResolvedValue([]),
+    },
+    workspaceMember: {
+      findUnique: jest.fn().mockResolvedValue(null),
+      create: jest.fn().mockResolvedValue({}),
+    },
     workspaceItem: {
       findMany: jest.fn().mockResolvedValue([]),
       findFirst: jest.fn().mockResolvedValue(null),
@@ -225,6 +241,7 @@ function makePrisma(workspaceFindUnique: unknown, extraMocks: Record<string, unk
     },
     user: {
       findMany: jest.fn().mockResolvedValue([]),
+      findUnique: jest.fn().mockResolvedValue(null),
     },
     ...extraMocks,
   } as any;
@@ -238,37 +255,37 @@ describe('getWorkspaceSummary() — unownedCount', () => {
   // W-10
   it('counts active items without an assignee', async () => {
     const items = [
-      makeItem({ id: 'a', status: 'open',        assignedToId: null }),
-      makeItem({ id: 'b', status: 'in_progress',  assignedToId: 'user_1' }),
-      makeItem({ id: 'c', status: 'open',         assignedToId: null }),
+      makeItem({ id: 'a', status: 'open',        assignedToName: null }),
+      makeItem({ id: 'b', status: 'in_progress',  assignedToName: 'Alice' }),
+      makeItem({ id: 'c', status: 'open',         assignedToName: null }),
     ];
     const prisma = makePrisma(makeWorkspace(items));
     const service = new WorkspacesService(prisma, mockAudit);
-    const summary = await service.getWorkspaceSummary('evt_1');
+    const summary = await service.getWorkspaceSummary('evt_1', ADMIN_USER);
     expect(summary?.readiness.unownedCount).toBe(2);
   });
 
   // W-11
   it('excludes done items from unownedCount even if unassigned', async () => {
     const items = [
-      makeItem({ id: 'a', status: 'done', assignedToId: null }),
-      makeItem({ id: 'b', status: 'open', assignedToId: null }),
+      makeItem({ id: 'a', status: 'done', assignedToName: null }),
+      makeItem({ id: 'b', status: 'open', assignedToName: null }),
     ];
     const prisma = makePrisma(makeWorkspace(items));
     const service = new WorkspacesService(prisma, mockAudit);
-    const summary = await service.getWorkspaceSummary('evt_1');
+    const summary = await service.getWorkspaceSummary('evt_1', ADMIN_USER);
     expect(summary?.readiness.unownedCount).toBe(1);
   });
 
   // W-12
   it('excludes not_applicable items from unownedCount', async () => {
     const items = [
-      makeItem({ id: 'a', status: 'not_applicable', assignedToId: null }),
-      makeItem({ id: 'b', status: 'open',           assignedToId: null }),
+      makeItem({ id: 'a', status: 'not_applicable', assignedToName: null }),
+      makeItem({ id: 'b', status: 'open',           assignedToName: null }),
     ];
     const prisma = makePrisma(makeWorkspace(items));
     const service = new WorkspacesService(prisma, mockAudit);
-    const summary = await service.getWorkspaceSummary('evt_1');
+    const summary = await service.getWorkspaceSummary('evt_1', ADMIN_USER);
     // only 'b' is scorable and unowned
     expect(summary?.readiness.unownedCount).toBe(1);
   });
@@ -339,8 +356,9 @@ describe('getOverdueItems()', () => {
 
 describe('getAssignableUsers()', () => {
   // W-18
-  it('returns admins mapped to id, name, email', async () => {
+  it('falls back to admins + creator for events with no organization', async () => {
     const prisma = makePrisma(null);
+    prisma.event.findUnique.mockResolvedValue({ createdById: 'creator_1', organizationId: null });
     prisma.user.findMany.mockResolvedValue([
       { id: 'u1', firstName: 'Alice', lastName: 'Smith', email: 'alice@example.com' },
       { id: 'u2', firstName: null,    lastName: null,    email: 'bob@example.com' },
@@ -354,5 +372,180 @@ describe('getAssignableUsers()', () => {
     // Only admins queried
     const [queryArgs] = prisma.user.findMany.mock.calls[0];
     expect(queryArgs.where.isAdmin).toBe(true);
+  });
+
+  it('uses the event organization roster when the event belongs to an organization', async () => {
+    const prisma = makePrisma(null);
+    prisma.event.findUnique.mockResolvedValue({ createdById: 'creator_1', organizationId: 'org_1' });
+    prisma.organizationMember.findMany.mockResolvedValue([
+      { user: { id: 'u1', firstName: 'Carol', lastName: 'Owner', email: 'carol@example.com' } },
+    ]);
+    const service = new WorkspacesService(prisma, mockAudit);
+    const result = await service.getAssignableUsers('evt_1');
+    expect(result).toEqual([{ id: 'u1', name: 'Carol Owner', email: 'carol@example.com' }]);
+    // Admin fallback pool must not be queried when an org roster exists
+    expect(prisma.user.findMany).not.toHaveBeenCalled();
+  });
+});
+
+// ── Role resolution / canEdit (Gap 1 + Gap 2) ─────────────────────────────────
+
+describe('getWorkspaceSummary() — canEdit / viewerRole', () => {
+  const NON_ADMIN = { sub: 'user_1', email: 'user@example.com', isAdmin: false };
+
+  it('grants manager + canEdit for platform admins regardless of org membership', async () => {
+    const prisma = makePrisma(makeWorkspace([]));
+    const service = new WorkspacesService(prisma, mockAudit);
+    const summary = await service.getWorkspaceSummary('evt_1', ADMIN_USER);
+    expect(summary?.viewerRole).toBe('manager');
+    expect(summary?.canEdit).toBe(true);
+    // Admin bypass must not need to query membership tables
+    expect(prisma.organizationMember.findUnique).not.toHaveBeenCalled();
+  });
+
+  it('maps an org "member" role to editor with canEdit=true', async () => {
+    const workspace = makeWorkspace([]);
+    workspace.event.organizationId = 'org_1';
+    const prisma = makePrisma(workspace);
+    prisma.organizationMember.findUnique.mockResolvedValue({ role: 'member' });
+    const service = new WorkspacesService(prisma, mockAudit);
+    const summary = await service.getWorkspaceSummary('evt_1', NON_ADMIN);
+    expect(summary?.viewerRole).toBe('editor');
+    expect(summary?.canEdit).toBe(true);
+  });
+
+  it('defaults to viewer with canEdit=false when the user has no membership anywhere', async () => {
+    const prisma = makePrisma(makeWorkspace([]));
+    const service = new WorkspacesService(prisma, mockAudit);
+    const summary = await service.getWorkspaceSummary('evt_1', NON_ADMIN);
+    expect(summary?.viewerRole).toBe('viewer');
+    expect(summary?.canEdit).toBe(false);
+  });
+
+  it('forces canEdit=false once the workspace is closed, even for a manager', async () => {
+    const workspace = makeWorkspace([]);
+    workspace.closedAt = BASE_DATE;
+    const prisma = makePrisma(workspace);
+    prisma.workspaceMember.findUnique.mockResolvedValue({ role: 'manager' });
+    const service = new WorkspacesService(prisma, mockAudit);
+    const summary = await service.getWorkspaceSummary('evt_1', NON_ADMIN);
+    expect(summary?.isClosed).toBe(true);
+    expect(summary?.canEdit).toBe(false);
+  });
+});
+
+// ── Workspace closure (Gap 4) ──────────────────────────────────────────────────
+
+describe('closeWorkspace()', () => {
+  function makeCloseableWorkspace(overrides: Partial<{ status: string; organizationId: string | null; closedAt: Date | null }> = {}) {
+    return {
+      id: 'ws_1',
+      eventId: 'evt_1',
+      closedAt: overrides.closedAt ?? null,
+      closedById: null,
+      event: { status: overrides.status ?? 'completed', organizationId: overrides.organizationId ?? null },
+      items: [{ title: 'A', category: 'General', status: 'done', priority: 'medium', isBlocker: false }],
+    };
+  }
+
+  it('throws NotFoundException when the workspace does not exist', async () => {
+    const prisma = makePrisma(null);
+    const service = new WorkspacesService(prisma, mockAudit);
+    await expect(service.closeWorkspace('evt_1', ADMIN_USER)).rejects.toThrow('Workspace not found');
+  });
+
+  it('is idempotent: returns the existing closure without re-checking role or event status', async () => {
+    const prisma = makePrisma(makeCloseableWorkspace({ closedAt: BASE_DATE, status: 'on_sale' }));
+    const service = new WorkspacesService(prisma, mockAudit);
+    const result = await service.closeWorkspace('evt_1', ADMIN_USER);
+    expect(result.alreadyClosed).toBe(true);
+    expect(mockAudit.log).not.toHaveBeenCalled();
+  });
+
+  it('rejects non-managers with ForbiddenException', async () => {
+    const prisma = makePrisma(makeCloseableWorkspace());
+    prisma.workspaceMember.findUnique.mockResolvedValue({ role: 'editor' });
+    const service = new WorkspacesService(prisma, mockAudit);
+    await expect(
+      service.closeWorkspace('evt_1', { sub: 'user_1', email: 'u@example.com', isAdmin: false }),
+    ).rejects.toThrow('Only a workspace manager can close this workspace');
+  });
+
+  it('rejects closure before the event is marked completed', async () => {
+    const prisma = makePrisma(makeCloseableWorkspace({ status: 'on_sale' }));
+    const service = new WorkspacesService(prisma, mockAudit);
+    await expect(service.closeWorkspace('evt_1', ADMIN_USER)).rejects.toThrow(
+      'Workspace can only be closed once the event is marked completed',
+    );
+  });
+
+  it('closes the workspace, persists a snapshot, and writes an audit log', async () => {
+    const prisma = makePrisma(makeCloseableWorkspace());
+    prisma.eventWorkspace.update = jest.fn().mockResolvedValue({
+      closedAt: BASE_DATE,
+      closedById: ADMIN_USER.sub,
+    });
+    const service = new WorkspacesService(prisma, mockAudit);
+    const result = await service.closeWorkspace('evt_1', ADMIN_USER);
+
+    expect(result.alreadyClosed).toBe(false);
+    expect(prisma.eventWorkspace.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 'ws_1' },
+        data: expect.objectContaining({
+          closedById: ADMIN_USER.sub,
+          readinessSnapshot: expect.objectContaining({ score: 100, label: 'Complete' }),
+        }),
+      }),
+    );
+    expect(mockAudit.log).toHaveBeenCalledWith(
+      expect.objectContaining({ action: 'WORKSPACE_CLOSED', performedById: ADMIN_USER.sub }),
+    );
+  });
+});
+
+// ── Closed-workspace mutation guard + expanded audit (Gap 4 + Gap 5) ──────────
+
+describe('updateWorkspaceItem() — closed guard & audit expansion', () => {
+  it('rejects edits once the workspace is closed', async () => {
+    const prisma = makePrisma({ id: 'ws_1', closedAt: BASE_DATE });
+    const service = new WorkspacesService(prisma, mockAudit);
+    await expect(
+      service.updateWorkspaceItem('evt_1', 'item_1', { status: 'done' }, 'user_1'),
+    ).rejects.toThrow('Workspace is closed and read-only');
+  });
+
+  it('logs a distinct audit action for an assignee change (not just status)', async () => {
+    const prisma = makePrisma({ id: 'ws_1', closedAt: null });
+    const existingItem = makeItem({ id: 'item_1', assignedToName: null });
+    prisma.workspaceItem.findFirst.mockResolvedValue(existingItem);
+    prisma.workspaceItem.update.mockResolvedValue({ ...existingItem, assignedToName: 'Dana' });
+    const service = new WorkspacesService(prisma, mockAudit);
+
+    await service.updateWorkspaceItem('evt_1', 'item_1', { assignedToName: 'Dana' }, 'user_1');
+
+    expect(mockAudit.log).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: 'WORKSPACE_ITEM_ASSIGNEE_CHANGED',
+        metadata: expect.objectContaining({ role: 'responsible', from: null, to: 'Dana' }),
+      }),
+    );
+  });
+
+  it('logs a distinct audit action for a blocker flag change', async () => {
+    const prisma = makePrisma({ id: 'ws_1', closedAt: null });
+    const existingItem = makeItem({ id: 'item_1', isBlocker: false });
+    prisma.workspaceItem.findFirst.mockResolvedValue(existingItem);
+    prisma.workspaceItem.update.mockResolvedValue({ ...existingItem, isBlocker: true });
+    const service = new WorkspacesService(prisma, mockAudit);
+
+    await service.updateWorkspaceItem('evt_1', 'item_1', { isBlocker: true }, 'user_1');
+
+    expect(mockAudit.log).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: 'WORKSPACE_ITEM_BLOCKER_FLAG_CHANGED',
+        metadata: expect.objectContaining({ from: false, to: true }),
+      }),
+    );
   });
 });

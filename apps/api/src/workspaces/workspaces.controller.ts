@@ -17,6 +17,7 @@ import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { AdminGuard } from '../common/guards/admin.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
+import { EventAccessService } from '../common/services/event-access.service';
 import { JwtPayload } from '@axon-tickets/types';
 import { WorkspacesService } from './workspaces.service';
 import {
@@ -31,40 +32,56 @@ import {
 @Controller('admin/events/:eventId/workspace')
 @UseGuards(JwtAuthGuard, AdminGuard)
 export class WorkspacesController {
-  constructor(private readonly workspacesService: WorkspacesService) {}
+  constructor(
+    private readonly workspacesService: WorkspacesService,
+    private readonly eventAccess: EventAccessService,
+  ) {}
 
   @Post()
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Ensure workspace exists for event (idempotent)' })
-  ensureWorkspace(
+  async ensureWorkspace(
     @Param('eventId') eventId: string,
     @CurrentUser() user: JwtPayload,
   ) {
+    await this.eventAccess.assertEventAccess(eventId, user);
     return this.workspacesService.ensureWorkspace(eventId, user.sub);
   }
 
   @Get()
   @ApiOperation({ summary: 'Get workspace readiness summary' })
-  getSummary(@Param('eventId') eventId: string) {
-    return this.workspacesService.getWorkspaceSummary(eventId);
+  async getSummary(@Param('eventId') eventId: string, @CurrentUser() user: JwtPayload) {
+    await this.eventAccess.assertEventAccess(eventId, user);
+    return this.workspacesService.getWorkspaceSummary(eventId, user);
+  }
+
+  // ── Team ─────────────────────────────────────────────────────────────────
+
+  @Get('members')
+  @ApiOperation({ summary: 'List event team members and their workspace role' })
+  async getWorkspaceMembers(@Param('eventId') eventId: string, @CurrentUser() user: JwtPayload) {
+    await this.eventAccess.assertEventAccess(eventId, user);
+    return this.workspacesService.getWorkspaceMembers(eventId);
   }
 
   // ── Templates ────────────────────────────────────────────────────────────
 
   @Get('templates')
   @ApiOperation({ summary: 'List available readiness checklist templates' })
-  getTemplates() {
+  async getTemplates(@Param('eventId') eventId: string, @CurrentUser() user: JwtPayload) {
+    await this.eventAccess.assertEventAccess(eventId, user);
     return this.workspacesService.getTemplates();
   }
 
   @Post('apply-template')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Apply a template — replaces all existing checklist items' })
-  applyTemplate(
+  async applyTemplate(
     @Param('eventId') eventId: string,
     @Body() dto: ApplyTemplateDto,
     @CurrentUser() user: JwtPayload,
   ) {
+    await this.eventAccess.assertEventAccess(eventId, user);
     return this.workspacesService.applyTemplate(eventId, dto.templateId, user.sub);
   }
 
@@ -77,6 +94,7 @@ export class WorkspacesController {
     @CurrentUser() user: JwtPayload,
     @Res() res: Response,
   ) {
+    await this.eventAccess.assertEventAccess(eventId, user);
     const pdf = await this.workspacesService.generateStakeholderReport(eventId, user.sub);
     const date = new Date().toISOString().slice(0, 10);
     res.setHeader('Content-Type', 'application/pdf');
@@ -92,6 +110,7 @@ export class WorkspacesController {
     @CurrentUser() user: JwtPayload,
     @Res() res: Response,
   ) {
+    await this.eventAccess.assertEventAccess(eventId, user);
     const isExternal = exportMode === 'external';
     const pdf = await this.workspacesService.generatePostEventReport(eventId, isExternal, user.sub);
     const date = new Date().toISOString().slice(0, 10);
@@ -105,13 +124,15 @@ export class WorkspacesController {
 
   @Get('assignable-users')
   @ApiOperation({ summary: 'List users that can be assigned to workspace items' })
-  getAssignableUsers(@Param('eventId') eventId: string) {
+  async getAssignableUsers(@Param('eventId') eventId: string, @CurrentUser() user: JwtPayload) {
+    await this.eventAccess.assertEventAccess(eventId, user);
     return this.workspacesService.getAssignableUsers(eventId);
   }
 
   @Get('overdue')
   @ApiOperation({ summary: 'List items that are past their due date and not done' })
-  getOverdueItems(@Param('eventId') eventId: string) {
+  async getOverdueItems(@Param('eventId') eventId: string, @CurrentUser() user: JwtPayload) {
+    await this.eventAccess.assertEventAccess(eventId, user);
     return this.workspacesService.getOverdueItems(eventId);
   }
 
@@ -119,39 +140,43 @@ export class WorkspacesController {
 
   @Get('items')
   @ApiOperation({ summary: 'Get all checklist items grouped by category' })
-  getItems(@Param('eventId') eventId: string) {
+  async getItems(@Param('eventId') eventId: string, @CurrentUser() user: JwtPayload) {
+    await this.eventAccess.assertEventAccess(eventId, user);
     return this.workspacesService.getWorkspaceItems(eventId);
   }
 
   @Post('items')
   @ApiOperation({ summary: 'Add a custom checklist item' })
-  createItem(
+  async createItem(
     @Param('eventId') eventId: string,
     @Body() dto: CreateWorkspaceItemDto,
     @CurrentUser() user: JwtPayload,
   ) {
+    await this.eventAccess.assertEventAccess(eventId, user);
     return this.workspacesService.createWorkspaceItem(eventId, dto, user.sub);
   }
 
   @Patch('items/:itemId')
   @ApiOperation({ summary: 'Update checklist item (status, notes, etc.)' })
-  updateItem(
+  async updateItem(
     @Param('eventId') eventId: string,
     @Param('itemId') itemId: string,
     @Body() dto: UpdateWorkspaceItemDto,
     @CurrentUser() user: JwtPayload,
   ) {
+    await this.eventAccess.assertEventAccess(eventId, user);
     return this.workspacesService.updateWorkspaceItem(eventId, itemId, dto, user.sub);
   }
 
   @Delete('items/:itemId')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Delete a checklist item' })
-  deleteItem(
+  async deleteItem(
     @Param('eventId') eventId: string,
     @Param('itemId') itemId: string,
     @CurrentUser() user: JwtPayload,
   ) {
+    await this.eventAccess.assertEventAccess(eventId, user);
     return this.workspacesService.deleteWorkspaceItem(eventId, itemId, user.sub);
   }
 
@@ -159,36 +184,53 @@ export class WorkspacesController {
 
   @Get('milestones')
   @ApiOperation({ summary: 'Get all milestones for the workspace' })
-  getMilestones(@Param('eventId') eventId: string) {
+  async getMilestones(@Param('eventId') eventId: string, @CurrentUser() user: JwtPayload) {
+    await this.eventAccess.assertEventAccess(eventId, user);
     return this.workspacesService.getMilestones(eventId);
   }
 
   @Post('milestones')
   @ApiOperation({ summary: 'Add a milestone' })
-  createMilestone(
+  async createMilestone(
     @Param('eventId') eventId: string,
     @Body() dto: CreateMilestoneDto,
+    @CurrentUser() user: JwtPayload,
   ) {
-    return this.workspacesService.createMilestone(eventId, dto);
+    await this.eventAccess.assertEventAccess(eventId, user);
+    return this.workspacesService.createMilestone(eventId, dto, user.sub);
   }
 
   @Patch('milestones/:milestoneId')
   @ApiOperation({ summary: 'Update a milestone' })
-  updateMilestone(
+  async updateMilestone(
     @Param('eventId') eventId: string,
     @Param('milestoneId') milestoneId: string,
     @Body() dto: UpdateMilestoneDto,
+    @CurrentUser() user: JwtPayload,
   ) {
-    return this.workspacesService.updateMilestone(eventId, milestoneId, dto);
+    await this.eventAccess.assertEventAccess(eventId, user);
+    return this.workspacesService.updateMilestone(eventId, milestoneId, dto, user.sub);
   }
 
   @Delete('milestones/:milestoneId')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Delete a milestone' })
-  deleteMilestone(
+  async deleteMilestone(
     @Param('eventId') eventId: string,
     @Param('milestoneId') milestoneId: string,
+    @CurrentUser() user: JwtPayload,
   ) {
-    return this.workspacesService.deleteMilestone(eventId, milestoneId);
+    await this.eventAccess.assertEventAccess(eventId, user);
+    return this.workspacesService.deleteMilestone(eventId, milestoneId, user.sub);
+  }
+
+  // ── Closure ──────────────────────────────────────────────────────────────
+
+  @Post('close')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Close the workspace and lock in a readiness snapshot (manager role only)' })
+  async closeWorkspace(@Param('eventId') eventId: string, @CurrentUser() user: JwtPayload) {
+    await this.eventAccess.assertEventAccess(eventId, user);
+    return this.workspacesService.closeWorkspace(eventId, user);
   }
 }

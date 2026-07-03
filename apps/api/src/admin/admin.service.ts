@@ -7,6 +7,7 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { Prisma } from '@prisma/client';
+import { EventAccessService } from '../common/services/event-access.service';
 import { EventsService } from '../events/events.service';
 import { TicketTiersService } from '../ticket-tiers/ticket-tiers.service';
 import { OrdersService } from '../orders/orders.service';
@@ -33,6 +34,7 @@ export class AdminService {
 
   constructor(
     private readonly prisma: PrismaService,
+    private readonly eventAccess: EventAccessService,
     private readonly eventsService: EventsService,
     private readonly tiersService: TicketTiersService,
     private readonly ordersService: OrdersService,
@@ -42,32 +44,15 @@ export class AdminService {
   ) {}
 
   private eventOwnerWhere(user: JwtPayload): Prisma.EventWhereInput {
-    return user.isAdmin
-      ? {}
-      : {
-          organization: {
-            approvalStatus: 'approved',
-            members: { some: { userId: user.sub } },
-          },
-        };
+    return this.eventAccess.eventOwnerWhere(user);
   }
 
   async assertEventAccess(eventId: string, user: JwtPayload): Promise<void> {
-    const event = await this.prisma.event.findFirst({
-      where: { id: eventId, ...this.eventOwnerWhere(user) },
-      select: { id: true },
-    });
-    if (!event) throw new NotFoundException('Event not found');
+    return this.eventAccess.assertEventAccess(eventId, user);
   }
 
   async assertRegistrationAccess(registrationId: string, user: JwtPayload): Promise<void> {
-    if (user.isAdmin) return;
-    const reg = await this.prisma.registration.findUnique({
-      where: { id: registrationId },
-      select: { eventId: true },
-    });
-    if (!reg) throw new NotFoundException('Registration not found');
-    await this.assertEventAccess(reg.eventId, user);
+    return this.eventAccess.assertRegistrationAccess(registrationId, user);
   }
 
   // ── User Management ────────────────────────────────────────────────────

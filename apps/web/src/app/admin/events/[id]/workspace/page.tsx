@@ -44,10 +44,22 @@ interface Milestone {
   completedAt: string | null;
 }
 
+interface TeamMember {
+  id: string;
+  name: string;
+  email: string;
+  role: 'manager' | 'editor' | 'viewer';
+}
+
 interface WorkspaceSummary {
   workspaceId: string;
   eventId: string;
   event: { id: string; title: string; startsAt: string; status: string };
+  canEdit: boolean;
+  viewerRole: 'manager' | 'editor' | 'viewer';
+  isClosed: boolean;
+  closedAt: string | null;
+  closedBy: { name: string } | null;
   readiness: {
     score: number;
     label: ScoreLabel;
@@ -639,16 +651,37 @@ export default function EventWorkspacePage() {
     }
   };
 
-  // TODO(SD-02): Replace with workspace-role check once event-scoped membership is built.
-  // All platform admins can edit for MVP; wire to OrganizationMember role when available.
-  const canEdit = true;
-
   const { data: summary, isLoading: summaryLoading } = useQuery<WorkspaceSummary | null>({
     queryKey: ['workspace-summary', id],
     queryFn: () =>
       api.get<{ data: WorkspaceSummary | null }>(`/admin/events/${id}/workspace`)
         .then((r) => r.data.data),
     enabled: !!id,
+  });
+
+  // Server-enforced; this only drives which controls render. Write endpoints
+  // independently re-check permission, so a stale/absent value here can only
+  // hide UI, never grant access.
+  const canEdit = summary?.canEdit ?? false;
+  const canClose = summary?.viewerRole === 'manager';
+
+  const { data: teamMembers } = useQuery<TeamMember[]>({
+    queryKey: ['workspace-members', id],
+    queryFn: () =>
+      api.get<{ data: TeamMember[] }>(`/admin/events/${id}/workspace/members`).then((r) => r.data.data),
+    enabled: !!summary,
+  });
+
+  const closeWorkspaceMutation = useMutation({
+    mutationFn: () => api.post(`/admin/events/${id}/workspace/close`),
+    onSuccess: () => {
+      toast.success('Workspace closed. Readiness is now locked.');
+      qc.invalidateQueries({ queryKey: ['workspace-summary', id] });
+    },
+    onError: (err: unknown) => {
+      const message = (err as any)?.response?.data?.message ?? 'Could not close workspace.';
+      toast.error(message);
+    },
   });
 
   const { data: itemsData, isLoading: itemsLoading } = useQuery<{
@@ -763,8 +796,8 @@ export default function EventWorkspacePage() {
             </button>
             <button
               onClick={() => handleDownloadPostEventReport(false)}
-              disabled={downloadingPE || summary.event.status !== 'complete'}
-              title={summary.event.status !== 'complete' ? 'Available once the event is marked complete' : undefined}
+              disabled={downloadingPE || summary.event.status !== 'completed'}
+              title={summary.event.status !== 'completed' ? 'Available once the event is marked complete' : undefined}
               className="flex items-center gap-1.5 border border-gray-200 hover:border-gray-300 text-sm text-gray-600 hover:text-gray-800 font-medium px-3 py-2 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={1.75} viewBox="0 0 24 24">
@@ -778,8 +811,50 @@ export default function EventWorkspacePage() {
                 Choose Template
               </button>
             )}
+            {canClose && !summary.isClosed && summary.event.status === 'completed' && (
+              <button
+                onClick={() => {
+                  if (window.confirm('Close this workspace? Readiness will be locked and a snapshot recorded. This cannot be undone.')) {
+                    closeWorkspaceMutation.mutate();
+                  }
+                }}
+                disabled={closeWorkspaceMutation.isPending}
+                className="border border-gray-200 hover:border-red-300 text-sm text-gray-600 hover:text-red-700 font-medium px-3 py-2 rounded-lg transition-colors disabled:opacity-50"
+              >
+                {closeWorkspaceMutation.isPending ? 'Closing…' : 'Close Workspace'}
+              </button>
+            )}
           </div>
         </div>
+
+        {/* Closed banner */}
+        {summary.isClosed && (
+          <div className="rounded-2xl border border-gray-200 bg-gray-50 px-5 py-3 flex items-center gap-2 text-sm text-gray-600">
+            <svg className="w-4 h-4 text-gray-400 shrink-0" fill="none" stroke="currentColor" strokeWidth={1.75} viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" />
+            </svg>
+            Workspace closed{summary.closedAt ? ` on ${formatDate(summary.closedAt)}` : ''}
+            {summary.closedBy ? ` by ${summary.closedBy.name}` : ''} — readiness is locked.
+          </div>
+        )}
+
+        {/* Team */}
+        {teamMembers && teamMembers.length > 0 && (
+          <div className="rounded-2xl border border-gray-200 bg-white px-5 py-4">
+            <h2 className="text-sm font-semibold text-gray-900 mb-2.5">Team</h2>
+            <div className="flex flex-wrap gap-2">
+              {teamMembers.map((m) => (
+                <span key={m.id} className="inline-flex items-center gap-1.5 text-xs bg-gray-50 border border-gray-200 rounded-full px-2.5 py-1">
+                  <span className="w-4 h-4 rounded-full bg-violet-100 text-violet-700 flex items-center justify-center text-[9px] font-semibold shrink-0">
+                    {initials(m.name)}
+                  </span>
+                  <span className="text-gray-700">{m.name}</span>
+                  <span className="text-gray-400 capitalize">{m.role}</span>
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Readiness card */}
         <div className="rounded-2xl border border-gray-200 bg-white px-5 py-4 space-y-4">
