@@ -57,6 +57,28 @@ export class CreateReferralCodeDto {
   applicableTierIds?: string[];
 }
 
+export class UpdateReferralCodeDto {
+  @IsOptional()
+  @IsString()
+  @MinLength(2)
+  @MaxLength(80)
+  name?: string;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(1_000_000)
+  maxUses?: number | null;
+
+  @IsOptional()
+  @IsDateString()
+  validFrom?: string | null;
+
+  @IsOptional()
+  @IsDateString()
+  validUntil?: string | null;
+}
+
 export class SetReferralCodeStatusDto {
   @IsBoolean()
   isActive!: boolean;

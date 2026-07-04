@@ -19,7 +19,7 @@ import { AuditService } from '../audit/audit.service';
 import { EmailService } from '../email/email.service';
 import { PDFDocument, PDFFont, PDFPage, StandardFonts, rgb } from 'pdf-lib';
 import { JwtPayload } from '@axon-tickets/types';
-import { CreateReferralCodeDto } from './dto/referral-code.dto';
+import { CreateReferralCodeDto, UpdateReferralCodeDto } from './dto/referral-code.dto';
 
 interface NametagRow {
   id: string;
@@ -145,13 +145,13 @@ export class AdminService {
     await this.assertEventAccess(eventId, user);
     const [codes, usageTotals] = await Promise.all([
       this.prisma.referralCode.findMany({
-        where: { eventId },
+        where: { eventId, deletedAt: null },
         orderBy: { createdAt: 'desc' },
         include: { _count: { select: { usages: true } } },
       }),
       this.prisma.referralCodeUsage.groupBy({
         by: ['referralCodeId'],
-        where: { referralCode: { eventId } },
+        where: { referralCode: { eventId, deletedAt: null } },
         _sum: { attendeeCount: true, discountAmount: true },
       }),
     ]);
@@ -239,6 +239,50 @@ export class AdminService {
       metadata: { eventId, code: existing.code },
     });
     return updated;
+  }
+
+  async updateReferralCode(eventId: string, codeId: string, dto: UpdateReferralCodeDto, user: JwtPayload) {
+    await this.assertEventAccess(eventId, user);
+    const existing = await this.prisma.referralCode.findFirst({ where: { id: codeId, eventId, deletedAt: null } });
+    if (!existing) throw new NotFoundException('Referral code not found');
+    if (dto.validFrom && dto.validUntil && new Date(dto.validUntil) <= new Date(dto.validFrom)) {
+      throw new BadRequestException('Validity end must be after its start.');
+    }
+    const data: Prisma.ReferralCodeUpdateInput = {};
+    if (dto.name !== undefined) data.name = dto.name.trim();
+    if ('maxUses' in dto) data.maxUses = dto.maxUses ?? null;
+    if ('validFrom' in dto) data.validFrom = dto.validFrom ? new Date(dto.validFrom) : null;
+    if ('validUntil' in dto) data.validUntil = dto.validUntil ? new Date(dto.validUntil) : null;
+    const updated = await this.prisma.referralCode.update({ where: { id: codeId }, data });
+    await this.audit.log({
+      action: 'REFERRAL_CODE_UPDATED',
+      entityType: 'ReferralCode',
+      entityId: codeId,
+      performedById: user.sub,
+      metadata: { eventId, code: existing.code, changes: dto },
+    });
+    return updated;
+  }
+
+  async deleteReferralCode(eventId: string, codeId: string, user: JwtPayload) {
+    await this.assertEventAccess(eventId, user);
+    const existing = await this.prisma.referralCode.findFirst({ where: { id: codeId, eventId, deletedAt: null } });
+    if (!existing) throw new NotFoundException('Referral code not found');
+    // Soft-delete: mark as deleted and inactive so no new registrations can use it.
+    // Existing ReferralCodeUsage rows (and their discountAmount) are preserved untouched,
+    // so every attendee who already used this code keeps their discount.
+    await this.prisma.referralCode.update({
+      where: { id: codeId },
+      data: { deletedAt: new Date(), isActive: false, deactivatedAt: new Date() },
+    });
+    await this.audit.log({
+      action: 'REFERRAL_CODE_DELETED',
+      entityType: 'ReferralCode',
+      entityId: codeId,
+      performedById: user.sub,
+      metadata: { eventId, code: existing.code },
+    });
+    return { deleted: true };
   }
 
   async exportReferralCodes(eventId: string, user: JwtPayload): Promise<string> {

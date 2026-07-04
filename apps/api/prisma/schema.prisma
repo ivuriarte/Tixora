@@ -435,6 +435,7 @@ model ReferralCode {
   createdById       String               @map("created_by_id")
   createdAt         DateTime             @default(now()) @map("created_at")
   deactivatedAt     DateTime?            @map("deactivated_at")
+  deletedAt         DateTime?            @map("deleted_at")
 
   event         Event               @relation(fields: [eventId], references: [id], onDelete: Cascade)
   registrations Registration[]

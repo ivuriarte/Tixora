@@ -27,7 +27,7 @@ import { CreateEventDto, UpdateEventDto } from '../events/dto/event.dto';
 import { CreateTierDto, UpdateTierDto } from '../ticket-tiers/dto/tier.dto';
 import { CheckinDto, RejectRegistrationDto, BulkApproveDto, BulkRejectDto, RejectOrganizerDto, SetUserRoleDto, UpdatePlatformSettingsDto } from './dto/admin.dto';
 import { RegistrationsService } from '../registrations/registrations.service';
-import { CreateReferralCodeDto, SetReferralCodeStatusDto } from './dto/referral-code.dto';
+import { CreateReferralCodeDto, SetReferralCodeStatusDto, UpdateReferralCodeDto } from './dto/referral-code.dto';
 
 @ApiTags('admin')
 @Controller('admin')
@@ -101,6 +101,27 @@ export class AdminController {
     @CurrentUser() user: JwtPayload,
   ) {
     return this.adminService.createReferralCode(id, dto, user);
+  }
+
+  @Patch('events/:eventId/referral-codes/:codeId')
+  @ApiOperation({ summary: 'Update mutable referral code fields (name, maxUses, validity window)' })
+  updateReferralCode(
+    @Param('eventId') eventId: string,
+    @Param('codeId') codeId: string,
+    @Body() dto: UpdateReferralCodeDto,
+    @CurrentUser() user: JwtPayload,
+  ) {
+    return this.adminService.updateReferralCode(eventId, codeId, dto, user);
+  }
+
+  @Delete('events/:eventId/referral-codes/:codeId')
+  @ApiOperation({ summary: 'Soft-delete a referral code (existing discounts are preserved)' })
+  deleteReferralCode(
+    @Param('eventId') eventId: string,
+    @Param('codeId') codeId: string,
+    @CurrentUser() user: JwtPayload,
+  ) {
+    return this.adminService.deleteReferralCode(eventId, codeId, user);
   }
 
   @Patch('events/:eventId/referral-codes/:codeId/status')
