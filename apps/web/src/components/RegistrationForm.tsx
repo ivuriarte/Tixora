@@ -108,6 +108,7 @@ export default function RegistrationForm({
   const [referralCode, setReferralCode] = useState('');
   const [referralDiscount, setReferralDiscount] = useState(0);
   const [referralMessage, setReferralMessage] = useState<string | null>(null);
+  const [referralError, setReferralError] = useState<string | null>(null);
   const [checkingReferral, setCheckingReferral] = useState(false);
   // Synchronous guard — prevents duplicate submissions during the async gap
   // between the first click and React flushing the loading state update.
@@ -196,7 +197,7 @@ export default function RegistrationForm({
       setReferralDiscount(0);
       setReferralMessage(null);
       const message = err?.response?.data?.message ?? 'Referral code could not be applied.';
-      setError(Array.isArray(message) ? message.join(' ') : message);
+      setReferralError(Array.isArray(message) ? message.join(' ') : message);
     } finally {
       setCheckingReferral(false);
     }
@@ -229,6 +230,23 @@ export default function RegistrationForm({
         gender: a.gender as 'female' | 'male' | 'non_binary' | 'prefer_not_to_say' | 'self_described',
         city: a.city.trim(),
       }));
+
+      // Sync any edited profile fields back to the user's account
+      if (useMyDetails && profileData && currentUser && !registrationId) {
+        const a = attendees[0];
+        const profilePatch: Record<string, string> = {};
+        if (a.firstName.trim() && a.firstName.trim() !== profileData.firstName) profilePatch.firstName = a.firstName.trim();
+        if (a.lastName.trim() && a.lastName.trim() !== profileData.lastName) profilePatch.lastName = a.lastName.trim();
+        if (a.phone.trim() !== (profileData.phone ?? '')) profilePatch.phone = a.phone.trim();
+        if (a.company.trim() !== (profileData.company ?? '')) profilePatch.company = a.company.trim();
+        if (a.jobTitle.trim() !== (profileData.jobTitle ?? '')) profilePatch.jobTitle = a.jobTitle.trim();
+        if (a.city.trim() && a.city.trim() !== (profileData.city ?? '')) profilePatch.city = a.city.trim();
+        if (a.birthday && a.birthday !== (profileData.birthday?.slice(0, 10) ?? '')) profilePatch.birthday = a.birthday;
+        if (a.gender && a.gender !== (profileData.gender ?? '')) profilePatch.gender = a.gender;
+        if (Object.keys(profilePatch).length > 0) {
+          try { await api.patch('/users/me', profilePatch); } catch { /* non-blocking */ }
+        }
+      }
 
       if (registrationId) {
         // Edit mode: update existing pending_payment registration
@@ -296,7 +314,7 @@ export default function RegistrationForm({
             <input
               id="referral-code"
               value={referralCode}
-              onChange={(event) => { setReferralCode(event.target.value.toUpperCase()); setReferralDiscount(0); setReferralMessage(null); setError(null); }}
+              onChange={(event) => { setReferralCode(event.target.value.toUpperCase()); setReferralDiscount(0); setReferralMessage(null); setReferralError(null); setError(null); }}
               maxLength={32}
               autoComplete="off"
               placeholder="Enter code"
@@ -307,6 +325,7 @@ export default function RegistrationForm({
             </button>
           </div>
           {referralMessage && <p role="status" className="mt-2 text-xs font-medium text-emerald-700">✓ {referralMessage}</p>}
+          {referralError && <p role="alert" className="mt-2 text-xs font-medium text-red-600">✗ {referralError}</p>}
         </div>
       )}
 
@@ -475,15 +494,14 @@ export default function RegistrationForm({
 
           {(() => {
             // For Attendee 1 with toggle ON:
-            // — field has a value from profile → lock it (read-only, gray)
-            // — field is empty → keep editable + amber highlight so user knows it needs filling
+            // — field is empty → amber highlight so user knows it needs filling
+            // — field has a value → normal editable (changes sync back to profile on submit)
             const auto = useMyDetails && i === 0;
-            const lockedCls = 'border-gray-200 bg-gray-50 text-gray-500 cursor-not-allowed';
             const missingCls = 'border-amber-400 bg-amber-50 focus:outline-none focus:ring-2 focus:ring-amber-300 focus:border-amber-400';
             const normalCls = 'border-gray-300 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary';
 
             const cls = (val: string) =>
-              !auto ? normalCls : val.trim() ? lockedCls : missingCls;
+              !auto ? normalCls : val.trim() ? normalCls : missingCls;
 
             const MissingHint = () => (
               <p className="mt-1 text-[11px] text-amber-600 font-medium">
@@ -500,7 +518,6 @@ export default function RegistrationForm({
                       required
                       value={att.firstName}
                       onChange={(e) => updateAttendee(i, 'firstName', e.target.value)}
-                      readOnly={auto && !!att.firstName.trim()}
                       className={`w-full border rounded-lg px-3 py-2 text-sm ${cls(att.firstName)}`}
                     />
                     {auto && !att.firstName.trim() && <MissingHint />}
@@ -511,7 +528,6 @@ export default function RegistrationForm({
                       required
                       value={att.lastName}
                       onChange={(e) => updateAttendee(i, 'lastName', e.target.value)}
-                      readOnly={auto && !!att.lastName.trim()}
                       className={`w-full border rounded-lg px-3 py-2 text-sm ${cls(att.lastName)}`}
                     />
                     {auto && !att.lastName.trim() && <MissingHint />}
@@ -525,8 +541,8 @@ export default function RegistrationForm({
                     required
                     value={att.email}
                     onChange={(e) => updateAttendee(i, 'email', e.target.value)}
-                    readOnly={auto && !!att.email.trim()}
-                    className={`w-full border rounded-lg px-3 py-2 text-sm ${cls(att.email)}`}
+                    readOnly={auto}
+                    className={`w-full border rounded-lg px-3 py-2 text-sm ${auto ? 'border-gray-200 bg-gray-50 text-gray-500 cursor-not-allowed' : normalCls}`}
                   />
                   {auto && !att.email.trim() && <MissingHint />}
                 </div>
@@ -540,7 +556,6 @@ export default function RegistrationForm({
                       value={att.phone}
                       onChange={(e) => updateAttendee(i, 'phone', e.target.value)}
                       placeholder="+639171234567"
-                      readOnly={auto && !!att.phone.trim()}
                       className={`w-full border rounded-lg px-3 py-2 text-sm ${cls(att.phone)}`}
                     />
                     {auto && !att.phone.trim() && <MissingHint />}
@@ -550,7 +565,6 @@ export default function RegistrationForm({
                     <input
                       value={att.company}
                       onChange={(e) => updateAttendee(i, 'company', e.target.value)}
-                      readOnly={auto && !!att.company.trim()}
                       className={`w-full border rounded-lg px-3 py-2 text-sm ${cls(att.company)}`}
                     />
                   </div>
@@ -561,19 +575,18 @@ export default function RegistrationForm({
                   <input
                     value={att.jobTitle}
                     onChange={(e) => updateAttendee(i, 'jobTitle', e.target.value)}
-                    readOnly={auto && !!att.jobTitle.trim()}
                     className={`w-full border rounded-lg px-3 py-2 text-sm ${cls(att.jobTitle)}`}
                   />
                 </div>
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
                   <div>
                     <label className="block text-xs font-medium text-gray-600 mb-1">Birthday *</label>
-                    <input type="date" required max={new Date().toISOString().slice(0, 10)} value={att.birthday} onChange={(e) => updateAttendee(i, 'birthday', e.target.value)} readOnly={auto && !!att.birthday} className={`w-full border rounded-lg px-3 py-2 text-sm ${cls(att.birthday)}`} />
+                    <input type="date" required max={new Date().toISOString().slice(0, 10)} value={att.birthday} onChange={(e) => updateAttendee(i, 'birthday', e.target.value)} className={`w-full border rounded-lg px-3 py-2 text-sm ${cls(att.birthday)}`} />
                     {auto && !att.birthday && <MissingHint />}
                   </div>
                   <div>
                     <label className="block text-xs font-medium text-gray-600 mb-1">Gender *</label>
-                    <select required value={att.gender} onChange={(e) => updateAttendee(i, 'gender', e.target.value)} disabled={auto && !!att.gender} className={`w-full border rounded-lg px-3 py-2 text-sm ${cls(att.gender)}`}>
+                    <select required value={att.gender} onChange={(e) => updateAttendee(i, 'gender', e.target.value)} className={`w-full border rounded-lg px-3 py-2 text-sm ${cls(att.gender)}`}>
                       <option value="">Select</option>
                       <option value="female">Female</option><option value="male">Male</option><option value="non_binary">Non-binary</option><option value="self_described">Self-described</option><option value="prefer_not_to_say">Prefer not to say</option>
                     </select>
@@ -581,7 +594,7 @@ export default function RegistrationForm({
                   </div>
                   <div>
                     <label className="block text-xs font-medium text-gray-600 mb-1">City *</label>
-                    <input required value={att.city} onChange={(e) => updateAttendee(i, 'city', e.target.value)} readOnly={auto && !!att.city.trim()} placeholder="Davao City" className={`w-full border rounded-lg px-3 py-2 text-sm ${cls(att.city)}`} />
+                    <input required value={att.city} onChange={(e) => updateAttendee(i, 'city', e.target.value)} placeholder="Davao City" className={`w-full border rounded-lg px-3 py-2 text-sm ${cls(att.city)}`} />
                     {auto && !att.city.trim() && <MissingHint />}
                   </div>
                 </div>
