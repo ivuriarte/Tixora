@@ -229,33 +229,64 @@ export default async function EventPage({ params, searchParams }: { params: { sl
             {/* Sponsors */}
             {sponsors.length > 0 && (
               <div>
-                <h2 className="text-lg font-semibold text-gray-900 mb-4">Sponsors &amp; Partners</h2>
-                <div className="grid gap-4 sm:grid-cols-2">
-                  {sponsors.map((s, i) => {
-                    const inner = s.logoUrl ? (
-                      <div className="flex min-h-36 items-center justify-center rounded-2xl border border-gray-200 bg-white px-8 py-6 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md">
-                        {/* External sponsor assets bypass the Next image optimizer to avoid
-                            proxying organizer-controlled hosts through our infrastructure. */}
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img src={s.logoUrl} alt={`${s.name} logo`} width={220} height={100} loading="lazy" decoding="async" className="max-h-24 w-auto max-w-full object-contain" />
-                      </div>
-                    ) : (
-                      <span className="inline-block bg-gray-100 text-gray-700 font-medium px-4 py-2 rounded-lg text-sm hover:bg-gray-200 transition-colors">{s.name}</span>
-                    );
+                <h2 className="text-lg font-semibold text-gray-900 mb-6 text-center">Sponsors &amp; Partners</h2>
+                {(() => {
+                  const TIER_ORDER = ['platinum', 'gold', 'silver', 'bronze'];
+                  const TIER_HEIGHT: Record<string, string> = {
+                    platinum: 'h-11',
+                    gold: 'h-7',
+                    silver: 'h-5',
+                    bronze: 'h-4',
+                  };
+                  const grouped = sponsors.reduce<Record<string, Sponsor[]>>((acc, s) => {
+                    const key = s.tier?.toLowerCase() ?? '__none__';
+                    (acc[key] ??= []).push(s);
+                    return acc;
+                  }, {});
+                  const sortedKeys = Object.keys(grouped).sort((a, b) => {
+                    if (a === '__none__') return 1;
+                    if (b === '__none__') return -1;
+                    const ai = TIER_ORDER.indexOf(a);
+                    const bi = TIER_ORDER.indexOf(b);
+                    if (ai === -1 && bi === -1) return a.localeCompare(b);
+                    if (ai === -1) return 1;
+                    if (bi === -1) return -1;
+                    return ai - bi;
+                  });
+                  return sortedKeys.map((tierKey) => {
+                    const tierSponsors = grouped[tierKey];
+                    const tierLabel = tierKey === '__none__' ? null : tierKey.charAt(0).toUpperCase() + tierKey.slice(1);
+                    const logoHeight = TIER_HEIGHT[tierKey] ?? 'h-7';
                     return (
-                      <div key={i} className="rounded-2xl bg-gray-50 p-3 text-center">
-                        {s.tier && <p className="mb-2 text-[10px] font-bold uppercase tracking-[0.18em] text-amber-700">{s.tier}</p>}
-                        {s.websiteUrl ? (
-                          <a href={s.websiteUrl} target="_blank" rel="noopener noreferrer" aria-label={`Visit ${s.name}`}>
-                            {inner}
-                          </a>
-                        ) : inner}
-                        <p className="mt-3 text-sm font-semibold text-gray-900">{s.name}</p>
-                        {s.description && <p className="mt-1 text-xs leading-relaxed text-gray-500">{s.description}</p>}
+                      <div key={tierKey} className="mb-8 last:mb-0">
+                        {tierLabel && (
+                          <div className="flex items-center gap-3 mb-5">
+                            <div className="flex-1 h-px bg-gray-200" />
+                            <span className="text-[10px] font-semibold uppercase tracking-[0.15em] text-gray-400">{tierLabel}</span>
+                            <div className="flex-1 h-px bg-gray-200" />
+                          </div>
+                        )}
+                        <div className="flex flex-wrap items-center justify-center gap-8">
+                          {tierSponsors.map((s, i) => {
+                            const logo = s.logoUrl ? (
+                              /* eslint-disable-next-line @next/next/no-img-element */
+                              <img src={s.logoUrl} alt={`${s.name} logo`} loading="lazy" decoding="async" className={`${logoHeight} w-auto max-w-[160px] object-contain grayscale opacity-60 transition-all duration-200 hover:grayscale-0 hover:opacity-100`} />
+                            ) : (
+                              <span className="text-sm font-semibold text-gray-500">{s.name}</span>
+                            );
+                            return (
+                              <div key={i} className="flex items-center justify-center">
+                                {s.websiteUrl ? (
+                                  <a href={s.websiteUrl} target="_blank" rel="noopener noreferrer" aria-label={`Visit ${s.name}`}>{logo}</a>
+                                ) : logo}
+                              </div>
+                            );
+                          })}
+                        </div>
                       </div>
                     );
-                  })}
-                </div>
+                  });
+                })()}
               </div>
             )}
 
