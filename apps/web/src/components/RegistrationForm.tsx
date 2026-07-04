@@ -122,8 +122,7 @@ export default function RegistrationForm({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // unitPrice is in centavos (50000 = ₱500). platformFee is in pesos (e.g. 50).
-  const subtotalPesos = centavosToPeso(unitPrice * qty);
+  const subtotalPesos = unitPrice * qty;
   const feesPesos = Number(platformFee) || 0;
   const totalPesos = Math.max(0, subtotalPesos - centavosToPeso(referralDiscount)) + feesPesos;
 

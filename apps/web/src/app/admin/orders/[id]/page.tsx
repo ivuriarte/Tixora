@@ -78,8 +78,8 @@ export default function AdminOrderDetailPage() {
     onError: (err: any) => toast.error(err?.response?.data?.message ?? 'Failed to confirm payment'),
   });
 
-  const fmt = (centavos: number) =>
-    `₱${(centavos / 100).toLocaleString('en-PH', { minimumFractionDigits: 2 })}`;
+  const fmt = (pesos: number) =>
+    `₱${pesos.toLocaleString('en-PH', { minimumFractionDigits: 2 })}`;
 
   if (isLoading) {
     return (
