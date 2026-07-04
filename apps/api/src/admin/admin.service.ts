@@ -1512,6 +1512,8 @@ export class AdminService {
             tierName: true,
             paymentMethod: true,
             status: true,
+            discount: true,
+            referralCodeSnapshot: true,
             user: { select: { city: true } },
           },
         },
@@ -1529,25 +1531,29 @@ export class AdminService {
       },
     });
 
-    const header = 'ID,Name,Email,Phone,Company,Job Title,Birthday,Gender,City,Tier,Payment Status,Payment Method,Checked In,Checked In At\n';
+    const header = 'ID,Name,Email,Phone,Company,Job Title,Birthday,Gender,City,Tier,Payment Status,Payment Method,Discount (PHP),Referral Code,Checked In,Checked In At\n';
 
-    const attendeeRows = attendees.map((a) => [
-      a.id,
-      `"${this.escapeCsvCell(`${a.firstName} ${a.lastName}`)}"`,
-      this.escapeCsvCell(a.email),
-      this.escapeCsvCell(a.phone ?? ''),
-      `"${this.escapeCsvCell(a.company ?? '')}"`,
-      `"${this.escapeCsvCell(a.jobTitle ?? '')}"`,
-      a.birthday?.toISOString().slice(0, 10) ?? '',
-      this.escapeCsvCell(a.gender ?? ''),
-      `"${this.escapeCsvCell(a.city ?? a.registration.user?.city ?? '')}"`,
-      `"${this.escapeCsvCell(a.registration.tierName ?? 'Registration')}"`,
-
-      a.registration.status === 'verified' ? 'paid' : 'pending',
-      this.escapeCsvCell(a.registration.paymentMethod ?? ''),
-      a.checkedInAt ? 'Yes' : 'No',
-      a.checkedInAt?.toISOString() ?? '',
-    ].join(','));
+    const attendeeRows = attendees.map((a) => {
+      const referralCode = (a.registration.referralCodeSnapshot as { code?: string } | null)?.code ?? '';
+      return [
+        a.id,
+        `"${this.escapeCsvCell(`${a.firstName} ${a.lastName}`)}"`,
+        this.escapeCsvCell(a.email),
+        this.escapeCsvCell(a.phone ?? ''),
+        `"${this.escapeCsvCell(a.company ?? '')}"`,
+        `"${this.escapeCsvCell(a.jobTitle ?? '')}"`,
+        a.birthday?.toISOString().slice(0, 10) ?? '',
+        this.escapeCsvCell(a.gender ?? ''),
+        `"${this.escapeCsvCell(a.city ?? a.registration.user?.city ?? '')}"`,
+        `"${this.escapeCsvCell(a.registration.tierName ?? 'Registration')}"`,
+        a.registration.status === 'verified' ? 'paid' : 'pending',
+        this.escapeCsvCell(a.registration.paymentMethod ?? ''),
+        (Number(a.registration.discount) / 100).toFixed(2),
+        this.escapeCsvCell(referralCode),
+        a.checkedInAt ? 'Yes' : 'No',
+        a.checkedInAt?.toISOString() ?? '',
+      ].join(',');
+    });
 
     const ticketRows = tickets.map((t) => [
       t.id,
@@ -1871,7 +1877,7 @@ export class AdminService {
     });
 
     const header =
-      'Reference,First Name,Last Name,Email,Phone,Tier,Qty,Status,Payment Method,Total (PHP),Registered At,Checked In,First Check-In At\n';
+      'Reference,First Name,Last Name,Email,Phone,Tier,Qty,Status,Payment Method,Subtotal (PHP),Discount (PHP),Referral Code,Total (PHP),Registered At,Checked In,First Check-In At\n';
 
     const rows = registrations.map((reg) => {
       const lead = reg.attendees.find((a) => a.isLead) ?? reg.attendees[0];
@@ -1880,6 +1886,7 @@ export class AdminService {
         .filter((a): a is typeof a & { checkedInAt: Date } => a.checkedInAt !== null)
         .sort((a, b) => a.checkedInAt.getTime() - b.checkedInAt.getTime())[0]
         ?.checkedInAt;
+      const referralCode = (reg.referralCodeSnapshot as { code?: string } | null)?.code ?? '';
 
       return [
         this.escapeCsvCell(reg.referenceNumber),
@@ -1891,7 +1898,10 @@ export class AdminService {
         reg.attendeeCount,
         reg.status,
         this.escapeCsvCell(reg.paymentMethod ?? ''),
-        reg.total.toString(),
+        (Number(reg.subtotal) / 100).toFixed(2),
+        (Number(reg.discount) / 100).toFixed(2),
+        this.escapeCsvCell(referralCode),
+        (Number(reg.total) / 100).toFixed(2),
         reg.createdAt.toISOString(),
         `${checkedInCount}/${reg.attendeeCount}`,
         firstCheckedInAt?.toISOString() ?? '',
