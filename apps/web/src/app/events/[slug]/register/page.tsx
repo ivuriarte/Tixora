@@ -835,7 +835,7 @@ export default function RegisterPage({
             <span className="text-gray-500"> × {qty}</span>
           </div>
           <span className="text-sm font-semibold text-primary">
-            ₱{(tier.price / 100 * qty).toLocaleString('en-PH', { minimumFractionDigits: 2 })}
+            ₱{(tier.price * qty).toLocaleString('en-PH', { minimumFractionDigits: 2 })}
           </span>
         </div>
 

@@ -227,7 +227,7 @@ export default function AdminOrdersPage() {
                         </span>
                       </td>
                       <td className="px-4 py-3 font-medium text-gray-800">
-                        ₱{(tx.total / 100).toLocaleString('en-PH', { minimumFractionDigits: 2 })}
+                        ₱{tx.total.toLocaleString('en-PH', { minimumFractionDigits: 2 })}
                       </td>
                       <td className="px-4 py-3 text-gray-500 text-xs">
                         {formatShortDate(new Date(tx.createdAt))}

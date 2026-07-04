@@ -233,10 +233,10 @@ export default async function EventPage({ params, searchParams }: { params: { sl
                 {(() => {
                   const TIER_ORDER = ['platinum', 'gold', 'silver', 'bronze'];
                   const TIER_HEIGHT: Record<string, string> = {
-                    platinum: 'h-11',
-                    gold: 'h-7',
-                    silver: 'h-5',
-                    bronze: 'h-4',
+                    platinum: 'h-24',
+                    gold: 'h-16',
+                    silver: 'h-12',
+                    bronze: 'h-10',
                   };
                   const grouped = sponsors.reduce<Record<string, Sponsor[]>>((acc, s) => {
                     const key = s.tier?.toLowerCase() ?? '__none__';
@@ -256,7 +256,7 @@ export default async function EventPage({ params, searchParams }: { params: { sl
                   return sortedKeys.map((tierKey) => {
                     const tierSponsors = grouped[tierKey];
                     const tierLabel = tierKey === '__none__' ? null : tierKey.charAt(0).toUpperCase() + tierKey.slice(1);
-                    const logoHeight = TIER_HEIGHT[tierKey] ?? 'h-7';
+                    const logoHeight = TIER_HEIGHT[tierKey] ?? 'h-16';
                     return (
                       <div key={tierKey} className="mb-8 last:mb-0">
                         {tierLabel && (
@@ -270,7 +270,7 @@ export default async function EventPage({ params, searchParams }: { params: { sl
                           {tierSponsors.map((s, i) => {
                             const logo = s.logoUrl ? (
                               /* eslint-disable-next-line @next/next/no-img-element */
-                              <img src={s.logoUrl} alt={`${s.name} logo`} loading="lazy" decoding="async" className={`${logoHeight} w-auto max-w-[160px] object-contain grayscale opacity-60 transition-all duration-200 hover:grayscale-0 hover:opacity-100`} />
+                              <img src={s.logoUrl} alt={`${s.name} logo`} loading="lazy" decoding="async" className={`${logoHeight} w-auto max-w-[280px] object-contain grayscale opacity-60 transition-all duration-200 hover:grayscale-0 hover:opacity-100`} />
                             ) : (
                               <span className="text-sm font-semibold text-gray-500">{s.name}</span>
                             );

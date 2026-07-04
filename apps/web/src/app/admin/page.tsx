@@ -111,7 +111,7 @@ export default function AdminDashboardPage() {
   });
 
   const fmtRevenue = (n: number) =>
-    `₱${(n / 100).toLocaleString('en-PH', { minimumFractionDigits: 2 })}`;
+    `₱${n.toLocaleString('en-PH', { minimumFractionDigits: 2 })}`;
 
   return (
     <>

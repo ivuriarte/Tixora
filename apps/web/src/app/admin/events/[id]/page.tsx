@@ -119,7 +119,7 @@ function apiTierToLocal(t: ApiTier, key: number): LocalTier {
     serverId: t.id,
     name: t.name,
     description: t.description ?? '',
-    price: String(t.price / 100),
+    price: String(Number(t.price)),
     totalQuantity: String(t.totalQuantity),
     maxPerOrder: String(t.maxPerOrder),
     isVisible: t.isVisible,
@@ -377,7 +377,7 @@ export default function AdminEventEditPage() {
       data: {
         name: t.name.trim(),
         description: t.description.trim() || null,
-        price: Math.round(parseFloat(t.price) * 100),
+        price: parseFloat(t.price),
         totalQuantity: parseInt(t.totalQuantity, 10),
         maxPerOrder: parseInt(t.maxPerOrder, 10),
         isVisible: t.isVisible,

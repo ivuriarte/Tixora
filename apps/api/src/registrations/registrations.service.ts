@@ -73,9 +73,7 @@ export class RegistrationsService {
 
     const unitPrice = Number(tier.price);
     const subtotal = unitPrice * attendeeCount;
-    // Per-event service fee. event.platformFee is configured in pesos (e.g. 50);
-    // money columns (subtotal/fees/total) are stored in centavos, so convert.
-    const fees = Math.round(Number(event.platformFee ?? 50) * 100);
+    const fees = Number(event.platformFee ?? 50);
     const referenceNumber = generateReferenceNumber();
     const maxPerUser = event.maxPerUser ?? 0;
 
@@ -349,7 +347,7 @@ export class RegistrationsService {
     }
     const value = Number(referral.discountValue);
     const raw = referral.discountType === 'percentage' ? subtotal * (value / 100) : value;
-    return { discount: Math.max(0, Math.min(subtotal, Math.round(raw))) };
+    return { discount: Math.max(0, Math.min(subtotal, Math.round(raw * 100) / 100)) };
   }
 
   private validateAttendeeDemographics(attendees: Array<{ birthday: string; city: string }>) {
@@ -1096,12 +1094,12 @@ export class RegistrationsService {
       paymentMethod: reg.paymentMethod ?? undefined,
       tierName: reg.tierName ?? undefined,
       quantity: reg.attendeeCount,
-      unitPrice: reg.unitPrice ? Number(reg.unitPrice) / 100 : undefined,
-      subtotal: Number(reg.subtotal) / 100,
-      fees: Number(reg.fees) / 100,
-      discount: Number(reg.discount) / 100,
+      unitPrice: reg.unitPrice ? Number(reg.unitPrice) : undefined,
+      subtotal: Number(reg.subtotal),
+      fees: Number(reg.fees),
+      discount: Number(reg.discount),
       referralCode: (reg.referralCodeSnapshot as any)?.code,
-      total: Number(reg.total) / 100,
+      total: Number(reg.total),
       organizerName: reg.event.organization?.name ?? undefined,
       eventCity: reg.event.city,
     };

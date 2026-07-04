@@ -161,7 +161,7 @@ export class AdminService {
       code: code.code,
       name: code.name,
       discountType: code.discountType,
-      discountValue: code.discountType === 'fixed_amount' ? Number(code.discountValue) / 100 : Number(code.discountValue),
+      discountValue: Number(code.discountValue),
       isActive: code.isActive,
       maxUses: code.maxUses,
       validFrom: code.validFrom?.toISOString() ?? null,
@@ -198,8 +198,7 @@ export class AdminService {
           code,
           name: dto.name.trim(),
           discountType: dto.discountType,
-          // fixed amounts enter the API in pesos; persist money in centavos
-          discountValue: dto.discountType === 'fixed_amount' ? Math.round(dto.discountValue * 100) : dto.discountValue,
+          discountValue: dto.discountValue,
           maxUses: dto.maxUses ?? null,
           validFrom: dto.validFrom ? new Date(dto.validFrom) : null,
           validUntil: dto.validUntil ? new Date(dto.validUntil) : null,
@@ -302,8 +301,8 @@ export class AdminService {
       this.escapeCsvCell(usage.registration.referenceNumber),
       `"${this.escapeCsvCell(usage.registration.tierName ?? '')}"`,
       usage.attendeeCount,
-      (Number(usage.discountAmount) / 100).toFixed(2),
-      (Number(usage.registration.total) / 100).toFixed(2),
+      Number(usage.discountAmount).toFixed(2),
+      Number(usage.registration.total).toFixed(2),
       usage.createdAt.toISOString(),
     ].join(',')).join('\n');
   }
@@ -1462,10 +1461,10 @@ export class AdminService {
         o.status,
         `"${this.escapeCsvCell(tierNames)}"`,
         qty,
-        (Number(o.subtotal) / 100).toFixed(2),
+        Number(o.subtotal).toFixed(2),
         '0.00',
         '',
-        (Number(o.total) / 100).toFixed(2),
+        Number(o.total).toFixed(2),
         o.paymentMethod ?? '',
         o.createdAt.toISOString(),
       ].join(',');
@@ -1483,10 +1482,10 @@ export class AdminService {
       'paid',
       `"${this.escapeCsvCell(r.tierName ?? 'Registration')}"`,
       r.attendeeCount,
-      (Number(r.subtotal) / 100).toFixed(2),
-      (Number(r.discount) / 100).toFixed(2),
+      Number(r.subtotal).toFixed(2),
+      Number(r.discount).toFixed(2),
       this.escapeCsvCell((r.referralCodeSnapshot as any)?.code ?? ''),
-      (Number(r.total) / 100).toFixed(2),
+      Number(r.total).toFixed(2),
       r.paymentMethod ?? '',
       r.createdAt.toISOString(),
     ].join(','));
@@ -1512,6 +1511,8 @@ export class AdminService {
             tierName: true,
             paymentMethod: true,
             status: true,
+            discount: true,
+            referralCodeSnapshot: true,
             user: { select: { city: true } },
           },
         },
@@ -1529,25 +1530,29 @@ export class AdminService {
       },
     });
 
-    const header = 'ID,Name,Email,Phone,Company,Job Title,Birthday,Gender,City,Tier,Payment Status,Payment Method,Checked In,Checked In At\n';
+    const header = 'ID,Name,Email,Phone,Company,Job Title,Birthday,Gender,City,Tier,Payment Status,Payment Method,Discount (PHP),Referral Code,Checked In,Checked In At\n';
 
-    const attendeeRows = attendees.map((a) => [
-      a.id,
-      `"${this.escapeCsvCell(`${a.firstName} ${a.lastName}`)}"`,
-      this.escapeCsvCell(a.email),
-      this.escapeCsvCell(a.phone ?? ''),
-      `"${this.escapeCsvCell(a.company ?? '')}"`,
-      `"${this.escapeCsvCell(a.jobTitle ?? '')}"`,
-      a.birthday?.toISOString().slice(0, 10) ?? '',
-      this.escapeCsvCell(a.gender ?? ''),
-      `"${this.escapeCsvCell(a.city ?? a.registration.user?.city ?? '')}"`,
-      `"${this.escapeCsvCell(a.registration.tierName ?? 'Registration')}"`,
-
-      a.registration.status === 'verified' ? 'paid' : 'pending',
-      this.escapeCsvCell(a.registration.paymentMethod ?? ''),
-      a.checkedInAt ? 'Yes' : 'No',
-      a.checkedInAt?.toISOString() ?? '',
-    ].join(','));
+    const attendeeRows = attendees.map((a) => {
+      const referralCode = (a.registration.referralCodeSnapshot as { code?: string } | null)?.code ?? '';
+      return [
+        a.id,
+        `"${this.escapeCsvCell(`${a.firstName} ${a.lastName}`)}"`,
+        this.escapeCsvCell(a.email),
+        this.escapeCsvCell(a.phone ?? ''),
+        `"${this.escapeCsvCell(a.company ?? '')}"`,
+        `"${this.escapeCsvCell(a.jobTitle ?? '')}"`,
+        a.birthday?.toISOString().slice(0, 10) ?? '',
+        this.escapeCsvCell(a.gender ?? ''),
+        `"${this.escapeCsvCell(a.city ?? a.registration.user?.city ?? '')}"`,
+        `"${this.escapeCsvCell(a.registration.tierName ?? 'Registration')}"`,
+        a.registration.status === 'verified' ? 'paid' : 'pending',
+        this.escapeCsvCell(a.registration.paymentMethod ?? ''),
+        Number(a.registration.discount).toFixed(2),
+        this.escapeCsvCell(referralCode),
+        a.checkedInAt ? 'Yes' : 'No',
+        a.checkedInAt?.toISOString() ?? '',
+      ].join(',');
+    });
 
     const ticketRows = tickets.map((t) => [
       t.id,
@@ -1871,7 +1876,7 @@ export class AdminService {
     });
 
     const header =
-      'Reference,First Name,Last Name,Email,Phone,Tier,Qty,Status,Payment Method,Total (PHP),Registered At,Checked In,First Check-In At\n';
+      'Reference,First Name,Last Name,Email,Phone,Tier,Qty,Status,Payment Method,Subtotal (PHP),Discount (PHP),Referral Code,Total (PHP),Registered At,Checked In,First Check-In At\n';
 
     const rows = registrations.map((reg) => {
       const lead = reg.attendees.find((a) => a.isLead) ?? reg.attendees[0];
@@ -1880,6 +1885,7 @@ export class AdminService {
         .filter((a): a is typeof a & { checkedInAt: Date } => a.checkedInAt !== null)
         .sort((a, b) => a.checkedInAt.getTime() - b.checkedInAt.getTime())[0]
         ?.checkedInAt;
+      const referralCode = (reg.referralCodeSnapshot as { code?: string } | null)?.code ?? '';
 
       return [
         this.escapeCsvCell(reg.referenceNumber),
@@ -1891,7 +1897,10 @@ export class AdminService {
         reg.attendeeCount,
         reg.status,
         this.escapeCsvCell(reg.paymentMethod ?? ''),
-        reg.total.toString(),
+        Number(reg.subtotal).toFixed(2),
+        Number(reg.discount).toFixed(2),
+        this.escapeCsvCell(referralCode),
+        Number(reg.total).toFixed(2),
         reg.createdAt.toISOString(),
         `${checkedInCount}/${reg.attendeeCount}`,
         firstCheckedInAt?.toISOString() ?? '',
