@@ -152,6 +152,7 @@ jobs:
 
       - name: Notify Slack on migration failure
         if: failure()
+        continue-on-error: true
         uses: rtCamp/action-slack-notify@v2
         env:
           SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK_URL }}
