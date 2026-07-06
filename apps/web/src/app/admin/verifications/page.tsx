@@ -4,8 +4,6 @@ import { useEffect, useState, useCallback, useMemo } from 'react';
 import dynamic from 'next/dynamic';
 import toast from 'react-hot-toast';
 import api from '@/lib/api';
-import Navbar from '@/components/Navbar';
-import BackButton from '@/components/BackButton';
 const VerificationDrawer = dynamic(
   () => import('@/components/admin/VerificationDrawer'),
   { ssr: false, loading: () => <div className="animate-pulse h-full bg-gray-50" aria-hidden="true" /> },
@@ -254,11 +252,9 @@ export default function VerificationsQueuePage() {
 
   return (
     <>
-      <Navbar />
       <main className="max-w-7xl mx-auto px-4 py-10 space-y-6">
         <div className="flex items-start justify-between gap-4">
           <div>
-            <BackButton href="/admin" label="Back to Admin" className="mb-2" />
             <h1 className="text-2xl font-bold text-gray-900">Transaction Verification Queue</h1>
             <p className="text-sm text-gray-500 mt-1">
               Select an event to review verified registrations with paid transactions.{' '}
@@ -428,7 +424,7 @@ export default function VerificationsQueuePage() {
                         {r.tierName ?? '—'} × {r.attendeeCount}
                       </td>
                       <td className="px-4 py-3 text-right font-medium">
-                        ₱{(Number(r.total) / 100).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        ₱{Number(r.total).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </td>
                       <td className="px-4 py-3">
                         {(() => {

@@ -56,6 +56,21 @@ Migration `20260621120000_add_missing_indexes` added the following indexes on to
 
 ---
 
+## Product Package Schema Additions — July 2026
+
+Migration `20260704180000_add_product_packages_mvp` adds:
+
+| Object | Change | Operational purpose |
+|---|---|---|
+| `referral_codes` | New event-scoped table | Immutable discount configuration and validity rules |
+| `referral_code_usages` | New usage table | Auditable redemption, attendee totals, and discount reporting |
+| `registrations` | `discount`, referral ID, immutable snapshot | Reproducible historical pricing |
+| `attendees` | Birthday, gender, city | Authorized demographic reporting |
+| `users` | Birthday and gender | Profile reuse during registration |
+| `events` | `custom_sections` JSONB | Ordered flexible public event content |
+
+New indexes cover event/active referral lookup, event/code uniqueness, one usage per registration, and usage reporting by code/date. After UAT contains representative data, record p95 timings for referral validation, concurrent last-use redemption, referral dashboard aggregation, and CSV export. The dashboard uses database aggregation rather than loading all usage rows into application memory.
+
 ## Alert Thresholds (to configure in Supabase → Settings → Alerts)
 
 | Metric | Warning | Critical |

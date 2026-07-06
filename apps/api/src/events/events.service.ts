@@ -2,6 +2,7 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { RedisService } from '../redis/redis.service';
+import { WorkspacesService } from '../workspaces/workspaces.service';
 import { CreateEventDto, UpdateEventDto } from './dto/event.dto';
 import { uniqueSlug } from '@axon-tickets/utils';
 
@@ -21,6 +22,7 @@ export class EventsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly redis: RedisService,
+    private readonly workspaces: WorkspacesService,
   ) {}
 
   /**
@@ -114,6 +116,7 @@ export class EventsService {
           where: { isVisible: true },
           orderBy: { sortOrder: 'asc' },
         },
+        organization: { select: { id: true, name: true } },
       },
     });
     if (!event) throw new NotFoundException('Event not found');
@@ -156,6 +159,7 @@ export class EventsService {
       sponsors: event.sponsors ?? null,
       agenda: event.agenda ?? null,
       faqs: event.faqs ?? null,
+      customSections: event.customSections ?? null,
       allowManualPayment: event.allowManualPayment,
       bankName: event.bankName ?? null,
       bankAccountNumber: event.bankAccountNumber ?? null,
@@ -167,13 +171,17 @@ export class EventsService {
       latitude: event.latitude ? Number(event.latitude) : null,
       longitude: event.longitude ? Number(event.longitude) : null,
       tiers: tiersWithAvailable,
+      organizerName: event.organization?.name ?? null,
       createdAt: event.createdAt.toISOString(),
     };
   }
 
-  async create(dto: CreateEventDto, createdById: string) {
+  async create(dto: CreateEventDto, createdById: string, organizationId?: string) {
     const slug = uniqueSlug(dto.title);
-    return this.prisma.event.create({
+    const platformFee = dto.platformFee !== undefined
+      ? dto.platformFee
+      : await this.prisma.platformConfig.findUnique({ where: { key: 'service_fee' } }).then((r) => (r ? Number(r.value) : 50));
+    const event = await this.prisma.event.create({
       data: {
         slug,
         title: dto.title,
@@ -192,7 +200,8 @@ export class EventsService {
         agenda: (dto.agenda as unknown as Prisma.InputJsonValue | undefined) ?? Prisma.JsonNull,
         sponsors: (dto.sponsors as unknown as Prisma.InputJsonValue | undefined) ?? Prisma.JsonNull,
         faqs: (dto.faqs as unknown as Prisma.InputJsonValue | undefined) ?? Prisma.JsonNull,
-        ...(dto.platformFee !== undefined && { platformFee: dto.platformFee }),
+        customSections: (dto.customSections as unknown as Prisma.InputJsonValue | undefined) ?? Prisma.JsonNull,
+        platformFee,
         ...(dto.imageUrl && { imageUrl: dto.imageUrl }),
         ...(dto.allowManualPayment !== undefined && { allowManualPayment: dto.allowManualPayment }),
         ...(dto.bankName !== undefined && { bankName: dto.bankName }),
@@ -202,8 +211,14 @@ export class EventsService {
         ...(dto.landmark !== undefined && { landmark: dto.landmark }),
         ...(dto.paymentMethods !== undefined && { paymentMethods: (dto.paymentMethods as unknown as Prisma.InputJsonValue | null) ?? Prisma.JsonNull }),
         createdById,
+        ...(organizationId ? { organizationId } : {}),
       },
     });
+
+    // Auto-create workspace — fire-and-forget; never fails event creation
+    this.workspaces.ensureWorkspace(event.id, createdById).catch(() => void 0);
+
+    return event;
   }
 
   async update(id: string, dto: UpdateEventDto) {
@@ -227,6 +242,7 @@ export class EventsService {
         ...(dto.agenda !== undefined && { agenda: (dto.agenda as unknown as Prisma.InputJsonValue | null) ?? Prisma.JsonNull }),
         ...(dto.sponsors !== undefined && { sponsors: (dto.sponsors as unknown as Prisma.InputJsonValue | null) ?? Prisma.JsonNull }),
         ...(dto.faqs !== undefined && { faqs: (dto.faqs as unknown as Prisma.InputJsonValue | null) ?? Prisma.JsonNull }),
+        ...(dto.customSections !== undefined && { customSections: (dto.customSections as unknown as Prisma.InputJsonValue | null) ?? Prisma.JsonNull }),
         ...(dto.platformFee !== undefined && { platformFee: dto.platformFee }),
         ...(dto.imageUrl !== undefined && { imageUrl: dto.imageUrl }),
         ...(dto.allowManualPayment !== undefined && { allowManualPayment: dto.allowManualPayment }),

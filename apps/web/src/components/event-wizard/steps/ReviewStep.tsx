@@ -91,7 +91,7 @@ export default function ReviewStep({ draft, tiers, paymentMethods, onJump }: Rev
           )}
         </Section>
 
-        <Section title="Conference (optional)" onEdit={() => onJump('conference')}>
+        <Section title="Event Program & Details (optional)" onEdit={() => onJump('details')}>
           {!draft.speakerName && draft.agenda.length === 0 && draft.sponsors.length === 0 && draft.faqs.length === 0 ? (
             <em className="text-gray-400 text-xs">Skipped</em>
           ) : (
@@ -100,6 +100,7 @@ export default function ReviewStep({ draft, tiers, paymentMethods, onJump }: Rev
               {draft.agenda.length > 0 && <li>📋 {draft.agenda.length} agenda item{draft.agenda.length === 1 ? '' : 's'}</li>}
               {draft.sponsors.length > 0 && <li>🤝 {draft.sponsors.length} sponsor{draft.sponsors.length === 1 ? '' : 's'}</li>}
               {draft.faqs.length > 0 && <li>❓ {draft.faqs.length} FAQ{draft.faqs.length === 1 ? '' : 's'}</li>}
+              {draft.customSections.length > 0 && <li>✨ {draft.customSections.length} custom detail block{draft.customSections.length === 1 ? '' : 's'}</li>}
             </ul>
           )}
         </Section>
@@ -116,19 +117,6 @@ export default function ReviewStep({ draft, tiers, paymentMethods, onJump }: Rev
           )}
         </Section>
 
-        <Section title="Featured (optional)" onEdit={() => onJump('featured')}>
-          {!draft.isFeatured ? (
-            <em className="text-gray-400 text-xs">Not featured on homepage</em>
-          ) : (
-            <ul className="text-xs space-y-0.5">
-              <li>✅ Will appear in homepage hero carousel</li>
-              {draft.tagline && <li>🏷 Tagline: {draft.tagline}</li>}
-              {draft.featuredOrder && <li>📌 Display slot: {draft.featuredOrder}</li>}
-              {draft.featuredUntil && <li>⏰ Featured until: {draft.featuredUntil}</li>}
-              {!draft.featuredUntil && <li className="text-gray-400">No expiry set</li>}
-            </ul>
-          )}
-        </Section>
       </div>
     </>
   );

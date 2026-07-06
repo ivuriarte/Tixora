@@ -66,18 +66,6 @@ export default function CapacityTiersStep({
         </p>
       </div>
 
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">Service Fee (₱){REQ}</label>
-        <input
-          type="number" min="0" step="0.01" className={INP} placeholder="50"
-          value={draft.platformFee}
-          onChange={(e) => update({ platformFee: e.target.value })}
-        />
-        <p className="text-xs text-gray-400 mt-1">
-          Flat service fee added to each order, shown to attendees in the Order Summary.
-        </p>
-      </div>
-
       {/* Capacity / tier total live bar */}
       {capacityNum > 0 && (
         <div className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2">

@@ -6,8 +6,6 @@ import { useQuery } from '@tanstack/react-query';
 import { Download, Printer } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '@/lib/api';
-import Navbar from '@/components/Navbar';
-import BackButton from '@/components/BackButton';
 
 interface Attendee {
   id: string;
@@ -169,12 +167,9 @@ export default function AdminAttendeesPage() {
   };
 
   return (
-    <>
-      <Navbar />
-      <main className="max-w-7xl mx-auto px-4 py-10">
+    <main className="max-w-7xl mx-auto px-4 py-10">
         <div className="flex items-center justify-between mb-8">
           <div>
-            <BackButton href="/admin" label="Back to Admin" className="mb-2" />
             <h1 className="text-2xl font-bold text-gray-900">Attendees</h1>
             <p className="text-sm text-gray-500 mt-1">
               Select an event to view its attendee roster.
@@ -343,7 +338,6 @@ export default function AdminAttendeesPage() {
             )}
           </>
         )}
-      </main>
-    </>
+    </main>
   );
 }

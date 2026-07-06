@@ -4,12 +4,13 @@ import {
   IsOptional,
   IsUUID,
   IsArray,
+  IsDateString,
+  IsIn,
   ValidateNested,
   ArrayMinSize,
   ArrayMaxSize,
   MinLength,
   MaxLength,
-  Matches,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 
@@ -43,6 +44,18 @@ export class AttendeeDto {
   @IsString()
   @MaxLength(150)
   jobTitle?: string;
+
+  @IsDateString()
+  birthday!: string;
+
+  @IsString()
+  @IsIn(['female', 'male', 'non_binary', 'prefer_not_to_say', 'self_described'])
+  gender!: string;
+
+  @IsString()
+  @MinLength(2)
+  @MaxLength(100)
+  city!: string;
 }
 
 export class CreateRegistrationDto {
@@ -63,4 +76,9 @@ export class CreateRegistrationDto {
   @IsString()
   @MaxLength(500)
   notes?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(32)
+  referralCode?: string;
 }

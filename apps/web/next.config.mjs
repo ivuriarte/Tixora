@@ -11,8 +11,6 @@ const nextConfig = {
   images: {
     remotePatterns: [
       { protocol: 'https', hostname: 'res.cloudinary.com' },
-      // Sponsor logos may come from any HTTPS host — allow all via wildcard
-      { protocol: 'https', hostname: '**' },
     ],
   },
   experimental: {
@@ -26,7 +24,7 @@ const nextConfig = {
           { key: 'X-Frame-Options', value: 'DENY' },
           { key: 'X-Content-Type-Options', value: 'nosniff' },
           { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
-          { key: 'Permissions-Policy', value: 'camera=(), microphone=(), geolocation=()' },
+          { key: 'Permissions-Policy', value: 'camera=(self), microphone=(), geolocation=()' },
           {
             key: 'Strict-Transport-Security',
             value: 'max-age=63072000; includeSubDomains; preload',
@@ -39,14 +37,15 @@ const nextConfig = {
               // until nonce-based CSP is adopted in a future hardening pass
               "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://hcaptcha.com https://*.hcaptcha.com https://vercel.live https://connect.facebook.net",
               "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
-              // images allowed from any HTTPS host to match next/image remotePatterns wildcard
+              // Organizer-supplied sponsor/section images render directly rather than
+              // being proxied through the Next image optimizer.
               "img-src 'self' data: blob: https:",
               "font-src 'self' https://fonts.gstatic.com",
               // Sentry tunnel and reporting endpoints
               "connect-src 'self' https://api.axontickets.online https://api-uat.axontickets.online https://*.vercel.app https://*.sentry.io https://*.ingest.sentry.io https://vercel.live https://connect.facebook.net https://www.facebook.com wss://ws-us3.pusher.com",
               // Sentry Replay and Vercel toolbar use blob: workers
               "worker-src 'self' blob:",
-              "frame-src https://hcaptcha.com https://*.hcaptcha.com https://vercel.live",
+              "frame-src https://hcaptcha.com https://*.hcaptcha.com https://vercel.live https://www.google.com https://www.openstreetmap.org",
               "object-src 'none'",
               "base-uri 'self'",
             ].join('; '),
