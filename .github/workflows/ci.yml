@@ -192,7 +192,8 @@ jobs:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
 
       - name: Deploy prebuilt output to Vercel
-        run: npx vercel deploy --prebuilt --prod --yes --cwd apps/api
+        working-directory: apps/api
+        run: npx vercel deploy --prebuilt --prod --yes
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
