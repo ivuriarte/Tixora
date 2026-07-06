@@ -96,11 +96,74 @@ jobs:
           path: apps/web/playwright-report/
           retention-days: 7
 
-  # ── Job 4: Deploy API to Vercel (main branch only) ────────────────────────
+  # ── Job 4: Migrate prod database ─────────────────────────────────────────
+  # Runs migrations against the production DB BEFORE the API is deployed.
+  # deploy-api depends on this job so new code never hits an old schema.
+  # Uses DIRECT_URL (not the pooler) because Prisma migrate requires a
+  # direct connection — it cannot work through PgBouncer.
+  migrate-prod:
+    name: Migrate prod database
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    defaults:
+      run:
+        working-directory: apps/api
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: package-lock.json
+
+      - name: Install dependencies
+        working-directory: .
+        run: npm ci
+
+      - name: Generate Prisma client
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL_PROD }}
+          DIRECT_URL: ${{ secrets.DIRECT_URL_PROD }}
+        run: npx prisma generate
+
+      - name: Validate migration files
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL_PROD }}
+          DIRECT_URL: ${{ secrets.DIRECT_URL_PROD }}
+        run: npx prisma validate
+
+      - name: Run migrations
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL_PROD }}
+          DIRECT_URL: ${{ secrets.DIRECT_URL_PROD }}
+        run: |
+          if [ -z "$DATABASE_URL" ] || [ -z "$DIRECT_URL" ]; then
+            echo "⚠️  DATABASE_URL_PROD or DIRECT_URL_PROD secret is not set."
+            echo "    Go to: GitHub → Settings → Secrets and variables → Actions"
+            echo "    Add: DATABASE_URL_PROD  (pooled connection, ?pgbouncer=true)"
+            echo "    Add: DIRECT_URL_PROD    (direct connection, no pgbouncer)"
+            exit 1
+          fi
+          echo "▶  Running prisma migrate deploy on PROD..."
+          npx prisma migrate deploy
+          echo "✅ Migrations complete."
+
+      - name: Notify Slack on migration failure
+        if: failure()
+        uses: rtCamp/action-slack-notify@v2
+        env:
+          SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK_URL }}
+          SLACK_COLOR: danger
+          SLACK_TITLE: '🚨 PROD DB migration failed on `main`'
+          SLACK_MESSAGE: 'Check the Actions run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}'
+
+  # ── Job 5: Deploy API to Vercel (main branch only) ────────────────────────
   deploy-api:
     name: Deploy API → Vercel
     runs-on: ubuntu-latest
-    needs: [lint-typecheck, api-unit-tests]
+    needs: [lint-typecheck, api-unit-tests, migrate-prod]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     steps:
       - uses: actions/checkout@v4
