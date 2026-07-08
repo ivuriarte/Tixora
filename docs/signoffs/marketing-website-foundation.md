@@ -13,7 +13,7 @@
 | Frontend | 2026-07-09 | 214409e | APPROVE | Approved | Lint and typecheck passed; production build passed; 202 API tests passed; desktop and 375px mobile verified with one h1, no horizontal overflow, CTA sizing ≥44px, marketing-only footer scope, valid 404 behavior, and no browser console errors. Two pre-existing `no-img-element` warnings remain outside this feature's changed files. |
 | Backend | 2026-07-09 | 5f70473 | n/a | Skipped | No apps/api changes. |
 | Release | 2026-07-09 | 1ddc712 | APPROVE | Approved | UAT-only release path confirmed. Added and verified environment-aware crawler controls: UAT serves `Disallow: /` and noindex/nofollow metadata; production remains indexable with private routes disallowed. UAT Vercel has `NEXT_PUBLIC_APP_ENV`; lint, serial typecheck, and UAT-mode production build passed. No migration or database rollback required; code rollback is promotion of the previous Vercel deployment. |
-| SEO | | | | | |
+| SEO | 2026-07-09 | 6e29a85 | APPROVE WITH CONDITIONS | Approved with conditions | UAT-first rollout required; verify live UAT robots/noindex, empty sitemap, canonicals, llms.txt, and Event JSON-LD after deployment. Production crawler access policy approved. Production visibility baseline is 1/3 mentions before deployment; 3/3 is the monitored follow-up target after UAT validation, production promotion, live event publication, and crawler re-indexing. |
 
 **Decisions:** Product/Business gate approved 2026-07-09 —
 
@@ -21,6 +21,7 @@
 2. **Solutions pages:** one /solutions/[category] dynamic route + per-category config; six categories (conferences, fun-runs, church-events, school-events, corporate-events, concerts).
 3. **Contact CTA:** Facebook page link — https://www.facebook.com/axonentertainment.ph (provided by Ian 2026-07-09).
 4. **Homepage hero:** new brand-led marketing hero on top; FeaturedHeroCarousel preserved as the section below it. Featured-event mode (NEXT_PUBLIC_FEATURED_EVENT_SLUG) untouched.
+5. **Production crawler policy:** Approved by Ian on 2026-07-09. Production may allow GPTBot, ClaudeBot, PerplexityBot, Google-Extended, CCBot, and Bingbot to crawl public content; private application routes remain disallowed. UAT remains disallow-all and noindex.
 
 **Scope guarantees (Gate 1 confirmations):**
 - Homepage (dual-audience trust) and /organizers (organizer conversion) have distinct purposes; /organizers is the priority page.
