@@ -1,10 +1,24 @@
+import type { Metadata } from 'next';
+import { Suspense } from 'react';
 import Navbar from '@/components/Navbar';
 import EventCard from '@/components/EventCard';
 import AdminRedirect from '@/components/AdminRedirect';
 import FeaturedHeroCarousel from '@/components/FeaturedHeroCarousel';
 import OrganizerCtaSection from '@/components/OrganizerCtaSection';
+import MarketingHero from '@/components/marketing/MarketingHero';
+import HowItWorksSection from '@/components/marketing/HowItWorksSection';
+import TrustSection from '@/components/marketing/TrustSection';
+import EventCategoryCards from '@/components/marketing/EventCategoryCards';
+import Footer from '@/components/marketing/Footer';
+import { iconPaths } from '@/components/marketing/icons';
 import Link from 'next/link';
 import Image from 'next/image';
+
+export const metadata: Metadata = {
+  alternates: { canonical: '/' },
+  description:
+    'Axon Tickets helps organizers create event pages, manage registrations, send QR codes, and run smoother events in the Philippines.',
+};
 
 interface EventSummary {
   id: string;
@@ -22,16 +36,17 @@ interface EventSummary {
 }
 
 
-async function getEvents(page = 1): Promise<{ data: EventSummary[]; meta: { total: number; totalPages: number } }> {
+// Returns null on fetch failure so the UI can distinguish "error" from "no events yet"
+async function getEvents(page = 1): Promise<{ data: EventSummary[]; meta: { total: number; totalPages: number } } | null> {
   const baseUrl = (process.env.NEXT_PUBLIC_API_URL || 'https://api.axontickets.online/api/v1');
   try {
     const res = await fetch(`${baseUrl}/events?page=${page}&limit=12`, { cache: 'no-store', signal: AbortSignal.timeout(8000) });
-    if (!res.ok) return { data: [], meta: { total: 0, totalPages: 0 } };
+    if (!res.ok) return null;
     const json = await res.json();
     // TransformInterceptor wraps: { success, data: { data: [...], meta } }
     return json.data ?? json;
   } catch {
-    return { data: [], meta: { total: 0, totalPages: 0 } };
+    return null;
   }
 }
 
@@ -213,68 +228,155 @@ export default async function HomePage({ searchParams }: { searchParams: { page?
     }
   }
 
-  // Marketplace mode (Netflix-style: featured hero + event rows)
+  // Marketplace mode: brand hero + featured carousel + event grid + marketing sections
   const page = parseInt(searchParams.page ?? '1', 10) || 1;
-  const [{ data: events, meta }, featuredEvents] = await Promise.all([
-    enableMarketplace ? getEvents(page) : Promise.resolve({ data: [], meta: { total: 0, totalPages: 0 } }),
-    getFeaturedEvents(),
-  ]);
+  const featuredEvents = await getFeaturedEvents();
 
   return (
     <>
       <AdminRedirect />
       <Navbar />
       <main className="bg-gray-50 min-h-screen">
+        <MarketingHero
+          title="The modern ticketing and registration platform for events in the Philippines."
+          subtitle="Create event pages, take registrations, and check people in with QR codes — whether you're running the event or attending it."
+          primaryCta={{ label: 'Create Your Event', href: '/become-organizer', dataTrack: 'homepage-create-event' }}
+          secondaryCta={{ label: 'Find Events', href: '#upcoming-events', dataTrack: 'homepage-find-events' }}
+          note="New organizers are approved in 1–2 business days."
+        />
+
         <FeaturedHeroCarousel events={featuredEvents} />
 
         {/* Upcoming events */}
-        <section id="upcoming-events" className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 md:py-16">
-          <div className="flex items-end justify-between mb-6">
-            <div>
-              <h2 className="text-2xl md:text-3xl font-bold text-gray-900">Upcoming Events</h2>
-              <p className="text-gray-500 mt-1 text-sm">Find and book tickets to the best events in the Philippines</p>
-            </div>
-            {meta.total > 0 && (
-              <p className="text-xs text-gray-400 hidden sm:block">
-                {meta.total} event{meta.total === 1 ? '' : 's'}
-              </p>
-            )}
-          </div>
-
-          {events.length === 0 ? (
-            <div className="text-center py-20 text-gray-400 bg-white rounded-2xl border border-dashed border-gray-200">
-              No additional events at this time. Check back soon.
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-              {events.map((event) => (
-                <EventCard key={event.id} event={event} />
-              ))}
-            </div>
-          )}
-
-          {meta.totalPages > 1 && (
-            <div className="flex justify-center gap-3 mt-10">
-              {page > 1 && (
-                <Link href={`/?page=${page - 1}`} className="px-4 py-2 rounded-lg border border-gray-300 text-sm hover:border-gray-400 transition-colors">
-                  ← Previous
-                </Link>
-              )}
-              <span className="px-4 py-2 text-sm text-gray-500">
-                Page {page} of {meta.totalPages}
-              </span>
-              {page < meta.totalPages && (
-                <Link href={`/?page=${page + 1}`} className="px-4 py-2 rounded-lg border border-gray-300 text-sm hover:border-gray-400 transition-colors">
-                  Next →
-                </Link>
-              )}
-            </div>
-          )}
+        <section id="upcoming-events" className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 md:py-16 scroll-mt-20">
+          <Suspense fallback={<EventsGridSkeleton />}>
+            <EventsGrid page={page} enableMarketplace={enableMarketplace} />
+          </Suspense>
         </section>
 
+        <HowItWorksSection />
+
+        <TrustSection
+          heading="Everything you need to run an event"
+          subheading="All of this is live on the platform today."
+          features={homeFeatures}
+          background="white"
+        />
+
+        <EventCategoryCards />
+
         {/* ── Become an Organizer CTA (hidden for authenticated users) ── */}
-        <OrganizerCtaSection />
+        <OrganizerCtaSection
+          heading="Ready to run your next event with Axon Tickets?"
+          buttonLabel="Start Organizing"
+          dataTrack="homepage-start-organizing"
+        />
       </main>
+      <Footer />
+    </>
+  );
+}
+
+const homeFeatures = [
+  { title: 'Public event pages', description: 'Every event gets a shareable page with details, agenda, and sponsors.', iconPath: iconPaths.eventPage },
+  { title: 'Online registration', description: 'Attendees register from any device in a few taps.', iconPath: iconPaths.registration },
+  { title: 'OTP email verification', description: 'Registrations are verified by a one-time code, so attendee lists stay real.', iconPath: iconPaths.otp },
+  { title: 'QR code tickets', description: 'Confirmed attendees receive a unique QR ticket by email.', iconPath: iconPaths.ticket },
+  { title: 'QR check-in validation', description: 'Scan tickets at the door and catch invalid or reused codes.', iconPath: iconPaths.checkin },
+  { title: 'Email confirmations', description: 'Confirmations and tickets are sent automatically — no manual follow-ups.', iconPath: iconPaths.email },
+  { title: 'Organizer dashboard', description: 'Manage events, registrations, and check-ins from one place.', iconPath: iconPaths.dashboard },
+  { title: 'Payment proof collection', description: 'Collect GCash or bank transfer proof and verify it before issuing tickets.', iconPath: iconPaths.paymentProof },
+  { title: 'Attendee records & reports', description: 'A complete record of who registered and who showed up.', iconPath: iconPaths.reports },
+];
+
+async function EventsGrid({ page, enableMarketplace }: { page: number; enableMarketplace: boolean }) {
+  const result = enableMarketplace ? await getEvents(page) : { data: [], meta: { total: 0, totalPages: 0 } };
+
+  if (!result) {
+    return (
+      <>
+        <EventsGridHeader />
+        <div className="text-center py-20 text-gray-500 bg-white rounded-2xl border border-dashed border-gray-200">
+          Couldn&apos;t load events right now. Please refresh to try again.
+        </div>
+      </>
+    );
+  }
+
+  const { data: events, meta } = result;
+
+  return (
+    <>
+      <EventsGridHeader total={meta.total} />
+
+      {events.length === 0 ? (
+        <div className="text-center py-20 bg-white rounded-2xl border border-dashed border-gray-200">
+          <p className="text-gray-500 mb-2">No upcoming events yet — check back soon.</p>
+          <Link href="/organizers" className="text-primary text-sm font-medium hover:underline">
+            Planning an event? See how Axon Tickets works for organizers
+          </Link>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+          {events.map((event) => (
+            <EventCard key={event.id} event={event} />
+          ))}
+        </div>
+      )}
+
+      {meta.totalPages > 1 && (
+        <div className="flex justify-center gap-3 mt-10">
+          {page > 1 && (
+            <Link href={`/?page=${page - 1}`} className="px-4 py-2 rounded-lg border border-gray-300 text-sm hover:border-gray-400 transition-colors">
+              ← Previous
+            </Link>
+          )}
+          <span className="px-4 py-2 text-sm text-gray-500">
+            Page {page} of {meta.totalPages}
+          </span>
+          {page < meta.totalPages && (
+            <Link href={`/?page=${page + 1}`} className="px-4 py-2 rounded-lg border border-gray-300 text-sm hover:border-gray-400 transition-colors">
+              Next →
+            </Link>
+          )}
+        </div>
+      )}
+    </>
+  );
+}
+
+function EventsGridHeader({ total }: { total?: number }) {
+  return (
+    <div className="flex items-end justify-between mb-6">
+      <div>
+        <h2 className="text-2xl md:text-3xl font-bold text-gray-900">Upcoming Events</h2>
+        <p className="text-gray-500 mt-1 text-sm">Find and book tickets to the best events in the Philippines</p>
+      </div>
+      {total != null && total > 0 && (
+        <p className="text-xs text-gray-400 hidden sm:block">
+          {total} event{total === 1 ? '' : 's'}
+        </p>
+      )}
+    </div>
+  );
+}
+
+function EventsGridSkeleton() {
+  return (
+    <>
+      <EventsGridHeader />
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+        {Array.from({ length: 8 }).map((_, i) => (
+          <div key={i} className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
+            <div className="h-44 bg-gray-100 animate-pulse" />
+            <div className="p-4 space-y-2">
+              <div className="h-3 w-24 bg-gray-100 rounded animate-pulse" />
+              <div className="h-4 w-40 bg-gray-100 rounded animate-pulse" />
+              <div className="h-3 w-32 bg-gray-100 rounded animate-pulse" />
+            </div>
+          </div>
+        ))}
+      </div>
     </>
   );
 }
