@@ -13,7 +13,7 @@ This is a structure + copy spec, not a visual wireframe. Layout language: existi
 - Unauthenticated desktop + mobile menu: link "Become an organizer" relabeled **"For organizers"** → `/organizers`.
 - No other navbar changes. Auth flows untouched.
 
-### Footer (new, added to root layout below `{children}`)
+### Footer (new, rendered only on marketing surfaces)
 - Dark band (`bg-gray-900`), 4-column desktop → stacked single column mobile.
 - Col 1: Axon logo + one-line blurb ("Ticketing and registration for events in the Philippines.").
 - Col 2 "Discover": Browse events (`/`), event category links (6 × `/solutions/*`).
@@ -21,7 +21,7 @@ This is a structure + copy spec, not a visual wireframe. Layout language: existi
 - Col 4 "Contact": Facebook page link → https://www.facebook.com/axonentertainment.ph (external, `rel="noopener noreferrer"`, opens new tab).
 - Bottom row: © 2026 Axon Tickets.
 - Legal pages (Terms/Privacy) exist only as in-app modals today — **no footer legal links in this pass** (avoids broken links); documented as future work.
-- Footer renders on all pages incl. admin (acceptable; admin has its own sidebar shell — verify no layout clash at build).
+- Footer renders only on `/`, `/organizers`, and `/solutions/*`. It is intentionally absent from auth, registration, checkout, payment-proof, OTP, account, and admin surfaces.
 
 ---
 
@@ -122,7 +122,7 @@ Section order:
 - **Accessibility:** one h1 per page; sections use `<section>` + h2; all CTAs are real `<a>`/`<button>` ≥44px; visible focus (`focus-visible:ring-2 ring-primary ring-offset-2`); body text ≥ gray-600 on white (4.5:1+); icons decorative (`aria-hidden`) with text labels; category/use-case cards are single anchor elements (no nested links).
 - **Responsive:** mobile-first single-column stacks; hero CTAs full-width < `sm`; grids 1→2→3 cols; no horizontal scroll at 375px.
 - **Content rules:** prices only appear in the events grid (existing peso format); dates only via existing EventCard/format utils; buttons say what they do; error copy = what happened + what to do.
-- **UAT banner:** untouched at top of root layout; footer added at bottom — banner behavior unchanged.
+- **UAT banner:** untouched at top of root layout; marketing pages render their footer after `<main>` — banner behavior unchanged.
 - **Analytics:** `data-track` attributes only (listed above); no new analytics scripts. Meta Pixel/funnel tracking untouched.
 - **New components** live in `src/components/marketing/`: MarketingHero, TrustSection, HowItWorksSection, FeatureCard, UseCaseCard, EventCategoryCards, OrganizerPainPoints, CTASection, Footer. Server components, no client JS except none required.
 

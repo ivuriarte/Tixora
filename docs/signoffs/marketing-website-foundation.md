@@ -1,7 +1,7 @@
 # Gate Ledger — marketing-website-foundation
 
 **Started:** 2026-07-09
-**Branch:** feat/marketing-website-foundation (to be created; PR target: uat)
+**Branch:** feat/marketing-website-foundation (PR target: uat)
 **One-line description:** Marketing website foundation — brand-led homepage, /organizers conversion landing page, /solutions/[category] template for six event categories, footer, SEO metadata. Current brand style (not DICE restyle).
 
 | Gate | Date | Git SHA | Agent verdict | Ian's decision | Conditions / notes |
@@ -10,7 +10,7 @@
 | Design | 2026-07-09 | 5f70473 | APPROVE WITH CONDITIONS | Approved with conditions | 5 conditions folded into build (see notes). Footer scoped to marketing pages only. Carousel-pause WCAG gap deferred (accepted risk, see below). |
 | Database | 2026-07-09 | 5f70473 | n/a | Skipped | No schema changes — marketing pages are frontend-only, no new tables. |
 | API | 2026-07-09 | 5f70473 | n/a | Skipped | No new/changed endpoints — pages consume existing public /events APIs only. |
-| Frontend | | | | | |
+| Frontend | 2026-07-09 | 214409e | APPROVE | Approved | Lint and typecheck passed; production build passed; 202 API tests passed; desktop and 375px mobile verified with one h1, no horizontal overflow, CTA sizing ≥44px, marketing-only footer scope, valid 404 behavior, and no browser console errors. Two pre-existing `no-img-element` warnings remain outside this feature's changed files. |
 | Backend | 2026-07-09 | 5f70473 | n/a | Skipped | No apps/api changes. |
 | Release | | | | | |
 | SEO | | | | | |
