@@ -26,6 +26,12 @@ export function generateMetadata({ params }: { params: { category: string } }): 
   return {
     title: `${category.name} Ticketing & Registration — Axon Tickets`,
     description: category.metaDescription,
+    alternates: { canonical: `/solutions/${category.slug}` },
+    openGraph: {
+      title: `${category.name} Ticketing & Registration — Axon Tickets`,
+      description: category.metaDescription,
+      url: `/solutions/${category.slug}`,
+    },
   };
 }
 

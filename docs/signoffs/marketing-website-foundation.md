@@ -12,7 +12,7 @@
 | API | 2026-07-09 | 5f70473 | n/a | Skipped | No new/changed endpoints — pages consume existing public /events APIs only. |
 | Frontend | 2026-07-09 | 214409e | APPROVE | Approved | Lint and typecheck passed; production build passed; 202 API tests passed; desktop and 375px mobile verified with one h1, no horizontal overflow, CTA sizing ≥44px, marketing-only footer scope, valid 404 behavior, and no browser console errors. Two pre-existing `no-img-element` warnings remain outside this feature's changed files. |
 | Backend | 2026-07-09 | 5f70473 | n/a | Skipped | No apps/api changes. |
-| Release | | | | | |
+| Release | 2026-07-09 | 1ddc712 | APPROVE | Approved | UAT-only release path confirmed. Added and verified environment-aware crawler controls: UAT serves `Disallow: /` and noindex/nofollow metadata; production remains indexable with private routes disallowed. UAT Vercel has `NEXT_PUBLIC_APP_ENV`; lint, serial typecheck, and UAT-mode production build passed. No migration or database rollback required; code rollback is promotion of the previous Vercel deployment. |
 | SEO | | | | | |
 
 **Decisions:** Product/Business gate approved 2026-07-09 —

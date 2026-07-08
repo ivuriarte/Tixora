@@ -12,6 +12,13 @@ export const metadata: Metadata = {
   title: 'For Event Organizers — Axon Tickets',
   description:
     'Create and manage events with Axon Tickets. Built for organizers who need ticketing, registration, QR check-in, attendee records, and event reports.',
+  alternates: { canonical: '/organizers' },
+  openGraph: {
+    title: 'For Event Organizers — Axon Tickets',
+    description:
+      'Create event pages, manage registrations, send QR tickets, validate attendance, and track event data with Axon Tickets.',
+    url: '/organizers',
+  },
 };
 
 const solutionFeatures = [

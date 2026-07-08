@@ -15,6 +15,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 
 export const metadata: Metadata = {
+  alternates: { canonical: '/' },
   description:
     'Axon Tickets helps organizers create event pages, manage registrations, send QR codes, and run smoother events in the Philippines.',
 };
