@@ -60,6 +60,16 @@ jobs:
             -H "Content-Type: application/json" \
             "${{ vars.API_BASE_URL }}/api/v1/cron/remind-pending-registrations"
 
+      - name: Notify Slack on failure
+        if: failure()
+        continue-on-error: true
+        uses: rtCamp/action-slack-notify@v2
+        env:
+          SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK_URL }}
+          SLACK_COLOR: danger
+          SLACK_TITLE: '🚨 remind-pending-registrations cron failed'
+          SLACK_MESSAGE: 'Payment reminder emails may have stopped. Check: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}'
+
   cleanup-otp-codes:
     name: Cleanup expired OTP codes
     runs-on: ubuntu-latest
