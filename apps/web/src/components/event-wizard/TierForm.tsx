@@ -15,11 +15,12 @@ export default function TierForm({ initial, onSave, onCancel, isFree = false }: 
   const [inclusionInput, setInclusionInput] = useState('');
   const upd = (field: keyof LocalTier, value: string | boolean) =>
     setT((prev) => ({ ...prev, [field]: value }));
+  const effectivePrice = isFree ? '0' : t.price;
   const isValid =
     t.name.trim() &&
-    (isFree || t.price !== '') &&
-    !isNaN(parseFloat(t.price)) &&
-    parseFloat(t.price) >= 0 &&
+    effectivePrice !== '' &&
+    !isNaN(parseFloat(effectivePrice)) &&
+    parseFloat(effectivePrice) >= 0 &&
     parseInt(t.totalQuantity, 10) > 0 &&
     parseInt(t.maxPerOrder, 10) > 0;
 
