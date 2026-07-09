@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { EventDraft, LocalTier } from '../types';
 import { emptyTier } from '../types';
 import TierForm from '../TierForm';
@@ -41,9 +41,15 @@ export default function CapacityTiersStep({
   const matches = capacityNum > 0 && tiers.length > 0 && tiersTotal === capacityNum;
   const diff = tiersTotal - capacityNum;
 
+  useEffect(() => {
+    const next = tiers.reduce((max, tier) => Math.max(max, tier.key + 1), 0);
+    setTierKey((current) => Math.max(current, next));
+  }, [tiers]);
+
   function handleAdd(t: LocalTier) {
-    onAddTier({ ...t, key: tierKey, price: draft.isFree ? '0' : t.price });
-    setTierKey((k) => k + 1);
+    const nextKey = Math.max(tierKey, tiers.reduce((max, tier) => Math.max(max, tier.key + 1), 0));
+    onAddTier({ ...t, key: nextKey, price: draft.isFree ? '0' : t.price });
+    setTierKey(nextKey + 1);
     // Keep the panel open with a fresh blank tier
     setShowAdd(true);
   }
