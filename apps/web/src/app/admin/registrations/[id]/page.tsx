@@ -166,7 +166,7 @@ export default function AdminRegistrationDetailPage() {
   }
 
   const latestProof = reg.proofs?.[0];
-  const canReview = reg.status === 'proof_submitted';
+  const canReview = reg.status === 'proof_submitted' || reg.status === 'pending_approval';
 
   return (
     <main className="max-w-3xl mx-auto px-4 py-10 space-y-6">

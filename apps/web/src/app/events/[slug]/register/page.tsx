@@ -669,6 +669,7 @@ export default function RegisterPage({
   const [pageLoading, setPageLoading] = useState(true);
   const [initialAttendees, setInitialAttendees] = useState<AttendeeFields[] | undefined>(undefined);
   const [initialNotes, setInitialNotes] = useState<string | undefined>(undefined);
+  const [initialIsFree, setInitialIsFree] = useState<boolean | undefined>(undefined);
 
   // 'idle' → 'checking' → 'duplicate' | 'clear'
   const [dupCheck, setDupCheck] = useState<'idle' | 'checking' | 'duplicate' | 'clear'>('idle');
@@ -748,6 +749,7 @@ export default function RegisterPage({
           })),
         );
         setInitialNotes(regData.notes ?? '');
+        setInitialIsFree(regData.isFree ?? false);
       }
     } catch {
       router.replace(`/events/${params.slug}`);
@@ -880,6 +882,7 @@ export default function RegisterPage({
               registrationId={existingRegistrationId}
               initialAttendees={pendingGuestData.current?.attendees ?? initialAttendees}
               initialNotes={pendingGuestData.current?.notes ?? initialNotes}
+              initialIsFree={initialIsFree}
               existingAccountDetected={pendingGuestData.current?.existingAccountDetected ?? false}
             />
           )

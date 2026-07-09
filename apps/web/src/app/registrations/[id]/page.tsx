@@ -14,14 +14,16 @@ import { trackPixelCustomEvent, trackPixelEvent } from '@/lib/metaPixel';
 const STATUS_LABELS: Record<RegistrationStatus, string> = {
   pending_payment: 'Waiting for Payment',
   proof_submitted: 'Being Reviewed',
-  verified: 'Approved',
-  rejected: 'Needs Attention',
+  pending_approval: 'Awaiting Confirmation',
+  verified: 'Confirmed',
+  rejected: 'Not Approved',
   cancelled: 'Cancelled',
 };
 
 const STATUS_COLORS: Record<RegistrationStatus, string> = {
   pending_payment: 'bg-yellow-100 text-yellow-700',
   proof_submitted: 'bg-blue-100 text-blue-700',
+  pending_approval: 'bg-blue-100 text-blue-700',
   verified: 'bg-green-100 text-green-700',
   rejected: 'bg-red-100 text-red-700',
   cancelled: 'bg-gray-100 text-gray-600',
@@ -53,21 +55,43 @@ export default function RegistrationDetailPage() {
   }, [fetchReg]);
 
   useEffect(() => {
-    if (!reg || reg.status !== 'verified') return;
-
+    if (!reg) return;
     const trackedEventId = (reg as Registration & { eventId?: string }).eventId;
-    trackPixelEvent(
-      'Purchase',
-      {
+
+    if (reg.status === 'pending_payment') {
+      trackPixelEvent('InitiateCheckout', {
         content_type: 'event_ticket',
         content_ids: trackedEventId ? [trackedEventId] : [],
         content_name: reg.event.title,
         currency: reg.currency || 'PHP',
         value: centavosToPeso(reg.total),
         num_items: reg.attendeeCount,
-      },
-      `purchase-registration:${reg.id}`,
-    );
+      }, `initiate-checkout:${reg.id}`);
+    }
+
+    if (reg.status === 'pending_approval' && reg.isFree) {
+      trackPixelCustomEvent('Registration_Free_Submitted', {
+        event_id: trackedEventId ?? null,
+        event_name: reg.event.title,
+        currency: reg.currency || 'PHP',
+        value: 0,
+      }, `free-submitted:${reg.id}`);
+    }
+
+    if (reg.status === 'verified') {
+      trackPixelEvent(
+        'Purchase',
+        {
+          content_type: 'event_ticket',
+          content_ids: trackedEventId ? [trackedEventId] : [],
+          content_name: reg.event.title,
+          currency: reg.currency || 'PHP',
+          value: centavosToPeso(reg.total),
+          num_items: reg.attendeeCount,
+        },
+        `purchase-registration:${reg.id}`,
+      );
+    }
   }, [reg]);
 
   const handleCancel = async () => {
@@ -132,9 +156,10 @@ export default function RegistrationDetailPage() {
     );
   }
 
-  const canCancel = ['pending_payment', 'proof_submitted'].includes(reg.status);
+  const canCancel = ['pending_payment', 'proof_submitted', 'pending_approval'].includes(reg.status);
+  const isFree = reg.isFree;
   const hasPaymentInfo =
-    reg.event.bankName || reg.event.bankAccountNumber || reg.event.gcashNumber;
+    !isFree && (reg.event.bankName || reg.event.bankAccountNumber || reg.event.gcashNumber);
 
   return (
     <main className="min-h-screen bg-gray-50 py-10">
@@ -301,15 +326,26 @@ export default function RegistrationDetailPage() {
           </div>
         )}
 
-        {reg.status === 'proof_submitted' && (
+        {(reg.status === 'proof_submitted' || reg.status === 'pending_approval') && (
           <div className="bg-blue-50 border border-blue-200 rounded-2xl p-5 space-y-3">
             <div>
-              <p className="font-semibold text-gray-900">We got your payment screenshot!</p>
-              <p className="text-sm text-gray-600 mt-0.5">
-                Our team is checking it now. This usually takes up to{' '}
-                <span className="font-semibold text-blue-700">24 hours</span>.
-                Once approved, we will send your QR ticket to your email.
+              <p className="font-semibold text-gray-900">
+                {reg.status === 'pending_approval'
+                  ? "You're registered!"
+                  : 'We got your payment screenshot!'}
               </p>
+              <p className="text-sm text-gray-600 mt-1">What happens next?</p>
+              <ol className="mt-2 space-y-1 text-sm text-gray-600 list-decimal list-inside">
+                <li>
+                  {isFree
+                    ? 'The organizer will review your registration.'
+                    : 'The organizer will review your payment.'}
+                </li>
+                <li>
+                  We will send your ticket to <span className="font-medium">{reg.attendees.find((a) => a.isLead)?.email ?? 'your email'}</span>.
+                </li>
+                <li>Your ticket will be in that email — show it at the entrance. No printing needed.</li>
+              </ol>
             </div>
             {reg.proofs?.[0]?.imageUrl && (
               <Image
@@ -326,7 +362,9 @@ export default function RegistrationDetailPage() {
 
         {reg.status === 'verified' && (
           <div className="bg-green-50 border border-green-200 rounded-2xl p-5 text-sm text-green-800 space-y-2">
-            <p className="font-semibold">Payment approved!</p>
+            <p className="font-semibold">
+              {isFree ? 'Registration approved!' : 'Payment approved!'}
+            </p>
             <p className="text-green-700">
               Your QR ticket has been sent to your email. Open My Tickets to view it anytime.
             </p>

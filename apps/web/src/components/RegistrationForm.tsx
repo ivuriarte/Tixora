@@ -67,6 +67,8 @@ interface Props {
   paymentInstructions?: string | null;
   /** When set, form is in edit mode — PATCH existing registration instead of POST new. */
   registrationId?: string;
+  /** Server-returned isFree for edit mode — used to decide post-submit routing. */
+  initialIsFree?: boolean;
   /** Pre-filled attendee data for edit mode or post-OTP guest flow. */
   initialAttendees?: AttendeeFields[];
   /** Pre-filled notes for edit mode or post-OTP guest flow. */
@@ -89,6 +91,7 @@ export default function RegistrationForm({
   bankAccountNumber,
   paymentInstructions,
   registrationId,
+  initialIsFree,
   initialAttendees,
   initialNotes,
   existingAccountDetected = false,
@@ -248,12 +251,16 @@ export default function RegistrationForm({
       }
 
       if (registrationId) {
-        // Edit mode: update existing pending_payment registration
+        // Edit mode: update existing registration attendee details
         await api.patch(`/registrations/${registrationId}/attendees`, {
           attendees: attendeePayload,
           ...(notes.trim() && { notes: notes.trim() }),
         });
-        router.push(`/events/${eventSlug}/register/payment/${registrationId}`);
+        if (initialIsFree) {
+          router.push(`/registrations/${registrationId}`);
+        } else {
+          router.push(`/events/${eventSlug}/register/payment/${registrationId}`);
+        }
       } else {
         const payload: CreateRegistrationDto = {
           eventId,
@@ -264,8 +271,11 @@ export default function RegistrationForm({
         };
         const res = await api.post('/registrations', payload);
         const reg = res.data?.data ?? res.data;
-        // Send user to Step 2 (Payment & Proof Upload)
-        router.push(`/events/${eventSlug}/register/payment/${reg.id}`);
+        if (reg.isFree || reg.status === 'pending_approval') {
+          router.push(`/registrations/${reg.id}`);
+        } else {
+          router.push(`/events/${eventSlug}/register/payment/${reg.id}`);
+        }
       }
     } catch (err: unknown) {
       const msg =

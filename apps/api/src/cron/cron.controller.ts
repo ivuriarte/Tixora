@@ -89,6 +89,22 @@ export class CronController {
   }
 
   /**
+   * POST /api/v1/cron/remind-pending-registrations
+   * Triggered every hour by GitHub Actions.
+   * Sends a reminder email to attendees whose pending_payment registration is 12–13 hours old.
+   */
+  @Post('remind-pending-registrations')
+  @HttpCode(HttpStatus.OK)
+  async remindPendingRegistrations(
+    @Headers('x-cron-secret') secret: string | undefined,
+  ) {
+    this.verifySecret(secret);
+    this.logger.log({ msg: 'External cron: remind-pending-registrations triggered' });
+    const result = await this.schedulerService.remindPendingRegistrations();
+    return { ok: true, reminded: result.reminded };
+  }
+
+  /**
    * POST /api/v1/cron/cleanup-otp-codes
    * Triggered daily by GitHub Actions.
    * Deletes expired and used OtpCode records.
