@@ -81,8 +81,9 @@ while IFS= read -r f; do
 
 done <<< "$CHANGED_FILES"
 
-# Hardcoded secrets
+# Hardcoded secrets (skip hook scripts — they contain these patterns as regex literals)
 while IFS= read -r f; do
+  [[ "$f" == scripts/hooks/* ]] && continue
   if grep -qE 'sk_live_|pk_live_|-----BEGIN (RSA )?PRIVATE KEY' "$f" 2>/dev/null; then
     fail "Possible hardcoded secret in ${f}"
   fi
