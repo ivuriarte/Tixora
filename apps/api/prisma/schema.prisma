@@ -65,6 +65,7 @@ enum OrgMemberRole {
 enum RegistrationStatus {
   pending_payment
   proof_submitted
+  pending_approval
   verified
   rejected
   cancelled

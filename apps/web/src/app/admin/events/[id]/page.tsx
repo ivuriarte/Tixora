@@ -35,7 +35,7 @@ interface ApiTier {
   id: string;
   name: string;
   description: string | null;
-  price: number; // centavos
+  price: number; // pesos
   totalQuantity: number;
   soldQuantity: number;
   maxPerOrder: number;
@@ -363,7 +363,7 @@ export default function AdminEventEditPage() {
     addTierMutation.mutate({
       name: t.name.trim(),
       description: t.description.trim() || undefined,
-      price: Math.round(parseFloat(t.price) * 100),
+      price: Math.round(parseFloat(t.price)),
       totalQuantity: parseInt(t.totalQuantity, 10),
       maxPerOrder: parseInt(t.maxPerOrder, 10),
       isVisible: t.isVisible,

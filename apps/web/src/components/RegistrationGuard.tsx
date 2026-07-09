@@ -33,6 +33,7 @@ interface CheckResponse {
 const STATUS_LABELS: Record<string, string> = {
   pending_payment:  'Pending Payment',
   proof_submitted:  'Under Review',
+  pending_approval: 'Awaiting Confirmation',
   verified:         'Verified',
 };
 

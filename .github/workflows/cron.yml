@@ -37,7 +37,7 @@ jobs:
   cleanup-orphan-registrations:
     name: Cleanup orphan registrations
     runs-on: ubuntu-latest
-    # Cancels pending_payment registrations older than 2 hours (abandoned flows).
+    # Cancels pending_payment registrations older than 24 hours (abandoned flows).
     # Idempotent — safe to run every 5 minutes.
     steps:
       - name: POST /cron/cleanup-orphan-registrations
@@ -46,6 +46,19 @@ jobs:
             -H "x-cron-secret: ${{ secrets.CRON_SECRET }}" \
             -H "Content-Type: application/json" \
             "${{ vars.API_BASE_URL }}/api/v1/cron/cleanup-orphan-registrations"
+
+  remind-pending-registrations:
+    name: Remind pending payment registrations
+    runs-on: ubuntu-latest
+    # Sends a payment reminder email to registrations that are 12–13 hours old (pending_payment).
+    # Idempotent — safe to run every 5 minutes.
+    steps:
+      - name: POST /cron/remind-pending-registrations
+        run: |
+          curl --fail-with-body -s -X POST \
+            -H "x-cron-secret: ${{ secrets.CRON_SECRET }}" \
+            -H "Content-Type: application/json" \
+            "${{ vars.API_BASE_URL }}/api/v1/cron/remind-pending-registrations"
 
   cleanup-otp-codes:
     name: Cleanup expired OTP codes
