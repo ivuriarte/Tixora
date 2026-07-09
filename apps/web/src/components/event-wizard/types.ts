@@ -17,9 +17,17 @@ export interface LocalTier {
   totalQuantity: string;
   maxPerOrder: string;
   isVisible: boolean;
+  inclusions: LocalTierInclusion[];
   soldQuantity?: number;
   /** Position in the list. Persisted to API as `sortOrder` so the tier order survives reloads. */
   sortOrder?: number;
+}
+
+export interface LocalTierInclusion {
+  id?: string;
+  label: string;
+  stubEnabled: boolean;
+  sortOrder: number;
 }
 
 export interface LocalPaymentMethod {
@@ -56,6 +64,8 @@ export interface EventDraftLocation {
 
 export interface EventDraftCapacity {
   maxCapacity: string;
+  /** Free events collect no ticket amount and no platform fee. */
+  isFree: boolean;
   /** Per-event service fee in pesos (string for form input). Default '50'. */
   platformFee: string;
 }
@@ -95,7 +105,7 @@ export const STEPS: readonly StepMeta[] = [
 export type StepId = StepMeta['id'];
 
 export function emptyTier(key: number): LocalTier {
-  return { key, name: '', description: '', price: '', totalQuantity: '', maxPerOrder: '', isVisible: true, sortOrder: 0 };
+  return { key, name: '', description: '', price: '', totalQuantity: '', maxPerOrder: '', isVisible: true, inclusions: [], sortOrder: 0 };
 }
 
 export function emptyPM(key: number): LocalPaymentMethod {
@@ -120,6 +130,7 @@ export function emptyDraft(): EventDraft {
     endDate: '',
     endTime: '',
     maxCapacity: '',
+    isFree: false,
     platformFee: '50',
     agenda: [],
     sponsors: [],

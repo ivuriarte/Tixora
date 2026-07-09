@@ -19,7 +19,12 @@ export function loadDraft(): Persisted | null {
   try {
     const raw = localStorage.getItem(DRAFT_KEY);
     if (!raw) return null;
-    return JSON.parse(raw) as Persisted;
+    const saved = JSON.parse(raw) as Persisted;
+    return {
+      ...saved,
+      draft: { ...emptyDraft(), ...saved.draft },
+      tiers: saved.tiers.map((tier) => ({ ...tier, inclusions: tier.inclusions ?? [] })),
+    };
   } catch {
     return null;
   }

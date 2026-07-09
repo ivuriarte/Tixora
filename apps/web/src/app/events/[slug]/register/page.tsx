@@ -17,6 +17,7 @@ interface Tier {
   id: string;
   name: string;
   price: number;
+  inclusions?: Array<{ id?: string; label: string; stubEnabled?: boolean; sortOrder?: number }>;
   available: number;
   maxPerOrder: number;
 }
@@ -36,6 +37,7 @@ interface EventData {
   venue: string;
   startsAt: string;
   tiers: Tier[];
+  isFree?: boolean;
   platformFee?: number;
   allowManualPayment?: boolean;
   paymentMethods?: PaymentMethod[] | null;
@@ -837,9 +839,18 @@ export default function RegisterPage({
             <span className="text-gray-500"> × {qty}</span>
           </div>
           <span className="text-sm font-semibold text-primary">
-            ₱{(tier.price * qty).toLocaleString('en-PH', { minimumFractionDigits: 2 })}
+            {event.isFree || tier.price === 0 ? 'Free' : `₱${(tier.price * qty).toLocaleString('en-PH', { minimumFractionDigits: 2 })}`}
           </span>
         </div>
+        {tier.inclusions && tier.inclusions.length > 0 && (
+          <div className="mb-5 -mt-2 flex flex-wrap gap-1.5">
+            {tier.inclusions.map((item) => (
+              <span key={item.id ?? item.label} className="rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700">
+                {item.label}
+              </span>
+            ))}
+          </div>
+        )}
 
         {/* Path A: authenticated (or just verified via OTP) — RegistrationForm */}
         {isAuthenticated ? (
@@ -871,9 +882,9 @@ export default function RegisterPage({
               eventSlug={event.slug}
               tierId={tier.id}
               tierName={tier.name}
-              unitPrice={tier.price}
+              unitPrice={event.isFree ? 0 : tier.price}
               qty={qty}
-              platformFee={event.platformFee ?? 50}
+              platformFee={event.isFree ? 0 : event.platformFee ?? 50}
               paymentMethods={event.paymentMethods ?? null}
               bankName={event.bankName ?? null}
               bankAccountName={event.bankAccountName ?? null}
