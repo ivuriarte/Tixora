@@ -30,6 +30,7 @@ interface EventSummary {
   startsAt: string;
   imageUrl?: string | null;
   lowestPrice?: number | null;
+  isFree?: boolean;
   status: string;
   speakerName?: string | null;
   sponsors?: Array<{ name: string; logoUrl?: string; tier?: string; websiteUrl?: string }> | null;
@@ -76,6 +77,7 @@ interface FeaturedApiEvent {
   imageUrl?: string | null;
   status: string;
   lowestPrice?: number | null;
+  isFree?: boolean;
   totalAvailable?: number;
   featuredOrder?: number | null;
 }
