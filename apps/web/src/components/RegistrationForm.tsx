@@ -128,6 +128,7 @@ export default function RegistrationForm({
   const subtotalPesos = unitPrice * qty;
   const feesPesos = Number(platformFee) || 0;
   const totalPesos = Math.max(0, subtotalPesos - centavosToPeso(referralDiscount)) + feesPesos;
+  const isFreeRegistration = unitPrice === 0 && feesPesos === 0;
 
   const updateAttendee = (index: number, field: keyof AttendeeFields, value: string) => {
     setAttendees((prev) => {
@@ -297,12 +298,14 @@ export default function RegistrationForm({
           <span>
             {tierName} × {qty}
           </span>
-          <span>{formatPHP(subtotalPesos)}</span>
+          <span>{subtotalPesos === 0 ? 'Free' : formatPHP(subtotalPesos)}</span>
         </div>
-        <div className="flex justify-between text-sm text-gray-600 mt-1">
-          <span>Service fee</span>
-          <span>{formatPHP(feesPesos)}</span>
-        </div>
+        {!isFreeRegistration && (
+          <div className="flex justify-between text-sm text-gray-600 mt-1">
+            <span>Service fee</span>
+            <span>{formatPHP(feesPesos)}</span>
+          </div>
+        )}
         {referralDiscount > 0 && (
           <div className="flex justify-between text-sm font-medium text-emerald-700 mt-1">
             <span>Referral discount ({referralCode})</span>
@@ -311,7 +314,7 @@ export default function RegistrationForm({
         )}
         <div className="flex justify-between font-bold text-gray-900 mt-3 pt-3 border-t border-gray-100">
           <span>Total</span>
-          <span className="text-primary">{formatPHP(totalPesos)}</span>
+          <span className="text-primary">{isFreeRegistration ? 'Free' : formatPHP(totalPesos)}</span>
         </div>
       </div>
 
@@ -339,7 +342,7 @@ export default function RegistrationForm({
       )}
 
       {/* Group booking — single-receipt policy notice */}
-      {qty > 1 && (
+      {qty > 1 && !isFreeRegistration && (
         <div className="flex items-start gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-4">
           <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-amber-100">
             <svg
@@ -636,7 +639,7 @@ export default function RegistrationForm({
         disabled={loading}
         className="w-full py-3 rounded-xl bg-primary text-white font-semibold text-sm hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
       >
-        {loading ? 'Saving your spot…' : `Confirm My Registration — ${formatPHP(totalPesos)}`}
+        {loading ? 'Saving your spot…' : `Confirm My Registration — ${isFreeRegistration ? 'Free' : formatPHP(totalPesos)}`}
       </button>
     </form>
   );

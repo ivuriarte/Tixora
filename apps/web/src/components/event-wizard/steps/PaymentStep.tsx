@@ -18,9 +18,10 @@ interface PaymentStepProps {
   onSaveFee?: (fee: number) => void;
   feeSaving?: boolean;
   isAdmin?: boolean;
+  isFree?: boolean;
 }
 
-export default function PaymentStep({ paymentMethods, onAdd, onEdit, onRemove, onReorder, platformFee, onSaveFee, feeSaving, isAdmin }: PaymentStepProps) {
+export default function PaymentStep({ paymentMethods, onAdd, onEdit, onRemove, onReorder, platformFee, onSaveFee, feeSaving, isAdmin, isFree = false }: PaymentStepProps) {
   const [pmKey, setPmKey] = useState(0);
   const [showAdd, setShowAdd] = useState(paymentMethods.length === 0);
   const [editingKey, setEditingKey] = useState<number | null>(null);
@@ -58,7 +59,9 @@ export default function PaymentStep({ paymentMethods, onAdd, onEdit, onRemove, o
           {isAdmin ? (
             <>
               <p className="text-xs text-amber-700">
-                A flat service fee is added to every order for this event. This overrides the platform default (₱50). Set to <strong>0</strong> for free events or events without a service fee.
+                {isFree
+                  ? 'This event is marked Free. No platform fee will be collected.'
+                  : <>A flat service fee is added to every order for this event. This overrides the platform default (₱50). Set to <strong>0</strong> for free events or events without a service fee.</>}
               </p>
               <div className="flex items-center gap-3">
                 <div className="relative flex-1 max-w-[160px]">
@@ -68,14 +71,15 @@ export default function PaymentStep({ paymentMethods, onAdd, onEdit, onRemove, o
                     min="0"
                     max="9999"
                     step="0.01"
-                    value={feeInput}
+                    value={isFree ? '0' : feeInput}
+                    disabled={isFree}
                     onChange={(e) => setFeeInput(e.target.value)}
                     className="w-full pl-7 pr-3 py-2 text-sm rounded-lg border border-amber-300 bg-white focus:border-amber-500 focus:ring-2 focus:ring-amber-200 focus:outline-none"
                   />
                 </div>
                 <button
                   type="button"
-                  disabled={feeSaving}
+                  disabled={feeSaving || isFree}
                   onClick={() => {
                     const fee = parseFloat(feeInput);
                     if (!isNaN(fee) && fee >= 0 && onSaveFee) onSaveFee(fee);
@@ -93,10 +97,10 @@ export default function PaymentStep({ paymentMethods, onAdd, onEdit, onRemove, o
           ) : (
             <div className="flex items-center justify-between gap-4">
               <div>
-                <p className="text-xs text-gray-500">A platform service fee is charged per order. This is set by the platform administrator and cannot be changed here.</p>
+                <p className="text-xs text-gray-500">{isFree ? 'This event is marked Free, so no service fee is charged.' : 'A platform service fee is charged per order. This is set by the platform administrator and cannot be changed here.'}</p>
               </div>
               <div className="shrink-0 text-right">
-                <p className="text-xl font-bold text-gray-800">₱{platformFee != null ? platformFee.toLocaleString('en-PH', { minimumFractionDigits: 0, maximumFractionDigits: 2 }) : '50'}</p>
+                <p className="text-xl font-bold text-gray-800">₱{isFree ? '0' : platformFee != null ? platformFee.toLocaleString('en-PH', { minimumFractionDigits: 0, maximumFractionDigits: 2 }) : '50'}</p>
                 <p className="text-xs text-gray-400">per order</p>
               </div>
             </div>

@@ -118,6 +118,7 @@ export class AdminService {
       include: {
         tiers: {
           orderBy: { sortOrder: 'asc' },
+          include: { inclusions: { orderBy: { sortOrder: 'asc' } } },
         },
       },
     });

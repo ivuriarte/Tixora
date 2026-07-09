@@ -68,9 +68,9 @@ export class RegistrationsService {
       );
     }
 
-    const unitPrice = Number(tier.price);
+    const unitPrice = event.isFree ? 0 : Number(tier.price);
     const subtotal = unitPrice * attendeeCount;
-    const isFreeEvent = unitPrice === 0 && Number(event.platformFee ?? 50) === 0;
+    const isFreeEvent = event.isFree || (unitPrice === 0 && Number(event.platformFee ?? 50) === 0);
     const fees = isFreeEvent ? 0 : Number(event.platformFee ?? 50);
 
     if (!isFreeEvent && !event.allowManualPayment) {
@@ -327,13 +327,13 @@ export class RegistrationsService {
   async validateReferralCode(dto: ValidateReferralCodeDto) {
     const tier = await this.prisma.ticketTier.findFirst({
       where: { id: dto.tierId, eventId: dto.eventId },
-      select: { price: true },
+      select: { price: true, event: { select: { isFree: true } } },
     });
     if (!tier) throw new NotFoundException('Ticket tier not found');
     const referral = await this.prisma.referralCode.findFirst({
       where: { eventId: dto.eventId, code: dto.code.trim().toUpperCase() },
     });
-    const subtotal = Number(tier.price) * dto.attendeeCount;
+    const subtotal = (tier.event.isFree ? 0 : Number(tier.price)) * dto.attendeeCount;
     const result = await this.evaluateReferral(this.prisma, referral, dto.tierId, subtotal);
     return {
       valid: true,

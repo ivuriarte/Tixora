@@ -26,12 +26,14 @@ const baseCreateDto = {
 function makeService(opts: {
   tierPrice?: number;
   platformFee?: number;
+  isFree?: boolean;
   allowManualPayment?: boolean;
   txRegistrationCreate?: object;
 } = {}) {
   const {
     tierPrice = 0,
     platformFee = 0,
+    isFree = false,
     allowManualPayment = false,
     txRegistrationCreate,
   } = opts;
@@ -78,6 +80,7 @@ function makeService(opts: {
     id: 'evt_1',
     title: 'Free Fest',
     status: 'published',
+    isFree,
     allowManualPayment,
     platformFee: new Prisma.Decimal(platformFee),
     maxPerUser: 0,
@@ -174,6 +177,19 @@ describe('RegistrationsService — free-event creation', () => {
 
     const createCall = mockTx.registration.create.mock.calls[0][0];
     expect(createCall.data.fees).toBe(0);
+  });
+
+  it('uses explicit isFree to suppress stale tier price and platform fee', async () => {
+    const { service, mockTx } = makeService({ tierPrice: 500, platformFee: 50, isFree: true, allowManualPayment: false });
+
+    await (service as any).createImpl(baseCreateDto, 'user_1', '127.0.0.1');
+
+    const createCall = mockTx.registration.create.mock.calls[0][0];
+    expect(createCall.data.unitPrice).toBe(0);
+    expect(createCall.data.subtotal).toBe(0);
+    expect(createCall.data.fees).toBe(0);
+    expect(createCall.data.total).toBe(0);
+    expect(createCall.data.status).toBe('pending_approval');
   });
 
   it('allows creation of free event without allowManualPayment', async () => {

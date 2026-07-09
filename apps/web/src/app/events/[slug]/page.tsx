@@ -12,6 +12,7 @@ interface Tier {
   id: string;
   name: string;
   price: number;
+  inclusions?: Array<{ id?: string; label: string; stubEnabled?: boolean; sortOrder?: number }>;
   availableQuantity: number;
   totalQuantity: number;
   maxPerOrder: number;
@@ -42,6 +43,7 @@ interface Event {
   status: string;
   maxPerUser: number;
   tiers: Tier[];
+  isFree?: boolean;
   // Conference fields
   speakerName?: string | null;
   agenda?: AgendaItem[] | null;
@@ -184,7 +186,7 @@ export default async function EventPage({ params, searchParams }: { params: { sl
     offers: event.tiers.map((tier) => ({
       '@type': 'Offer',
       name: tier.name,
-      price: tier.price,
+      price: event.isFree ? 0 : tier.price,
       priceCurrency: 'PHP',
       availability: tier.availableQuantity > 0
         ? 'https://schema.org/InStock'

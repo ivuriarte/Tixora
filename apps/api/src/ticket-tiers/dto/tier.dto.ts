@@ -9,8 +9,31 @@ import {
   IsBoolean,
   MinLength,
   MaxLength,
+  IsArray,
+  ValidateNested,
 } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
+import { Transform, Type } from 'class-transformer';
+
+export class TierInclusionDto {
+  @ApiProperty({ example: 'Meal stub' })
+  @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
+  @IsString()
+  @MinLength(1)
+  @MaxLength(80)
+  label: string;
+
+  @ApiProperty({ required: false, default: true })
+  @IsOptional()
+  @IsBoolean()
+  stubEnabled?: boolean;
+
+  @ApiProperty({ required: false, default: 0 })
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  sortOrder?: number;
+}
 
 export class CreateTierDto {
   @ApiProperty({ example: 'General Admission' })
@@ -58,6 +81,13 @@ export class CreateTierDto {
   @IsInt()
   @Min(0)
   sortOrder?: number;
+
+  @ApiProperty({ required: false, type: [TierInclusionDto] })
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => TierInclusionDto)
+  inclusions?: TierInclusionDto[];
 }
 
 export class UpdateTierDto {
@@ -104,4 +134,10 @@ export class UpdateTierDto {
   @IsInt()
   @Min(0)
   sortOrder?: number;
+
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => TierInclusionDto)
+  inclusions?: TierInclusionDto[];
 }

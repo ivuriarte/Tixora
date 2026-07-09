@@ -13,6 +13,7 @@ interface Tier {
   id: string;
   name: string;
   price: number;
+  inclusions?: Array<{ id?: string; label: string; stubEnabled?: boolean; sortOrder?: number }>;
   availableQuantity: number;
   maxPerOrder: number;
   saleStartsAt?: string | null;
@@ -103,19 +104,30 @@ export default function TierSelector({ eventId, eventSlug, tiers, disabled }: Pr
             key={tier.id}
             onClick={() => { setSelectedTierId(tier.id); setQuantity(1); }}
             disabled={tier.availableQuantity === 0 || disabled}
-            className={`w-full flex items-center justify-between rounded-xl border px-4 py-3 text-sm transition-colors ${
+            className={`w-full rounded-xl border px-4 py-3 text-left text-sm transition-colors ${
               selectedTierId === tier.id
                 ? 'border-primary bg-primary-50 text-primary'
                 : 'border-gray-200 text-gray-700 hover:border-gray-300'
             } disabled:opacity-40 disabled:cursor-not-allowed`}
           >
-            <div className="text-left">
-              <p className="font-medium">{tier.name}</p>
-              <p className="text-xs text-gray-500 mt-0.5">
-                {tier.availableQuantity > 0 ? `${tier.availableQuantity} left` : 'Sold out'}
-              </p>
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <p className="font-medium">{tier.name}</p>
+                <p className="text-xs text-gray-500 mt-0.5">
+                  {tier.availableQuantity > 0 ? `${tier.availableQuantity} left` : 'Sold out'}
+                </p>
+              </div>
+              <span className="font-semibold shrink-0">{tier.price === 0 ? 'Free' : formatPHP(centavosToPeso(tier.price))}</span>
             </div>
-            <span className="font-semibold ml-4 shrink-0">{formatPHP(centavosToPeso(tier.price))}</span>
+            {tier.inclusions && tier.inclusions.length > 0 && (
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                {tier.inclusions.map((item) => (
+                  <span key={item.id ?? item.label} className="rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-medium text-emerald-700">
+                    {item.label}
+                  </span>
+                ))}
+              </div>
+            )}
           </button>
         ))}
       </div>
@@ -139,7 +151,7 @@ export default function TierSelector({ eventId, eventSlug, tiers, disabled }: Pr
         <div className="flex items-center justify-between text-sm">
           <span className="text-gray-500">Total</span>
           <span className="font-bold text-gray-900 text-base">
-            {formatPHP(centavosToPeso(selectedTier.price * quantity))}
+            {selectedTier.price === 0 ? 'Free' : formatPHP(centavosToPeso(selectedTier.price * quantity))}
           </span>
         </div>
       )}

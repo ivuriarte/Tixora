@@ -77,14 +77,15 @@ export default function ReviewStep({ draft, tiers, paymentMethods, onJump }: Rev
 
         <Section title="Capacity & Tiers" onEdit={() => onJump('capacity')} hasError={!!capacityErr}>
           <p><span className="text-gray-500">Max capacity:</span> {draft.maxCapacity || '0'}</p>
+          {draft.isFree && <p className="text-emerald-700"><span className="font-semibold">Free event:</span> no ticket amount or platform fee</p>}
           {tiers.length === 0 ? (
             <em className="text-gray-400">No tiers yet</em>
           ) : (
             <ul className="mt-1 space-y-1">
               {tiers.map((t) => (
                 <li key={t.key} className="flex items-center justify-between text-xs">
-                  <span>• {t.name} <span className="text-gray-400">({t.totalQuantity} qty)</span></span>
-                  <span className="font-semibold text-primary">₱{(parseFloat(t.price) || 0).toLocaleString()}</span>
+                  <span>• {t.name} <span className="text-gray-400">({t.totalQuantity} qty{t.inclusions.length > 0 ? `, ${t.inclusions.length} inclusion${t.inclusions.length === 1 ? '' : 's'}` : ''})</span></span>
+                  <span className="font-semibold text-primary">{draft.isFree ? 'Free' : `₱${(parseFloat(t.price) || 0).toLocaleString()}`}</span>
                 </li>
               ))}
             </ul>

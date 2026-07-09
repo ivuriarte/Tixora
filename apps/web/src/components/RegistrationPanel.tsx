@@ -26,6 +26,7 @@ interface Tier {
   id: string;
   name: string;
   price: number;
+  inclusions?: Array<{ id?: string; label: string; stubEnabled?: boolean; sortOrder?: number }>;
   availableQuantity: number;
   totalQuantity: number;
   maxPerOrder: number;
@@ -144,6 +145,15 @@ export default function RegistrationPanel({
               <p className="text-xs text-gray-400 mt-0.5">
                 {soldOut ? 'Sold out' : `${tier.availableQuantity} slots left`}
               </p>
+              {tier.inclusions && tier.inclusions.length > 0 && (
+                <div className="mt-2 flex flex-wrap gap-1.5">
+                  {tier.inclusions.map((item) => (
+                    <span key={item.id ?? item.label} className="rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-medium text-emerald-700">
+                      {item.label}
+                    </span>
+                  ))}
+                </div>
+              )}
             </button>
           );
         })}
