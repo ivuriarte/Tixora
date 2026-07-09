@@ -26,6 +26,8 @@ interface NametagRow {
   name: string;
   company: string;
   position: string;
+  tierName: string;
+  inclusions: string[];
   createdAt: Date;
 }
 
@@ -359,11 +361,14 @@ export class AdminService {
         city: e.city,
         startsAt: e.startsAt.toISOString(),
         status: e.status,
+        isFree: e.isFree,
         organization: e.organization ? { id: e.organization.id, name: e.organization.name } : null,
         maxCapacity: e.maxCapacity ?? null,
         ticketsSold: tiersByEvent[index].reduce((sum, tier) => sum + tier.soldQuantity, 0),
         ordersCount: e._count.orders,
-        lowestPrice: e.tiers.length > 0
+        lowestPrice: e.isFree
+          ? 0
+          : e.tiers.length > 0
           ? Math.min(...e.tiers.map((t: (typeof e.tiers)[number]) => Number(t.price)))
           : null,
         tiers: tiersByEvent[index].map((t) => ({
@@ -1592,6 +1597,23 @@ export class AdminService {
           registration: { eventId, status: 'verified' },
         },
         orderBy: { createdAt: 'asc' },
+        include: {
+          registration: {
+            select: {
+              tierName: true,
+              tier: {
+                select: {
+                  name: true,
+                  inclusions: {
+                    where: { stubEnabled: true },
+                    orderBy: { sortOrder: 'asc' },
+                    select: { label: true },
+                  },
+                },
+              },
+            },
+          },
+        },
       }),
       this.prisma.ticket.findMany({
         where: {
@@ -1609,6 +1631,16 @@ export class AdminService {
               jobTitle: true,
             },
           },
+          ticketTier: {
+            select: {
+              name: true,
+              inclusions: {
+                where: { stubEnabled: true },
+                orderBy: { sortOrder: 'asc' },
+                select: { label: true },
+              },
+            },
+          },
         },
       }),
     ]);
@@ -1619,6 +1651,8 @@ export class AdminService {
         name: this.compactName(a.firstName, a.lastName),
         company: a.company?.trim() ?? '',
         position: a.jobTitle?.trim() ?? '',
+        tierName: a.registration.tier?.name ?? a.registration.tierName ?? '',
+        inclusions: (a.registration.tier?.inclusions ?? []).map((item) => item.label),
         createdAt: a.createdAt,
       })),
       ...tickets.map((t) => ({
@@ -1626,6 +1660,8 @@ export class AdminService {
         name: this.compactName(t.user.firstName, t.user.lastName),
         company: t.user.company?.trim() ?? '',
         position: t.user.jobTitle?.trim() ?? '',
+        tierName: t.ticketTier.name,
+        inclusions: t.ticketTier.inclusions.map((item) => item.label),
         createdAt: t.createdAt,
       })),
     ].sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
@@ -1664,7 +1700,7 @@ export class AdminService {
     const marginX = 0;
     const marginTop = 0;
     const printableRows = rows.length > 0 ? rows : [
-      { id: 'blank', name: '', company: '', position: '', createdAt: new Date() },
+      { id: 'blank', name: '', company: '', position: '', tierName: '', inclusions: [], createdAt: new Date() },
     ];
 
     printableRows.forEach((row, index) => {
@@ -1688,6 +1724,8 @@ export class AdminService {
         attendeeName: row.name,
         company: row.company,
         position: row.position,
+        tierName: row.tierName,
+        inclusions: row.inclusions,
         regularFont,
         boldFont,
       });
@@ -1707,6 +1745,8 @@ export class AdminService {
       attendeeName: string;
       company: string;
       position: string;
+      tierName: string;
+      inclusions: string[];
       regularFont: PDFFont;
       boldFont: PDFFont;
     },
@@ -1720,6 +1760,8 @@ export class AdminService {
       attendeeName,
       company,
       position,
+      tierName,
+      inclusions,
       regularFont,
       boldFont,
     } = options;
@@ -1728,10 +1770,14 @@ export class AdminService {
     const contentWidth = width - safeMargin * 2;
     const name = attendeeName.trim().toUpperCase();
     const detailText = [position.trim(), company.trim()].filter(Boolean).join(' - ');
+    const tierText = tierName.trim();
+    const inclusionText = inclusions.map((item) => item.trim()).filter(Boolean).join('  |  ');
     const eventBaseline = y + height - safeMargin - 6;
-    const nameBandY = y + 41;
-    const nameBandHeight = 34;
-    const detailBaseline = y + 27;
+    const nameBandY = y + 52;
+    const nameBandHeight = 29;
+    const detailBaseline = y + 41;
+    const tierBaseline = y + 29;
+    const inclusionBaseline = y + 18;
     const footerBaseline = y + safeMargin - 1;
 
     page.drawRectangle({
@@ -1798,8 +1844,26 @@ export class AdminService {
       y: detailBaseline,
       width: contentWidth,
       font: regularFont,
-      size: 8,
+      size: 7.5,
       color: rgb(0.22, 0.26, 0.32),
+    });
+
+    this.drawCenteredText(page, tierText, {
+      x: contentX,
+      y: tierBaseline,
+      width: contentWidth,
+      font: boldFont,
+      size: 6.75,
+      color: rgb(0.36, 0.22, 0.75),
+    });
+
+    this.drawCenteredText(page, inclusionText, {
+      x: contentX,
+      y: inclusionBaseline,
+      width: contentWidth,
+      font: regularFont,
+      size: 6.25,
+      color: rgb(0.05, 0.43, 0.27),
     });
 
     this.drawCenteredText(page, 'Powered by Axon Tickets', {

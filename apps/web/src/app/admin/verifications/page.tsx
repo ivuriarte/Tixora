@@ -57,14 +57,14 @@ function unwrap<T>(res: { data: T | { data: T } }): T {
 
 const STATUSES = [
   { value: 'pending_approval', label: 'Awaiting review' },
-  { value: 'proof_submitted',  label: 'Awaiting review (legacy)' },
+  { value: 'proof_submitted',  label: 'Proof submitted' },
   { value: 'pending_payment',  label: 'Pending payment' },
   { value: 'verified',         label: 'Verified' },
   { value: 'rejected',         label: 'Rejected' },
 ];
 
 const STATUS_CONFIG: Record<string, { label: string; dot: string; chip: string }> = {
-  pending_approval: { label: 'Awaiting Confirmation', dot: 'bg-blue-500',    chip: 'bg-blue-50 text-blue-700 ring-1 ring-inset ring-blue-600/20' },
+  pending_approval: { label: 'Awaiting Review',       dot: 'bg-blue-500',    chip: 'bg-blue-50 text-blue-700 ring-1 ring-inset ring-blue-600/20' },
   proof_submitted:  { label: 'Under Review',          dot: 'bg-blue-500',    chip: 'bg-blue-50 text-blue-700 ring-1 ring-inset ring-blue-600/20' },
   verified:         { label: 'Verified',              dot: 'bg-emerald-500', chip: 'bg-emerald-50 text-emerald-700 ring-1 ring-inset ring-emerald-600/20' },
   rejected:         { label: 'Rejected',              dot: 'bg-red-500',     chip: 'bg-red-50 text-red-700 ring-1 ring-inset ring-red-600/20' },
@@ -260,7 +260,7 @@ export default function VerificationsQueuePage() {
           <div>
             <h1 className="text-2xl font-bold text-gray-900">Transaction Verification Queue</h1>
             <p className="text-sm text-gray-500 mt-1">
-              Select an event to review verified registrations with paid transactions.{' '}
+              Select an event to review registrations awaiting approval.{' '}
               {meta.total > 0 && <span className="font-medium">{meta.total} total</span>}
             </p>
           </div>
@@ -383,7 +383,7 @@ export default function VerificationsQueuePage() {
               <thead className="bg-gray-50 text-xs uppercase text-gray-500">
                 <tr>
                   <th className="px-4 py-3 w-10">
-                    {status === 'proof_submitted' && (
+                    {(status === 'proof_submitted' || status === 'pending_approval') && (
                       <input
                         type="checkbox"
                         aria-label="Select all"

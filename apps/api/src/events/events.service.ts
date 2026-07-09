@@ -8,7 +8,7 @@ import { uniqueSlug } from '@axon-tickets/utils';
 
 const TIER_INVENTORY_PREFIX = 'ticket_tier:';
 const INVENTORY_SUFFIX = ':available';
-const ACTIVE_REGISTRATION_STATUSES = ['pending_payment', 'proof_submitted', 'verified'] as const;
+const ACTIVE_REGISTRATION_STATUSES = ['pending_payment', 'proof_submitted', 'pending_approval', 'verified'] as const;
 const VALID_TICKET_STATUSES = ['valid', 'used'] as const;
 
 type TierInventory = {
@@ -87,7 +87,8 @@ export class EventsService {
         startsAt: e.startsAt.toISOString(),
         imageUrl: e.imageUrl,
         status: e.status,
-        lowestPrice: e.tiers[0] ? Number(e.tiers[0].price) : null,
+        isFree: e.isFree,
+        lowestPrice: e.isFree ? 0 : e.tiers[0] ? Number(e.tiers[0].price) : null,
         totalAvailable: tiers.reduce(
           (sum: number, t) => sum + t.availableQuantity,
           0,
@@ -332,7 +333,8 @@ export class EventsService {
         status: e.status,
         maxCapacity: e.maxCapacity,
         featuredOrder: e.featuredOrder,
-        lowestPrice: e.tiers[0] ? Number(e.tiers[0].price) : null,
+        isFree: e.isFree,
+        lowestPrice: e.isFree ? 0 : e.tiers[0] ? Number(e.tiers[0].price) : null,
         totalAvailable: tiers.reduce(
           (sum: number, t) => sum + t.availableQuantity,
           0,
