@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import Image from 'next/image';
+import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
@@ -37,6 +38,8 @@ export default function RegistrationDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [cancelling, setCancelling] = useState(false);
+  const [profileNudgeDismissed, setProfileNudgeDismissed] = useState(false);
+  const [profileIncomplete, setProfileIncomplete] = useState(false);
 
   const fetchReg = useCallback(async () => {
     try {
@@ -53,6 +56,17 @@ export default function RegistrationDetailPage() {
   useEffect(() => {
     void fetchReg();
   }, [fetchReg]);
+
+  // Check if the user's demographic profile is incomplete after reg loads
+  useEffect(() => {
+    if (!reg) return;
+    api.get<{ data: { birthday: string | null; gender: string | null; city: string | null } }>('/users/me')
+      .then((res) => {
+        const { birthday, gender, city } = res.data.data;
+        if (!birthday || !gender || !city) setProfileIncomplete(true);
+      })
+      .catch(() => { /* non-critical — silently ignore */ });
+  }, [reg]);
 
   useEffect(() => {
     if (!reg) return;
@@ -164,6 +178,47 @@ export default function RegistrationDetailPage() {
   return (
     <main className="min-h-screen bg-gray-50 py-10">
       <div className="max-w-2xl mx-auto px-4 sm:px-6 space-y-6">
+
+        {/* Profile completion nudge — shown once after registration if demographics are missing */}
+        {profileIncomplete && !profileNudgeDismissed && (
+          <div className="flex items-start gap-3 bg-primary/5 border border-primary/20 rounded-2xl px-4 py-4">
+            <svg className="w-5 h-5 text-primary mt-0.5 shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
+            </svg>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-semibold text-gray-900">Complete your profile</p>
+              <p className="text-xs text-gray-500 mt-0.5">
+                Add your birthday, gender, and city so organizers can personalise your experience.
+              </p>
+              <div className="flex items-center gap-3 mt-3">
+                <Link
+                  href={`/account/complete-profile?returnTo=/registrations/${id}`}
+                  className="text-xs font-semibold text-primary hover:underline"
+                >
+                  Complete now
+                </Link>
+                <button
+                  type="button"
+                  onClick={() => setProfileNudgeDismissed(true)}
+                  className="text-xs text-gray-400 hover:text-gray-600"
+                >
+                  Skip for now
+                </button>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setProfileNudgeDismissed(true)}
+              className="text-gray-300 hover:text-gray-500 shrink-0"
+              aria-label="Dismiss"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+        )}
+
         {/* Header */}
         <div>
           <button
