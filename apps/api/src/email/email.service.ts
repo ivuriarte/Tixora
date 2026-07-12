@@ -152,6 +152,15 @@ export class EmailService implements OnModuleDestroy {
     return false;
   }
 
+  private escapeHtml(value: string): string {
+    return value
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
+  }
+
   // ── Auth emails ────────────────────────────────────────────────────────────
 
   /**
@@ -175,6 +184,334 @@ export class EmailService implements OnModuleDestroy {
         <p style="margin-top:24px;color:#9ca3af;font-size:12px">Axon Tickets · Online Ticketing Platform</p>
       </div>`,
       2,
+    );
+  }
+
+  // ── Organizer application emails ───────────────────────────────────────────
+
+  async sendOrganizerApplicationReceived(
+    to: string,
+    firstName: string,
+    organizationName: string,
+  ): Promise<void> {
+    const safeName = this.escapeHtml(firstName);
+    const safeOrg = this.escapeHtml(organizationName);
+    await this.send(
+      to,
+      `We received your organizer application — ${safeOrg}`,
+      `<div style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:24px">
+        <h1 style="color:#1A3A5C;margin-bottom:4px">Your application is under review</h1>
+        <p style="color:#374151">Hi ${safeName}, thank you for applying to become an Axon Tickets organizer.</p>
+        <p style="color:#374151">We received the application for <strong>${safeOrg}</strong>. Our team will review the details you submitted before organizer tools are enabled.</p>
+        <div style="background:#fffbeb;border-left:4px solid #f59e0b;padding:14px 16px;margin:20px 0;border-radius:0 8px 8px 0;color:#92400e">
+          <strong>What happens next:</strong> We check your organizer information, identity details, and contact information. You will receive another email when your application is approved or if we need updated details.
+        </div>
+        <p style="color:#374151">You do not need to submit again while the application is under review.</p>
+        <p style="color:#64748b;font-size:13px">If you did not submit this application, please contact Axon Tickets support.</p>
+        <p style="margin-top:24px;color:#9ca3af;font-size:12px">Axon Tickets · Online Ticketing Platform</p>
+      </div>`,
+    );
+  }
+
+  async sendOrganizerApprovedEmail(
+    to: string,
+    firstName: string,
+    organizationName: string,
+    homepageUrl: string,
+  ): Promise<void> {
+    const safeName = this.escapeHtml(firstName);
+    const safeOrg = this.escapeHtml(organizationName);
+    await this.send(
+      to,
+      `Your organizer application was approved — ${safeOrg}`,
+      `<div style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:24px">
+        <h1 style="color:#166534;margin-bottom:4px">You are approved as an organizer</h1>
+        <p style="color:#374151">Hi ${safeName}, your application for <strong>${safeOrg}</strong> has been approved.</p>
+        <p style="color:#374151">You can now sign in from Axon Tickets and use the organizer tools for your events, attendees, workspace, check-in, transactions, and reports.</p>
+        <div style="background:#f0fdf4;border-left:4px solid #16a34a;padding:14px 16px;margin:20px 0;border-radius:0 8px 8px 0;color:#166534">
+          Organizer access is limited to the events and data connected to your own organizer account.
+        </div>
+        <p style="margin:24px 0">
+          <a href="${homepageUrl}" style="background:#1A3A5C;color:white;padding:12px 24px;text-decoration:none;border-radius:8px;display:inline-block;font-weight:600">Go to Axon Tickets</a>
+        </p>
+        <p style="color:#64748b;font-size:13px">If you need help setting up your first event, reply to this email and our team can guide you.</p>
+        <p style="margin-top:24px;color:#9ca3af;font-size:12px">Axon Tickets · Online Ticketing Platform</p>
+      </div>`,
+    );
+  }
+
+  async sendOrganizerRejectedEmail(
+    to: string,
+    firstName: string,
+    organizationName: string,
+    reason: string,
+    reapplyUrl: string,
+  ): Promise<void> {
+    const safeName = this.escapeHtml(firstName);
+    const safeOrg = this.escapeHtml(organizationName);
+    const safeReason = this.escapeHtml(reason);
+    await this.send(
+      to,
+      `Your organizer application needs attention — ${safeOrg}`,
+      `<div style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:24px">
+        <h1 style="color:#991b1b;margin-bottom:4px">Your application was not approved</h1>
+        <p style="color:#374151">Hi ${safeName}, thank you for applying to become an organizer on Axon Tickets. We reviewed the details for <strong>${safeOrg}</strong>, but we are not able to approve it just yet.</p>
+        <p style="color:#374151">Here is why:</p>
+        <div style="background:#fef2f2;border-left:4px solid #dc2626;padding:14px 16px;margin:20px 0;border-radius:0 8px 8px 0;color:#991b1b">
+          <strong>Reason:</strong> ${safeReason}
+        </div>
+        <p style="color:#374151">To move forward, you need to go through the registration process again with the correct information. The button below will take you back to the organizer application form, where your previous details are pre-filled so you only need to update what is missing or incorrect.</p>
+        <p style="margin:24px 0">
+          <a href="${reapplyUrl}" style="background:#1A3A5C;color:white;padding:12px 24px;text-decoration:none;border-radius:8px;display:inline-block;font-weight:600">Start registration again</a>
+        </p>
+        <p style="color:#374151">Once you complete the form and verify your email, your updated application will go back to our team for review. You will hear from us within 1–2 business days.</p>
+        <p style="color:#64748b;font-size:13px">If you have questions or need help, reply to this email and we will be glad to assist.</p>
+        <p style="margin-top:24px;color:#9ca3af;font-size:12px">Axon Tickets · Online Ticketing Platform</p>
+      </div>`,
+    );
+  }
+
+  async sendOrganizerSuspendedEmail(
+    to: string,
+    firstName: string,
+    organizationName: string,
+    reason?: string,
+  ): Promise<void> {
+    const safeName = this.escapeHtml(firstName);
+    const safeOrg = this.escapeHtml(organizationName);
+    const reasonBlock = reason
+      ? `<div style="background:#fffbeb;border:1px solid #fde68a;border-radius:10px;padding:16px 20px;margin:24px 0">
+           <p style="margin:0 0 6px;font-size:12px;font-weight:700;color:#92400e;text-transform:uppercase;letter-spacing:0.06em">Reason for suspension</p>
+           <p style="margin:0;color:#78350f;font-size:15px;line-height:1.6">${this.escapeHtml(reason)}</p>
+         </div>`
+      : '';
+    await this.send(
+      to,
+      `Important: Your organizer account has been temporarily suspended — ${safeOrg}`,
+      `<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;max-width:600px;margin:0 auto;background:#ffffff">
+        <!-- Header -->
+        <div style="background:#1A3A5C;padding:28px 32px;border-radius:12px 12px 0 0">
+          <p style="margin:0;color:#ffffff;font-size:18px;font-weight:700;letter-spacing:-0.3px">Axon Tickets</p>
+          <p style="margin:4px 0 0;color:#94a3b8;font-size:12px">Online Ticketing Platform</p>
+        </div>
+
+        <!-- Body -->
+        <div style="padding:32px;border:1px solid #e5e7eb;border-top:none;border-radius:0 0 12px 12px">
+
+          <!-- Status banner -->
+          <div style="background:#fffbeb;border:1px solid #fde68a;border-radius:10px;padding:14px 18px;margin-bottom:28px;display:flex;align-items:center;gap:10px">
+            <span style="font-size:20px">⚠️</span>
+            <span style="color:#92400e;font-weight:600;font-size:14px">Your organizer account is temporarily suspended</span>
+          </div>
+
+          <p style="margin:0 0 8px;color:#111827;font-size:22px;font-weight:700">Hi ${safeName},</p>
+          <p style="margin:0 0 20px;color:#374151;font-size:15px;line-height:1.7">
+            We are reaching out to let you know that your organizer account for
+            <strong>${safeOrg}</strong> on Axon Tickets has been <strong>temporarily suspended</strong>
+            by our team.
+          </p>
+
+          ${reasonBlock}
+
+          <!-- What this means -->
+          <div style="background:#f8fafc;border-radius:10px;padding:20px 24px;margin:24px 0">
+            <p style="margin:0 0 14px;font-size:13px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:0.06em">What this means for you</p>
+            <table style="border-collapse:collapse;width:100%">
+              <tr>
+                <td style="padding:8px 0;vertical-align:top;width:24px;color:#ef4444;font-size:16px">✗</td>
+                <td style="padding:8px 0 8px 8px;color:#374151;font-size:14px;line-height:1.6">You will not be able to sign in to your organizer dashboard right now.</td>
+              </tr>
+              <tr>
+                <td style="padding:8px 0;vertical-align:top;color:#ef4444;font-size:16px">✗</td>
+                <td style="padding:8px 0 8px 8px;color:#374151;font-size:14px;line-height:1.6">You cannot manage or create events while suspended.</td>
+              </tr>
+              <tr>
+                <td style="padding:8px 0;vertical-align:top;color:#16a34a;font-size:16px">✓</td>
+                <td style="padding:8px 0 8px 8px;color:#374151;font-size:14px;line-height:1.6">All your event data, attendee information, and records are <strong>safe and untouched</strong>. Nothing has been deleted.</td>
+              </tr>
+              <tr>
+                <td style="padding:8px 0;vertical-align:top;color:#16a34a;font-size:16px">✓</td>
+                <td style="padding:8px 0 8px 8px;color:#374151;font-size:14px;line-height:1.6">This suspension is <strong>temporary</strong>. Your account can be reinstated once the matter is resolved.</td>
+              </tr>
+            </table>
+          </div>
+
+          <p style="color:#374151;font-size:15px;line-height:1.7;margin:0 0 24px">
+            If you believe this is a mistake, or you have questions about why this happened,
+            please get in touch with us. We will review the situation and get back to you as
+            soon as possible.
+          </p>
+
+          <p style="margin:0 0 28px">
+            <a href="mailto:support@axontickets.online"
+               style="background:#1A3A5C;color:#ffffff;padding:13px 28px;text-decoration:none;border-radius:8px;display:inline-block;font-weight:600;font-size:15px">
+              Contact our support team
+            </a>
+          </p>
+
+          <p style="color:#6b7280;font-size:13px;line-height:1.6;margin:0">
+            You can also reply directly to this email and we will receive your message.
+          </p>
+
+          <hr style="border:none;border-top:1px solid #e5e7eb;margin:28px 0" />
+          <p style="margin:0;color:#9ca3af;font-size:12px">Axon Tickets · Online Ticketing Platform · <a href="mailto:support@axontickets.online" style="color:#9ca3af">support@axontickets.online</a></p>
+        </div>
+      </div>`,
+    );
+  }
+
+  async sendOrganizerReinstatedEmail(
+    to: string,
+    firstName: string,
+    organizationName: string,
+    homepageUrl: string,
+  ): Promise<void> {
+    const safeName = this.escapeHtml(firstName);
+    const safeOrg = this.escapeHtml(organizationName);
+    await this.send(
+      to,
+      `Great news — your organizer account has been reinstated — ${safeOrg}`,
+      `<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;max-width:600px;margin:0 auto;background:#ffffff">
+        <!-- Header -->
+        <div style="background:#1A3A5C;padding:28px 32px;border-radius:12px 12px 0 0">
+          <p style="margin:0;color:#ffffff;font-size:18px;font-weight:700;letter-spacing:-0.3px">Axon Tickets</p>
+          <p style="margin:4px 0 0;color:#94a3b8;font-size:12px">Online Ticketing Platform</p>
+        </div>
+
+        <!-- Body -->
+        <div style="padding:32px;border:1px solid #e5e7eb;border-top:none;border-radius:0 0 12px 12px">
+
+          <!-- Status banner -->
+          <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:14px 18px;margin-bottom:28px">
+            <span style="font-size:20px">✅</span>
+            <span style="color:#166534;font-weight:600;font-size:14px;margin-left:8px">Your organizer account is active again</span>
+          </div>
+
+          <p style="margin:0 0 8px;color:#111827;font-size:22px;font-weight:700">Hi ${safeName},</p>
+          <p style="margin:0 0 20px;color:#374151;font-size:15px;line-height:1.7">
+            We are happy to let you know that your organizer account for
+            <strong>${safeOrg}</strong> on Axon Tickets has been <strong>reinstated</strong>.
+            You now have full access again.
+          </p>
+
+          <!-- What you can do -->
+          <div style="background:#f8fafc;border-radius:10px;padding:20px 24px;margin:24px 0">
+            <p style="margin:0 0 14px;font-size:13px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:0.06em">You can now</p>
+            <table style="border-collapse:collapse;width:100%">
+              <tr>
+                <td style="padding:7px 0;vertical-align:top;width:24px;color:#16a34a;font-size:16px">✓</td>
+                <td style="padding:7px 0 7px 8px;color:#374151;font-size:14px;line-height:1.6">Sign in to your organizer dashboard</td>
+              </tr>
+              <tr>
+                <td style="padding:7px 0;vertical-align:top;color:#16a34a;font-size:16px">✓</td>
+                <td style="padding:7px 0 7px 8px;color:#374151;font-size:14px;line-height:1.6">Create and manage your events</td>
+              </tr>
+              <tr>
+                <td style="padding:7px 0;vertical-align:top;color:#16a34a;font-size:16px">✓</td>
+                <td style="padding:7px 0 7px 8px;color:#374151;font-size:14px;line-height:1.6">View attendees, check-in, and track registrations</td>
+              </tr>
+              <tr>
+                <td style="padding:7px 0;vertical-align:top;color:#16a34a;font-size:16px">✓</td>
+                <td style="padding:7px 0 7px 8px;color:#374151;font-size:14px;line-height:1.6">Access your workspace, reports, and all your previous data</td>
+              </tr>
+            </table>
+          </div>
+
+          <p style="color:#374151;font-size:15px;line-height:1.7;margin:0 0 28px">
+            Everything is exactly as you left it. You can sign in now and pick up right where you stopped.
+          </p>
+
+          <p style="margin:0 0 28px">
+            <a href="${homepageUrl}"
+               style="background:#7C3AED;color:#ffffff;padding:13px 28px;text-decoration:none;border-radius:8px;display:inline-block;font-weight:600;font-size:15px">
+              Sign in to your dashboard
+            </a>
+          </p>
+
+          <p style="color:#6b7280;font-size:13px;line-height:1.6;margin:0">
+            If you need help or have any questions, reply to this email and our team will be glad to assist.
+          </p>
+
+          <hr style="border:none;border-top:1px solid #e5e7eb;margin:28px 0" />
+          <p style="margin:0;color:#9ca3af;font-size:12px">Axon Tickets · Online Ticketing Platform · <a href="mailto:support@axontickets.online" style="color:#9ca3af">support@axontickets.online</a></p>
+        </div>
+      </div>`,
+    );
+  }
+
+  async sendOrganizerDeletedEmail(
+    to: string,
+    firstName: string,
+    organizationName: string,
+  ): Promise<void> {
+    const safeName = this.escapeHtml(firstName);
+    const safeOrg = this.escapeHtml(organizationName);
+    await this.send(
+      to,
+      `Your organizer account has been removed — ${safeOrg}`,
+      `<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;max-width:600px;margin:0 auto;background:#ffffff">
+        <!-- Header -->
+        <div style="background:#1A3A5C;padding:28px 32px;border-radius:12px 12px 0 0">
+          <p style="margin:0;color:#ffffff;font-size:18px;font-weight:700;letter-spacing:-0.3px">Axon Tickets</p>
+          <p style="margin:4px 0 0;color:#94a3b8;font-size:12px">Online Ticketing Platform</p>
+        </div>
+
+        <!-- Body -->
+        <div style="padding:32px;border:1px solid #e5e7eb;border-top:none;border-radius:0 0 12px 12px">
+
+          <!-- Status banner -->
+          <div style="background:#fef2f2;border:1px solid #fecaca;border-radius:10px;padding:14px 18px;margin-bottom:28px">
+            <span style="font-size:20px">🗑️</span>
+            <span style="color:#991b1b;font-weight:600;font-size:14px;margin-left:8px">Your organizer account has been permanently removed</span>
+          </div>
+
+          <p style="margin:0 0 8px;color:#111827;font-size:22px;font-weight:700">Hi ${safeName},</p>
+          <p style="margin:0 0 20px;color:#374151;font-size:15px;line-height:1.7">
+            We are writing to let you know that the organizer account for
+            <strong>${safeOrg}</strong> on Axon Tickets has been <strong>permanently removed</strong>
+            by our team. This action has already taken effect.
+          </p>
+
+          <!-- What this means -->
+          <div style="background:#f8fafc;border-radius:10px;padding:20px 24px;margin:24px 0">
+            <p style="margin:0 0 14px;font-size:13px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:0.06em">What this means</p>
+            <table style="border-collapse:collapse;width:100%">
+              <tr>
+                <td style="padding:8px 0;vertical-align:top;width:24px;color:#ef4444;font-size:16px">✗</td>
+                <td style="padding:8px 0 8px 8px;color:#374151;font-size:14px;line-height:1.6">The organizer account and all its associated event data have been removed.</td>
+              </tr>
+              <tr>
+                <td style="padding:8px 0;vertical-align:top;color:#ef4444;font-size:16px">✗</td>
+                <td style="padding:8px 0 8px 8px;color:#374151;font-size:14px;line-height:1.6">You will no longer be able to log in as an organizer or access the organizer dashboard.</td>
+              </tr>
+              <tr>
+                <td style="padding:8px 0;vertical-align:top;color:#16a34a;font-size:16px">✓</td>
+                <td style="padding:8px 0 8px 8px;color:#374151;font-size:14px;line-height:1.6">Your <strong>personal Axon Tickets account</strong> (used to buy or attend events) has <strong>not been affected</strong>.</td>
+              </tr>
+            </table>
+          </div>
+
+          <p style="color:#374151;font-size:15px;line-height:1.7;margin:0 0 24px">
+            If you believe this was done in error, or if you have any questions about what
+            happened, please do not hesitate to contact us. We will be happy to look into it
+            for you and explain the next steps.
+          </p>
+
+          <p style="margin:0 0 28px">
+            <a href="mailto:support@axontickets.online"
+               style="background:#1A3A5C;color:#ffffff;padding:13px 28px;text-decoration:none;border-radius:8px;display:inline-block;font-weight:600;font-size:15px">
+              Contact our support team
+            </a>
+          </p>
+
+          <p style="color:#6b7280;font-size:13px;line-height:1.6;margin:0">
+            You can also reply directly to this email and we will receive your message.
+          </p>
+
+          <hr style="border:none;border-top:1px solid #e5e7eb;margin:28px 0" />
+          <p style="margin:0;color:#9ca3af;font-size:12px">Axon Tickets · Online Ticketing Platform · <a href="mailto:support@axontickets.online" style="color:#9ca3af">support@axontickets.online</a></p>
+        </div>
+      </div>`,
     );
   }
 
@@ -237,6 +574,77 @@ export class EmailService implements OnModuleDestroy {
     );
   }
 
+  async sendFreeRegistrationConfirmation(
+    to: string,
+    firstName: string,
+    referenceNumber: string,
+    eventTitle: string,
+    registrationUrl?: string,
+  ): Promise<void> {
+    const safeTitle = this.escapeHtml(eventTitle);
+    const safeRef = this.escapeHtml(referenceNumber);
+    const viewLink = registrationUrl
+      ? `<p style="margin-top:16px"><a href="${registrationUrl}" style="color:#EA6C00;text-decoration:none;font-weight:600">View your registration →</a></p>`
+      : '';
+    await this.send(
+      to,
+      `You're registered — ${eventTitle}`,
+      `<div style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:24px">
+        <h1 style="color:#7C3AED;margin-bottom:4px">You're registered!</h1>
+        <h2 style="margin-top:0;color:#1A3A5C">${safeTitle}</h2>
+        <p style="color:#374151">Hi ${this.escapeHtml(firstName)}, we received your registration for this event.</p>
+
+        <div style="background:#f7f9fc;border-radius:12px;padding:16px;margin:20px 0;border-left:4px solid #7C3AED">
+          <p style="margin:0 0 4px;font-size:12px;color:#6b7280;text-transform:uppercase;letter-spacing:0.05em">Your Reference Number</p>
+          <p style="font-size:24px;font-weight:bold;color:#7C3AED;margin:0;letter-spacing:2px">${safeRef}</p>
+        </div>
+
+        <h3 style="color:#1A3A5C">What happens next?</h3>
+        <ol style="color:#374151;font-size:14px;line-height:1.8">
+          <li>The organizer will review your registration.</li>
+          <li>We will send a confirmation to this email address.</li>
+          <li>Your ticket will be in that email — show it at the entrance. No printing needed.</li>
+        </ol>
+
+        ${viewLink}
+        <p style="margin-top:24px;color:#9ca3af;font-size:12px">Axon Tickets · Online Ticketing Platform</p>
+      </div>`,
+    );
+  }
+
+  async sendPaymentReminderEmail(
+    to: string,
+    firstName: string,
+    referenceNumber: string,
+    eventTitle: string,
+    registrationUrl: string,
+  ): Promise<void> {
+    const safeTitle = this.escapeHtml(eventTitle);
+    const safeRef = this.escapeHtml(referenceNumber);
+    await this.send(
+      to,
+      `Action needed — your spot for ${eventTitle} expires soon`,
+      `<div style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:24px">
+        <h1 style="color:#EA6C00;margin-bottom:4px">Your spot expires soon</h1>
+        <h2 style="margin-top:0;color:#1A3A5C">${safeTitle}</h2>
+        <p style="color:#374151">Hi ${this.escapeHtml(firstName)}, your registration is reserved but we have not received your payment proof yet.</p>
+
+        <div style="background:#fff7ed;border-radius:12px;padding:16px;margin:20px 0;border-left:4px solid #EA6C00">
+          <p style="margin:0 0 4px;font-size:12px;color:#6b7280;text-transform:uppercase;letter-spacing:0.05em">Reference Number</p>
+          <p style="font-size:24px;font-weight:bold;color:#EA6C00;margin:0;letter-spacing:2px">${safeRef}</p>
+          <p style="margin:8px 0 0;color:#92400e;font-size:13px">Your spot will be released 24 hours after you registered if no proof is uploaded.</p>
+        </div>
+
+        <p style="color:#374151;font-size:14px">Upload your payment screenshot now to secure your place:</p>
+        <p style="margin-top:16px">
+          <a href="${registrationUrl}" style="background:#7C3AED;color:#ffffff;text-decoration:none;font-weight:600;padding:12px 24px;border-radius:8px;display:inline-block">Upload payment proof →</a>
+        </p>
+
+        <p style="margin-top:24px;color:#9ca3af;font-size:12px">Axon Tickets · Online Ticketing Platform</p>
+      </div>`,
+    );
+  }
+
   async sendProofReceivedNotification(
     to: string,
     firstName: string,
@@ -263,6 +671,22 @@ export class EmailService implements OnModuleDestroy {
     eventDate: string,
     eventVenue: string,
     attendees: { firstName: string; lastName: string; email: string; qrToken: string | null }[],
+    receipt?: {
+      isFree?: boolean;
+      referenceNumber?: string;
+      transactionDate?: string;
+      paymentMethod?: string;
+      tierName?: string;
+      quantity?: number;
+      unitPrice?: number;
+      subtotal?: number;
+      fees?: number;
+      discount?: number;
+      referralCode?: string;
+      total?: number;
+      organizerName?: string;
+      eventCity?: string;
+    },
   ): Promise<void> {
     // Build one PNG attachment per attendee.
     // Each QR is embedded inline (via CID) so it displays directly in the email body
@@ -315,82 +739,151 @@ export class EmailService implements OnModuleDestroy {
             <img src="cid:${cid}" alt="QR Code for ${a.firstName} ${a.lastName}"
                  width="200" height="200"
                  style="display:block;margin:0 auto;border:1px solid #e5e7eb;border-radius:8px" />
+            <p style="margin:8px 0 0;font-size:13px;font-weight:600;color:#1A3A5C;text-align:center">
+              ${a.firstName} ${a.lastName}
+            </p>
           </td>
         </tr>`;
       }),
     );
 
-    const isSingle = attendees.length === 1;
+    // ── Receipt section ──────────────────────────────────────────────────────
+    const fmt = (n: number) =>
+      'PHP ' + n.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+    const receiptRows: string[] = [];
+    if (receipt?.organizerName)
+      receiptRows.push(`<tr><td style="padding:7px 0;color:#6b7280;font-size:14px;width:50%">Organizer</td><td style="padding:7px 0;font-size:14px;font-weight:600;color:#111827;text-align:right">${this.escapeHtml(receipt.organizerName)}</td></tr>`);
+    if (receipt?.tierName)
+      receiptRows.push(`<tr><td style="padding:7px 0;color:#6b7280;font-size:14px">Ticket tier</td><td style="padding:7px 0;font-size:14px;font-weight:600;color:#111827;text-align:right">${this.escapeHtml(receipt.tierName)}</td></tr>`);
+    if (receipt?.quantity)
+      receiptRows.push(`<tr><td style="padding:7px 0;color:#6b7280;font-size:14px">Quantity</td><td style="padding:7px 0;font-size:14px;font-weight:600;color:#111827;text-align:right">${receipt.quantity}</td></tr>`);
+    if (receipt?.unitPrice !== undefined)
+      receiptRows.push(`<tr><td style="padding:7px 0;color:#6b7280;font-size:14px">Price per ticket</td><td style="padding:7px 0;font-size:14px;font-weight:600;color:#111827;text-align:right">${fmt(receipt.unitPrice)}</td></tr>`);
+    if (receipt?.subtotal !== undefined)
+      receiptRows.push(`<tr><td style="padding:7px 0;color:#6b7280;font-size:14px">Subtotal</td><td style="padding:7px 0;font-size:14px;color:#374151;text-align:right">${fmt(receipt.subtotal)}</td></tr>`);
+    if (receipt?.fees !== undefined)
+      receiptRows.push(`<tr><td style="padding:7px 0;color:#6b7280;font-size:14px">Service fee</td><td style="padding:7px 0;font-size:14px;color:#374151;text-align:right">${fmt(receipt.fees)}</td></tr>`);
+    if (receipt?.discount && receipt.discount > 0)
+      receiptRows.push(`<tr><td style="padding:7px 0;color:#047857;font-size:14px">Referral discount${receipt.referralCode ? ` (${this.escapeHtml(receipt.referralCode)})` : ''}</td><td style="padding:7px 0;font-size:14px;color:#047857;text-align:right">-${fmt(receipt.discount)}</td></tr>`);
+    if (receipt?.total !== undefined)
+      receiptRows.push(`<tr style="border-top:2px solid #e5e7eb"><td style="padding:10px 0 4px;font-size:15px;font-weight:700;color:#111827">Total paid</td><td style="padding:10px 0 4px;font-size:15px;font-weight:700;color:#111827;text-align:right">${fmt(receipt.total)}</td></tr>`);
+    if (receipt?.paymentMethod)
+      receiptRows.push(`<tr><td style="padding:4px 0 7px;color:#6b7280;font-size:14px">Payment method</td><td style="padding:4px 0 7px;font-size:14px;font-weight:600;color:#111827;text-align:right">${this.escapeHtml(receipt.paymentMethod)}</td></tr>`);
+    if (receipt?.transactionDate)
+      receiptRows.push(`<tr><td style="padding:7px 0;color:#6b7280;font-size:14px">Transaction date</td><td style="padding:7px 0;font-size:14px;font-weight:600;color:#111827;text-align:right">${receipt.transactionDate}</td></tr>`);
+    if (receipt?.referenceNumber)
+      receiptRows.push(`<tr><td style="padding:7px 0;color:#6b7280;font-size:14px">Reference #</td><td style="padding:7px 0;font-size:14px;font-weight:700;color:#7C3AED;text-align:right">${this.escapeHtml(receipt.referenceNumber)}</td></tr>`);
+
+    const receiptSection = receiptRows.length > 0 ? `
+      <!-- Receipt -->
+      <div style="margin:28px 0">
+        <p style="margin:0 0 12px;font-size:13px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:0.06em">Purchase summary</p>
+        <table style="width:100%;border-collapse:collapse;background:#f8fafc;border-radius:10px;padding:4px 16px;display:block">
+          <tbody style="display:table;width:100%;padding:4px 16px">
+            ${receiptRows.join('\n')}
+          </tbody>
+        </table>
+      </div>` : '';
 
     await this.send(
       to,
-      `✅ Your ticket is ready! — ${eventTitle}`,
-      `<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:0;background:#f8fafc">
+      `Your ticket is ready — ${eventTitle}`,
+      `<div style="font-family:Arial,Helvetica,sans-serif;max-width:600px;margin:0 auto;padding:0;background:#f8fafc">
 
         <!-- Header -->
         <div style="background:#1A3A5C;padding:28px 32px;text-align:center">
           <p style="margin:0;font-size:13px;color:#93c5fd;letter-spacing:1px;text-transform:uppercase">Axon Tickets</p>
-          <h1 style="margin:8px 0 0;font-size:28px;color:#ffffff">🎉 Your ticket is ready!</h1>
+          <p style="margin:10px 0 0;font-size:26px;font-weight:bold;color:#ffffff">Your ticket is ready!</p>
         </div>
 
         <!-- Body -->
-        <div style="background:#ffffff;padding:32px">
+        <div style="background:#ffffff;padding:28px 32px">
 
-          <p style="font-size:16px;color:#1A3A5C;margin-top:0">
-            Hi <strong>${firstName}</strong>, your payment was approved!
-          </p>
-          <p style="font-size:15px;color:#374151;margin-top:0">
-            Your ${isSingle ? 'ticket' : 'tickets'} for <strong>${eventTitle}</strong> ${isSingle ? 'is' : 'are'} below.
-          </p>
-          <p style="color:#64748b;font-size:14px;margin-top:0">
-            📅 ${eventDate} &nbsp;|&nbsp; 📍 ${eventVenue}
+          <p style="font-size:16px;color:#111827;margin-top:0">
+            Hi <strong>${this.escapeHtml(firstName)}</strong>, great news — ${receipt?.isFree ? 'your registration has been approved' : 'your payment has been confirmed'} and your ticket is all set. Everything you need to get in is right here in this email.
           </p>
 
-          <!-- What to do box -->
-          <div style="background:#f0fdf4;border:2px solid #86efac;border-radius:12px;padding:20px;margin:24px 0">
-            <p style="margin:0 0 12px;font-size:15px;font-weight:bold;color:#166534">
-              What do I do with this ticket?
-            </p>
-            <ol style="margin:0;padding-left:20px;color:#15803d;font-size:14px;line-height:1.8">
-              <li>Find your QR code below in this email.</li>
-              <li><strong>Screenshot or save</strong> the QR code to your phone's photo gallery.</li>
-              <li>On event day, <strong>show the QR code to the staff at the entrance.</strong></li>
-              <li>No printing needed — your phone screen is enough!</li>
-            </ol>
-          </div>
+          <!-- Event summary -->
+          <table style="width:100%;border-collapse:collapse;background:#f0f4ff;border-radius:10px;padding:0;margin-bottom:24px">
+            <tr>
+              <td style="padding:16px 20px">
+                <p style="margin:0;font-size:18px;font-weight:bold;color:#1A3A5C">${this.escapeHtml(eventTitle)}</p>
+                <p style="margin:6px 0 0;font-size:14px;color:#374151">
+                  Date: <strong>${this.escapeHtml(eventDate)}</strong>
+                </p>
+                <p style="margin:4px 0 0;font-size:14px;color:#374151">
+                  Venue: <strong>${this.escapeHtml(eventVenue)}${receipt?.eventCity ? ', ' + this.escapeHtml(receipt.eventCity) : ''}</strong>
+                </p>
+              </td>
+            </tr>
+          </table>
 
-          <!-- QR table -->
-          <table style="width:100%;border-collapse:collapse;margin-top:8px;border:1px solid #e5e7eb;border-radius:12px;overflow:hidden">
+          <!-- QR ticket(s) -->
+          <p style="margin:0 0 12px;font-size:15px;font-weight:700;color:#1A3A5C">Your Entry Pass${rows.length > 1 ? 'es' : ''}</p>
+          <table style="width:100%;border-collapse:collapse;border:1px solid #e5e7eb;border-radius:10px;overflow:hidden">
             <thead>
               <tr style="background:#f7f9fc">
-                <th style="padding:12px 16px;text-align:left;color:#1A3A5C;font-size:13px;font-weight:600">Attendee Name</th>
-                <th style="padding:12px 16px;text-align:center;color:#1A3A5C;font-size:13px;font-weight:600">QR Code (show at entrance)</th>
+                <th style="padding:12px 16px;text-align:left;color:#1A3A5C;font-size:13px;font-weight:600">Attendee</th>
+                <th style="padding:12px 16px;text-align:center;color:#1A3A5C;font-size:13px;font-weight:600">QR Code — show this at the entrance</th>
               </tr>
             </thead>
             <tbody>${rows.join('')}</tbody>
           </table>
 
           <!-- Tip box -->
-          <div style="background:#fffbeb;border-left:4px solid #f59e0b;padding:14px 16px;margin-top:24px;border-radius:0 8px 8px 0">
-            <p style="margin:0;font-size:13px;color:#92400e">
-              <strong>💡 Tip:</strong> Can't see the QR code above?
-              The QR code is also saved as a <strong>.png image file</strong> attached to this email.
-              Open the attachment to view and save it to your phone.
-              If you still can't find it, check your <strong>Spam</strong> or <strong>Promotions</strong> folder.
+          <div style="background:#fffbeb;border-left:4px solid #f59e0b;padding:14px 16px;margin-top:16px;border-radius:0 8px 8px 0">
+            <p style="margin:0;font-size:13px;color:#92400e;line-height:1.6">
+              <strong>Can't see the QR code above?</strong> No worries. The QR code is also attached to this email as an image file (look for a <strong>.png</strong> attachment). Open it, save it to your phone's photo gallery, or print it. If you cannot find this email, please check your <strong>Spam</strong> or <strong>Promotions</strong> folder.
             </p>
           </div>
 
-          <p style="font-size:13px;color:#64748b;margin-top:24px">
-            You can also view your ticket anytime by logging in to
-            <a href="https://axontickets.online/account/tickets" style="color:#7C3AED">axontickets.online</a>
-            and going to <strong>My Events</strong>.
+          ${receiptSection}
+
+          <!-- How to use your ticket -->
+          <div style="background:#f0fdf4;border:2px solid #86efac;border-radius:10px;padding:18px 20px;margin-top:24px">
+            <p style="margin:0 0 12px;font-size:16px;font-weight:bold;color:#166534">
+              How to use your ticket
+            </p>
+            <table style="border-collapse:collapse;width:100%">
+              <tr>
+                <td style="padding:5px 0;vertical-align:top;width:28px;color:#15803d;font-size:15px;font-weight:bold">1.</td>
+                <td style="padding:5px 0;color:#15803d;font-size:14px;line-height:1.7">
+                  <strong>Find your QR code</strong> — scroll up to find it above the purchase summary. Each attendee has their own unique code.
+                </td>
+              </tr>
+              <tr>
+                <td style="padding:5px 0;vertical-align:top;color:#15803d;font-size:15px;font-weight:bold">2.</td>
+                <td style="padding:5px 0;color:#15803d;font-size:14px;line-height:1.7">
+                  <strong>Save it to your phone</strong> — press and hold the QR code image, then tap <em>Save to Photos</em> (iPhone) or <em>Download image</em> (Android). Or simply take a screenshot.
+                </td>
+              </tr>
+              <tr>
+                <td style="padding:5px 0;vertical-align:top;color:#15803d;font-size:15px;font-weight:bold">3.</td>
+                <td style="padding:5px 0;color:#15803d;font-size:14px;line-height:1.7">
+                  <strong>Show it at the entrance</strong> — on the day of the event, open your saved photo and show it to the staff. Your phone screen is enough; no printing required.
+                </td>
+              </tr>
+              <tr>
+                <td style="padding:5px 0;vertical-align:top;color:#15803d;font-size:15px;font-weight:bold">4.</td>
+                <td style="padding:5px 0;color:#15803d;font-size:14px;line-height:1.7">
+                  <strong>Prefer paper?</strong> — you can print this email or open the attached image file and print that instead. Both work perfectly at the entrance.
+                </td>
+              </tr>
+            </table>
+          </div>
+
+          <p style="font-size:13px;color:#64748b;margin-top:20px">
+            You can view your ticket anytime at
+            <a href="https://axontickets.online/account/tickets" style="color:#7C3AED;text-decoration:none">axontickets.online</a>
+            under <strong>My Events</strong>. See you at the event!
           </p>
 
         </div>
 
         <!-- Footer -->
-        <div style="background:#f1f5f9;padding:16px 32px;text-align:center">
-          <p style="margin:0;font-size:12px;color:#94a3b8">Axon Tickets · Online Ticketing Platform · axontickets.online</p>
+        <div style="background:#f1f5f9;padding:14px 32px;text-align:center">
+          <p style="margin:0;font-size:12px;color:#94a3b8">Axon Tickets &middot; Online Ticketing Platform &middot; axontickets.online</p>
         </div>
 
       </div>`,

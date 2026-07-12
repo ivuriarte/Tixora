@@ -42,11 +42,9 @@ export class OrdersService {
       throw new BadRequestException('Reservation has expired. Please start over.');
     }
 
-    const unitPrice = Number(reservation.ticketTier.price);
+    const unitPrice = reservation.event.isFree ? 0 : Number(reservation.ticketTier.price);
     const subtotal = unitPrice * reservation.quantity;
-    // Per-event service fee. event.platformFee is configured in pesos (e.g. 50);
-    // money columns (subtotal/fees/total) are stored in centavos, so convert.
-    const fees = Math.round(Number(reservation.event.platformFee ?? 50) * 100);
+    const fees = reservation.event.isFree ? 0 : Number(reservation.event.platformFee ?? 50);
     const total = subtotal + fees;
 
     // Run the critical section in a DB transaction with row-level lock

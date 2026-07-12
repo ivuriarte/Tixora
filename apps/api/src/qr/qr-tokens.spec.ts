@@ -3,6 +3,7 @@
  * Tests the HMAC-signed token utilities from @axon-tickets/utils
  * used by the check-in flow (Phase 6).
  */
+import { createHmac } from 'crypto';
 import {
   generateQrToken,
   verifyQrToken,
@@ -81,7 +82,6 @@ describe('U-26: verifyAttendeeQrToken — invalid/tampered tokens', () => {
     // Build a token whose payload is missing attendeeId
     const badPayload = { registrationId: 'reg_02', eventId: 'evt_02' };
     const data = Buffer.from(JSON.stringify(badPayload)).toString('base64url');
-    const { createHmac } = require('crypto');
     const sig = createHmac('sha256', SECRET).update(data).digest('base64url');
     expect(verifyAttendeeQrToken(`${data}.${sig}`, SECRET)).toBeNull();
   });
@@ -121,7 +121,6 @@ describe('U-27: generateQrToken + verifyQrToken round-trip', () => {
   });
 
   it('verifyQrToken returns null when a required field is absent', () => {
-    const { createHmac } = require('crypto');
     const badPayload = { ticketId: 'tkt_01', userId: 'usr_01', eventId: 'evt_01' }; // missing tierId
     const data = Buffer.from(JSON.stringify(badPayload)).toString('base64url');
     const sig = createHmac('sha256', SECRET).update(data).digest('base64url');

@@ -1,6 +1,6 @@
 # UAT Acceptance Scenarios — Phase 7
 
-**Purpose:** 10 manual test scenarios covering every critical user journey and system behavior.
+**Purpose:** 14 manual test scenarios covering every critical user journey and system behavior.
 
 **Run these in order.** Each scenario is self-contained but builds on previous setup.
 
@@ -345,6 +345,61 @@
 
 ---
 
+## UAT-11: Referral Codes, Pricing Integrity, and Concurrency
+
+**Objective:** Verify organizers can manage event-scoped referral codes and that the API remains the pricing authority.
+
+**Steps:**
+
+1. Create percentage and fixed-amount codes for one UAT event.
+2. Test valid, inactive, expired, not-yet-active, wrong-tier, and exhausted codes.
+3. Confirm the discount appears consistently in registration review, admin detail, user detail, and exported usage CSV.
+4. Modify the browser request to submit a different discount value; confirm the server ignores it and recalculates from the stored code.
+5. Set `maxUses = 1` and submit two registrations concurrently with the same code.
+6. Confirm only one redemption succeeds and one immutable usage record exists.
+
+**Expected Outcome:** ✅ Correct discounts, no client-side price authority, no over-redemption, and event ownership enforced.
+
+## UAT-12: Required Attendee Demographics and Privacy
+
+**Objective:** Verify birthday, gender, and city are collected consistently without exposing attendee-level data outside authorized views.
+
+**Steps:**
+
+1. Complete new-account onboarding and solo/group registration with all required fields.
+2. Verify blank city, future birthday, implausibly old birthday, and unsupported gender values are rejected.
+3. Edit a pending registration and confirm demographic validation remains enforced.
+4. Confirm the lead attendee values update the account profile.
+5. Verify exports are restricted to authorized event managers and public pages expose no demographic data.
+
+**Expected Outcome:** ✅ Valid demographics persist consistently; invalid values and unauthorized disclosure are blocked.
+
+## UAT-13: Sponsor Presentation and Upload Safety
+
+**Objective:** Verify enhanced sponsor content is usable, responsive, and safe.
+
+**Steps:**
+
+1. Add sponsor name, tier, description, HTTPS website, visibility, and JPG/PNG/WebP logo.
+2. Confirm SVG, oversized files, non-image content, and non-HTTPS links are rejected.
+3. Verify tier ordering, hidden sponsors, external-link behavior, alt text, and mobile layout.
+4. Temporarily use an unavailable external image and confirm the page remains usable.
+
+**Expected Outcome:** ✅ Sponsor cards render correctly without unsafe uploads or breaking the event page.
+
+## UAT-14: Flexible Event Sections
+
+**Objective:** Verify event details are no longer limited to conference-style content.
+
+**Steps:**
+
+1. Add, edit, reorder, hide, and remove multiple custom sections.
+2. Add an optional HTTPS image and verify image alt text is required.
+3. Confirm saved order and visibility on desktop and mobile public event pages.
+4. Confirm existing speaker, agenda, sponsor, and FAQ data still renders after editing the event.
+
+**Expected Outcome:** ✅ Custom sections preserve order and accessibility while legacy event content remains compatible.
+
 ## Quick Test Checklist
 
 Copy and paste for your testing session:
@@ -363,6 +418,10 @@ Tester: [NAME]
 - [ ] UAT-08: Data isolation (no UAT data in prod)
 - [ ] UAT-09: Reset + reseed test
 - [ ] UAT-10: Stakeholder review + sign-off
+- [ ] UAT-11: Referral pricing, authorization, and concurrent redemption
+- [ ] UAT-12: Demographic validation and privacy boundaries
+- [ ] UAT-13: Sponsor presentation and upload safety
+- [ ] UAT-14: Flexible custom event sections
 
 All PASS: [ ] Ready for production
 Issues: [List any]

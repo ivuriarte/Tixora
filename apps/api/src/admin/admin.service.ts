@@ -7,6 +7,7 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { Prisma } from '@prisma/client';
+import { EventAccessService } from '../common/services/event-access.service';
 import { EventsService } from '../events/events.service';
 import { TicketTiersService } from '../ticket-tiers/ticket-tiers.service';
 import { OrdersService } from '../orders/orders.service';
@@ -17,12 +18,16 @@ import { ConfigService } from '@nestjs/config';
 import { AuditService } from '../audit/audit.service';
 import { EmailService } from '../email/email.service';
 import { PDFDocument, PDFFont, PDFPage, StandardFonts, rgb } from 'pdf-lib';
+import { JwtPayload } from '@axon-tickets/types';
+import { CreateReferralCodeDto, UpdateReferralCodeDto } from './dto/referral-code.dto';
 
 interface NametagRow {
   id: string;
   name: string;
   company: string;
   position: string;
+  tierName: string;
+  inclusions: string[];
   createdAt: Date;
 }
 
@@ -32,6 +37,7 @@ export class AdminService {
 
   constructor(
     private readonly prisma: PrismaService,
+    private readonly eventAccess: EventAccessService,
     private readonly eventsService: EventsService,
     private readonly tiersService: TicketTiersService,
     private readonly ordersService: OrdersService,
@@ -39,6 +45,18 @@ export class AdminService {
     private readonly audit: AuditService,
     private readonly emailService: EmailService,
   ) {}
+
+  private eventOwnerWhere(user: JwtPayload): Prisma.EventWhereInput {
+    return this.eventAccess.eventOwnerWhere(user);
+  }
+
+  async assertEventAccess(eventId: string, user: JwtPayload): Promise<void> {
+    return this.eventAccess.assertEventAccess(eventId, user);
+  }
+
+  async assertRegistrationAccess(registrationId: string, user: JwtPayload): Promise<void> {
+    return this.eventAccess.assertRegistrationAccess(registrationId, user);
+  }
 
   // ── User Management ────────────────────────────────────────────────────
 
@@ -76,16 +94,33 @@ export class AdminService {
 
   // ── Events ──────────────────────────────────────────────────────────────
 
-  async createEvent(dto: CreateEventDto, adminId: string) {
-    return this.eventsService.create(dto, adminId);
+  async createEvent(dto: CreateEventDto, user: JwtPayload) {
+    const organizationId = user.isAdmin
+      ? undefined
+      : await this.getApprovedOrganizationIdForUser(user.sub);
+    return this.eventsService.create(dto, user.sub, organizationId);
   }
 
-  async getEvent(id: string) {
-    const event = await this.prisma.event.findUnique({
-      where: { id },
+  private async getApprovedOrganizationIdForUser(userId: string): Promise<string> {
+    const membership = await this.prisma.organizationMember.findFirst({
+      where: {
+        userId,
+        organization: { approvalStatus: 'approved' },
+      },
+      orderBy: [{ role: 'asc' }, { createdAt: 'asc' }],
+      select: { organizationId: true },
+    });
+    if (!membership) throw new BadRequestException('Approved organizer account required to create events');
+    return membership.organizationId;
+  }
+
+  async getEvent(id: string, user: JwtPayload) {
+    const event = await this.prisma.event.findFirst({
+      where: { id, ...this.eventOwnerWhere(user) },
       include: {
         tiers: {
           orderBy: { sortOrder: 'asc' },
+          include: { inclusions: { orderBy: { sortOrder: 'asc' } } },
         },
       },
     });
@@ -94,13 +129,14 @@ export class AdminService {
     return { ...event, tiers };
   }
 
-  async updateEvent(id: string, dto: UpdateEventDto, adminId: string) {
+  async updateEvent(id: string, dto: UpdateEventDto, user: JwtPayload) {
+    await this.assertEventAccess(id, user);
     const updated = await this.eventsService.update(id, dto);
     await this.audit.log({
       action: 'EVENT_UPDATED',
       entityType: 'Event',
       entityId: id,
-      performedById: adminId,
+      performedById: user.sub,
       metadata: Object.fromEntries(
         Object.entries(dto).filter(([, v]) => v !== undefined),
       ) as Record<string, unknown>,
@@ -108,8 +144,174 @@ export class AdminService {
     return updated;
   }
 
-  async deleteEvent(id: string) {
-    const event = await this.prisma.event.findUnique({ where: { id }, select: { id: true } });
+  async listReferralCodes(eventId: string, user: JwtPayload) {
+    await this.assertEventAccess(eventId, user);
+    const [codes, usageTotals] = await Promise.all([
+      this.prisma.referralCode.findMany({
+        where: { eventId, deletedAt: null },
+        orderBy: { createdAt: 'desc' },
+        include: { _count: { select: { usages: true } } },
+      }),
+      this.prisma.referralCodeUsage.groupBy({
+        by: ['referralCodeId'],
+        where: { referralCode: { eventId, deletedAt: null } },
+        _sum: { attendeeCount: true, discountAmount: true },
+      }),
+    ]);
+    const totalsByCode = new Map(usageTotals.map((total) => [total.referralCodeId, total._sum]));
+    return codes.map((code) => ({
+      id: code.id,
+      code: code.code,
+      name: code.name,
+      discountType: code.discountType,
+      discountValue: Number(code.discountValue),
+      isActive: code.isActive,
+      maxUses: code.maxUses,
+      validFrom: code.validFrom?.toISOString() ?? null,
+      validUntil: code.validUntil?.toISOString() ?? null,
+      applicableTierIds: Array.isArray(code.applicableTierIds) ? code.applicableTierIds : [],
+      usageCount: code._count.usages,
+      attendeeCount: totalsByCode.get(code.id)?.attendeeCount ?? 0,
+      totalDiscount: Number(totalsByCode.get(code.id)?.discountAmount ?? 0),
+      createdAt: code.createdAt.toISOString(),
+    }));
+  }
+
+  async createReferralCode(eventId: string, dto: CreateReferralCodeDto, user: JwtPayload) {
+    await this.assertEventAccess(eventId, user);
+    const code = dto.code.trim().toUpperCase();
+    if (dto.discountType === 'percentage' && dto.discountValue > 100) {
+      throw new BadRequestException('Percentage discount cannot exceed 100%.');
+    }
+    if (dto.validFrom && dto.validUntil && new Date(dto.validUntil) <= new Date(dto.validFrom)) {
+      throw new BadRequestException('Validity end must be after its start.');
+    }
+    if (dto.applicableTierIds?.length) {
+      const count = await this.prisma.ticketTier.count({
+        where: { eventId, id: { in: dto.applicableTierIds } },
+      });
+      if (count !== new Set(dto.applicableTierIds).size) {
+        throw new BadRequestException('One or more selected ticket tiers do not belong to this event.');
+      }
+    }
+    try {
+      const created = await this.prisma.referralCode.create({
+        data: {
+          eventId,
+          code,
+          name: dto.name.trim(),
+          discountType: dto.discountType,
+          discountValue: dto.discountValue,
+          maxUses: dto.maxUses ?? null,
+          validFrom: dto.validFrom ? new Date(dto.validFrom) : null,
+          validUntil: dto.validUntil ? new Date(dto.validUntil) : null,
+          applicableTierIds: dto.applicableTierIds ?? Prisma.JsonNull,
+          createdById: user.sub,
+        },
+      });
+      await this.audit.log({
+        action: 'REFERRAL_CODE_CREATED',
+        entityType: 'ReferralCode',
+        entityId: created.id,
+        performedById: user.sub,
+        metadata: { eventId, code, discountType: dto.discountType },
+      });
+      return created;
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+        throw new ConflictException('That referral code already exists for this event.');
+      }
+      throw error;
+    }
+  }
+
+  async setReferralCodeStatus(eventId: string, codeId: string, isActive: boolean, user: JwtPayload) {
+    await this.assertEventAccess(eventId, user);
+    const existing = await this.prisma.referralCode.findFirst({ where: { id: codeId, eventId } });
+    if (!existing) throw new NotFoundException('Referral code not found');
+    const updated = await this.prisma.referralCode.update({
+      where: { id: codeId },
+      data: { isActive, deactivatedAt: isActive ? null : new Date() },
+    });
+    await this.audit.log({
+      action: isActive ? 'REFERRAL_CODE_ACTIVATED' : 'REFERRAL_CODE_DEACTIVATED',
+      entityType: 'ReferralCode',
+      entityId: codeId,
+      performedById: user.sub,
+      metadata: { eventId, code: existing.code },
+    });
+    return updated;
+  }
+
+  async updateReferralCode(eventId: string, codeId: string, dto: UpdateReferralCodeDto, user: JwtPayload) {
+    await this.assertEventAccess(eventId, user);
+    const existing = await this.prisma.referralCode.findFirst({ where: { id: codeId, eventId, deletedAt: null } });
+    if (!existing) throw new NotFoundException('Referral code not found');
+    if (dto.validFrom && dto.validUntil && new Date(dto.validUntil) <= new Date(dto.validFrom)) {
+      throw new BadRequestException('Validity end must be after its start.');
+    }
+    const data: Prisma.ReferralCodeUpdateInput = {};
+    if (dto.name !== undefined) data.name = dto.name.trim();
+    if ('maxUses' in dto) data.maxUses = dto.maxUses ?? null;
+    if ('validFrom' in dto) data.validFrom = dto.validFrom ? new Date(dto.validFrom) : null;
+    if ('validUntil' in dto) data.validUntil = dto.validUntil ? new Date(dto.validUntil) : null;
+    const updated = await this.prisma.referralCode.update({ where: { id: codeId }, data });
+    await this.audit.log({
+      action: 'REFERRAL_CODE_UPDATED',
+      entityType: 'ReferralCode',
+      entityId: codeId,
+      performedById: user.sub,
+      metadata: { eventId, code: existing.code, changes: dto },
+    });
+    return updated;
+  }
+
+  async deleteReferralCode(eventId: string, codeId: string, user: JwtPayload) {
+    await this.assertEventAccess(eventId, user);
+    const existing = await this.prisma.referralCode.findFirst({ where: { id: codeId, eventId, deletedAt: null } });
+    if (!existing) throw new NotFoundException('Referral code not found');
+    // Soft-delete: mark as deleted and inactive so no new registrations can use it.
+    // Existing ReferralCodeUsage rows (and their discountAmount) are preserved untouched,
+    // so every attendee who already used this code keeps their discount.
+    await this.prisma.referralCode.update({
+      where: { id: codeId },
+      data: { deletedAt: new Date(), isActive: false, deactivatedAt: new Date() },
+    });
+    await this.audit.log({
+      action: 'REFERRAL_CODE_DELETED',
+      entityType: 'ReferralCode',
+      entityId: codeId,
+      performedById: user.sub,
+      metadata: { eventId, code: existing.code },
+    });
+    return { deleted: true };
+  }
+
+  async exportReferralCodes(eventId: string, user: JwtPayload): Promise<string> {
+    await this.assertEventAccess(eventId, user);
+    const usages = await this.prisma.referralCodeUsage.findMany({
+      where: { referralCode: { eventId } },
+      orderBy: { createdAt: 'desc' },
+      include: {
+        referralCode: { select: { code: true, name: true } },
+        registration: { select: { referenceNumber: true, tierName: true, total: true } },
+      },
+    });
+    const header = 'Code,Name,Registration,Tier,Attendees,Discount (PHP),Final Total (PHP),Used At\n';
+    return header + usages.map((usage) => [
+      this.escapeCsvCell(usage.referralCode.code),
+      `"${this.escapeCsvCell(usage.referralCode.name)}"`,
+      this.escapeCsvCell(usage.registration.referenceNumber),
+      `"${this.escapeCsvCell(usage.registration.tierName ?? '')}"`,
+      usage.attendeeCount,
+      Number(usage.discountAmount).toFixed(2),
+      Number(usage.registration.total).toFixed(2),
+      usage.createdAt.toISOString(),
+    ].join(',')).join('\n');
+  }
+
+  async deleteEvent(id: string, user: JwtPayload) {
+    const event = await this.prisma.event.findFirst({ where: { id, ...this.eventOwnerWhere(user) }, select: { id: true } });
     if (!event) throw new NotFoundException('Event not found');
 
     // Single transaction: remove all dependents without a prior findMany round-trip
@@ -122,17 +324,23 @@ export class AdminService {
     return this.prisma.event.delete({ where: { id } });                  // cascades TicketTiers, EventViews
   }
 
-  async listEvents(page = 1, limit = 20) {
+  async listEvents(user: JwtPayload, page = 1, limit = 20, organizationId?: string) {
     await this.eventsService.autoCompleteExpiredEvents();
     const skip = (page - 1) * limit;
+    const where: Prisma.EventWhereInput = {
+      ...this.eventOwnerWhere(user),
+      ...(user.isAdmin && organizationId ? { organizationId } : {}),
+    };
     const [total, events] = await Promise.all([
-      this.prisma.event.count(),
+      this.prisma.event.count({ where }),
       this.prisma.event.findMany({
+        where,
         skip,
         take: limit,
         orderBy: { createdAt: 'desc' },
         include: {
           _count: { select: { tickets: true, orders: true } },
+          organization: { select: { id: true, name: true } },
           tiers: { select: { id: true, name: true, price: true, totalQuantity: true, soldQuantity: true } },
         },
       }),
@@ -153,10 +361,14 @@ export class AdminService {
         city: e.city,
         startsAt: e.startsAt.toISOString(),
         status: e.status,
-        maxCapacity: (e as any).maxCapacity ?? null,
+        isFree: e.isFree,
+        organization: e.organization ? { id: e.organization.id, name: e.organization.name } : null,
+        maxCapacity: e.maxCapacity ?? null,
         ticketsSold: tiersByEvent[index].reduce((sum, tier) => sum + tier.soldQuantity, 0),
         ordersCount: e._count.orders,
-        lowestPrice: e.tiers.length > 0
+        lowestPrice: e.isFree
+          ? 0
+          : e.tiers.length > 0
           ? Math.min(...e.tiers.map((t: (typeof e.tiers)[number]) => Number(t.price)))
           : null,
         tiers: tiersByEvent[index].map((t) => ({
@@ -179,22 +391,30 @@ export class AdminService {
 
   // ── Tiers ──────────────────────────────────────────────────────────────
 
-  async createTier(eventId: string, dto: CreateTierDto) {
+  async createTier(eventId: string, dto: CreateTierDto, user: JwtPayload) {
+    await this.assertEventAccess(eventId, user);
     return this.tiersService.create(eventId, dto);
   }
 
-  async updateTier(tierId: string, dto: UpdateTierDto) {
+  async updateTier(tierId: string, dto: UpdateTierDto, user: JwtPayload) {
+    const tier = await this.prisma.ticketTier.findUnique({ where: { id: tierId }, select: { eventId: true } });
+    if (!tier) throw new NotFoundException('Ticket tier not found');
+    await this.assertEventAccess(tier.eventId, user);
     return this.tiersService.update(tierId, dto);
   }
 
-  async deleteTier(tierId: string) {
+  async deleteTier(tierId: string, user: JwtPayload) {
+    const tier = await this.prisma.ticketTier.findUnique({ where: { id: tierId }, select: { eventId: true } });
+    if (!tier) throw new NotFoundException('Ticket tier not found');
+    await this.assertEventAccess(tier.eventId, user);
     return this.tiersService.delete(tierId);
   }
 
   // ── Orders ──────────────────────────────────────────────────────────────
 
-  async listOrders(eventId?: string, status?: string, page = 1, limit = 20) {
+  async listOrders(user: JwtPayload, eventId?: string, status?: string, page = 1, limit = 20) {
     const skip = (page - 1) * limit;
+    if (eventId) await this.assertEventAccess(eventId, user);
 
     // Map a single UI status value to the corresponding DB values for each table.
     const VALID_STATUSES = ['pending', 'paid', 'failed', 'refunded', 'cancelled'] as const;
@@ -222,38 +442,43 @@ export class AdminService {
 
     const orderWhere = {
       ...(eventId ? { eventId } : {}),
-      ...(orderStatusFilter ? { status: { in: orderStatusFilter as any } } : {}),
+      ...(!user.isAdmin ? { event: this.eventOwnerWhere(user) } : {}),
+      ...(orderStatusFilter ? { status: { in: orderStatusFilter as Prisma.EnumOrderStatusFilter['in'] } } : {}),
     };
 
     const regWhere = {
       ...(eventId ? { eventId } : {}),
+      ...(!user.isAdmin ? { event: this.eventOwnerWhere(user) } : {}),
       ...(regStatusFilter && regStatusFilter.length
-        ? { status: { in: regStatusFilter as any } }
+        ? { status: { in: regStatusFilter as Prisma.EnumRegistrationStatusFilter['in'] } }
         : {}),
     };
 
     // Skip the registration query entirely when the status filter has no registration equivalent.
     const includeRegs = !safeStatus || (regStatusFilter && regStatusFilter.length > 0);
 
+    const regQuery = this.prisma.registration.findMany({
+      where: regWhere,
+      orderBy: { createdAt: 'desc' },
+      take: 2_000,
+      include: {
+        user: { select: { email: true, firstName: true, lastName: true } },
+        event: { select: { title: true, slug: true } },
+      },
+    });
+    type RegRow = Awaited<typeof regQuery>[number];
+
     const [orders, registrations] = await Promise.all([
       this.prisma.order.findMany({
         where: orderWhere,
         orderBy: { createdAt: 'desc' },
+        take: 2_000,
         include: {
           user: { select: { email: true, firstName: true, lastName: true } },
           event: { select: { title: true, slug: true } },
         },
       }),
-      includeRegs
-        ? this.prisma.registration.findMany({
-            where: regWhere,
-            orderBy: { createdAt: 'desc' },
-            include: {
-              user: { select: { email: true, firstName: true, lastName: true } },
-              event: { select: { title: true, slug: true } },
-            },
-          })
-        : Promise.resolve([] as any[]),
+      includeRegs ? regQuery : Promise.resolve([] as RegRow[]),
     ]);
 
     type NormalizedRow = {
@@ -284,7 +509,7 @@ export class AdminService {
       createdAt: o.createdAt,
     }));
 
-    const normalizedRegs: NormalizedRow[] = registrations.map((r: any) => ({
+    const normalizedRegs: NormalizedRow[] = registrations.map((r) => ({
       id: r.id,
       source: 'registration',
       reference: r.referenceNumber,
@@ -321,9 +546,9 @@ export class AdminService {
     };
   }
 
-  async getOrder(orderId: string) {
-    const order = await this.prisma.order.findUnique({
-      where: { id: orderId },
+  async getOrder(orderId: string, user: JwtPayload) {
+    const order = await this.prisma.order.findFirst({
+      where: { id: orderId, ...(!user.isAdmin ? { event: this.eventOwnerWhere(user) } : {}) },
       include: {
         user: { select: { id: true, email: true, firstName: true, lastName: true } },
         event: { select: { id: true, title: true, slug: true, startsAt: true, venue: true } },
@@ -366,9 +591,9 @@ export class AdminService {
     };
   }
 
-  async resendTicket(orderId: string) {
-    const order = await this.prisma.order.findUnique({
-      where: { id: orderId },
+  async resendTicket(orderId: string, user: JwtPayload) {
+    const order = await this.prisma.order.findFirst({
+      where: { id: orderId, ...(!user.isAdmin ? { event: this.eventOwnerWhere(user) } : {}) },
       include: {
         user: { select: { email: true, firstName: true, lastName: true } },
         event: { select: { title: true, startsAt: true, venue: true } },
@@ -607,12 +832,30 @@ export class AdminService {
 
     if (q?.trim()) {
       const term = q.trim();
-      where.OR = [
+      const parts = term.split(/\s+/).filter(Boolean);
+      const orClauses: Prisma.AttendeeWhereInput[] = [
         { firstName: { contains: term, mode: 'insensitive' } },
         { lastName: { contains: term, mode: 'insensitive' } },
         { email: { contains: term, mode: 'insensitive' } },
         { registration: { referenceNumber: { contains: term, mode: 'insensitive' } } },
       ];
+      if (parts.length >= 2) {
+        // "First Last" → firstName contains first word, lastName contains rest
+        orClauses.push({
+          AND: [
+            { firstName: { contains: parts[0], mode: 'insensitive' } },
+            { lastName: { contains: parts.slice(1).join(' '), mode: 'insensitive' } },
+          ],
+        } as Prisma.AttendeeWhereInput);
+        // "First Middle Last" → firstName contains all but last, lastName contains last
+        orClauses.push({
+          AND: [
+            { firstName: { contains: parts.slice(0, -1).join(' '), mode: 'insensitive' } },
+            { lastName: { contains: parts[parts.length - 1], mode: 'insensitive' } },
+          ],
+        } as Prisma.AttendeeWhereInput);
+      }
+      where.OR = orClauses;
     }
 
     const [total, attendees] = await Promise.all([
@@ -760,6 +1003,7 @@ export class AdminService {
       this.prisma.attendee.findMany({
         where: attendeeWhere,
         orderBy: { createdAt: 'desc' },
+        take: 2_000,
         include: {
           registration: { select: { tierName: true, paymentMethod: true, status: true } },
         },
@@ -767,6 +1011,7 @@ export class AdminService {
       this.prisma.ticket.findMany({
         where: ticketWhere,
         orderBy: { createdAt: 'desc' },
+        take: 2_000,
         include: {
           user: { select: { email: true, firstName: true, lastName: true, company: true, jobTitle: true, city: true, phone: true } },
           ticketTier: { select: { name: true } },
@@ -824,7 +1069,8 @@ export class AdminService {
 
   // ── Analytics ──────────────────────────────────────────────────────────
 
-  async getEventAnalytics(eventId: string) {
+  async getEventAnalytics(eventId: string, user: JwtPayload) {
+    await this.assertEventAccess(eventId, user);
     const [
       event,
       orderRevenueStats,
@@ -951,9 +1197,8 @@ export class AdminService {
    * P7 — Daily revenue + sales timeline for an event (last N days).
    * Returns one row per calendar day in the requested range.
    */
-  async getEventTimeline(eventId: string, days = 14) {
-    const event = await this.prisma.event.findUnique({ where: { id: eventId }, select: { id: true } });
-    if (!event) throw new NotFoundException('Event not found');
+  async getEventTimeline(eventId: string, user: JwtPayload, days = 14) {
+    await this.assertEventAccess(eventId, user);
 
     const safeDays = Math.min(Math.max(1, days), 90);
     const since = new Date();
@@ -1019,9 +1264,9 @@ export class AdminService {
     };
   }
 
-  async getEventFunnel(eventId: string) {
-    const event = await this.prisma.event.findUnique({
-      where: { id: eventId },
+  async getEventFunnel(eventId: string, user: JwtPayload) {
+    const event = await this.prisma.event.findFirst({
+      where: { id: eventId, ...this.eventOwnerWhere(user) },
       select: { id: true, title: true, slug: true },
     });
     if (!event) throw new NotFoundException('Event not found');
@@ -1143,24 +1388,26 @@ export class AdminService {
 
   // ── Manual Payment Confirmation ────────────────────────────────────────
 
-  async manualConfirmPayment(orderId: string, adminId: string) {
-    const order = await this.prisma.order.findUnique({ where: { id: orderId } });
+  async manualConfirmPayment(orderId: string, user: JwtPayload) {
+    const order = await this.prisma.order.findFirst({
+      where: { id: orderId, ...(!user.isAdmin ? { event: this.eventOwnerWhere(user) } : {}) },
+    });
     if (!order) throw new NotFoundException('Order not found');
     if (order.status === 'paid') throw new BadRequestException('Order is already paid');
 
     // Reuse the same confirmPayment logic (generates QR tickets + sends email)
-    await this.ordersService.confirmPayment(orderId, `manual:${adminId}`);
+    await this.ordersService.confirmPayment(orderId, `manual:${user.sub}`);
 
     // Record audit trail
     await this.prisma.order.update({
       where: { id: orderId },
       data: {
-        confirmedByAdminId: adminId,
+        confirmedByAdminId: user.sub,
         confirmedAt: new Date(),
       },
     });
 
-    this.logger.log({ msg: 'Order manually confirmed by admin', orderId, adminId });
+    this.logger.log({ msg: 'Order manually confirmed by admin', orderId, adminId: user.sub });
     return { confirmed: true, orderId };
   }
 
@@ -1175,10 +1422,12 @@ export class AdminService {
     return value;
   }
 
-  async exportOrders(eventId?: string): Promise<string> {
+  async exportOrders(user: JwtPayload, eventId?: string): Promise<string> {
+    if (eventId) await this.assertEventAccess(eventId, user);
+    const ownershipFilter = !user.isAdmin ? { event: this.eventOwnerWhere(user) } : {};
     const [orders, registrations] = await Promise.all([
       this.prisma.order.findMany({
-        where: eventId ? { eventId } : {},
+        where: { ...(eventId ? { eventId } : {}), ...ownershipFilter },
         orderBy: { createdAt: 'desc' },
         include: {
           user: { select: { email: true, firstName: true, lastName: true, company: true, jobTitle: true, city: true } },
@@ -1189,6 +1438,7 @@ export class AdminService {
       this.prisma.registration.findMany({
         where: {
           ...(eventId ? { eventId } : {}),
+          ...ownershipFilter,
           status: 'verified',
         },
         orderBy: { createdAt: 'desc' },
@@ -1200,7 +1450,7 @@ export class AdminService {
       }),
     ]);
 
-    const header = 'Source,Reference,Event,Buyer Name,Email,Company,Job Title,City,Status,Tier,Qty,Total (PHP),Payment Method,Created At\n';
+    const header = 'Source,Reference,Event,Buyer Name,Email,Company,Job Title,City,Status,Tier,Qty,Subtotal (PHP),Discount (PHP),Referral Code,Total (PHP),Payment Method,Created At\n';
 
     const orderRows = orders.map((o: (typeof orders)[number]) => {
       const tierNames = o.items.map((i: (typeof o.items)[number]) => `${i.ticketTier.name} x${i.quantity}`).join(' | ');
@@ -1217,7 +1467,10 @@ export class AdminService {
         o.status,
         `"${this.escapeCsvCell(tierNames)}"`,
         qty,
-        (Number(o.total) / 100).toFixed(2),
+        Number(o.subtotal).toFixed(2),
+        '0.00',
+        '',
+        Number(o.total).toFixed(2),
         o.paymentMethod ?? '',
         o.createdAt.toISOString(),
       ].join(',');
@@ -1235,7 +1488,10 @@ export class AdminService {
       'paid',
       `"${this.escapeCsvCell(r.tierName ?? 'Registration')}"`,
       r.attendeeCount,
-      (Number(r.total) / 100).toFixed(2),
+      Number(r.subtotal).toFixed(2),
+      Number(r.discount).toFixed(2),
+      this.escapeCsvCell((r.referralCodeSnapshot as any)?.code ?? ''),
+      Number(r.total).toFixed(2),
       r.paymentMethod ?? '',
       r.createdAt.toISOString(),
     ].join(','));
@@ -1261,6 +1517,8 @@ export class AdminService {
             tierName: true,
             paymentMethod: true,
             status: true,
+            discount: true,
+            referralCodeSnapshot: true,
             user: { select: { city: true } },
           },
         },
@@ -1278,23 +1536,29 @@ export class AdminService {
       },
     });
 
-    const header = 'ID,Name,Email,Phone,Company,Job Title,City,Tier,Payment Status,Payment Method,Checked In,Checked In At\n';
+    const header = 'ID,Name,Email,Phone,Company,Job Title,Birthday,Gender,City,Tier,Payment Status,Payment Method,Discount (PHP),Referral Code,Checked In,Checked In At\n';
 
-    const attendeeRows = attendees.map((a) => [
-      a.id,
-      `"${this.escapeCsvCell(`${a.firstName} ${a.lastName}`)}"`,
-      this.escapeCsvCell(a.email),
-      this.escapeCsvCell(a.phone ?? ''),
-      `"${this.escapeCsvCell(a.company ?? '')}"`,
-      `"${this.escapeCsvCell(a.jobTitle ?? '')}"`,
-      `"${this.escapeCsvCell(a.registration.user?.city ?? '')}"`,
-      `"${this.escapeCsvCell(a.registration.tierName ?? 'Registration')}"`,
-
-      a.registration.status === 'verified' ? 'paid' : 'pending',
-      this.escapeCsvCell(a.registration.paymentMethod ?? ''),
-      a.checkedInAt ? 'Yes' : 'No',
-      a.checkedInAt?.toISOString() ?? '',
-    ].join(','));
+    const attendeeRows = attendees.map((a) => {
+      const referralCode = (a.registration.referralCodeSnapshot as { code?: string } | null)?.code ?? '';
+      return [
+        a.id,
+        `"${this.escapeCsvCell(`${a.firstName} ${a.lastName}`)}"`,
+        this.escapeCsvCell(a.email),
+        this.escapeCsvCell(a.phone ?? ''),
+        `"${this.escapeCsvCell(a.company ?? '')}"`,
+        `"${this.escapeCsvCell(a.jobTitle ?? '')}"`,
+        a.birthday?.toISOString().slice(0, 10) ?? '',
+        this.escapeCsvCell(a.gender ?? ''),
+        `"${this.escapeCsvCell(a.city ?? a.registration.user?.city ?? '')}"`,
+        `"${this.escapeCsvCell(a.registration.tierName ?? 'Registration')}"`,
+        a.registration.status === 'verified' ? 'paid' : 'pending',
+        this.escapeCsvCell(a.registration.paymentMethod ?? ''),
+        Number(a.registration.discount).toFixed(2),
+        this.escapeCsvCell(referralCode),
+        a.checkedInAt ? 'Yes' : 'No',
+        a.checkedInAt?.toISOString() ?? '',
+      ].join(',');
+    });
 
     const ticketRows = tickets.map((t) => [
       t.id,
@@ -1303,6 +1567,8 @@ export class AdminService {
       this.escapeCsvCell(t.user.phone ?? ''),
       `"${this.escapeCsvCell(t.user.company ?? '')}"`,
       `"${this.escapeCsvCell(t.user.jobTitle ?? '')}"`,
+      '',
+      '',
       `"${this.escapeCsvCell(t.user.city ?? '')}"`,
       `"${this.escapeCsvCell(t.ticketTier.name)}"`,
       t.order?.status ?? '',
@@ -1331,6 +1597,23 @@ export class AdminService {
           registration: { eventId, status: 'verified' },
         },
         orderBy: { createdAt: 'asc' },
+        include: {
+          registration: {
+            select: {
+              tierName: true,
+              tier: {
+                select: {
+                  name: true,
+                  inclusions: {
+                    where: { stubEnabled: true },
+                    orderBy: { sortOrder: 'asc' },
+                    select: { label: true },
+                  },
+                },
+              },
+            },
+          },
+        },
       }),
       this.prisma.ticket.findMany({
         where: {
@@ -1348,6 +1631,16 @@ export class AdminService {
               jobTitle: true,
             },
           },
+          ticketTier: {
+            select: {
+              name: true,
+              inclusions: {
+                where: { stubEnabled: true },
+                orderBy: { sortOrder: 'asc' },
+                select: { label: true },
+              },
+            },
+          },
         },
       }),
     ]);
@@ -1358,6 +1651,8 @@ export class AdminService {
         name: this.compactName(a.firstName, a.lastName),
         company: a.company?.trim() ?? '',
         position: a.jobTitle?.trim() ?? '',
+        tierName: a.registration.tier?.name ?? a.registration.tierName ?? '',
+        inclusions: (a.registration.tier?.inclusions ?? []).map((item) => item.label),
         createdAt: a.createdAt,
       })),
       ...tickets.map((t) => ({
@@ -1365,6 +1660,8 @@ export class AdminService {
         name: this.compactName(t.user.firstName, t.user.lastName),
         company: t.user.company?.trim() ?? '',
         position: t.user.jobTitle?.trim() ?? '',
+        tierName: t.ticketTier.name,
+        inclusions: t.ticketTier.inclusions.map((item) => item.label),
         createdAt: t.createdAt,
       })),
     ].sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
@@ -1403,7 +1700,7 @@ export class AdminService {
     const marginX = 0;
     const marginTop = 0;
     const printableRows = rows.length > 0 ? rows : [
-      { id: 'blank', name: '', company: '', position: '', createdAt: new Date() },
+      { id: 'blank', name: '', company: '', position: '', tierName: '', inclusions: [], createdAt: new Date() },
     ];
 
     printableRows.forEach((row, index) => {
@@ -1427,6 +1724,8 @@ export class AdminService {
         attendeeName: row.name,
         company: row.company,
         position: row.position,
+        tierName: row.tierName,
+        inclusions: row.inclusions,
         regularFont,
         boldFont,
       });
@@ -1446,6 +1745,8 @@ export class AdminService {
       attendeeName: string;
       company: string;
       position: string;
+      tierName: string;
+      inclusions: string[];
       regularFont: PDFFont;
       boldFont: PDFFont;
     },
@@ -1459,6 +1760,8 @@ export class AdminService {
       attendeeName,
       company,
       position,
+      tierName,
+      inclusions,
       regularFont,
       boldFont,
     } = options;
@@ -1467,10 +1770,14 @@ export class AdminService {
     const contentWidth = width - safeMargin * 2;
     const name = attendeeName.trim().toUpperCase();
     const detailText = [position.trim(), company.trim()].filter(Boolean).join(' - ');
+    const tierText = tierName.trim();
+    const inclusionText = inclusions.map((item) => item.trim()).filter(Boolean).join('  |  ');
     const eventBaseline = y + height - safeMargin - 6;
-    const nameBandY = y + 41;
-    const nameBandHeight = 34;
-    const detailBaseline = y + 27;
+    const nameBandY = y + 52;
+    const nameBandHeight = 29;
+    const detailBaseline = y + 41;
+    const tierBaseline = y + 29;
+    const inclusionBaseline = y + 18;
     const footerBaseline = y + safeMargin - 1;
 
     page.drawRectangle({
@@ -1537,8 +1844,26 @@ export class AdminService {
       y: detailBaseline,
       width: contentWidth,
       font: regularFont,
-      size: 8,
+      size: 7.5,
       color: rgb(0.22, 0.26, 0.32),
+    });
+
+    this.drawCenteredText(page, tierText, {
+      x: contentX,
+      y: tierBaseline,
+      width: contentWidth,
+      font: boldFont,
+      size: 6.75,
+      color: rgb(0.36, 0.22, 0.75),
+    });
+
+    this.drawCenteredText(page, inclusionText, {
+      x: contentX,
+      y: inclusionBaseline,
+      width: contentWidth,
+      font: regularFont,
+      size: 6.25,
+      color: rgb(0.05, 0.43, 0.27),
     });
 
     this.drawCenteredText(page, 'Powered by Axon Tickets', {
@@ -1587,57 +1912,6 @@ export class AdminService {
     });
   }
 
-  private drawCenteredWrappedText(
-    page: PDFPage,
-    text: string,
-    options: {
-      x: number;
-      y: number;
-      width: number;
-      maxLines: number;
-      font: PDFFont;
-      size: number;
-      color: ReturnType<typeof rgb>;
-      lineHeight: number;
-    },
-  ) {
-    const lines = this.wrapText(text.trim(), options.font, options.size, options.width, options.maxLines);
-    lines.forEach((line, index) => {
-      this.drawCenteredText(page, line, {
-        x: options.x,
-        y: options.y - index * options.lineHeight,
-        width: options.width,
-        font: options.font,
-        size: options.size,
-        color: options.color,
-      });
-    });
-  }
-
-  private wrapText(text: string, font: PDFFont, size: number, maxWidth: number, maxLines: number) {
-    if (!text) return [''];
-    const words = text.split(/\s+/);
-    const lines: string[] = [];
-    let line = '';
-
-    words.forEach((word) => {
-      const candidate = line ? `${line} ${word}` : word;
-      if (font.widthOfTextAtSize(candidate, size) <= maxWidth) {
-        line = candidate;
-        return;
-      }
-      if (line) lines.push(line);
-      line = word;
-    });
-
-    if (line) lines.push(line);
-    const visible = lines.slice(0, maxLines);
-    if (lines.length > maxLines) {
-      visible[maxLines - 1] = this.truncateToWidth(`${visible[maxLines - 1]}...`, font, size, maxWidth);
-    }
-    return visible;
-  }
-
   private truncateToWidth(text: string, font: PDFFont, size: number, maxWidth: number) {
     if (font.widthOfTextAtSize(text, size) <= maxWidth) return text;
     let truncated = text;
@@ -1667,7 +1941,7 @@ export class AdminService {
     });
 
     const header =
-      'Reference,First Name,Last Name,Email,Phone,Tier,Qty,Status,Payment Method,Total (PHP),Registered At,Checked In,First Check-In At\n';
+      'Reference,First Name,Last Name,Email,Phone,Tier,Qty,Status,Payment Method,Subtotal (PHP),Discount (PHP),Referral Code,Total (PHP),Registered At,Checked In,First Check-In At\n';
 
     const rows = registrations.map((reg) => {
       const lead = reg.attendees.find((a) => a.isLead) ?? reg.attendees[0];
@@ -1676,6 +1950,7 @@ export class AdminService {
         .filter((a): a is typeof a & { checkedInAt: Date } => a.checkedInAt !== null)
         .sort((a, b) => a.checkedInAt.getTime() - b.checkedInAt.getTime())[0]
         ?.checkedInAt;
+      const referralCode = (reg.referralCodeSnapshot as { code?: string } | null)?.code ?? '';
 
       return [
         this.escapeCsvCell(reg.referenceNumber),
@@ -1687,7 +1962,10 @@ export class AdminService {
         reg.attendeeCount,
         reg.status,
         this.escapeCsvCell(reg.paymentMethod ?? ''),
-        reg.total.toString(),
+        Number(reg.subtotal).toFixed(2),
+        Number(reg.discount).toFixed(2),
+        this.escapeCsvCell(referralCode),
+        Number(reg.total).toFixed(2),
         reg.createdAt.toISOString(),
         `${checkedInCount}/${reg.attendeeCount}`,
         firstCheckedInAt?.toISOString() ?? '',
@@ -1699,7 +1977,7 @@ export class AdminService {
 
   // ── Dashboard Stats ─────────────────────────────────────────────────────
 
-  async getDashboardStats(eventId?: string) {
+  async getDashboardStats(user: JwtPayload, eventId?: string) {
     // Build an explicit eventId filter so every query uses a direct scalar
     // comparison rather than a relation-based filter, which is unambiguous.
     // For the global dashboard we resolve all completed-event IDs up front;
@@ -1707,10 +1985,11 @@ export class AdminService {
     let scopeFilter: { eventId: string } | { eventId: { in: string[] } };
 
     if (eventId) {
+      await this.assertEventAccess(eventId, user);
       scopeFilter = { eventId };
     } else {
       const completedEvents = await this.prisma.event.findMany({
-        where: { status: 'completed' },
+        where: { status: 'completed', ...this.eventOwnerWhere(user) },
         select: { id: true },
       });
       const ids = completedEvents.map((e) => e.id);
@@ -1777,5 +2056,381 @@ export class AdminService {
       totalCheckedIn: checkedInTickets + checkedInAttendees,
       grossRevenue,
     };
+  }
+
+  // ── Organizer Management ────────────────────────────────────────────────
+
+  async listOrganizers(status?: string, page = 1, limit = 20) {
+    const VALID_STATUSES = ['pending', 'approved', 'rejected', 'suspended', 'revoked'] as const;
+    const safeStatus = status && (VALID_STATUSES as readonly string[]).includes(status)
+      ? (status as (typeof VALID_STATUSES)[number])
+      : undefined;
+
+    const where = safeStatus ? { approvalStatus: safeStatus as any } : {};
+    const skip = (page - 1) * limit;
+
+    const [total, orgs] = await Promise.all([
+      this.prisma.organization.count({ where }),
+      this.prisma.organization.findMany({
+        where,
+        skip,
+        take: limit,
+        orderBy: { createdAt: 'desc' },
+        include: {
+          createdBy: { select: { id: true, email: true, firstName: true, lastName: true } },
+          approvedBy: { select: { id: true, email: true, firstName: true, lastName: true } },
+          _count: { select: { members: true } },
+        },
+      }),
+    ]);
+
+    return {
+      data: orgs.map((o) => ({
+        id: o.id,
+        name: o.name,
+        description: o.description,
+        website: o.website,
+        city: o.city,
+        approvalStatus: o.approvalStatus,
+        rejectionReason: o.rejectionReason,
+        createdBy: {
+          id: o.createdBy.id,
+          email: o.createdBy.email,
+          name: `${o.createdBy.firstName ?? ''} ${o.createdBy.lastName ?? ''}`.trim(),
+        },
+        approvedBy: o.approvedBy
+          ? { id: o.approvedBy.id, email: o.approvedBy.email }
+          : null,
+        approvedAt: o.approvedAt?.toISOString() ?? null,
+        rejectedAt: o.rejectedAt?.toISOString() ?? null,
+        memberCount: o._count.members,
+        createdAt: o.createdAt.toISOString(),
+      })),
+      meta: {
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit),
+        hasNextPage: page * limit < total,
+        hasPrevPage: page > 1,
+      },
+    };
+  }
+
+  async getOrganizer(id: string) {
+    const org = await this.prisma.organization.findUnique({
+      where: { id },
+      include: {
+        createdBy: { select: { id: true, email: true, firstName: true, lastName: true } },
+        approvedBy: { select: { id: true, email: true, firstName: true, lastName: true } },
+        members: {
+          include: {
+            user: { select: { id: true, email: true, firstName: true, lastName: true } },
+          },
+          orderBy: { createdAt: 'asc' },
+        },
+      },
+    });
+    if (!org) throw new NotFoundException('Organization not found');
+
+    return {
+      id: org.id,
+      name: org.name,
+      description: org.description,
+      contactName: org.contactName,
+      organizationType: org.organizationType,
+      registrationNumber: org.registrationNumber,
+      idType: org.idType,
+      idNumber: org.idNumber,
+      website: org.website,
+      facebookUrl: org.facebookUrl,
+      phone: org.phone,
+      city: org.city,
+      approvalStatus: org.approvalStatus,
+      rejectionReason: org.rejectionReason,
+      createdBy: {
+        id: org.createdBy.id,
+        email: org.createdBy.email,
+        name: `${org.createdBy.firstName ?? ''} ${org.createdBy.lastName ?? ''}`.trim(),
+      },
+      approvedBy: org.approvedBy
+        ? {
+            id: org.approvedBy.id,
+            email: org.approvedBy.email,
+            name: `${org.approvedBy.firstName ?? ''} ${org.approvedBy.lastName ?? ''}`.trim(),
+          }
+        : null,
+      approvedAt: org.approvedAt?.toISOString() ?? null,
+      rejectedAt: org.rejectedAt?.toISOString() ?? null,
+      members: org.members.map((m) => ({
+        id: m.id,
+        role: m.role,
+        user: {
+          id: m.user.id,
+          email: m.user.email,
+          name: `${m.user.firstName ?? ''} ${m.user.lastName ?? ''}`.trim(),
+        },
+        joinedAt: m.createdAt.toISOString(),
+      })),
+      createdAt: org.createdAt.toISOString(),
+      updatedAt: org.updatedAt.toISOString(),
+    };
+  }
+
+  async approveOrganizer(id: string, adminId: string) {
+    const org = await this.prisma.organization.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        approvalStatus: true,
+        name: true,
+        createdBy: { select: { email: true, firstName: true } },
+      },
+    });
+    if (!org) throw new NotFoundException('Organization not found');
+    if (org.approvalStatus === 'approved') {
+      throw new BadRequestException('Organization is already approved');
+    }
+
+    const updated = await this.prisma.organization.update({
+      where: { id },
+      data: {
+        approvalStatus: 'approved',
+        approvedById: adminId,
+        approvedAt: new Date(),
+        rejectedAt: null,
+        rejectionReason: null,
+      },
+      select: { id: true, name: true, approvalStatus: true, approvedAt: true },
+    });
+
+    await this.audit.log({
+      action: 'ORGANIZER_APPROVED',
+      entityType: 'Organization',
+      entityId: id,
+      performedById: adminId,
+      metadata: { organizationName: org.name },
+    });
+
+    const webUrl = this.config.get<string>('webUrl') ?? 'https://axontickets.online';
+    await this.emailService.sendOrganizerApprovedEmail(
+      org.createdBy.email,
+      org.createdBy.firstName ?? 'there',
+      org.name,
+      `${webUrl}/auth/organizer?redirect=/become-organizer`,
+    );
+
+    return {
+      id: updated.id,
+      name: updated.name,
+      approvalStatus: updated.approvalStatus,
+      approvedAt: updated.approvedAt?.toISOString() ?? null,
+    };
+  }
+
+  async rejectOrganizer(id: string, adminId: string, reason: string) {
+    const org = await this.prisma.organization.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        approvalStatus: true,
+        name: true,
+        createdBy: { select: { email: true, firstName: true } },
+      },
+    });
+    if (!org) throw new NotFoundException('Organization not found');
+    if (org.approvalStatus === 'rejected') {
+      throw new BadRequestException('Organization is already rejected');
+    }
+
+    const updated = await this.prisma.organization.update({
+      where: { id },
+      data: {
+        approvalStatus: 'rejected',
+        rejectionReason: reason,
+        rejectedAt: new Date(),
+        approvedById: null,
+        approvedAt: null,
+      },
+      select: {
+        id: true,
+        name: true,
+        approvalStatus: true,
+        rejectedAt: true,
+        rejectionReason: true,
+      },
+    });
+
+    await this.audit.log({
+      action: 'ORGANIZER_REJECTED',
+      entityType: 'Organization',
+      entityId: id,
+      performedById: adminId,
+      metadata: { organizationName: org.name, reason },
+    });
+
+    const webUrl = this.config.get<string>('webUrl') ?? 'https://axontickets.online';
+    await this.emailService.sendOrganizerRejectedEmail(
+      org.createdBy.email,
+      org.createdBy.firstName ?? 'there',
+      org.name,
+      reason,
+      `${webUrl}/become-organizer?applyAgain=1`,
+    );
+
+    return {
+      id: updated.id,
+      name: updated.name,
+      approvalStatus: updated.approvalStatus,
+      rejectedAt: updated.rejectedAt?.toISOString() ?? null,
+      rejectionReason: updated.rejectionReason,
+    };
+  }
+
+  async pendingOrganizersCount(): Promise<{ count: number }> {
+    const count = await this.prisma.organization.count({
+      where: { approvalStatus: 'pending' },
+    });
+    return { count };
+  }
+
+  async suspendOrganizer(id: string, adminId: string, reason?: string) {
+    const org = await this.prisma.organization.findUnique({
+      where: { id },
+      select: { id: true, approvalStatus: true, name: true, createdBy: { select: { email: true, firstName: true } } },
+    });
+    if (!org) throw new NotFoundException('Organization not found');
+    if (org.approvalStatus === 'suspended') throw new BadRequestException('Organization is already suspended');
+    if (org.approvalStatus === 'revoked') throw new BadRequestException('Organization is revoked and cannot be suspended');
+
+    const updated = await this.prisma.organization.update({
+      where: { id },
+      data: { approvalStatus: 'suspended' },
+      select: { id: true, name: true, approvalStatus: true },
+    });
+
+    await this.audit.log({
+      action: 'ORGANIZER_SUSPENDED',
+      entityType: 'Organization',
+      entityId: id,
+      performedById: adminId,
+      metadata: { organizationName: org.name, reason: reason ?? null },
+    });
+
+    void this.emailService.sendOrganizerSuspendedEmail(
+      org.createdBy.email,
+      org.createdBy.firstName ?? 'there',
+      org.name,
+      reason,
+    ).catch((err: unknown) => this.logger.error('Failed to send organizer suspended email', err));
+
+    return { id: updated.id, name: updated.name, approvalStatus: updated.approvalStatus };
+  }
+
+  async revokeOrganizer(id: string, adminId: string, reason?: string) {
+    const org = await this.prisma.organization.findUnique({
+      where: { id },
+      select: { id: true, approvalStatus: true, name: true, createdBy: { select: { email: true, firstName: true } } },
+    });
+    if (!org) throw new NotFoundException('Organization not found');
+    if (org.approvalStatus === 'revoked') throw new BadRequestException('Organization is already revoked');
+
+    const updated = await this.prisma.organization.update({
+      where: { id },
+      data: { approvalStatus: 'revoked' },
+      select: { id: true, name: true, approvalStatus: true },
+    });
+
+    await this.audit.log({
+      action: 'ORGANIZER_REVOKED',
+      entityType: 'Organization',
+      entityId: id,
+      performedById: adminId,
+      metadata: { organizationName: org.name, reason: reason ?? null },
+    });
+
+    return { id: updated.id, name: updated.name, approvalStatus: updated.approvalStatus };
+  }
+
+  async reinstateOrganizer(id: string, adminId: string) {
+    const org = await this.prisma.organization.findUnique({
+      where: { id },
+      select: { id: true, approvalStatus: true, name: true, createdBy: { select: { email: true, firstName: true } } },
+    });
+    if (!org) throw new NotFoundException('Organization not found');
+    if (!['suspended', 'revoked'].includes(org.approvalStatus)) {
+      throw new BadRequestException('Organization is not suspended or revoked');
+    }
+
+    const updated = await this.prisma.organization.update({
+      where: { id },
+      data: { approvalStatus: 'approved', approvedById: adminId, approvedAt: new Date() },
+      select: { id: true, name: true, approvalStatus: true, approvedAt: true },
+    });
+
+    await this.audit.log({
+      action: 'ORGANIZER_REINSTATED',
+      entityType: 'Organization',
+      entityId: id,
+      performedById: adminId,
+      metadata: { organizationName: org.name },
+    });
+
+    const webUrl = this.config.get<string>('webUrl') ?? 'https://axontickets.online';
+    void this.emailService.sendOrganizerReinstatedEmail(
+      org.createdBy.email,
+      org.createdBy.firstName ?? 'there',
+      org.name,
+      webUrl,
+    ).catch((err: unknown) => this.logger.error('Failed to send organizer reinstated email', err));
+
+    return { id: updated.id, name: updated.name, approvalStatus: updated.approvalStatus, approvedAt: updated.approvedAt?.toISOString() ?? null };
+  }
+
+  async deleteOrganizer(id: string, adminId: string) {
+    const org = await this.prisma.organization.findUnique({
+      where: { id },
+      select: { id: true, name: true, createdBy: { select: { email: true, firstName: true } } },
+    });
+    if (!org) throw new NotFoundException('Organization not found');
+
+    await this.prisma.organization.delete({ where: { id } });
+
+    await this.audit.log({
+      action: 'ORGANIZER_DELETED',
+      entityType: 'Organization',
+      entityId: id,
+      performedById: adminId,
+      metadata: { organizationName: org.name },
+    });
+
+    void this.emailService.sendOrganizerDeletedEmail(
+      org.createdBy.email,
+      org.createdBy.firstName ?? 'there',
+      org.name,
+    ).catch((err: unknown) => this.logger.error('Failed to send organizer deleted email', err));
+
+    return { deleted: true };
+  }
+
+  // ── Platform settings ─────────────────────────────────────────────────────
+
+  async getPlatformSettings() {
+    const [feeRow] = await Promise.all([
+      this.prisma.platformConfig.findUnique({ where: { key: 'service_fee' } }),
+    ]);
+    return {
+      serviceFee: feeRow ? Number(feeRow.value) : 50,
+    };
+  }
+
+  async updatePlatformSettings(serviceFee: number, adminId: string) {
+    await this.prisma.platformConfig.upsert({
+      where: { key: 'service_fee' },
+      create: { key: 'service_fee', value: String(serviceFee), updatedById: adminId },
+      update: { value: String(serviceFee), updatedById: adminId },
+    });
+    await this.audit.log({ action: 'platform.settings.update', entityType: 'platform', entityId: 'service_fee', performedById: adminId, metadata: { serviceFee } });
+    return { serviceFee };
   }
 }

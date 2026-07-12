@@ -6,7 +6,7 @@ import { Toaster } from 'react-hot-toast';
 import { getQueryClient } from '@/lib/query-client';
 import { useEffect, useRef } from 'react';
 import { useAuthStore } from '@/store/auth.store';
-import { getRefreshToken, setAccessToken } from '@/lib/auth';
+import { getRefreshToken, setAccessToken, getLoginPortal } from '@/lib/auth';
 import api from '@/lib/api';
 
 function AuthHydrator({ children }: { children: React.ReactNode }) {
@@ -32,8 +32,8 @@ function AuthHydrator({ children }: { children: React.ReactNode }) {
         const newRefreshToken = res.data.data.refreshToken;
         setAccessToken(newAccessToken);
         return api.get<{ data: any }>('/auth/me').then((me) => {
-          // Use the NEW rotated refreshToken — storing the old one would break the next reload
-          setAuth(me.data.data, newAccessToken, newRefreshToken);
+          // Merge the persisted loginPortal so portal context survives page refresh
+          setAuth({ ...me.data.data, loginPortal: getLoginPortal() ?? undefined }, newAccessToken, newRefreshToken);
         });
       })
       .catch(() => logout())

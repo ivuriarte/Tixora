@@ -7,6 +7,7 @@ import { LoggerModule } from 'nestjs-pino';
 import configuration from './config/configuration';
 import { validationSchema } from './config/env.validation';
 import { PrismaModule } from './prisma/prisma.module';
+import { CommonModule } from './common/common.module';
 import { RedisModule } from './redis/redis.module';
 import { HealthModule } from './health/health.module';
 import { EmailModule } from './email/email.module';
@@ -25,6 +26,8 @@ import { PaymentProofsModule } from './payment-proofs/payment-proofs.module';
 import { SchedulerModule } from './scheduler/scheduler.module';
 import { CronModule } from './cron/cron.module';
 import { FunnelModule } from './funnel/funnel.module';
+import { OrganizationsModule } from './organizations/organizations.module';
+import { WorkspacesModule } from './workspaces/workspaces.module';
 
 @Module({
   imports: [
@@ -57,6 +60,7 @@ import { FunnelModule } from './funnel/funnel.module';
     }),
 
     PrismaModule,
+    CommonModule,
     RedisModule,
     HealthModule,
     EmailModule,
@@ -73,6 +77,8 @@ import { FunnelModule } from './funnel/funnel.module';
     RegistrationsModule,
     PaymentProofsModule,
     FunnelModule,
+    OrganizationsModule,
+    WorkspacesModule,
     SchedulerModule,
     CronModule,
   ],

@@ -1,0 +1,11 @@
+-- Migration: add_pending_approval_registration_status
+-- Adds the `pending_approval` value to the RegistrationStatus enum.
+-- `proof_submitted` is retained (PostgreSQL cannot drop enum values).
+-- A follow-up migration reclassifies existing rows after this enum change commits.
+--
+-- Rollback (DML only — the enum value is permanent):
+--   UPDATE registrations SET status = 'proof_submitted' WHERE status = 'pending_approval';
+--   Then revert application code.
+--
+-- AlterEnum
+ALTER TYPE "RegistrationStatus" ADD VALUE 'pending_approval';

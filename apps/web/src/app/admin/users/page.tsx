@@ -4,8 +4,6 @@ import { useState, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import api from '@/lib/api';
-import Navbar from '@/components/Navbar';
-import BackButton from '@/components/BackButton';
 import { useAuthStore } from '@/store/auth.store';
 
 interface UserRow {
@@ -83,12 +81,8 @@ export default function AdminUsersPage() {
   const totalPages = data ? Math.ceil(data.total / limit) : 1;
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <Navbar />
-      <div className="max-w-5xl mx-auto px-4 py-8">
-        <BackButton href="/admin" label="Back to Dashboard" />
-
-        <div className="flex items-center justify-between mt-4 mb-6">
+    <div className="max-w-5xl mx-auto px-4 py-8">
+        <div className="flex items-center justify-between mb-6">
           <div>
             <h1 className="text-2xl font-bold text-gray-900">User Management</h1>
             <p className="text-sm text-gray-500 mt-1">
@@ -221,6 +215,5 @@ export default function AdminUsersPage() {
           </div>
         )}
       </div>
-    </div>
   );
 }

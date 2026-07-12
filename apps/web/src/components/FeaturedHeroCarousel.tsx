@@ -112,9 +112,9 @@ export default function FeaturedHeroCarousel({ events }: { events: FeaturedHeroE
               )}
 
               <div className="min-h-[152px] sm:min-h-[180px] lg:min-h-[220px]">
-                <h1 className="text-3xl sm:text-4xl lg:text-5xl font-extrabold leading-[1.05] tracking-tight mb-2 line-clamp-3">
+                <h2 className="text-3xl sm:text-4xl lg:text-5xl font-extrabold leading-[1.05] tracking-tight mb-2 line-clamp-3">
                   {activeEvent.title}
-                </h1>
+                </h2>
                 {activeEvent.speakerName && activeEvent.speakerName !== activeEvent.title && (
                   <p className="text-amber-400 text-xl md:text-2xl font-extrabold leading-tight mb-4 line-clamp-2 min-h-[64px]">
                     {activeEvent.speakerName}

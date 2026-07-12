@@ -76,7 +76,7 @@ describe('EventsService.findFeatured()', () => {
     mockTicketGroupBy.mockReset();
     mockRegistrationGroupBy.mockResolvedValue([]);
     mockTicketGroupBy.mockResolvedValue([]);
-    service = new EventsService(mockPrisma, mockRedis);
+    service = new EventsService(mockPrisma, mockRedis, { ensureWorkspace: jest.fn() } as any);
   });
 
   // U-59
@@ -172,8 +172,8 @@ describe('EventsService.findFeatured()', () => {
     const evt = makeDbEvent({
       id: 'evt_1',
       tiers: [
-        { id: 'tier_1', price: 50000, soldQuantity: 10, totalQuantity: 50 },
-        { id: 'tier_2', price: 30000, soldQuantity: 5, totalQuantity: 30 },
+        { id: 'tier_1', price: 500, soldQuantity: 10, totalQuantity: 50 },
+        { id: 'tier_2', price: 300, soldQuantity: 5, totalQuantity: 30 },
       ],
     });
     mockRegistrationGroupBy.mockResolvedValue([
@@ -182,7 +182,7 @@ describe('EventsService.findFeatured()', () => {
     ]);
     mockFindMany.mockResolvedValue([evt]);
     const result = await service.findFeatured();
-    expect(result[0].lowestPrice).toBe(50000);      // first tier (already ordered by price ASC by Prisma)
+    expect(result[0].lowestPrice).toBe(500);         // first tier (already ordered by price ASC by Prisma)
     expect(result[0].totalAvailable).toBe(63);       // (50-11) + (30-6)
   });
 });
