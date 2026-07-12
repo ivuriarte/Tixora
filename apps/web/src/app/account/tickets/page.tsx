@@ -23,19 +23,21 @@ interface Ticket {
 }
 
 const REG_STATUS_LABELS: Record<RegistrationStatus, string> = {
-  pending_payment: 'Waiting for Payment',
-  proof_submitted: 'Being Reviewed',
-  verified: 'Approved',
-  rejected: 'Needs Attention',
-  cancelled: 'Cancelled',
+  pending_payment:   'Waiting for Payment',
+  proof_submitted:   'Being Reviewed',
+  pending_approval:  'Awaiting Confirmation',
+  verified:          'Approved',
+  rejected:          'Needs Attention',
+  cancelled:         'Cancelled',
 };
 
 const REG_STATUS_STYLES: Record<RegistrationStatus, { dot: string; chip: string }> = {
-  pending_payment: { dot: 'bg-amber-500', chip: 'bg-amber-50 text-amber-700 ring-amber-600/20' },
-  proof_submitted: { dot: 'bg-blue-500', chip: 'bg-blue-50 text-blue-700 ring-blue-600/20' },
-  verified: { dot: 'bg-emerald-500', chip: 'bg-emerald-50 text-emerald-700 ring-emerald-600/20' },
-  rejected: { dot: 'bg-red-500', chip: 'bg-red-50 text-red-700 ring-red-600/20' },
-  cancelled: { dot: 'bg-gray-400', chip: 'bg-gray-100 text-gray-600 ring-gray-500/20' },
+  pending_payment:  { dot: 'bg-amber-500', chip: 'bg-amber-50 text-amber-700 ring-amber-600/20' },
+  proof_submitted:  { dot: 'bg-blue-500', chip: 'bg-blue-50 text-blue-700 ring-blue-600/20' },
+  pending_approval: { dot: 'bg-blue-500', chip: 'bg-blue-50 text-blue-700 ring-blue-600/20' },
+  verified:         { dot: 'bg-emerald-500', chip: 'bg-emerald-50 text-emerald-700 ring-emerald-600/20' },
+  rejected:         { dot: 'bg-red-500', chip: 'bg-red-50 text-red-700 ring-red-600/20' },
+  cancelled:        { dot: 'bg-gray-400', chip: 'bg-gray-100 text-gray-600 ring-gray-500/20' },
 };
 
 const TICKET_STATUS_STYLES: Record<string, { dot: string; chip: string; label: string }> = {

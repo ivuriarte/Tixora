@@ -65,6 +65,7 @@ enum OrgMemberRole {
 enum RegistrationStatus {
   pending_payment
   proof_submitted
+  pending_approval
   verified
   rejected
   cancelled
@@ -152,6 +153,7 @@ model Event {
   isFeatured         Boolean     @default(false) @map("is_featured")
   featuredOrder      Int?        @map("featured_order") // 1 = first slot; null = not featured
   featuredUntil      DateTime?   @map("featured_until") // auto-expiry; null = no expiry
+  isFree             Boolean     @default(false) @map("is_free")
   platformFee        Decimal     @default(50) @map("platform_fee") @db.Decimal(10, 2)
   // Payment configuration
   paymentMethods     Json?       @map("payment_methods") // Array of PaymentMethod objects
@@ -201,6 +203,7 @@ model TicketTier {
   updatedAt     DateTime  @updatedAt @map("updated_at")
 
   event         Event          @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  inclusions    TicketTierInclusion[]
   reservations  Reservation[]
   orderItems    OrderItem[]
   tickets       Ticket[]
@@ -208,6 +211,22 @@ model TicketTier {
 
   @@index([eventId])
   @@map("ticket_tiers")
+}
+
+model TicketTierInclusion {
+  id          String     @id @default(uuid())
+  tierId      String     @map("tier_id")
+  label       String
+  stubEnabled Boolean    @default(true) @map("stub_enabled")
+  sortOrder   Int        @default(0) @map("sort_order")
+  createdAt   DateTime   @default(now()) @map("created_at")
+  updatedAt   DateTime   @updatedAt @map("updated_at")
+
+  tier TicketTier @relation(fields: [tierId], references: [id], onDelete: Cascade)
+
+  @@unique([tierId, label])
+  @@index([tierId, sortOrder])
+  @@map("ticket_tier_inclusions")
 }
 
 model Reservation {

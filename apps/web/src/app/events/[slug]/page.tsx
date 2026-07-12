@@ -12,6 +12,7 @@ interface Tier {
   id: string;
   name: string;
   price: number;
+  inclusions?: Array<{ id?: string; label: string; stubEnabled?: boolean; sortOrder?: number }>;
   availableQuantity: number;
   totalQuantity: number;
   maxPerOrder: number;
@@ -37,10 +38,12 @@ interface Event {
   longitude?: number | null;
   startsAt: string;
   endsAt?: string | null;
+  createdAt: string;
   imageUrl?: string | null;
   status: string;
   maxPerUser: number;
   tiers: Tier[];
+  isFree?: boolean;
   // Conference fields
   speakerName?: string | null;
   agenda?: AgendaItem[] | null;
@@ -78,10 +81,25 @@ async function getEvent(slug: string): Promise<Event | null> {
 export async function generateMetadata({ params }: { params: { slug: string } }) {
   const event = await getEvent(params.slug);
   if (!event) return {};
+  const description = event.description?.slice(0, 150);
+  const canonical = `/events/${event.slug}`;
   return {
     title: `${event.title} — Axon Tickets`,
-    description: event.description?.slice(0, 150),
-    openGraph: { title: event.title, images: event.imageUrl ? [event.imageUrl] : [] },
+    description,
+    alternates: { canonical },
+    openGraph: {
+      title: event.title,
+      description,
+      type: 'website',
+      url: canonical,
+      images: event.imageUrl ? [{ url: event.imageUrl, alt: event.title }] : ['/og-image.png'],
+    },
+    twitter: {
+      card: 'summary_large_image',
+      title: event.title,
+      description,
+      images: event.imageUrl ? [event.imageUrl] : ['/og-image.png'],
+    },
   };
 }
 
@@ -134,6 +152,52 @@ export default async function EventPage({ params, searchParams }: { params: { sl
   const isPreview = searchParams.preview === '1';
   const isSoldOut = event.status === 'sold_out';
   const isCancelled = event.status === 'cancelled';
+  const siteUrl = process.env.NEXT_PUBLIC_APP_ENV === 'uat'
+    ? 'https://uat.axontickets.online'
+    : 'https://axontickets.online';
+  const jsonLd = {
+    '@context': 'https://schema.org',
+    '@type': 'Event',
+    name: event.title,
+    description: event.description,
+    startDate: event.startsAt,
+    endDate: event.endsAt ?? event.startsAt,
+    eventStatus: isCancelled
+      ? 'https://schema.org/EventCancelled'
+      : 'https://schema.org/EventScheduled',
+    eventAttendanceMode: 'https://schema.org/OfflineEventAttendanceMode',
+    url: `${siteUrl}/events/${event.slug}`,
+    image: [event.imageUrl ?? `${siteUrl}/og-image.png`],
+    location: {
+      '@type': 'Place',
+      name: event.venue,
+      address: {
+        '@type': 'PostalAddress',
+        streetAddress: event.address ?? event.venue,
+        addressLocality: event.city,
+        addressCountry: 'PH',
+      },
+    },
+    organizer: {
+      '@type': 'Organization',
+      name: event.organizerName ?? 'Axon Tickets',
+      url: siteUrl,
+    },
+    offers: event.tiers.map((tier) => ({
+      '@type': 'Offer',
+      name: tier.name,
+      price: event.isFree ? 0 : tier.price,
+      priceCurrency: 'PHP',
+      availability: tier.availableQuantity > 0
+        ? 'https://schema.org/InStock'
+        : 'https://schema.org/SoldOut',
+      url: `${siteUrl}/events/${event.slug}`,
+      validFrom: tier.saleStartsAt ?? event.createdAt,
+    })),
+  };
+  // JSON-LD must be emitted as raw JSON. Escaping '<' prevents organizer-controlled
+  // text from closing the script element and creating an HTML injection sink.
+  const serializedJsonLd = JSON.stringify(jsonLd).replace(/</g, '\\u003c');
 
   const agenda = sanitizeList<AgendaItem>(event.agenda, ['title']);
   const tierOrder = ['Platinum', 'Gold', 'Silver', 'Bronze', 'Partner', 'Media Partner', 'Community Partner'];
@@ -152,6 +216,7 @@ export default async function EventPage({ params, searchParams }: { params: { sl
     <>
       <Navbar />
       <main className="page-container py-10">
+        <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: serializedJsonLd }} />
         <EventFunnelTracker eventId={event.id} eventSlug={event.slug} eventTitle={event.title} />
         {isPreview && (
           <div className="mb-6 flex items-center justify-between bg-amber-50 border border-amber-200 rounded-xl px-4 py-3">

@@ -1,6 +1,7 @@
 export type RegistrationStatus =
   | 'pending_payment'
   | 'proof_submitted'
+  | 'pending_approval'
   | 'verified'
   | 'rejected'
   | 'cancelled';
@@ -56,6 +57,7 @@ export interface Registration {
   id: string;
   referenceNumber: string;
   status: RegistrationStatus;
+  isFree: boolean;
   tierId: string | null;
   tierName: string | null;
   unitPrice: number | null;
@@ -88,6 +90,7 @@ export interface RegistrationSummary {
   total: number;
   currency: string;
   status: RegistrationStatus;
+  isFree: boolean;
   createdAt: string;
 }
 
@@ -106,7 +109,7 @@ export interface AttendeeInput {
   phone?: string;
   company?: string;
   jobTitle?: string;
-  birthday: string;
-  gender: 'female' | 'male' | 'non_binary' | 'prefer_not_to_say' | 'self_described';
-  city: string;
+  birthday?: string;
+  gender?: 'female' | 'male' | 'non_binary' | 'prefer_not_to_say' | 'self_described';
+  city?: string;
 }

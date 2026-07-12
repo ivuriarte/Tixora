@@ -57,4 +57,9 @@ describe('RegistrationsService referral pricing', () => {
     expect(() => (service as any).validateAttendeeDemographics([{ birthday: '2999-01-01', city: 'Davao' }])).toThrow(BadRequestException);
     expect(() => (service as any).validateAttendeeDemographics([{ birthday: '1800-01-01', city: 'Davao' }])).toThrow(BadRequestException);
   });
+
+  it('allows attendees without optional demographic fields', () => {
+    const { service } = makeService();
+    expect(() => (service as any).validateAttendeeDemographics([{}])).not.toThrow();
+  });
 });

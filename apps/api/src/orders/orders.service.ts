@@ -42,9 +42,9 @@ export class OrdersService {
       throw new BadRequestException('Reservation has expired. Please start over.');
     }
 
-    const unitPrice = Number(reservation.ticketTier.price);
+    const unitPrice = reservation.event.isFree ? 0 : Number(reservation.ticketTier.price);
     const subtotal = unitPrice * reservation.quantity;
-    const fees = Number(reservation.event.platformFee ?? 50);
+    const fees = reservation.event.isFree ? 0 : Number(reservation.event.platformFee ?? 50);
     const total = subtotal + fees;
 
     // Run the critical section in a DB transaction with row-level lock

@@ -266,6 +266,11 @@ export class CreateEventDto {
   @Min(0)
   platformFee?: number;
 
+  @ApiProperty({ required: false, default: false, description: 'Marks the event as free and suppresses platform fees at registration.' })
+  @IsOptional()
+  @IsBoolean()
+  isFree?: boolean;
+
   @ApiProperty({ required: false })
   @IsOptional()
   @IsUrl()
@@ -429,6 +434,10 @@ export class UpdateEventDto {
   @IsNumber()
   @Min(0)
   platformFee?: number;
+
+  @IsOptional()
+  @IsBoolean()
+  isFree?: boolean;
 
   @IsOptional()
   @IsString()

@@ -26,6 +26,7 @@ interface Tier {
   id: string;
   name: string;
   price: number;
+  inclusions?: Array<{ id?: string; label: string; stubEnabled?: boolean; sortOrder?: number }>;
   availableQuantity: number;
   totalQuantity: number;
   maxPerOrder: number;
@@ -64,10 +65,7 @@ export default function RegistrationPanel({
   const [isPending, startTransition] = useTransition();
   const availableTiers = tiers.filter((t) => t.availableQuantity > 0);
   const [selectedId, setSelectedId] = useState<string>(availableTiers[0]?.id ?? '');
-  const [qty, setQty] = useState(() => {
-    const first = tiers.find((t) => t.availableQuantity > 0);
-    return first ? Math.min(first.maxPerOrder, first.availableQuantity) : 1;
-  });
+  const [qty, setQty] = useState(1);
 
   const selected = tiers.find((t) => t.id === selectedId);
   const maxQty = Math.min(selected?.maxPerOrder ?? 10, selected?.availableQuantity ?? 0);
@@ -126,7 +124,7 @@ export default function RegistrationPanel({
               key={tier.id}
               type="button"
               disabled={soldOut || disabled}
-              onClick={() => { setSelectedId(tier.id); setQty(Math.min(tier.maxPerOrder, tier.availableQuantity)); }}
+              onClick={() => { setSelectedId(tier.id); setQty(1); }}
               className={`w-full text-left p-3 rounded-xl border transition-colors ${
                 selectedId === tier.id
                   ? 'border-primary bg-violet-50'
@@ -144,6 +142,15 @@ export default function RegistrationPanel({
               <p className="text-xs text-gray-400 mt-0.5">
                 {soldOut ? 'Sold out' : `${tier.availableQuantity} slots left`}
               </p>
+              {tier.inclusions && tier.inclusions.length > 0 && (
+                <div className="mt-2 flex flex-wrap gap-1.5">
+                  {tier.inclusions.map((item) => (
+                    <span key={item.id ?? item.label} className="rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-medium text-emerald-700">
+                      {item.label}
+                    </span>
+                  ))}
+                </div>
+              )}
             </button>
           );
         })}
