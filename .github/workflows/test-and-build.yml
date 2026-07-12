@@ -27,6 +27,12 @@ jobs:
       - name: Install dependencies
         run: npm ci --workspaces
 
+      - name: Generate Prisma client
+        run: npx prisma generate
+
+      - name: Build shared packages
+        run: cd ../.. && npm run build --workspace=@axon-tickets/types && npm run build --workspace=@axon-tickets/utils
+
       - name: Type check
         run: npm run typecheck
 
@@ -82,4 +88,5 @@ jobs:
       - name: Validate Prisma schema
         env:
           DATABASE_URL: "postgresql://placeholder:placeholder@localhost:5432/placeholder"
+          DIRECT_URL: "postgresql://placeholder:placeholder@localhost:5432/placeholder"
         run: npx prisma validate
