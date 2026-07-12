@@ -77,7 +77,9 @@ model User {
   // Conference registration fields (added for Francis Kong MVP)
   company      String?  @map("company")
   jobTitle     String?  @map("job_title")
-  city         String?  @map("city")
+  city         String?   @map("city")
+  birthday     DateTime? @db.Date
+  gender       String?
   createdAt    DateTime @default(now()) @map("created_at")
   updatedAt    DateTime @updatedAt @map("updated_at")
 
@@ -363,6 +365,9 @@ model Attendee {
   phone          String?
   company        String?
   jobTitle       String?   @map("job_title")
+  birthday       DateTime? @db.Date
+  gender         String?
+  city           String?
   isLead         Boolean   @default(false) @map("is_lead")
   // Anti-scalper: tickets are bound to the attendee record above and cannot
   // be re-assigned. Reserved for a future admin-controlled transfer flow.

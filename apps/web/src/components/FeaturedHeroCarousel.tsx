@@ -152,7 +152,7 @@ export default function FeaturedHeroCarousel({ events }: { events: FeaturedHeroE
             <div className="pt-2">
               <div className="flex flex-wrap items-center gap-4 min-h-[56px]">
                 <Link
-                  href={`/events/${activeEvent.slug}`}
+                  href={`/events/${activeEvent.slug}/register`}
                   className="inline-flex items-center gap-2 bg-amber-500 hover:bg-amber-400 text-black font-bold px-8 py-3.5 rounded-lg text-base transition-colors shadow-lg shadow-amber-900/30"
                 >
                   Reserve Your Seat

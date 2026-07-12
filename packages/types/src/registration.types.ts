@@ -13,6 +13,9 @@ export interface RegistrationAttendee {
   phone: string | null;
   company: string | null;
   jobTitle: string | null;
+  birthday: string | null;
+  gender: string | null;
+  city: string | null;
   isLead: boolean;
   hasQr: boolean;
   checkedInAt: string | null;
@@ -103,4 +106,7 @@ export interface AttendeeInput {
   phone?: string;
   company?: string;
   jobTitle?: string;
+  birthday?: string;
+  gender?: 'female' | 'male' | 'non_binary' | 'prefer_not_to_say' | 'self_described';
+  city?: string;
 }

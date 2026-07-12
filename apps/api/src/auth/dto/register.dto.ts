@@ -1,4 +1,4 @@
-import { IsEmail, IsString, MinLength, MaxLength, IsOptional, Matches } from 'class-validator';
+import { IsDateString, IsEmail, IsIn, IsString, MinLength, MaxLength, IsOptional, Matches, ValidateIf } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 
 export class RegisterDto {
@@ -51,10 +51,21 @@ export class RegisterDto {
   jobTitle?: string;
 
   @ApiProperty({ required: false, example: 'Davao City' })
-  @IsOptional()
+  @ValidateIf((_, value) => value !== undefined && value !== null && value !== '')
   @IsString()
+  @MinLength(2)
   @MaxLength(100)
   city?: string;
+
+  @ApiProperty({ required: false, example: '1990-05-21' })
+  @ValidateIf((_, value) => value !== undefined && value !== null && value !== '')
+  @IsDateString()
+  birthday?: string;
+
+  @ApiProperty({ required: false, enum: ['female', 'male', 'non_binary', 'prefer_not_to_say', 'self_described'] })
+  @ValidateIf((_, value) => value !== undefined && value !== null && value !== '')
+  @IsIn(['female', 'male', 'non_binary', 'prefer_not_to_say', 'self_described'])
+  gender?: string;
 
   @ApiProperty({ description: 'hCaptcha response token' })
   @IsString()
