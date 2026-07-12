@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { centavosToPeso, formatPHP } from '@axon-tickets/utils';
 import api from '@/lib/api';
 import { useAuthStore } from '@/store/auth.store';
+import BirthdayPicker from '@/components/BirthdayPicker';
 import type { CreateRegistrationDto } from '@axon-tickets/types';
 
 interface ProfileData {
@@ -618,7 +619,7 @@ export default function RegistrationForm({
                     <label className="block text-xs font-medium text-gray-600 mb-1">
                       Birthday <span className="text-gray-400 font-normal">(optional)</span>
                     </label>
-                    <input type="date" max={new Date().toISOString().slice(0, 10)} value={att.birthday} onChange={(e) => updateAttendee(i, 'birthday', e.target.value)} className={`w-full border rounded-lg px-3 py-2 text-sm ${normalCls}`} />
+                    <BirthdayPicker value={att.birthday} onChange={(value) => updateAttendee(i, 'birthday', value)} />
                   </div>
                   <div>
                     <label className="block text-xs font-medium text-gray-600 mb-1">
