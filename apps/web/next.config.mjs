@@ -16,6 +16,21 @@ const nextConfig = {
   experimental: {
     serverActions: { allowedOrigins: [] },
   },
+  async redirects() {
+    return [
+      {
+        source: '/:path*',
+        has: [
+          {
+            type: 'host',
+            value: 'tixora-online-ticket-app.vercel.app',
+          },
+        ],
+        destination: 'https://axontickets.online/:path*',
+        permanent: true,
+      },
+    ];
+  },
   async headers() {
     return [
       {
