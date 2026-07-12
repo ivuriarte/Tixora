@@ -63,8 +63,6 @@ export interface Registration {
   subtotal: number;
   fees: number;
   total: number;
-  discount: number;
-  referralCode: string | null;
   currency: string;
   notes: string | null;
   rejectionReason: string | null;
@@ -96,7 +94,6 @@ export interface CreateRegistrationDto {
   tierId: string;
   attendees: AttendeeInput[];
   notes?: string;
-  referralCode?: string;
 }
 
 export interface AttendeeInput {
@@ -106,7 +103,4 @@ export interface AttendeeInput {
   phone?: string;
   company?: string;
   jobTitle?: string;
-  birthday: string;
-  gender: 'female' | 'male' | 'non_binary' | 'prefer_not_to_say' | 'self_described';
-  city: string;
 }

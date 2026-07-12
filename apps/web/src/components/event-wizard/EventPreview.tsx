@@ -220,12 +220,6 @@ export default function EventPreview({ draft, tiers }: EventPreviewProps) {
             <p className="text-[11px] text-gray-500">{draft.faqs.length} question{draft.faqs.length === 1 ? '' : 's'}</p>
           </div>
         )}
-        {draft.customSections.filter((section) => section.isVisible).length > 0 && (
-          <div className="border-t border-gray-100 px-4 py-3">
-            <p className="mb-2 text-[10px] uppercase tracking-wider text-gray-400">Event details</p>
-            <div className="space-y-1">{draft.customSections.filter((section) => section.isVisible).slice(0, 3).map((section, index) => <p key={`${section.title}-${index}`} className="truncate text-xs font-medium text-gray-700">{section.title}</p>)}</div>
-          </div>
-        )}
 
         {/* Empty state */}
         {!draft.title && !draft.description && tiers.length === 0 && (

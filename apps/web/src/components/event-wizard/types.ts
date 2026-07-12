@@ -1,13 +1,5 @@
 import type { SponsorItem, FaqItem, AgendaItem } from '@/components/ConferenceFields';
 
-export interface CustomSectionItem {
-  title: string;
-  description: string;
-  imageUrl: string;
-  imageAlt: string;
-  isVisible: boolean;
-}
-
 export interface LocalTier {
   key: number;
   serverId?: string; // present when the tier already exists on the server
@@ -67,7 +59,9 @@ export interface EventDraft
   agenda: AgendaItem[];
   sponsors: SponsorItem[];
   faqs: FaqItem[];
-  customSections: CustomSectionItem[];
+  isFeatured: boolean;
+  featuredOrder: string;
+  featuredUntil: string;
 }
 
 export interface StepMeta {
@@ -75,8 +69,9 @@ export interface StepMeta {
     | 'basics'
     | 'location'
     | 'capacity'
-    | 'details'
+    | 'conference'
     | 'payment'
+    | 'featured'
     | 'review';
   readonly label: string;
   readonly short: string;
@@ -87,9 +82,10 @@ export const STEPS: readonly StepMeta[] = [
   { id: 'basics', label: 'Basics', short: '1' },
   { id: 'location', label: 'Location & Schedule', short: '2' },
   { id: 'capacity', label: 'Capacity & Tiers', short: '3' },
-  { id: 'details', label: 'Event Program & Details', short: '4', optional: true },
+  { id: 'conference', label: 'Conference', short: '4', optional: true },
   { id: 'payment', label: 'Payment', short: '5', optional: true },
-  { id: 'review', label: 'Review', short: '6' },
+  { id: 'featured', label: 'Featured', short: '6', optional: true },
+  { id: 'review', label: 'Review', short: '7' },
 ];
 
 export type StepId = StepMeta['id'];
@@ -124,7 +120,9 @@ export function emptyDraft(): EventDraft {
     agenda: [],
     sponsors: [],
     faqs: [],
-    customSections: [],
+    isFeatured: false,
+    featuredOrder: '',
+    featuredUntil: '',
   };
 }
 
@@ -185,8 +183,9 @@ export function validateStep(
     case 'basics': return validateBasics(draft);
     case 'location': return validateLocation(draft);
     case 'capacity': return validateCapacity(draft, tiers);
-    case 'details':
+    case 'conference':
     case 'payment':
+    case 'featured':
     case 'review':
       return null;
   }

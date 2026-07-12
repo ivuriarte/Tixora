@@ -13,96 +13,24 @@ interface PaymentStepProps {
   onRemove: (key: number) => void;
   /** Persist a reordered array (optional; if omitted, reorder controls are hidden). */
   onReorder?: (next: LocalPaymentMethod[]) => void;
-  /** Service fee override (only provided in edit mode) */
-  platformFee?: number | null;
-  onSaveFee?: (fee: number) => void;
-  feeSaving?: boolean;
-  isAdmin?: boolean;
 }
 
-export default function PaymentStep({ paymentMethods, onAdd, onEdit, onRemove, onReorder, platformFee, onSaveFee, feeSaving, isAdmin }: PaymentStepProps) {
+export default function PaymentStep({ paymentMethods, onAdd, onEdit, onRemove, onReorder }: PaymentStepProps) {
   const [pmKey, setPmKey] = useState(0);
   const [showAdd, setShowAdd] = useState(paymentMethods.length === 0);
   const [editingKey, setEditingKey] = useState<number | null>(null);
-  const [feeInput, setFeeInput] = useState(() =>
-    platformFee != null ? String(platformFee) : '50',
-  );
 
   function handleAdd(pm: LocalPaymentMethod) {
     onAdd({ ...pm, key: pmKey });
     setPmKey((k) => k + 1);
-    setShowAdd(false);
+    setShowAdd(true);
   }
-
-  const showFeeSection = platformFee != null || isAdmin === true;
 
   return (
     <>
       <p className="text-sm text-gray-500 -mt-2">
         Optional. Add bank or e-wallet payment methods for manual payments. Skip if you only need automated checkout later.
       </p>
-
-      {/* ── Service Fee ─────────────────────────────────────────────────────── */}
-      {showFeeSection && (
-        <div className={`rounded-xl border p-4 space-y-3 ${isAdmin ? 'border-amber-200 bg-amber-50' : 'border-gray-200 bg-gray-50'}`}>
-          <div className="flex items-center gap-2">
-            <svg className={`w-4 h-4 shrink-0 ${isAdmin ? 'text-amber-600' : 'text-gray-400'}`} fill="none" stroke="currentColor" strokeWidth={1.75} viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z" />
-            </svg>
-            <p className={`text-sm font-semibold ${isAdmin ? 'text-amber-900' : 'text-gray-700'}`}>
-              Service Fee
-              {isAdmin && <span className="ml-2 text-xs font-medium text-amber-700 bg-amber-100 px-1.5 py-0.5 rounded-full">Admin only</span>}
-            </p>
-          </div>
-
-          {isAdmin ? (
-            <>
-              <p className="text-xs text-amber-700">
-                A flat service fee is added to every order for this event. This overrides the platform default (₱50). Set to <strong>0</strong> for free events or events without a service fee.
-              </p>
-              <div className="flex items-center gap-3">
-                <div className="relative flex-1 max-w-[160px]">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm font-medium text-gray-500">₱</span>
-                  <input
-                    type="number"
-                    min="0"
-                    max="9999"
-                    step="0.01"
-                    value={feeInput}
-                    onChange={(e) => setFeeInput(e.target.value)}
-                    className="w-full pl-7 pr-3 py-2 text-sm rounded-lg border border-amber-300 bg-white focus:border-amber-500 focus:ring-2 focus:ring-amber-200 focus:outline-none"
-                  />
-                </div>
-                <button
-                  type="button"
-                  disabled={feeSaving}
-                  onClick={() => {
-                    const fee = parseFloat(feeInput);
-                    if (!isNaN(fee) && fee >= 0 && onSaveFee) onSaveFee(fee);
-                  }}
-                  className="px-4 py-2 text-sm font-medium rounded-lg bg-amber-600 text-white hover:bg-amber-700 disabled:opacity-50 transition-colors shrink-0"
-                >
-                  {feeSaving ? 'Saving…' : 'Save fee'}
-                </button>
-              </div>
-              <p className="text-xs text-gray-500">
-                This fee appears as a line item at checkout and is collected on top of the ticket price.{' '}
-                <a href="/admin/settings/platform" className="text-violet-600 hover:underline">Edit platform default →</a>
-              </p>
-            </>
-          ) : (
-            <div className="flex items-center justify-between gap-4">
-              <div>
-                <p className="text-xs text-gray-500">A platform service fee is charged per order. This is set by the platform administrator and cannot be changed here.</p>
-              </div>
-              <div className="shrink-0 text-right">
-                <p className="text-xl font-bold text-gray-800">₱{platformFee != null ? platformFee.toLocaleString('en-PH', { minimumFractionDigits: 0, maximumFractionDigits: 2 }) : '50'}</p>
-                <p className="text-xs text-gray-400">per order</p>
-              </div>
-            </div>
-          )}
-        </div>
-      )}
 
       {paymentMethods.length > 0 && (
         <div className="space-y-2">

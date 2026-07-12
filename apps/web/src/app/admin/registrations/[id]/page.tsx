@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from 'react';
 import Image from 'next/image';
 import { useParams, useRouter } from 'next/navigation';
 import api from '@/lib/api';
+import Navbar from '@/components/Navbar';
 import { formatManila, centavosToPeso, formatPHP } from '@axon-tickets/utils';
 
 interface ProofRow {
@@ -23,8 +24,6 @@ interface AdminReg {
   attendeeCount: number;
   subtotal: string | number;
   fees: string | number;
-  discount: string | number;
-  referralCodeSnapshot?: { code?: string } | null;
   total: string | number;
   currency: string;
   rejectionReason: string | null;
@@ -39,8 +38,6 @@ interface AdminReg {
     email: string;
     phone: string | null;
     isLead: boolean;
-    qrToken: string | null;
-    checkedInAt: string | null;
   }>;
   proofs: ProofRow[];
   verifiedBy: { firstName: string; lastName: string } | null;
@@ -145,23 +142,29 @@ export default function AdminRegistrationDetailPage() {
 
   if (loading) {
     return (
-      <main className="max-w-3xl mx-auto px-4 py-10">
-        <p className="text-gray-400">Loading…</p>
-      </main>
+      <>
+        <Navbar />
+        <main className="max-w-3xl mx-auto px-4 py-10">
+          <p className="text-gray-400">Loading…</p>
+        </main>
+      </>
     );
   }
 
   if (!reg) {
     return (
-      <main className="max-w-3xl mx-auto px-4 py-10">
-        <p className="text-gray-500">{error ?? 'Not found.'}</p>
-        <button
-          onClick={() => router.push('/admin/verifications')}
-          className="mt-4 text-sm text-primary hover:underline"
-        >
-          ← Back
-        </button>
-      </main>
+      <>
+        <Navbar />
+        <main className="max-w-3xl mx-auto px-4 py-10">
+          <p className="text-gray-500">{error ?? 'Not found.'}</p>
+          <button
+            onClick={() => router.push('/admin/verifications')}
+            className="mt-4 text-sm text-primary hover:underline"
+          >
+            ← Back
+          </button>
+        </main>
+      </>
     );
   }
 
@@ -169,7 +172,9 @@ export default function AdminRegistrationDetailPage() {
   const canReview = reg.status === 'proof_submitted';
 
   return (
-    <main className="max-w-3xl mx-auto px-4 py-10 space-y-6">
+    <>
+      <Navbar />
+      <main className="max-w-3xl mx-auto px-4 py-10 space-y-6">
         <div className="flex items-center gap-4">
           <button
             onClick={() => router.push('/admin/orders')}
@@ -236,7 +241,6 @@ export default function AdminRegistrationDetailPage() {
             <span>Service fee</span>
             <span>{formatPHP(centavosToPeso(Number(reg.fees)))}</span>
           </div>
-          {Number(reg.discount) > 0 && <div className="flex justify-between font-medium text-emerald-700"><span>Referral discount{reg.referralCodeSnapshot?.code ? ` (${reg.referralCodeSnapshot.code})` : ''}</span><span>−{formatPHP(centavosToPeso(Number(reg.discount)))}</span></div>}
           <div className="flex justify-between font-bold text-gray-900 pt-2 border-t border-gray-100">
             <span>Total</span>
             <span className="text-primary">{formatPHP(centavosToPeso(Number(reg.total)))}</span>
@@ -245,56 +249,21 @@ export default function AdminRegistrationDetailPage() {
 
         {/* Attendees */}
         <div className="bg-white border border-gray-200 rounded-2xl p-5">
-          <div className="flex items-center justify-between mb-3">
-            <h2 className="font-semibold text-gray-900">Attendees</h2>
-            <span className="text-xs font-medium text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">
-              {reg.attendees.length} {reg.attendees.length === 1 ? 'person' : 'people'}
-            </span>
-          </div>
-          <div className="space-y-2">
-            {reg.attendees.map((a, i) => {
-              const hasQr = !!a.qrToken;
-              const qrStatus = a.checkedInAt
-                ? { label: 'Checked In', cls: 'bg-green-100 text-green-700' }
-                : hasQr
-                ? { label: 'QR Ready', cls: 'bg-blue-100 text-blue-700' }
-                : { label: 'QR Pending', cls: 'bg-gray-100 text-gray-500' };
-
-              return (
-                <div key={a.id} className="rounded-xl border border-gray-100 bg-gray-50 p-3 text-sm">
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="flex items-center gap-2 min-w-0">
-                      <span className="shrink-0 w-6 h-6 rounded-full bg-primary/10 text-primary text-xs font-bold flex items-center justify-center">
-                        {i + 1}
-                      </span>
-                      <span className="font-semibold text-gray-900 truncate">
-                        {a.firstName} {a.lastName}
-                      </span>
-                      {a.isLead && (
-                        <span className="shrink-0 text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full">
-                          Lead
-                        </span>
-                      )}
-                    </div>
-                    <span className={`shrink-0 text-xs font-medium px-2 py-0.5 rounded-full ${qrStatus.cls}`}>
-                      {qrStatus.label}
-                    </span>
-                  </div>
-                  <div className="mt-2 pl-8 space-y-0.5 text-xs text-gray-500">
-                    <p>{a.email}</p>
-                    {a.phone && <p>{a.phone}</p>}
-                    {reg.tierName && (
-                      <p className="font-medium text-gray-700">{reg.tierName}</p>
-                    )}
-                    {a.checkedInAt && (
-                      <p className="text-green-600 font-medium">
-                        Checked in {formatManila(new Date(a.checkedInAt))}
-                      </p>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
+          <h2 className="font-semibold text-gray-900 mb-3">Attendees</h2>
+          <div className="divide-y divide-gray-100">
+            {reg.attendees.map((a) => (
+              <div key={a.id} className="py-2 text-sm">
+                <span className="font-medium">
+                  {a.firstName} {a.lastName}
+                </span>
+                {a.isLead && (
+                  <span className="ml-2 text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full">
+                    Lead
+                  </span>
+                )}
+                <p className="text-gray-500 text-xs">{a.email}</p>
+              </div>
+            ))}
           </div>
         </div>
 
@@ -429,6 +398,7 @@ export default function AdminRegistrationDetailPage() {
             )}
           </div>
         )}
-    </main>
+      </main>
+    </>
   );
 }

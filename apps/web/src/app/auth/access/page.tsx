@@ -6,13 +6,10 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import axios from 'axios';
 import toast from 'react-hot-toast';
 import api from '@/lib/api';
-import { setLoginPortal } from '@/lib/auth';
 import { useAuthStore } from '@/store/auth.store';
 import { useIsInAppBrowser } from '@/lib/useIsInAppBrowser';
 import { getOrCreateFunnelSessionId, trackInternalFunnelEvent } from '@/lib/funnel';
 import { trackPixelCustomEvent, trackPixelEvent } from '@/lib/metaPixel';
-import LegalModal from '@/components/LegalModal';
-import { USER_TERMS, PRIVACY_POLICY } from '@/lib/legal';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.axontickets.online/api/v1';
 const RESEND_COOLDOWN = 60;
@@ -35,14 +32,11 @@ function AccessForm() {
   const [email, setEmail] = useState('');
   const [otp, setOtp] = useState('');
   const [pendingAuth, setPendingAuth] = useState<PendingAuth | null>(null);
-  const [profile, setProfile] = useState({ firstName: '', lastName: '', phoneDigits: '', birthday: '', gender: '', city: '' });
+  const [profile, setProfile] = useState({ firstName: '', lastName: '', phoneDigits: '' });
   const [loading, setLoading] = useState(false);
   const [secondsLeft, setSecondsLeft] = useState(0);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const otpInputRef = useRef<HTMLInputElement>(null);
-  const [termsAccepted, setTermsAccepted] = useState(false);
-  const [privacyAccepted, setPrivacyAccepted] = useState(false);
-  const [legalModal, setLegalModal] = useState<'terms' | 'privacy' | null>(null);
 
   const eventId = searchParams.get('eventId') ?? undefined;
   const eventSlug = searchParams.get('eventSlug') ?? undefined;
@@ -87,7 +81,7 @@ function AccessForm() {
   }, []);
 
   const redirectAfterAuth = useCallback(
-    (isAdmin: boolean, isOrganizer = false) => {
+    (isAdmin: boolean) => {
       const redirect = searchParams.get('redirect');
       const dest = redirect && redirect.startsWith('/') ? redirect : isAdmin ? '/admin' : '/';
       router.replace(dest);
@@ -184,7 +178,7 @@ function AccessForm() {
     try {
       const res = await api.post<{
         data: {
-          user: { id: string; email: string; firstName: string | null; lastName: string | null; isAdmin: boolean; isOrganizer?: boolean; isVerified: boolean };
+          user: { id: string; email: string; firstName: string | null; lastName: string | null; isAdmin: boolean; isVerified: boolean };
           accessToken: string;
           refreshToken: string;
           isNewUser: boolean;
@@ -225,7 +219,6 @@ function AccessForm() {
           metadata: { eventSlug, eventName, userId: verifiedUser.id },
         });
       } else {
-        setLoginPortal('customer');
         setAuth(
           {
             id: verifiedUser.id,
@@ -233,15 +226,13 @@ function AccessForm() {
             firstName: verifiedUser.firstName ?? '',
             lastName: verifiedUser.lastName ?? '',
             isAdmin: verifiedUser.isAdmin,
-            isOrganizer: Boolean(verifiedUser.isOrganizer),
             isVerified: verifiedUser.isVerified,
-            loginPortal: 'customer',
           },
           accessToken,
           refreshToken,
         );
         toast.success(`Welcome back!`);
-        redirectAfterAuth(verifiedUser.isAdmin, verifiedUser.isOrganizer);
+        redirectAfterAuth(verifiedUser.isAdmin);
       }
     } catch (err: any) {
       const msg = err?.response?.data?.message ?? 'Verification failed';
@@ -296,10 +287,10 @@ function AccessForm() {
       const phone = `+63${profile.phoneDigits}`;
 
       const res = await axios.patch<{
-        data: { id: string; email: string; firstName: string; lastName: string; isAdmin: boolean; isOrganizer?: boolean; isVerified: boolean };
+        data: { id: string; email: string; firstName: string; lastName: string; isAdmin: boolean; isVerified: boolean };
       }>(
         `${API_URL}/users/me`,
-        { firstName: profile.firstName, lastName: profile.lastName, phone, birthday: profile.birthday, gender: profile.gender, city: profile.city.trim() },
+        { firstName: profile.firstName, lastName: profile.lastName, phone },
         { headers: { Authorization: `Bearer ${pendingAuth.accessToken}` } },
       );
 
@@ -313,7 +304,6 @@ function AccessForm() {
         metadata: { eventSlug, eventName, userId: updatedUser.id },
       });
 
-      setLoginPortal('customer');
       setAuth(
         {
           id: updatedUser.id,
@@ -321,15 +311,13 @@ function AccessForm() {
           firstName: updatedUser.firstName,
           lastName: updatedUser.lastName,
           isAdmin: updatedUser.isAdmin,
-          isOrganizer: Boolean(updatedUser.isOrganizer),
           isVerified: updatedUser.isVerified,
-          loginPortal: 'customer',
         },
         pendingAuth.accessToken,
         pendingAuth.refreshToken,
       );
       toast.success(`Welcome, ${updatedUser.firstName}!`);
-      redirectAfterAuth(updatedUser.isAdmin, updatedUser.isOrganizer);
+      redirectAfterAuth(updatedUser.isAdmin);
     } catch (err: any) {
       const msg = err?.response?.data?.message ?? 'Could not save profile';
       toast.error(Array.isArray(msg) ? msg.join(', ') : msg);
@@ -370,7 +358,7 @@ function AccessForm() {
             <>
               <h1 className="mt-4 text-2xl font-bold text-gray-900">Almost done!</h1>
               <p className="mt-1 text-sm text-gray-500">
-                Complete your profile once for faster event registration.
+                Tell us your name so we can put it on your ticket.
               </p>
             </>
           )}
@@ -428,26 +416,6 @@ function AccessForm() {
                 </p>
               )}
             </div>
-
-            <p className="text-center text-xs text-gray-400 leading-relaxed">
-              By continuing, you agree to our{' '}
-              <button
-                type="button"
-                onClick={() => setLegalModal('terms')}
-                className="text-primary underline underline-offset-2 hover:text-primary/80 transition-colors"
-              >
-                Terms &amp; Conditions
-              </button>{' '}
-              and{' '}
-              <button
-                type="button"
-                onClick={() => setLegalModal('privacy')}
-                className="text-primary underline underline-offset-2 hover:text-primary/80 transition-colors"
-              >
-                Privacy Policy
-              </button>
-              .
-            </p>
 
           </form>
         )}
@@ -579,58 +547,9 @@ function AccessForm() {
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
-              <div><label className="block text-sm font-medium text-gray-700 mb-1">Birthday <span className="text-red-500">*</span></label><input type="date" required max={new Date().toISOString().slice(0, 10)} value={profile.birthday} onChange={(e) => setProfile((p) => ({ ...p, birthday: e.target.value }))} className={inputClass} /></div>
-              <div><label className="block text-sm font-medium text-gray-700 mb-1">Gender <span className="text-red-500">*</span></label><select required value={profile.gender} onChange={(e) => setProfile((p) => ({ ...p, gender: e.target.value }))} className={inputClass}><option value="">Select</option><option value="female">Female</option><option value="male">Male</option><option value="non_binary">Non-binary</option><option value="self_described">Self-described</option><option value="prefer_not_to_say">Prefer not to say</option></select></div>
-            </div>
-            <div><label className="block text-sm font-medium text-gray-700 mb-1">City <span className="text-red-500">*</span></label><input required value={profile.city} onChange={(e) => setProfile((p) => ({ ...p, city: e.target.value }))} autoComplete="address-level2" placeholder="Davao City" className={inputClass} /><p className="mt-1 text-[11px] leading-relaxed text-gray-400">Used for attendee demographics and event reporting. Access is restricted to authorized event organizers and platform administrators.</p></div>
-
-            {/* Legal consent — required for new accounts */}
-            <div className="space-y-3 rounded-xl border border-gray-100 bg-gray-50 px-4 py-4">
-              <label className="flex items-start gap-3 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={termsAccepted}
-                  onChange={(e) => setTermsAccepted(e.target.checked)}
-                  className="mt-0.5 h-4 w-4 rounded border-gray-300 text-primary accent-primary shrink-0 cursor-pointer"
-                />
-                <span className="text-xs text-gray-600 leading-relaxed">
-                  I have read and agree to the{' '}
-                  <button
-                    type="button"
-                    onClick={() => setLegalModal('terms')}
-                    className="text-primary underline underline-offset-2 hover:text-primary/80 transition-colors font-medium"
-                  >
-                    Terms &amp; Conditions
-                  </button>
-                  <span className="text-red-500 ml-0.5">*</span>
-                </span>
-              </label>
-
-              <label className="flex items-start gap-3 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={privacyAccepted}
-                  onChange={(e) => setPrivacyAccepted(e.target.checked)}
-                  className="mt-0.5 h-4 w-4 rounded border-gray-300 text-primary accent-primary shrink-0 cursor-pointer"
-                />
-                <span className="text-xs text-gray-600 leading-relaxed">
-                  I have read and agree to the{' '}
-                  <button
-                    type="button"
-                    onClick={() => setLegalModal('privacy')}
-                    className="text-primary underline underline-offset-2 hover:text-primary/80 transition-colors font-medium"
-                  >
-                    Privacy Policy
-                  </button>
-                  <span className="text-red-500 ml-0.5">*</span>
-                </span>
-              </label>
-            </div>
-
             <button
               type="submit"
-              disabled={loading || !profile.firstName || !profile.lastName || profile.phoneDigits.length < 10 || !profile.birthday || !profile.gender || !profile.city.trim() || !termsAccepted || !privacyAccepted}
+              disabled={loading || !profile.firstName || !profile.lastName || profile.phoneDigits.length < 10}
               className="w-full py-2.5 rounded-xl bg-primary text-white text-sm font-semibold hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
             >
               {loading ? (
@@ -651,19 +570,6 @@ function AccessForm() {
           </p>
         )}
       </div>
-
-      <LegalModal
-        open={legalModal === 'terms'}
-        onClose={() => setLegalModal(null)}
-        title="Axon Tickets – End-User Terms & Conditions"
-        content={USER_TERMS}
-      />
-      <LegalModal
-        open={legalModal === 'privacy'}
-        onClose={() => setLegalModal(null)}
-        title="Axon Tickets – Privacy Policy"
-        content={PRIVACY_POLICY}
-      />
     </div>
   );
 }

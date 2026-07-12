@@ -52,7 +52,7 @@ export default function EventCard({ event }: Props) {
         <p className="text-sm text-gray-500 mt-1 line-clamp-1">{event.venue}</p>
         {event.lowestPrice != null && (
           <p className="mt-2 text-sm font-semibold text-primary">
-            From ₱{event.lowestPrice.toLocaleString()}
+            From ₱{(event.lowestPrice / 100).toLocaleString()}
           </p>
         )}
       </div>

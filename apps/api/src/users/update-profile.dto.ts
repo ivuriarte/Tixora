@@ -1,4 +1,4 @@
-import { IsDateString, IsIn, IsString, IsOptional, MaxLength, Matches } from 'class-validator';
+import { IsString, IsOptional, MaxLength, Matches } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 
 export class UpdateProfileDto {
@@ -37,14 +37,4 @@ export class UpdateProfileDto {
   @IsString()
   @MaxLength(100)
   city?: string;
-
-  @ApiProperty({ required: false, example: '1990-05-21' })
-  @IsOptional()
-  @IsDateString()
-  birthday?: string;
-
-  @ApiProperty({ required: false, enum: ['female', 'male', 'non_binary', 'prefer_not_to_say', 'self_described'] })
-  @IsOptional()
-  @IsIn(['female', 'male', 'non_binary', 'prefer_not_to_say', 'self_described'])
-  gender?: string;
 }

@@ -22,11 +22,9 @@ interface AdminReg {
   tierName: string | null;
   attendeeCount: number;
   subtotal: string | number;
-  discount: string | number;
   fees: string | number;
   total: string | number;
   currency: string;
-  referralCodeSnapshot?: { code: string; name: string } | null;
   rejectionReason: string | null;
   createdAt: string;
   event: { title: string; slug: string; startsAt: string; venue: string };
@@ -380,11 +378,6 @@ export default function VerificationDrawer({
                     Subtotal {formatPHP(centavosToPeso(Number(reg.subtotal)))} ·
                     Fee {formatPHP(centavosToPeso(Number(reg.fees)))}
                   </p>
-                  {Number(reg.discount) > 0 && (
-                    <p className="text-[11px] font-medium text-emerald-600 mt-0.5">
-                      Referral discount ({reg.referralCodeSnapshot?.code ?? 'code'}) −{formatPHP(centavosToPeso(Number(reg.discount)))}
-                    </p>
-                  )}
                 </div>
               </section>
 

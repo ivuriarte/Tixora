@@ -25,6 +25,7 @@ import { JwtPayload } from '@axon-tickets/types';
 const BCRYPT_COST = 12;
 const OTP_TTL_SECONDS = 300; // 5 minutes
 const OTP_DIGITS = 6;
+const MAX_ACTIVE_RESERVATIONS = 3;
 const OTP_MAX_ATTEMPTS = 5;
 const OTP_ATTEMPT_TTL = OTP_TTL_SECONDS + 60; // slightly longer than OTP TTL
 const OTP_HOURLY_TTL_SECONDS = 60 * 60;
@@ -44,11 +45,6 @@ export class AuthService {
 
   async register(dto: RegisterDto, ip: string): Promise<{ userId: string; message: string }> {
     await this.verifyCaptcha(dto.captchaToken, ip);
-    const birthday = new Date(`${dto.birthday}T00:00:00.000Z`);
-    const earliest = new Date(); earliest.setUTCFullYear(earliest.getUTCFullYear() - 120);
-    if (!Number.isFinite(birthday.getTime()) || birthday > new Date() || birthday < earliest) {
-      throw new BadRequestException('Birthday must be a valid past date within the last 120 years.');
-    }
 
     const existing = await this.prisma.user.findUnique({ where: { email: dto.email } });
     if (existing) throw new ConflictException('Email already registered');
@@ -64,9 +60,7 @@ export class AuthService {
         phone: dto.phone ?? null,
         company: dto.company ?? null,
         jobTitle: dto.jobTitle ?? null,
-        city: dto.city.trim(),
-        birthday,
-        gender: dto.gender,
+        city: dto.city ?? null,
       },
     });
 
@@ -76,7 +70,7 @@ export class AuthService {
   }
 
   async login(dto: LoginDto): Promise<{
-    user: { id: string; email: string; firstName: string; lastName: string; isAdmin: boolean; isOrganizer: boolean; isVerified: boolean };
+    user: { id: string; email: string; firstName: string; lastName: string; isAdmin: boolean; isVerified: boolean };
     accessToken: string;
     refreshToken: string;
   }> {
@@ -104,17 +98,16 @@ export class AuthService {
       this.generateAccessToken(user.id, user.email, user.isAdmin),
       this.generateRefreshToken(user.id),
     ]);
-    const isOrganizer = await this.isApprovedOrganizer(user.id);
 
     return {
-      user: { id: user.id, email: user.email, firstName: user.firstName!, lastName: user.lastName!, isAdmin: user.isAdmin, isOrganizer, isVerified: user.isVerified },
+      user: { id: user.id, email: user.email, firstName: user.firstName!, lastName: user.lastName!, isAdmin: user.isAdmin, isVerified: user.isVerified },
       accessToken,
       refreshToken,
     };
   }
 
   async verifyOtp(dto: VerifyOtpDto): Promise<{
-    user: { id: string; email: string; firstName: string; lastName: string; isAdmin: boolean; isOrganizer: boolean; isVerified: boolean };
+    user: { id: string; email: string; firstName: string; lastName: string; isAdmin: boolean; isVerified: boolean };
     accessToken: string;
     refreshToken: string;
   }> {
@@ -166,10 +159,9 @@ export class AuthService {
       this.generateAccessToken(user.id, user.email, user.isAdmin),
       this.generateRefreshToken(user.id),
     ]);
-    const isOrganizer = await this.isApprovedOrganizer(user.id);
 
     return {
-      user: { id: user.id, email: user.email, firstName: user.firstName!, lastName: user.lastName!, isAdmin: user.isAdmin, isOrganizer, isVerified: true },
+      user: { id: user.id, email: user.email, firstName: user.firstName!, lastName: user.lastName!, isAdmin: user.isAdmin, isVerified: true },
       accessToken,
       refreshToken,
     };
@@ -251,16 +243,10 @@ export class AuthService {
         phone: true,
         isVerified: true,
         isAdmin: true,
-        organizationMembers: {
-          where: { organization: { approvalStatus: 'approved' } },
-          select: { id: true },
-          take: 1,
-        },
         createdAt: true,
       },
     });
-    const { organizationMembers, ...rest } = user;
-    return { ...rest, isOrganizer: organizationMembers.length > 0 };
+    return user;
   }
 
   /**
@@ -441,12 +427,11 @@ export class AuthService {
    * isNewUser = true when the account was created via requestAccess and has no profile yet.
    */
   async verifyAccess(dto: VerifyAccessDto, req?: Request): Promise<{
-    user: { id: string; email: string; firstName: string | null; lastName: string | null; isAdmin: boolean; isOrganizer: boolean; isVerified: boolean };
+    user: { id: string; email: string; firstName: string | null; lastName: string | null; isAdmin: boolean; isVerified: boolean };
     accessToken: string;
     refreshToken: string;
     isNewUser: boolean;
     isExistingAccount: boolean;
-    orgApprovalStatus: string | null;
   }> {
     const userAgent = req?.headers['user-agent'] as string | undefined;
     const referrer = (req?.headers['referer'] as string | undefined) ?? undefined;
@@ -535,14 +520,6 @@ export class AuthService {
       this.generateAccessToken(user.id, user.email, user.isAdmin),
       this.generateRefreshToken(user.id),
     ]);
-    const [isOrganizer, orgMembership] = await Promise.all([
-      this.isApprovedOrganizer(user.id),
-      this.prisma.organizationMember.findFirst({
-        where: { userId: user.id },
-        select: { organization: { select: { approvalStatus: true } } },
-      }),
-    ]);
-    const orgApprovalStatus = orgMembership?.organization.approvalStatus ?? null;
 
     await this.funnel.track(
       {
@@ -564,13 +541,12 @@ export class AuthService {
     this.logger.log({ msg: 'OTP verify success', userId: user.id, isNewUser });
 
     return {
-      user: { id: user.id, email: user.email, firstName: user.firstName, lastName: user.lastName, isAdmin: user.isAdmin, isOrganizer, isVerified: true },
+      user: { id: user.id, email: user.email, firstName: user.firstName, lastName: user.lastName, isAdmin: user.isAdmin, isVerified: true },
       accessToken,
       refreshToken,
       isNewUser,
       // true when the email already belonged to a verified account before this OTP flow
       isExistingAccount: user.isVerified,
-      orgApprovalStatus,
     };
   }
 
@@ -612,17 +588,6 @@ export class AuthService {
       algorithm: 'RS256',
       expiresIn: this.config.get<string>('jwt.accessExpiry') ?? '15m',
     });
-  }
-
-  private async isApprovedOrganizer(userId: string): Promise<boolean> {
-    const membership = await this.prisma.organizationMember.findFirst({
-      where: {
-        userId,
-        organization: { approvalStatus: 'approved' },
-      },
-      select: { id: true },
-    });
-    return Boolean(membership);
   }
 
   private async generateRefreshToken(userId: string): Promise<string> {

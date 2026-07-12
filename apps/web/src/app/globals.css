@@ -22,9 +22,3 @@
     @apply max-w-7xl mx-auto px-4 sm:px-6 lg:px-8;
   }
 }
-
-/* drain is referenced via inline animation style (dynamic duration), not a Tailwind class */
-@keyframes drain {
-  from { width: 100%; }
-  to   { width: 0%; }
-}
