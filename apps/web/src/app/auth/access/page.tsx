@@ -12,6 +12,7 @@ import { useIsInAppBrowser } from '@/lib/useIsInAppBrowser';
 import { getOrCreateFunnelSessionId, trackInternalFunnelEvent } from '@/lib/funnel';
 import { trackPixelCustomEvent, trackPixelEvent } from '@/lib/metaPixel';
 import LegalModal from '@/components/LegalModal';
+import InAppBrowserBanner from '@/components/InAppBrowserBanner';
 import { USER_TERMS, PRIVACY_POLICY } from '@/lib/legal';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.axontickets.online/api/v1';
@@ -35,7 +36,7 @@ function AccessForm() {
   const [email, setEmail] = useState('');
   const [otp, setOtp] = useState('');
   const [pendingAuth, setPendingAuth] = useState<PendingAuth | null>(null);
-  const [profile, setProfile] = useState({ firstName: '', lastName: '', phoneDigits: '', birthday: '', gender: '', city: '' });
+  const [profile, setProfile] = useState({ firstName: '', lastName: '', phoneDigits: '' });
   const [loading, setLoading] = useState(false);
   const [secondsLeft, setSecondsLeft] = useState(0);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -299,7 +300,7 @@ function AccessForm() {
         data: { id: string; email: string; firstName: string; lastName: string; isAdmin: boolean; isOrganizer?: boolean; isVerified: boolean };
       }>(
         `${API_URL}/users/me`,
-        { firstName: profile.firstName, lastName: profile.lastName, phone, birthday: profile.birthday, gender: profile.gender, city: profile.city.trim() },
+        { firstName: profile.firstName, lastName: profile.lastName, phone },
         { headers: { Authorization: `Bearer ${pendingAuth.accessToken}` } },
       );
 
@@ -329,7 +330,10 @@ function AccessForm() {
         pendingAuth.refreshToken,
       );
       toast.success(`Welcome, ${updatedUser.firstName}!`);
-      redirectAfterAuth(updatedUser.isAdmin, updatedUser.isOrganizer);
+      // Always send new users to complete-profile to collect demographics;
+      // returnTo carries the original destination through.
+      const originalDest = searchParams.get('redirect') ?? '/account/tickets';
+      router.replace(`/account/complete-profile?returnTo=${encodeURIComponent(originalDest)}`);
     } catch (err: any) {
       const msg = err?.response?.data?.message ?? 'Could not save profile';
       toast.error(Array.isArray(msg) ? msg.join(', ') : msg);
@@ -343,6 +347,7 @@ function AccessForm() {
 
   return (
     <div className="min-h-screen flex items-center justify-center px-4 py-12 bg-gray-50">
+      <InAppBrowserBanner />
       <div className="w-full max-w-sm">
         {/* Header */}
         <div className="text-center mb-8">
@@ -579,12 +584,6 @@ function AccessForm() {
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
-              <div><label className="block text-sm font-medium text-gray-700 mb-1">Birthday <span className="text-red-500">*</span></label><input type="date" required max={new Date().toISOString().slice(0, 10)} value={profile.birthday} onChange={(e) => setProfile((p) => ({ ...p, birthday: e.target.value }))} className={inputClass} /></div>
-              <div><label className="block text-sm font-medium text-gray-700 mb-1">Gender <span className="text-red-500">*</span></label><select required value={profile.gender} onChange={(e) => setProfile((p) => ({ ...p, gender: e.target.value }))} className={inputClass}><option value="">Select</option><option value="female">Female</option><option value="male">Male</option><option value="non_binary">Non-binary</option><option value="self_described">Self-described</option><option value="prefer_not_to_say">Prefer not to say</option></select></div>
-            </div>
-            <div><label className="block text-sm font-medium text-gray-700 mb-1">City <span className="text-red-500">*</span></label><input required value={profile.city} onChange={(e) => setProfile((p) => ({ ...p, city: e.target.value }))} autoComplete="address-level2" placeholder="Davao City" className={inputClass} /><p className="mt-1 text-[11px] leading-relaxed text-gray-400">Used for attendee demographics and event reporting. Access is restricted to authorized event organizers and platform administrators.</p></div>
-
             {/* Legal consent — required for new accounts */}
             <div className="space-y-3 rounded-xl border border-gray-100 bg-gray-50 px-4 py-4">
               <label className="flex items-start gap-3 cursor-pointer">
@@ -630,7 +629,7 @@ function AccessForm() {
 
             <button
               type="submit"
-              disabled={loading || !profile.firstName || !profile.lastName || profile.phoneDigits.length < 10 || !profile.birthday || !profile.gender || !profile.city.trim() || !termsAccepted || !privacyAccepted}
+              disabled={loading || !profile.firstName.trim() || !profile.lastName.trim() || profile.phoneDigits.length < 10 || !termsAccepted || !privacyAccepted}
               className="w-full py-2.5 rounded-xl bg-primary text-white text-sm font-semibold hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
             >
               {loading ? (
