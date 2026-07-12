@@ -192,7 +192,7 @@ export default function AdminNewEventPage() {
             postWithRetry(`/admin/events/${eventId}/tiers`, {
               name: t.name.trim(),
               description: t.description.trim() || undefined,
-              price: Math.round(parseFloat(t.price) * 100),
+              price: parseFloat(t.price),
               totalQuantity: parseInt(t.totalQuantity, 10),
               maxPerOrder: parseInt(t.maxPerOrder, 10),
               isVisible: t.isVisible,

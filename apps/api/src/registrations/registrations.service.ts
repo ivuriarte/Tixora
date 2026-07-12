@@ -71,9 +71,8 @@ export class RegistrationsService {
 
     const unitPrice = Number(tier.price);
     const subtotal = unitPrice * attendeeCount;
-    // Per-event service fee. event.platformFee is configured in pesos (e.g. 50);
-    // money columns (subtotal/fees/total) are stored in centavos, so convert.
-    const fees = Math.round(Number(event.platformFee ?? 50) * 100);
+    // Per-event service fee. Money columns are stored as PHP peso amounts.
+    const fees = Number(event.platformFee ?? 50);
     const total = subtotal + fees;
     const referenceNumber = generateReferenceNumber();
     const maxPerUser = event.maxPerUser ?? 0;

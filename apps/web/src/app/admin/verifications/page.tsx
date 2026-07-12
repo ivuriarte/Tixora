@@ -428,7 +428,7 @@ export default function VerificationsQueuePage() {
                         {r.tierName ?? '—'} × {r.attendeeCount}
                       </td>
                       <td className="px-4 py-3 text-right font-medium">
-                        ₱{(Number(r.total) / 100).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        ₱{Number(r.total).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </td>
                       <td className="px-4 py-3">
                         {(() => {

@@ -1217,7 +1217,7 @@ export class AdminService {
         o.status,
         `"${this.escapeCsvCell(tierNames)}"`,
         qty,
-        (Number(o.total) / 100).toFixed(2),
+        Number(o.total).toFixed(2),
         o.paymentMethod ?? '',
         o.createdAt.toISOString(),
       ].join(',');
@@ -1235,7 +1235,7 @@ export class AdminService {
       'paid',
       `"${this.escapeCsvCell(r.tierName ?? 'Registration')}"`,
       r.attendeeCount,
-      (Number(r.total) / 100).toFixed(2),
+      Number(r.total).toFixed(2),
       r.paymentMethod ?? '',
       r.createdAt.toISOString(),
     ].join(','));

@@ -12,17 +12,15 @@ export function formatPHP(amount: number): string {
 }
 
 /**
- * Convert centavos to peso.
+ * Compatibility helpers for legacy call sites.
+ * Money values are stored and returned as PHP pesos.
  */
-export function centavosToPeso(centavos: number): number {
-  return centavos / 100;
+export function centavosToPeso(amount: number): number {
+  return amount;
 }
 
-/**
- * Convert peso to centavos.
- */
-export function pesoToCentavos(peso: number): number {
-  return Math.round(peso * 100);
+export function pesoToCentavos(amount: number): number {
+  return amount;
 }
 
 /**

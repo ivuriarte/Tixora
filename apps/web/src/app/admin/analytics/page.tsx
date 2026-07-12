@@ -85,7 +85,7 @@ interface FunnelData {
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
 function fmtRevenue(n: number) {
-  return `₱${(n / 100).toLocaleString('en-PH', { minimumFractionDigits: 2 })}`;
+  return `₱${n.toLocaleString('en-PH', { minimumFractionDigits: 2 })}`;
 }
 
 function fmtPct(n: number) {
