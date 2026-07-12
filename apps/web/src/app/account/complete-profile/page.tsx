@@ -63,26 +63,25 @@ function CompleteProfileForm() {
               <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
             </svg>
           </div>
-          <h1 className="text-xl font-bold text-gray-900">One more thing</h1>
+          <h1 className="text-xl font-bold text-gray-900">Profile details</h1>
           <p className="text-sm text-gray-500 mt-1">
-            Help us personalise your event experience. You only need to do this once.
+            Add optional details now, or skip and continue to your event.
           </p>
         </div>
 
         <form onSubmit={handleSubmit} className="bg-white shadow rounded-2xl p-6 space-y-5">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Birthday <span className="text-red-500">*</span>
+              Birthday <span className="text-gray-400 font-normal">(optional)</span>
             </label>
             <BirthdayPicker value={birthday} onChange={setBirthday} />
           </div>
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Gender <span className="text-red-500">*</span>
+              Gender <span className="text-gray-400 font-normal">(optional)</span>
             </label>
             <select
-              required
               value={gender}
               onChange={(e) => setGender(e.target.value)}
               className={inputClass}
@@ -98,10 +97,9 @@ function CompleteProfileForm() {
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              City <span className="text-red-500">*</span>
+              City <span className="text-gray-400 font-normal">(optional)</span>
             </label>
             <input
-              required
               value={city}
               onChange={(e) => setCity(e.target.value)}
               autoComplete="address-level2"
@@ -115,7 +113,7 @@ function CompleteProfileForm() {
 
           <button
             type="submit"
-            disabled={loading || !birthday || !gender || !city.trim()}
+            disabled={loading}
             className="w-full py-3 rounded-xl bg-primary text-white font-semibold text-sm hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
           >
             {loading ? (
