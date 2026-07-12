@@ -1,0 +1,17 @@
+# Axon Tickets
+
+Axon Tickets is an online ticketing and event-registration platform for events in the Philippines.
+
+## Public content
+
+- Event listings: https://axontickets.online/
+- Event organizer information: https://axontickets.online/organizers
+- Event solution guides: https://axontickets.online/solutions/conferences
+- Individual event details and ticket availability: https://axontickets.online/events/{event-slug}
+
+Public event pages contain the event title, schedule, venue, city, ticket tiers, prices in Philippine pesos, availability, organizer, and registration link. Ticket availability and event status may change; use the individual event page as the current source of truth.
+
+## Contact
+
+- Website: https://axontickets.online/
+- Facebook: https://www.facebook.com/axonentertainment.ph

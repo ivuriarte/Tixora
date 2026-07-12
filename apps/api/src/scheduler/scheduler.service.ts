@@ -94,6 +94,59 @@ export class SchedulerService {
   }
 
   /**
+   * Pending-payment reminder.
+   * Runs every hour. Finds pending_payment registrations between 12 and 13 hours
+   * old and sends a reminder email to the lead attendee. Capped at 200 per run to
+   * stay within Vercel's 10s serverless limit.
+   */
+  async remindPendingRegistrations(): Promise<{ reminded: number }> {
+    const now = Date.now();
+    const twelveHoursAgo = new Date(now - 12 * 60 * 60 * 1000);
+    const thirteenHoursAgo = new Date(now - 13 * 60 * 60 * 1000);
+
+    const pending = await this.prisma.registration.findMany({
+      where: {
+        status: 'pending_payment',
+        createdAt: { gte: thirteenHoursAgo, lte: twelveHoursAgo },
+      },
+      take: 200,
+      include: {
+        attendees: { where: { isLead: true }, take: 1 },
+        event: { select: { title: true } },
+      },
+    });
+
+    if (!pending.length) return { reminded: 0 };
+
+    const webBase = this.config.get<string>('webUrl') ?? 'https://axontickets.online';
+    let reminded = 0;
+
+    for (const reg of pending) {
+      const lead = reg.attendees[0];
+      if (!lead) continue;
+      try {
+        await this.emailService.sendPaymentReminderEmail(
+          lead.email,
+          lead.firstName,
+          reg.referenceNumber,
+          reg.event.title,
+          `${webBase}/registrations/${reg.id}`,
+        );
+        reminded++;
+      } catch (err: unknown) {
+        this.logger.warn({
+          msg: 'Payment reminder email failed',
+          regId: reg.id,
+          err: (err as Error).message,
+        });
+      }
+    }
+
+    this.logger.log({ msg: 'Payment reminders sent', reminded });
+    return { reminded };
+  }
+
+  /**
    * P5-07 — OTP cleanup.
    * Runs daily at 02:00. Deletes expired and used OtpCode records to keep
    * the table small and avoid leaking stale codes.
@@ -115,7 +168,7 @@ export class SchedulerService {
    * reserved seats back to the tier's soldQuantity so inventory stays accurate.
    */
   async cleanupOrphanRegistrations(): Promise<void> {
-    const cutoff = new Date(Date.now() - 2 * 60 * 60 * 1000);
+    const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000);
 
     const orphans = await this.prisma.registration.findMany({
       where: {

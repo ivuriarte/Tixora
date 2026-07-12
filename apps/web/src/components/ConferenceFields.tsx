@@ -63,6 +63,8 @@ export interface SponsorItem {
   logoUrl: string;
   tier: string;
   websiteUrl: string;
+  description: string;
+  isVisible: boolean;
 }
 
 export interface FaqItem {
@@ -72,7 +74,7 @@ export interface FaqItem {
 
 // ── Constants ──────────────────────────────────────────────────────────────────
 
-const SPONSOR_TIERS = ['Platinum', 'Gold', 'Silver', 'Bronze', 'Community', 'Media'];
+const SPONSOR_TIERS = ['Platinum', 'Gold', 'Silver', 'Bronze', 'Partner', 'Media Partner', 'Community Partner'];
 
 // ── Sponsor form ───────────────────────────────────────────────────────────────
 
@@ -137,13 +139,18 @@ function SponsorForm({
           value={value.logoUrl}
           onChange={(url) => onChange({ ...value, logoUrl: url })}
           endpoint="/upload/sponsor-logo"
-          accept="image/jpeg,image/png,image/webp,image/svg+xml"
+          accept="image/jpeg,image/png,image/webp"
           maxSizeMB={2}
           hint="Square works best"
           previewAspect="aspect-square"
           variant="logo"
         />
       </div>
+      <div>
+        <label className="block text-xs font-medium text-gray-600 mb-1">Short description <span className="text-gray-400 font-normal">(optional)</span></label>
+        <textarea rows={2} maxLength={500} value={value.description} onChange={(e) => onChange({ ...value, description: e.target.value })} className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary resize-none" placeholder="What this sponsor contributes" />
+      </div>
+      <label className="flex items-center gap-2 text-sm text-gray-700"><input type="checkbox" checked={value.isVisible} onChange={(e) => onChange({ ...value, isVisible: e.target.checked })} className="rounded border-gray-300 text-primary focus:ring-primary" />Show this sponsor publicly</label>
       <div className="flex gap-2">
         <button
           type="button"
@@ -176,7 +183,7 @@ export function SponsorListManager({
 }) {
   const [editingIdx, setEditingIdx] = useState<number | null>(null);
   const [showAdd, setShowAdd] = useState(false);
-  const [draft, setDraft] = useState<SponsorItem>({ name: '', logoUrl: '', tier: '', websiteUrl: '' });
+  const [draft, setDraft] = useState<SponsorItem>({ name: '', logoUrl: '', tier: '', websiteUrl: '', description: '', isVisible: true });
 
   useFlushPendingDraft<SponsorItem>({
     showAdd,
@@ -202,7 +209,7 @@ export function SponsorListManager({
   function addSponsor() {
     if (!draft.name.trim()) return;
     onChange([...sponsors, { ...draft, name: draft.name.trim() }]);
-    setDraft({ name: '', logoUrl: '', tier: '', websiteUrl: '' });
+    setDraft({ name: '', logoUrl: '', tier: '', websiteUrl: '', description: '', isVisible: true });
     // keep panel open so user can immediately add another
   }
 
@@ -213,7 +220,7 @@ export function SponsorListManager({
         {!showAdd && editingIdx === null && (
           <button
             type="button"
-            onClick={() => { setShowAdd(true); setDraft({ name: '', logoUrl: '', tier: '', websiteUrl: '' }); }}
+            onClick={() => { setShowAdd(true); setDraft({ name: '', logoUrl: '', tier: '', websiteUrl: '', description: '', isVisible: true }); }}
             className="text-xs text-primary hover:underline font-medium"
           >
             + Add Sponsor
@@ -267,6 +274,7 @@ export function SponsorListManager({
                     {s.tier}
                   </span>
                 )}
+                {!s.isVisible && <span className="text-xs text-gray-400">Hidden</span>}
                 <button type="button" onClick={() => startEdit(idx)} className="text-primary hover:underline text-xs">
                   Edit
                 </button>

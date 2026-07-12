@@ -1,1078 +1,1240 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <title>MVP Backlog — Axon Tickets</title>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Axon Tickets MVP Product Backlog</title>
+  <meta name="description" content="Code-reconciled MVP product backlog for Axon Tickets.">
   <style>
-    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif; font-size: 10.5pt; color: #1a1a1a; max-width: 1000px; margin: 0 auto; padding: 40px; line-height: 1.6; }
-    .header-block { background: linear-gradient(135deg, #1A3A5C 0%, #2d5a8a 100%); color: white; padding: 40px 48px; margin: -40px -40px 40px; }
-    .header-block h1 { color: white; font-size: 24pt; margin: 0 0 8px; border-bottom: 3px solid #EA6C00; padding-bottom: 14px; }
-    .header-block .doc-meta { color: #a8c4e0; font-size: 10pt; margin-top: 14px; }
-    .header-block .doc-meta span { margin-right: 24px; }
-    h2 { font-size: 14pt; color: #1A3A5C; margin-top: 40px; border-left: 5px solid #EA6C00; padding-left: 14px; }
-    h3 { font-size: 11.5pt; color: #EA6C00; margin-top: 24px; }
-    table { width: 100%; border-collapse: collapse; margin: 12px 0; font-size: 9.5pt; }
-    th { background: #1A3A5C; color: white; padding: 9px 11px; text-align: left; font-weight: 600; }
-    td { padding: 7px 11px; border: 1px solid #dde3ec; vertical-align: top; }
-    tr:nth-child(even) td { background: #f7f9fc; }
-    .epic-header { background: #1A3A5C; color: white; padding: 14px 20px; border-radius: 8px; margin: 40px 0 16px; }
-    .epic-header h2 { color: white; border: none; padding: 0; margin: 0; font-size: 13pt; }
-    .epic-header .epic-meta { color: #a8c4e0; font-size: 9.5pt; margin-top: 5px; }
-    .story { border: 1px solid #dde3ec; border-radius: 6px; padding: 14px 18px; margin: 10px 0; background: white; }
-    .story-header { display: flex; align-items: flex-start; gap: 12px; margin-bottom: 8px; }
-    .story-id { font-size: 9pt; color: #64748b; font-weight: 700; font-family: 'Courier New', monospace; white-space: nowrap; }
-    .story-title { font-weight: 700; color: #1A3A5C; font-size: 11pt; }
-    .story-as { font-style: italic; color: #374151; margin: 6px 0; font-size: 10pt; background: #f7f9fc; border-left: 3px solid #EA6C00; padding: 8px 12px; border-radius: 0 4px 4px 0; }
-    .story-ac { margin-top: 8px; font-size: 9.5pt; }
-    .story-ac strong { color: #1A3A5C; }
-    .story-ac ul { margin: 4px 0 0 18px; }
-    .story-ac li { margin: 3px 0; color: #374151; }
-    .badge { display: inline-block; padding: 2px 9px; border-radius: 10px; font-size: 8.5pt; font-weight: 700; margin-right: 4px; }
-    .p0 { background: #dc2626; color: white; }
-    .p1 { background: #EA6C00; color: white; }
-    .p2 { background: #1A3A5C; color: white; }
-    .p3 { background: #64748b; color: white; }
-    .type-f { background: #dcfce7; color: #166534; }
-    .type-t { background: #dbeafe; color: #1e40af; }
-    .type-nf { background: #fef3c7; color: #92400e; }
-    .sp { background: #f1f5f9; color: #475569; border: 1px solid #e2e8f0; }
-    .info { background: #eff6ff; border-left: 4px solid #1A3A5C; padding: 10px 14px; margin: 14px 0; font-size: 10pt; border-radius: 0 4px 4px 0; }
-    .toc { background: #f7f9fc; border: 1px solid #dde3ec; border-radius: 8px; padding: 20px 24px; margin: 24px 0; }
-    .toc h3 { margin: 0 0 10px; color: #1A3A5C; font-size: 11pt; }
-    .toc ol { margin: 0; padding-left: 20px; }
-    .toc li { margin: 4px 0; font-size: 10pt; }
-    .summary-table th { background: #EA6C00; }
-    ul { margin: 6px 0 6px 20px; }
-    li { margin: 4px 0; }
-    hr { border: none; border-top: 1px solid #dde3ec; margin: 28px 0; }
-    .legend { display: flex; gap: 20px; flex-wrap: wrap; margin: 16px 0; font-size: 9.5pt; }
-    .legend-item { display: flex; align-items: center; gap: 6px; }
-  </style>
+:root{
+  --ink:#14203a;--muted:#64708a;--line:#dfe4ee;--paper:#fbfaf7;--white:#fff;
+  --purple:#6328ce;--violet:#8b4dff;--orange:#f46922;--green:#15916c;
+  --red:#d94747;--amber:#b66a00;--blue:#2369b3;--navy:#15233f;
+  --lilac:#f1ebff;--mint:#e8f7f1;--cream:#fff6ea;--sky:#eaf4ff;--rose:#fdecec;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;background:var(--paper);color:var(--ink);font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;line-height:1.55}
+a{color:inherit}
+.hero{position:relative;overflow:hidden;background:var(--navy);color:white;padding:72px max(6vw,42px) 64px}
+.hero:after{content:"";position:absolute;width:420px;height:420px;border-radius:50%;background:var(--purple);right:-145px;top:-170px;box-shadow:-115px 108px 0 -55px var(--orange)}
+.hero-inner{position:relative;z-index:1;max-width:1120px;margin:auto}
+.eyebrow{font-size:.75rem;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:#c5b4ff}
+h1{font-size:clamp(2.4rem,5vw,4.9rem);line-height:.98;letter-spacing:-.045em;margin:20px 0;max-width:920px}
+.hero p{font-size:1.15rem;color:#d5daeb;max-width:780px}
+.meta{display:flex;flex-wrap:wrap;gap:10px;margin-top:30px}
+.meta span,.chip{border-radius:999px;padding:7px 12px;font-size:.75rem;font-weight:800;letter-spacing:.03em}
+.meta span{background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.15)}
+.layout{max-width:1200px;margin:auto;padding:42px max(4vw,28px) 90px}
+.nav{position:sticky;top:0;z-index:10;background:rgba(251,250,247,.94);backdrop-filter:blur(12px);border-bottom:1px solid var(--line);padding:12px max(4vw,28px)}
+.nav-inner{max-width:1200px;margin:auto;display:flex;gap:8px;overflow:auto}
+.nav a{white-space:nowrap;text-decoration:none;border:1px solid var(--line);background:white;padding:7px 11px;border-radius:999px;font-size:.75rem;font-weight:700}
+.nav a:hover{border-color:var(--purple);color:var(--purple)}
+h2{font-size:clamp(1.7rem,3vw,2.55rem);line-height:1.1;letter-spacing:-.035em;margin:62px 0 18px}
+h3{font-size:1.2rem;line-height:1.25;margin:0}
+.lede{font-size:1.05rem;color:var(--muted);max-width:850px}
+.callout{border-radius:22px;padding:24px 28px;margin:22px 0;background:var(--navy);color:white}
+.callout strong{color:#bfa9ff}
+.callout p{color:#d5daeb;margin:.45rem 0 0}
+.grid{display:grid;gap:18px}
+.grid-2{grid-template-columns:repeat(2,minmax(0,1fr))}
+.grid-3{grid-template-columns:repeat(3,minmax(0,1fr))}
+.metric{border:1px solid var(--line);background:white;border-radius:18px;padding:22px}
+.metric .num{font-size:2.3rem;font-weight:850;letter-spacing:-.04em}
+.metric .label{color:var(--muted);font-size:.82rem}
+.statusbar{display:flex;height:13px;border-radius:999px;overflow:hidden;background:#eee;margin:16px 0}
+.statusbar span{display:block;height:100%}
+.legend{display:flex;gap:8px;flex-wrap:wrap;margin:14px 0}
+.chip{display:inline-flex;align-items:center;gap:6px}
+.status-verified{background:var(--mint);color:#0b7655}.status-partial{background:var(--cream);color:#9a5200}
+.status-gap{background:var(--rose);color:#ad2f2f}.status-deferred{background:#edf0f5;color:#4d586d}
+.status-verify{background:var(--sky);color:#185b9e}.status-ready{background:var(--mint);color:#0b7655}
+.status-blocked{background:var(--rose);color:#ad2f2f}
+.priority-Must{background:var(--red);color:white}.priority-Should{background:var(--orange);color:white}
+.priority-Could{background:var(--blue);color:white}.priority-Wont{background:#5d6678;color:white}
+.epic{margin:58px 0 18px;padding:26px 28px;border-radius:24px;background:linear-gradient(135deg,var(--navy),#283b64);color:white}
+.epic-id{color:#bfa9ff;font-size:.78rem;font-weight:850;letter-spacing:.1em}
+.epic h2{font-size:2rem;margin:8px 0 7px;color:white}
+.epic p{color:#d0d7e8;margin:0;max-width:920px}
+.story{background:white;border:1px solid var(--line);border-radius:20px;padding:22px 24px;margin:14px 0;box-shadow:0 6px 22px rgba(25,38,68,.035);break-inside:avoid}
+.story-top{display:flex;gap:12px;align-items:flex-start;justify-content:space-between}
+.story-heading{display:flex;gap:12px;align-items:flex-start}
+.story-id{font-family:"SFMono-Regular",Consolas,monospace;color:var(--purple);font-weight:800;font-size:.8rem;padding-top:3px}
+.badges{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
+.badge{border-radius:999px;padding:4px 8px;font-size:.67rem;font-weight:850;letter-spacing:.025em}
+.user-story{margin:14px 0;padding:14px 16px;background:#f7f5fb;border-left:4px solid var(--purple);border-radius:0 12px 12px 0;color:#35415b}
+.user-story strong{color:var(--ink)}
+.ac-title{font-size:.76rem;letter-spacing:.08em;text-transform:uppercase;font-weight:850;color:var(--purple)}
+.ac{margin:8px 0 0;padding-left:20px}
+.ac li{margin:6px 0;color:#3c4860}
+.details{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:15px;padding-top:14px;border-top:1px solid var(--line);font-size:.8rem;color:var(--muted)}
+.details strong{color:var(--ink)}
+.note{margin-top:12px;padding:11px 13px;border-radius:12px;background:var(--cream);color:#714300;font-size:.83rem}
+table{width:100%;border-collapse:separate;border-spacing:0;background:white;border:1px solid var(--line);border-radius:18px;overflow:hidden;margin:18px 0}
+th{background:var(--navy);color:white;text-align:left;padding:12px;font-size:.76rem;text-transform:uppercase;letter-spacing:.05em}
+td{padding:11px 12px;border-top:1px solid var(--line);vertical-align:top;font-size:.88rem}
+tr:nth-child(even) td{background:#fafbfc}
+.flow{display:flex;gap:8px;align-items:stretch;overflow:auto;padding:8px 0}
+.flow .step{min-width:175px;flex:1;background:white;border:1px solid var(--line);border-radius:18px;padding:18px}
+.step-num{width:30px;height:30px;border-radius:50%;background:var(--purple);color:white;display:grid;place-items:center;font-weight:850;margin-bottom:15px}
+.arrow{display:grid;place-items:center;color:var(--purple);font-weight:900}
+.scope{border-radius:20px;padding:22px;background:white;border:1px solid var(--line)}
+.scope.must{border-top:6px solid var(--green)}.scope.defer{border-top:6px solid var(--orange)}
+.decision{border:2px solid var(--purple);border-radius:22px;padding:26px;background:white;margin:22px 0}
+.decision-options{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin:18px 0}
+.decision-option{border:1px solid var(--line);border-radius:14px;padding:14px;font-weight:750}
+.signature{display:grid;grid-template-columns:2fr 1fr;gap:24px;margin-top:28px}
+.signature-line{border-bottom:1px solid var(--ink);min-height:34px}
+.footer{margin-top:70px;border-top:1px solid var(--line);padding-top:24px;color:var(--muted);font-size:.8rem}
+code{font-family:"SFMono-Regular",Consolas,monospace;background:#f1edf9;color:#5423b1;padding:1px 5px;border-radius:5px}
+@media(max-width:760px){.grid-2,.grid-3,.decision-options,.signature{grid-template-columns:1fr}.story-top{display:block}.badges{justify-content:flex-start;margin-top:10px}.details{grid-template-columns:1fr}.hero{padding-top:54px}.flow{display:grid}.arrow{transform:rotate(90deg)}}
+@media print{.nav{display:none}.hero{padding:42px}.layout{padding:24px}.story{box-shadow:none}a{text-decoration:none}.epic,.callout,.story,.scope{break-inside:avoid}h2{break-after:avoid}}
+</style>
 </head>
 <body>
-
-<div class="header-block">
-  <h1>Axon Tickets — MVP Product Backlog</h1>
-  <p style="color:#e2ecf7; font-size:11pt; margin:8px 0 0;">Epics · User Stories · Acceptance Criteria — Functional, Technical &amp; Non-Functional</p>
-  <div class="doc-meta">
-    <span><strong>Version:</strong> 1.2</span>
-    <span><strong>Status:</strong> MVP Complete — Production Readiness Phase</span>
-    <span><strong>Date:</strong> May 27, 2026</span>
+  <header class="hero">
+    <div class="hero-inner">
+      <div class="eyebrow">Axon Tickets · Product Management</div>
+      <h1>Axon Tickets MVP Product Backlog</h1>
+      <p>An executive-friendly MVP baseline showing what is working, what has limitations, what remains open, and exactly what is being submitted for approval.</p>
+      <div class="meta">
+        <span>Version 2.3</span><span>Executive Review &amp; Scope Sign-Off</span><span>June 23, 2026</span>
+      </div>
+    </div>
+  </header>
+  <nav class="nav"><div class="nav-inner"><a href="#MVP-01">MVP-01 · Identity, Access and User Profiles</a><a href="#MVP-02">MVP-02 · Event Discovery and Event Configuration</a><a href="#MVP-03">MVP-03 · Registration and Inventory</a><a href="#MVP-04">MVP-04 · Payments and Verification</a><a href="#MVP-05">MVP-05 · Tickets, QR and Notifications</a><a href="#MVP-06">MVP-06 · Attendance and Event-Day Operations</a><a href="#MVP-07">MVP-07 · Administrative Operations</a><a href="#MVP-08">MVP-08 · Analytics, Funnel and Reporting</a><a href="#MVP-09">MVP-09 · Platform Reliability, Security and Quality</a></div></nav>
+  <main class="layout">
+<section id="summary">
+  <h2>Executive summary</h2>
+  <p class="lede">This document compares the approved MVP requirements with the system that exists today. It shows what is already working, what works with known limitations, and what still requires completion or business confirmation.</p>
+  <div class="grid grid-3">
+    <div class="metric"><div class="num">50</div><div class="label">individual MVP requirements reviewed</div></div>
+    <div class="metric"><div class="num">34</div><div class="label">requirements working now</div></div>
+    <div class="metric"><div class="num">9</div><div class="label">business capability areas</div></div>
   </div>
-</div>
-
-<div class="info">
-  <strong>⚡ Update — May 27, 2026:</strong> MVP functional scope is complete and deployed to Vercel. Platform is now in Production Readiness phase addressing domain setup (axontickets.online), email delivery via Resend custom domain, admin proof alert email automation, security CVE remediation (NestJS 11 + Next.js 15 upgrade deferred), and operational monitoring setup (BetterStack, Sentry).
-</div>
-
-<div class="info" style="background: #dcfce7; border-color: #16a34a;">
-  <strong>✅ All 62 backlog stories shipped (May 25, 2026):</strong> Event setup, attendee registration (solo + group), manual payment proof submission, organizer verification workflow, QR generation + email delivery, attendance check-in (camera + manual), admin dashboard analytics, audit logging, and all technical infrastructure stories completed. Platform operational at production scale.
-</div>
-
-<div class="info">
-  <strong>Story Notation:</strong>
-  <span class="badge type-f">[F]</span> Functional &nbsp;
-  <span class="badge type-t">[T]</span> Technical &nbsp;
-  <span class="badge type-nf">[NF]</span> Non-Functional &nbsp; | &nbsp;
-  <span class="badge p0">P0</span> Critical (blocks launch) &nbsp;
-  <span class="badge p1">P1</span> High (MVP required) &nbsp;
-  <span class="badge p2">P2</span> Medium (MVP desirable) &nbsp;
-  <span class="badge p3">P3</span> Low (MVP optional) &nbsp; | &nbsp;
-  <span class="badge sp">SP</span> Story Points (1=XS, 2=S, 3=M, 5=L, 8=XL, 13=XXL)
-</div>
-
-<div class="toc">
-  <h3>Epics Overview</h3>
-  <ol>
-    <li>Event Setup and Ticket Configuration</li>
-    <li>Attendee Registration</li>
-    <li>Manual Payment Proof Submission</li>
-    <li>Organizer Verification Workflow</li>
-    <li>QR Generation and Email Delivery</li>
-    <li>Attendance Check-in</li>
-    <li>Basic Analytics</li>
-    <li>Future-Ready Data Foundation</li>
-    <li>Platform Infrastructure &amp; Cross-Cutting Technical Stories</li>
-    <li>Non-Functional Quality Stories</li>
-  </ol>
-</div>
-
-<!-- EPIC 1 -->
-<div class="epic-header">
-  <h2>Epic 1 — Event Setup and Ticket Configuration</h2>
-  <div class="epic-meta">Goal: Organizers can create and configure events with tiers, payment QR, venue details, and capacity settings before going live.</div>
-</div>
-
-<div class="story">
-  <div class="story-header"><span class="story-id">E1-F01</span><span class="badge type-f">[F]</span><span class="badge p0">P0</span><span class="badge sp">SP 3</span><span class="badge" style="background: #16a34a; color: white;">✓ SHIPPED</span><div class="story-title">Create a new event</div></div>
-  <div class="story-as">As an organizer, I want to create a new event with title, description, venue, date/time, and capacity so that attendees can register.</div>
-  <div class="story-ac"><strong>Acceptance Criteria:</strong>
-    <ul>
-      <li>Form fields: title (required), description (optional), venue (required), address (required), city (required), starts_at (required), ends_at (optional), max capacity per event (required), max group size (default 10, configurable).</li>
-      <li>Event is created with status <code>draft</code>; only published events are visible to public.</li>
-      <li>Event slug is auto-generated from title and is unique.</li>
-      <li>Conference-specific fields available: speaker name, agenda items, sponsors, FAQs.</li>
-      <li>Admin sees success confirmation with link to event detail page.</li>
-    </ul>
+  <div class="statusbar" aria-label="Backlog status distribution">
+    <span style="width:68.00%;background:var(--green)"></span>
+    <span style="width:20.00%;background:var(--orange)"></span>
+    <span style="width:8.00%;background:var(--red)"></span>
+    <span style="width:4.00%;background:var(--blue)"></span>
+    <span style="width:0.00%;background:#7d8799"></span>
   </div>
-</div>
-
-<div class="story">
-  <div class="story-header"><span class="story-id">E1-F02</span><span class="badge type-f">[F]</span><span class="badge p0">P0</span><span class="badge sp">SP 3</span><div class="story-title">Upload event payment QR</div></div>
-  <div class="story-as">As an organizer, I want to upload one or more payment QR images (GCash/Bank) per event so that attendees know exactly where to send payment.</div>
-  <div class="story-ac"><strong>Acceptance Criteria:</strong>
-    <ul>
-      <li>Admin can upload 1–3 payment QR images per event (JPEG/PNG, max 2MB each).</li>
-      <li>Each QR has an optional label (e.g., "GCash", "BDO Bank Transfer").</li>
-      <li>Optional payment text instructions field (account name, account number) stored alongside QR.</li>
-      <li>Payment QR is displayed on the attendee payment instruction screen.</li>
-      <li>QR images stored in Cloudinary under a private event-specific folder.</li>
-    </ul>
+  <div class="legend">
+    <span class="badge status-verified">Working now</span> 34
+    <span class="badge status-partial">Working with limitations</span> 10
+    <span class="badge status-gap">Not yet available</span> 4
+    <span class="badge status-verify">Confirmation required</span> 2
+    <span class="badge status-deferred">Planned later</span> 0
   </div>
-</div>
-
-<div class="story">
-  <div class="story-header"><span class="story-id">E1-F03</span><span class="badge type-f">[F]</span><span class="badge p0">P0</span><span class="badge sp">SP 2</span><div class="story-title">Add venue map link</div></div>
-  <div class="story-as">As an organizer, I want to add a Google Maps URL to the event so that attendees can easily navigate to the venue.</div>
-  <div class="story-ac"><strong>Acceptance Criteria:</strong>
-    <ul>
-      <li>Admin can enter a <code>venueMapUrl</code> when creating or editing an event.</li>
-      <li>URL is validated as a valid HTTP/HTTPS URL.</li>
-      <li>Displayed on event detail page as "Get Directions" link (opens in new tab on mobile).</li>
-      <li>Included in QR confirmation email.</li>
-    </ul>
+  <div class="callout">
+    <strong>Executive conclusion</strong>
+    <p>Axon currently supports publishing events, email-code registration, manual payment review, digital ticket delivery, QR entry, administrative operations and business reporting. A separate protected test system and automated release checks are also in place. The sign-off applies only to the business areas, requirements, expected results and current completion status shown in this document.</p>
   </div>
-</div>
+</section>
 
-<div class="story">
-  <div class="story-header"><span class="story-id">E1-F04</span><span class="badge type-f">[F]</span><span class="badge p0">P0</span><span class="badge sp">SP 3</span><div class="story-title">Create ticket tiers (Early Bird, Solo, Group)</div></div>
-  <div class="story-as">As an organizer, I want to create ticket tiers with pricing, availability dates, and capacity so that attendees see the right options at the right time.</div>
-  <div class="story-ac"><strong>Acceptance Criteria:</strong>
-    <ul>
-      <li>Each tier has: name, description, price (PHP), total quantity, max per registration (solo: 1, group: N), sale_starts_at, sale_ends_at, is_visible.</li>
-      <li>Tiers are displayed on the event page in sort order.</li>
-      <li>Tiers outside their sale window are greyed out or hidden (configurable per tier).</li>
-      <li>Early Bird tier: when <code>saleEndsAt</code> passes and registration is still <code>draft</code>, registration is auto-cancelled (see E2-F09).</li>
-      <li>Admin can edit or delete tiers (delete only when no registrations linked).</li>
-    </ul>
+<section>
+  <h2>How to read this document</h2>
+  <div class="grid grid-3">
+    <div class="scope must"><h3>Working now</h3><p>The requirement is present in the current system and was confirmed during the review.</p></div>
+    <div class="scope"><h3>Working with limitations</h3><p>The main function can be used, but a stated safeguard, role, test or supporting control remains incomplete.</p></div>
+    <div class="scope defer"><h3>Open or awaiting confirmation</h3><p>The requirement is not yet available, or its live business configuration still needs evidence.</p></div>
   </div>
-</div>
-
-<div class="story">
-  <div class="story-header"><span class="story-id">E1-F05</span><span class="badge type-f">[F]</span><span class="badge p1">P1</span><span class="badge sp">SP 2</span><div class="story-title">Set event status (draft / published / on_sale / cancelled)</div></div>
-  <div class="story-as">As an organizer, I want to control the publish status of an event so that it is only visible when I'm ready.</div>
-  <div class="story-ac"><strong>Acceptance Criteria:</strong>
-    <ul>
-      <li>Admin can change event status: draft → published → on_sale → completed / cancelled.</li>
-      <li>Only <code>on_sale</code> events show the registration CTA to attendees.</li>
-      <li><code>sold_out</code> is auto-set when all tier capacity is consumed.</li>
-      <li><code>cancelled</code> displays a cancellation notice on the public page.</li>
-    </ul>
+  <div class="callout">
+    <strong>Reading each requirement</strong>
+    <p><strong>Business outcome</strong> explains why the item matters. <strong>What success looks like</strong> describes the observable result expected by users. <strong>What leadership should know</strong> highlights any limitation or decision that requires attention.</p>
   </div>
-</div>
+</section>
 
-<div class="story">
-  <div class="story-header"><span class="story-id">E1-F06</span><span class="badge type-f">[F]</span><span class="badge p2">P2</span><span class="badge sp">SP 2</span><div class="story-title">Configure max group size per event</div></div>
-  <div class="story-as">As an organizer, I want to set the maximum number of attendees allowed per bundle registration so that I can control group sizes for different events.</div>
-  <div class="story-ac"><strong>Acceptance Criteria:</strong>
-    <ul>
-      <li>Admin sets <code>maxGroupSize</code> field on event (integer, min 2, max 50, default 10).</li>
-      <li>Displayed in admin event detail for quick reference.</li>
-      <li>Enforced on registration API — group with more attendees than limit returns 400.</li>
-      <li>Registration form shows maximum group size to attendees.</li>
-    </ul>
+<section>
+  <h2>Summary by business area</h2>
+  <table>
+    <thead><tr><th>Reference</th><th>Business area</th><th>Requirements</th><th>Working now</th><th>With limitations</th><th>Open / confirm</th></tr></thead>
+    <tbody><tr><td>MVP-01</td><td>Identity, Access and User Profiles</td><td>4</td><td>2</td><td>2</td><td>0</td></tr><tr><td>MVP-02</td><td>Event Discovery and Event Configuration</td><td>6</td><td>5</td><td>1</td><td>0</td></tr><tr><td>MVP-03</td><td>Registration and Inventory</td><td>7</td><td>6</td><td>1</td><td>0</td></tr><tr><td>MVP-04</td><td>Payments and Verification</td><td>5</td><td>3</td><td>1</td><td>1</td></tr><tr><td>MVP-05</td><td>Tickets, QR and Notifications</td><td>5</td><td>4</td><td>0</td><td>1</td></tr><tr><td>MVP-06</td><td>Attendance and Event-Day Operations</td><td>4</td><td>4</td><td>0</td><td>0</td></tr><tr><td>MVP-07</td><td>Administrative Operations</td><td>6</td><td>4</td><td>2</td><td>0</td></tr><tr><td>MVP-08</td><td>Analytics, Funnel and Reporting</td><td>4</td><td>3</td><td>0</td><td>1</td></tr><tr><td>MVP-09</td><td>Platform Reliability, Security and Quality</td><td>9</td><td>3</td><td>3</td><td>3</td></tr></tbody>
+  </table>
+</section>
+
+<section>
+  <h2>Plain-language glossary</h2>
+  <table>
+    <thead><tr><th>Term</th><th>Meaning for the business</th></tr></thead>
+    <tbody>
+      <tr><td>OTP</td><td>A one-time code sent by email to confirm the user’s identity.</td></tr>
+      <tr><td>QR credential</td><td>The attendee’s scannable digital ticket used for event entry.</td></tr>
+      <tr><td>UAT</td><td>A protected test version of the system where business users confirm that key journeys work before a live release.</td></tr>
+      <tr><td>Role-based access</td><td>Giving each staff member only the functions needed for their job, such as Organizer, Payment Reviewer or Check-in Staff.</td></tr>
+      <tr><td>Audit trail</td><td>A dated history showing who performed an important action and what changed.</td></tr>
+      <tr><td>Load testing</td><td>A controlled simulation used to prove how the system behaves when many people use it at the same time.</td></tr>
+    </tbody>
+  </table>
+</section>
+
+
+<section id="MVP-01">
+  <div class="epic">
+    <div class="epic-id">MVP-01</div>
+    <h2>Identity, Access and User Profiles</h2>
+    <p><strong>Business value:</strong> Attendees and administrators can securely enter the correct experience while Axon protects account and administrative functions.</p>
   </div>
-</div>
 
-<!-- EPIC 2 -->
-<div class="epic-header">
-  <h2>Epic 2 — Attendee Registration</h2>
-  <div class="epic-meta">Goal: Attendees can register solo or as a group with minimal friction, receive a confirmation, and access their registration using email + reference number.</div>
-</div>
-
-<div class="story">
-  <div class="story-header"><span class="story-id">E2-F01</span><span class="badge type-f">[F]</span><span class="badge p0">P0</span><span class="badge sp">SP 5</span><span class="badge" style="background: #16a34a; color: white;">✓ SHIPPED</span><div class="story-title">Solo registration with required fields</div></div>
-  <div class="story-as">As an attendee, I want to register for an event by providing my name, email, and contact number so that I can secure my spot.</div>
-  <div class="story-ac"><strong>Acceptance Criteria:</strong>
-    <ul>
-      <li>Required fields: first name, last name, email, contact number.</li>
-      <li>Optional fields (collapsible section): gender, age, country, company, affiliation, city.</li>
-      <li>Submit button disabled until all required fields are valid.</li>
-      <li>Inline validation errors shown per field (not just on submit).</li>
-      <li>On success: registration created with status <code>draft</code>, reference number generated, confirmation email sent, attendee redirected to confirmation page.</li>
-    </ul>
+<article class="story" id="MVP-AUTH-01">
+  <div class="story-top">
+    <div class="story-heading"><span class="story-id">MVP-AUTH-01</span><h3>Passwordless email access</h3></div>
+    <div class="badges">
+      <span class="badge status-verified">Working now</span>
+      <span class="badge priority-Must">Essential</span>
+      <span class="badge status-deferred">Medium effort</span>
+      <span class="badge status-verify">Current MVP</span>
+    </div>
   </div>
-</div>
-
-<div class="story">
-  <div class="story-header"><span class="story-id">E2-F02</span><span class="badge type-f">[F]</span><span class="badge p0">P0</span><span class="badge sp">SP 8</span><span class="badge" style="background: #16a34a; color: white;">✓ SHIPPED</span><div class="story-title">Group / bundle registration</div></div>
-  <div class="story-as">As a group coordinator, I want to register multiple attendees under one registration so that I can pay once and each person receives their own QR code.</div>
-  <div class="story-ac"><strong>Acceptance Criteria:</strong>
-    <ul>
-      <li>"Are you registering for others?" toggle on registration form.</li>
-      <li>When toggled on: additional attendee rows appear (each: first name, last name, email, contact number — all required).</li>
-      <li>Add/remove attendee row buttons (up to event's <code>maxGroupSize</code>).</li>
-      <li>Maximum attendees enforced and displayed ("Max X attendees per registration").</li>
-      <li>Each attendee email checked for duplicates against the current event independently.</li>
-      <li>One registration record created with type <code>group</code>; N individual <code>Attendee</code> records created.</li>
-      <li>Each attendee's QR is sent to their individual email on approval.</li>
-      <li>Lead registrant sees all attendee names on the confirmation page.</li>
-    </ul>
+  <div class="user-story"><strong>Business outcome:</strong> Enables the attendee to request and verify a one-time email code. <strong>Why it matters:</strong> They can enter registration without remembering a password.</div>
+  <div class="ac-title">What success looks like</div>
+  <ul class="ac"><li>If a valid email, when access is requested, then Axon creates or finds the account and sends a six-digit code.</li><li>If a valid unexpired code, when it is verified, then Axon signs the user in and creates a renewable session.</li><li>If five failed attempts, when another code is submitted, then the attempt is blocked and the current code is invalidated.</li></ul>
+  <div class="details">
+    <div><strong>How this was assessed</strong><br>Confirmed through a review of the current system and supporting records.</div>
+    <div><strong>What must be in place</strong><br>None</div>
   </div>
-</div>
 
-<div class="story">
-  <div class="story-header"><span class="story-id">E2-F03</span><span class="badge type-f">[F]</span><span class="badge p0">P0</span><span class="badge sp">SP 3</span><div class="story-title">Duplicate email prevention</div></div>
-  <div class="story-as">As an attendee, I want to see a clear error if my email is already registered so that I don't accidentally create duplicate registrations.</div>
-  <div class="story-ac"><strong>Acceptance Criteria:</strong>
-    <ul>
-      <li>Duplicate check: per-event, per-email, on non-cancelled registrations.</li>
-      <li>Error message: "This email is already registered for this event. If you believe this is an error, contact the organizer."</li>
-      <li>Error shown inline on the email field (not just toast).</li>
-      <li>For group registration: each attendee email is individually checked; specific row highlighted with error.</li>
-      <li>API returns HTTP 409 Conflict for duplicates.</li>
-    </ul>
+</article>
+<article class="story" id="MVP-AUTH-02">
+  <div class="story-top">
+    <div class="story-heading"><span class="story-id">MVP-AUTH-02</span><h3>Admin and organizer email/password authentication</h3></div>
+    <div class="badges">
+      <span class="badge status-partial">Working with limitations</span>
+      <span class="badge priority-Must">Essential</span>
+      <span class="badge status-deferred">Medium effort</span>
+      <span class="badge status-verify">Current MVP</span>
+    </div>
   </div>
-</div>
-
-<div class="story">
-  <div class="story-header"><span class="story-id">E2-F04</span><span class="badge type-f">[F]</span><span class="badge p0">P0</span><span class="badge sp">SP 3</span><div class="story-title">Registration confirmation screen</div></div>
-  <div class="story-as">As an attendee, I want to see a confirmation page after registering so that I know my registration was received and understand what to do next.</div>
-  <div class="story-ac"><strong>Acceptance Criteria:</strong>
-    <ul>
-      <li>Confirmation page at <code>/register/confirm/[registrationId]</code>.</li>
-      <li>Displays: registration reference number, all attendee names, selected tier, status "Pending Payment".</li>
-      <li>Next step shown clearly: "Upload your proof of payment to complete your registration."</li>
-      <li>Link to payment instruction page.</li>
-      <li>Message: "A confirmation email with your reference number has been sent to [email]."</li>
-      <li>Page accessible via email + reference number (no account required).</li>
-    </ul>
+  <div class="user-story"><strong>Business outcome:</strong> Enables the administrator or organizer to sign in with their verified email address and password. <strong>Why it matters:</strong> They can securely access the administrative functions assigned to their account.</div>
+  <div class="ac-title">What success looks like</div>
+  <ul class="ac"><li>If an approved administrator or organizer account, when access is provisioned, then the account must have a verified email address and the required administrative permission.</li><li>If correct credentials for a verified administrator or organizer account, when login succeeds, then Axon signs the user in and routes them to the protected administrative experience.</li><li>If an ordinary attendee account, when email/password login succeeds, then administrative access remains unavailable unless the account has an approved administrative role.</li><li>If incorrect credentials or an unverified account, when login is attempted, then Axon denies administrative access and displays the appropriate verification or credential error.</li></ul>
+  <div class="details">
+    <div><strong>How this was assessed</strong><br>Confirmed through a review of the current system and supporting records.</div>
+    <div><strong>What must be in place</strong><br>None</div>
   </div>
-</div>
-
-<div class="story">
-  <div class="story-header"><span class="story-id">E2-F05</span><span class="badge type-f">[F]</span><span class="badge p0">P0</span><span class="badge sp">SP 3</span><div class="story-title">Attendee status access (email + reference login)</div></div>
-  <div class="story-as">As an attendee, I want to look up my registration using my email and reference number so that I can check my status without creating an account.</div>
-  <div class="story-ac"><strong>Acceptance Criteria:</strong>
-    <ul>
-      <li>Lookup page at <code>/my-registration</code> — input email + reference number.</li>
-      <li>Returns the matching registration if both credentials match.</li>
-      <li>Session token issued (JWT, 24-hour TTL) for continued access.</li>
-      <li>Attendee can see: status, attendee names, tier, proof upload status, rejection reason (if rejected).</li>
-      <li>Invalid credentials return: "No matching registration found. Check your email or reference number."</li>
-    </ul>
+<div class="note"><strong>What leadership should know:</strong> This email/password login is intended for Admin and Organizer access. Until event-scoped organizer roles are implemented, an organizer must be granted the existing administrative access level to enter the protected management experience.</div>
+</article>
+<article class="story" id="MVP-AUTH-03">
+  <div class="story-top">
+    <div class="story-heading"><span class="story-id">MVP-AUTH-03</span><h3>Profile management</h3></div>
+    <div class="badges">
+      <span class="badge status-verified">Working now</span>
+      <span class="badge priority-Must">Essential</span>
+      <span class="badge status-deferred">Medium effort</span>
+      <span class="badge status-verify">Current MVP</span>
+    </div>
   </div>
-</div>
-
-<div class="story">
-  <div class="story-header"><span class="story-id">E2-F06</span><span class="badge type-f">[F]</span><span class="badge p1">P1</span><span class="badge sp">SP 3</span><div class="story-title">Optional profile completion</div></div>
-  <div class="story-as">As an attendee who has accessed my registration, I want to optionally set up a password and complete my profile so that I can log in more easily in the future.</div>
-  <div class="story-ac"><strong>Acceptance Criteria:</strong>
-    <ul>
-      <li>"Complete your profile" card visible on registration page after accessing via reference number.</li>
-      <li>Optional fields: password (creates account), gender, age, country, company, affiliation, city.</li>
-      <li>Setting a password enables standard email/password login in future sessions.</li>
-      <li>Profile completion is not required to view status, upload proof, or receive QR.</li>
-    </ul>
+  <div class="user-story"><strong>Business outcome:</strong> Enables the authenticated attendee to view and update their personal profile. <strong>Why it matters:</strong> Their account details remain current.</div>
+  <div class="ac-title">What success looks like</div>
+  <ul class="ac"><li>If an authenticated user, when the profile is opened, then Axon returns only that user&#x27;s profile.</li><li>If valid updates, when saved, then first name, last name, phone, company, job title and city can be updated.</li></ul>
+  <div class="details">
+    <div><strong>How this was assessed</strong><br>Confirmed through a review of the current system and supporting records.</div>
+    <div><strong>What must be in place</strong><br>None</div>
   </div>
-</div>
 
-<div class="story">
-  <div class="story-header"><span class="story-id">E2-F07</span><span class="badge type-f">[F]</span><span class="badge p1">P1</span><span class="badge sp">SP 2</span><div class="story-title">Tier selection before registration</div></div>
-  <div class="story-as">As an attendee, I want to select a ticket tier before filling in the registration form so that I know the price and whether the tier is available.</div>
-  <div class="story-ac"><strong>Acceptance Criteria:</strong>
-    <ul>
-      <li>Event detail page shows available tiers with price, availability window badge (e.g., "Early Bird — Ends June 14"), and remaining capacity.</li>
-      <li>Sold-out tiers are greyed out with "Sold Out" label (not clickable).</li>
-      <li>Tiers outside sale window are greyed with "Available [date]" or "Closed" label.</li>
-      <li>Selecting a tier carries the selection to the registration form.</li>
-    </ul>
+</article>
+<article class="story" id="MVP-AUTH-04">
+  <div class="story-top">
+    <div class="story-heading"><span class="story-id">MVP-AUTH-04</span><h3>Administrative access control</h3></div>
+    <div class="badges">
+      <span class="badge status-partial">Working with limitations</span>
+      <span class="badge priority-Must">Essential</span>
+      <span class="badge status-deferred">Medium effort</span>
+      <span class="badge status-verify">Current MVP</span>
+    </div>
   </div>
-</div>
-
-<div class="story">
-  <div class="story-header"><span class="story-id">E2-F08</span><span class="badge type-f">[F]</span><span class="badge p0">P0</span><span class="badge sp">SP 2</span><div class="story-title">Registration confirmation email</div></div>
-  <div class="story-as">As an attendee, I want to receive a confirmation email immediately after registering so that I have my reference number saved even if I close the browser.</div>
-  <div class="story-ac"><strong>Acceptance Criteria:</strong>
-    <ul>
-      <li>Email sent to lead registrant email immediately on registration creation.</li>
-      <li>Email contains: event name, reference number, attendee names, tier, payment instruction link, registration status page link.</li>
-      <li>Email sent via Resend with custom domain from address.</li>
-      <li>Email failure is logged; admin can trigger resend.</li>
-    </ul>
+  <div class="user-story"><strong>Business outcome:</strong> Enables the platform administrator to access protected administrative tools. <strong>Why it matters:</strong> customer and event data are not exposed to ordinary users.</div>
+  <div class="ac-title">What success looks like</div>
+  <ul class="ac"><li>If a user does not have Administrator permission, when a protected administrative function is requested, then Axon returns forbidden.</li><li>If an admin session, when an admin page is opened, then the system confirms the user’s identity and permission before showing protected information.</li></ul>
+  <div class="details">
+    <div><strong>How this was assessed</strong><br>Confirmed through a review of the current system and supporting records.</div>
+    <div><strong>What must be in place</strong><br>None</div>
   </div>
-</div>
-
-<div class="story">
-  <div class="story-header"><span class="story-id">E2-F09</span><span class="badge type-f">[F]</span><span class="badge p1">P1</span><span class="badge sp">SP 3</span><div class="story-title">Early Bird auto-cancellation of draft registrations</div></div>
-  <div class="story-as">As the platform, I want to automatically cancel draft registrations when the Early Bird tier sale window closes so that capacity is freed and attendees are notified.</div>
-  <div class="story-ac"><strong>Acceptance Criteria:</strong>
-    <ul>
-      <li>Scheduled job runs daily (configurable) at tier <code>saleEndsAt</code>.</li>
-      <li>Finds all registrations in <code>draft</code> status for expired tiers.</li>
-      <li>Transitions each to <code>cancelled</code>.</li>
-      <li>Cancellation email sent: "Your Early Bird registration (Ref: AXN-...) has been cancelled as the registration window has closed."</li>
-      <li>Action written to Audit Log.</li>
-    </ul>
+<div class="note"><strong>What leadership should know:</strong> The system currently has only two access levels: Administrator and regular user. Separate Organizer, Support and event-staff permissions are not yet available.</div>
+</article>
+</section>
+<section id="MVP-02">
+  <div class="epic">
+    <div class="epic-id">MVP-02</div>
+    <h2>Event Discovery and Event Configuration</h2>
+    <p><strong>Business value:</strong> Customers can discover active events while administrators can configure event content, inventory, payment instructions and publication state.</p>
   </div>
-</div>
 
-<!-- EPIC 3 -->
-<div class="epic-header">
-  <h2>Epic 3 — Manual Payment Proof Submission</h2>
-  <div class="epic-meta">Goal: Attendees can see payment instructions, pay manually, upload proof, and receive clear status feedback — all within the platform.</div>
-</div>
-
-<div class="story">
-  <div class="story-header"><span class="story-id">E3-F01</span><span class="badge type-f">[F]</span><span class="badge p0">P0</span><span class="badge sp">SP 3</span><div class="story-title">Payment instruction screen</div></div>
-  <div class="story-as">As an attendee, I want to see clear payment instructions and the organizer's payment QR so that I know exactly how much to pay and where.</div>
-  <div class="story-ac"><strong>Acceptance Criteria:</strong>
-    <ul>
-      <li>Payment screen shows: amount to pay (based on tier × attendee count), payment QR image(s), payment method labels, reference to include in payment description (registration reference number).</li>
-      <li>If multiple payment QRs exist: displayed as tabs or cards (e.g., "GCash" | "Bank Transfer").</li>
-      <li>Accessible at: <code>/events/[slug]/payment/[registrationId]</code>.</li>
-      <li>Payment screen accessible without account (via reference number session).</li>
-      <li>"Upload Proof of Payment" button prominently displayed below payment details.</li>
-    </ul>
+<article class="story" id="MVP-EVT-01">
+  <div class="story-top">
+    <div class="story-heading"><span class="story-id">MVP-EVT-01</span><h3>Public event marketplace</h3></div>
+    <div class="badges">
+      <span class="badge status-verified">Working now</span>
+      <span class="badge priority-Must">Essential</span>
+      <span class="badge status-deferred">Medium effort</span>
+      <span class="badge status-verify">Current MVP</span>
+    </div>
   </div>
-</div>
-
-<div class="story">
-  <div class="story-header"><span class="story-id">E3-F02</span><span class="badge type-f">[F]</span><span class="badge p0">P0</span><span class="badge sp">SP 5</span><span class="badge" style="background: #16a34a; color: white;">✓ SHIPPED</span><div class="story-title">Upload proof of payment</div></div>
-  <div class="story-as">As an attendee, I want to upload a screenshot of my payment proof so that the organizer can verify my payment.</div>
-  <div class="story-ac"><strong>Acceptance Criteria:</strong>
-    <ul>
-      <li>File picker supports JPEG, PNG, PDF (max 5MB).</li>
-      <li>Drag-and-drop supported on desktop.</li>
-      <li>Client-side: file type and size pre-validated before upload.</li>
-      <li>Server-side: MIME type validated against file magic bytes.</li>
-      <li>Upload progress indicator shown during upload.</li>
-      <li>On success: file thumbnail shown, registration status moves to <code>submitted</code>, confirmation message: "Your proof has been submitted. We'll notify you once verified."</li>
-      <li>On failure: clear error with reason (wrong type, too large, network error).</li>
-      <li>File stored in private Cloudinary folder (not publicly accessible).</li>
-      <li>Submit button disabled until file is selected and valid.</li>
-    </ul>
+  <div class="user-story"><strong>Business outcome:</strong> Enables the visitor to browse events that are currently on sale. <strong>Why it matters:</strong> They can discover available experiences.</div>
+  <div class="ac-title">What success looks like</div>
+  <ul class="ac"><li>If on-sale events, when the homepage loads, then Axon displays event cards ordered for discovery.</li><li>If pagination, when another page is selected, then the corresponding event set is returned.</li><li>If completed, cancelled or draft events, when public listing is requested, then they are excluded from the standard on-sale list.</li></ul>
+  <div class="details">
+    <div><strong>How this was assessed</strong><br>Confirmed through a review of the current system and supporting records.</div>
+    <div><strong>What must be in place</strong><br>None</div>
   </div>
-</div>
 
-<div class="story">
-  <div class="story-header"><span class="story-id">E3-F03</span><span class="badge type-f">[F]</span><span class="badge p0">P0</span><span class="badge sp">SP 3</span><div class="story-title">Re-upload proof after rejection</div></div>
-  <div class="story-as">As an attendee whose proof was rejected, I want to upload a new proof so that I can correct the issue and get my registration approved.</div>
-  <div class="story-ac"><strong>Acceptance Criteria:</strong>
-    <ul>
-      <li>When registration status is <code>rejected</code>, the status page shows rejection reason and an "Upload New Proof" button.</li>
-      <li>Re-upload creates a new <code>PaymentProof</code> record (original is retained in audit trail).</li>
-      <li>Status transitions back to <code>submitted</code> on re-upload.</li>
-      <li>Re-upload notification sent to organizer's verification queue.</li>
-      <li>Re-upload action logged in Audit Log.</li>
-    </ul>
+</article>
+<article class="story" id="MVP-EVT-02">
+  <div class="story-top">
+    <div class="story-heading"><span class="story-id">MVP-EVT-02</span><h3>Featured event presentation</h3></div>
+    <div class="badges">
+      <span class="badge status-verified">Working now</span>
+      <span class="badge priority-Must">Essential</span>
+      <span class="badge status-deferred">Medium effort</span>
+      <span class="badge status-verify">Current MVP</span>
+    </div>
   </div>
-</div>
-
-<div class="story">
-  <div class="story-header"><span class="story-id">E3-F04</span><span class="badge type-f">[F]</span><span class="badge p1">P1</span><span class="badge sp">SP 2</span><div class="story-title">Prevent duplicate proof submission</div></div>
-  <div class="story-as">As an attendee, I want the system to prevent me from accidentally submitting multiple proofs for the same registration so that I don't create confusion for the organizer.</div>
-  <div class="story-ac"><strong>Acceptance Criteria:</strong>
-    <ul>
-      <li>If registration has an active <code>PaymentProof</code> in <code>submitted</code> or <code>pending_verification</code> status: upload button is hidden, message shown: "Proof already submitted. Awaiting verification."</li>
-      <li>Upload is only available when: no proof exists (draft) or last proof was rejected.</li>
-      <li>API returns 409 if proof is submitted for a registration not in an uploadable state.</li>
-    </ul>
+  <div class="user-story"><strong>Business outcome:</strong> Enables the visitor to see promoted events in a prominent hero experience. <strong>Why it matters:</strong> important events receive stronger visibility.</div>
+  <div class="ac-title">What success looks like</div>
+  <ul class="ac"><li>If featured active events, when the homepage loads, then Axon displays them by featured order and event date.</li><li>If a featured expiry in the past, when featured events are requested, then the event is omitted.</li></ul>
+  <div class="details">
+    <div><strong>How this was assessed</strong><br>Confirmed through a review of the current system and supporting records.</div>
+    <div><strong>What must be in place</strong><br>None</div>
   </div>
-</div>
 
-<div class="story">
-  <div class="story-header"><span class="story-id">E3-F05</span><span class="badge type-f">[F]</span><span class="badge p1">P1</span><span class="badge sp">SP 2</span><div class="story-title">Registration status page</div></div>
-  <div class="story-as">As an attendee, I want to see the current status of my registration at any time so that I know where I am in the process.</div>
-  <div class="story-ac"><strong>Acceptance Criteria:</strong>
-    <ul>
-      <li>Status page at <code>/my-registration/[referenceNumber]</code> accessible via email + reference credentials.</li>
-      <li>Shows: current status (with icon), tier, attendee names, event details, last updated timestamp.</li>
-      <li>Progress indicator: Draft → Submitted → Verified → QR Sent (visual step bar).</li>
-      <li>If rejected: rejection reason displayed with re-upload CTA.</li>
-      <li>If approved: "QR sent to your email" confirmation with event date reminder.</li>
-    </ul>
+</article>
+<article class="story" id="MVP-EVT-03">
+  <div class="story-top">
+    <div class="story-heading"><span class="story-id">MVP-EVT-03</span><h3>Public event details</h3></div>
+    <div class="badges">
+      <span class="badge status-verified">Working now</span>
+      <span class="badge priority-Must">Essential</span>
+      <span class="badge status-deferred">Medium effort</span>
+      <span class="badge status-verify">Current MVP</span>
+    </div>
   </div>
-</div>
-
-<!-- EPIC 4 -->
-<div class="epic-header">
-  <h2>Epic 4 — Organizer Verification Workflow</h2>
-  <div class="epic-meta">Goal: Organizer can efficiently review, approve, or reject payment proofs with minimal clicks, full context, and a complete audit trail.</div>
-</div>
-
-<div class="story">
-  <div class="story-header"><span class="story-id">E4-F01</span><span class="badge type-f">[F]</span><span class="badge p0">P0</span><span class="badge sp">SP 5</span><div class="story-title">Pending verification queue</div></div>
-  <div class="story-as">As an organizer, I want to see a list of all submitted payment proofs awaiting review so that I can work through them efficiently.</div>
-  <div class="story-ac"><strong>Acceptance Criteria:</strong>
-    <ul>
-      <li>Admin page at <code>/admin/verifications</code>.</li>
-      <li>Default tab: "Pending" (status: submitted or pending_verification), sorted oldest first.</li>
-      <li>Tabs: Pending | Approved | Rejected | All.</li>
-      <li>Each row: reference number, lead name, tier, registration type (Solo/Group), attendee count, submission time, proof thumbnail.</li>
-      <li>Click row → verification detail page.</li>
-      <li>Pagination: 20 per page.</li>
-      <li>Count badge on Pending tab (refreshes every 60s).</li>
-    </ul>
+  <div class="user-story"><strong>Business outcome:</strong> Enables the visitor to view event schedule, venue, tickets, speaker, agenda, sponsors and FAQs. <strong>Why it matters:</strong> They can decide whether to register.</div>
+  <div class="ac-title">What success looks like</div>
+  <ul class="ac"><li>If a valid event slug, when its page opens, then Axon shows event content and visible ticket tiers.</li><li>If live inventory, when tiers are displayed, then availability and sold-out state reflect registration and ticket usage.</li></ul>
+  <div class="details">
+    <div><strong>How this was assessed</strong><br>Confirmed through a review of the current system and supporting records.</div>
+    <div><strong>What must be in place</strong><br>None</div>
   </div>
-</div>
 
-<div class="story">
-  <div class="story-header"><span class="story-id">E4-F02</span><span class="badge type-f">[F]</span><span class="badge p0">P0</span><span class="badge sp">SP 5</span><div class="story-title">Proof preview and attendee details</div></div>
-  <div class="story-as">As an organizer, I want to see the full proof image and complete attendee details on the verification page so that I have all the context needed to make a decision.</div>
-  <div class="story-ac"><strong>Acceptance Criteria:</strong>
-    <ul>
-      <li>Left panel: full-size proof image (served via Cloudinary signed URL, 30-min expiry).</li>
-      <li>Right panel: reference number, tier, amount due, all attendee names, lead email, registration date, submission date.</li>
-      <li>Group registrations: expandable list of all N attendees with their emails.</li>
-      <li>Proof image never served via public URL — always signed.</li>
-      <li>Image loads in &lt; 2 seconds via Cloudinary CDN.</li>
-    </ul>
+</article>
+<article class="story" id="MVP-EVT-04">
+  <div class="story-top">
+    <div class="story-heading"><span class="story-id">MVP-EVT-04</span><h3>Create and edit events</h3></div>
+    <div class="badges">
+      <span class="badge status-verified">Working now</span>
+      <span class="badge priority-Must">Essential</span>
+      <span class="badge status-deferred">Large effort</span>
+      <span class="badge status-verify">Current MVP</span>
+    </div>
   </div>
-</div>
-
-<div class="story">
-  <div class="story-header"><span class="story-id">E4-F03</span><span class="badge type-f">[F]</span><span class="badge p0">P0</span><span class="badge sp">SP 5</span><span class="badge" style="background: #16a34a; color: white;">✓ SHIPPED</span><div class="story-title">Approve registration</div></div>
-  <div class="story-as">As an organizer, I want to approve a payment proof with a single click so that QR codes are automatically generated and emailed to all attendees.</div>
-  <div class="story-ac"><strong>Acceptance Criteria:</strong>
-    <ul>
-      <li>Approve button on queue row and detail page.</li>
-      <li>Confirmation modal: "Approve this registration and send QR codes to [N] attendee(s)?"</li>
-      <li>On confirm: status → <code>approved</code>; N QR tokens generated; N emails dispatched; action written to Audit Log.</li>
-      <li>Success toast: "Registration approved. QR codes sent to [N] attendee(s)."</li>
-      <li>Row removed from Pending tab; moved to Approved tab.</li>
-      <li>If email delivery fails: error logged, admin sees "Resend QR" option.</li>
-    </ul>
+  <div class="user-story"><strong>Business outcome:</strong> Enables the administrator to create and maintain an event. <strong>Why it matters:</strong> Axon can operate multiple event campaigns.</div>
+  <div class="ac-title">What success looks like</div>
+  <ul class="ac"><li>If valid event details, when an event is created, then it starts as a draft with a unique slug.</li><li>If an existing event, when permitted fields are changed, then Axon persists the update and writes an event-update audit entry.</li><li>If conference content, when configured, then agenda, sponsors and FAQs are stored and displayed.</li></ul>
+  <div class="details">
+    <div><strong>How this was assessed</strong><br>Confirmed through a review of the current system and supporting records.</div>
+    <div><strong>What must be in place</strong><br>None</div>
   </div>
-</div>
 
-<div class="story">
-  <div class="story-header"><span class="story-id">E4-F04</span><span class="badge type-f">[F]</span><span class="badge p0">P0</span><span class="badge sp">SP 5</span><div class="story-title">Reject registration with reason</div></div>
-  <div class="story-as">As an organizer, I want to reject a payment proof with a reason so that the attendee knows what to fix and can re-upload.</div>
-  <div class="story-ac"><strong>Acceptance Criteria:</strong>
-    <ul>
-      <li>Reject button opens a modal with reason selector.</li>
-      <li>Preset reasons: "Incorrect amount", "Blurry / unreadable image", "Wrong reference included", "Duplicate payment proof", "Payment appears cancelled", "Other (specify)".</li>
-      <li>If "Other": free-text field required (max 300 chars).</li>
-      <li>On confirm: status → <code>rejected</code>; rejection reason stored; rejection email sent; Audit Log written.</li>
-      <li>Row moved to Rejected tab. Reason visible in detail view.</li>
-      <li>Attendee receives email with reason and re-upload link.</li>
-    </ul>
+</article>
+<article class="story" id="MVP-EVT-05">
+  <div class="story-top">
+    <div class="story-heading"><span class="story-id">MVP-EVT-05</span><h3>Ticket tier management</h3></div>
+    <div class="badges">
+      <span class="badge status-verified">Working now</span>
+      <span class="badge priority-Must">Essential</span>
+      <span class="badge status-deferred">Medium effort</span>
+      <span class="badge status-verify">Current MVP</span>
+    </div>
   </div>
-</div>
-
-<div class="story">
-  <div class="story-header"><span class="story-id">E4-F05</span><span class="badge type-f">[F]</span><span class="badge p1">P1</span><span class="badge sp">SP 3</span><div class="story-title">Bulk approve registrations</div></div>
-  <div class="story-as">As an organizer, I want to select and approve multiple registrations at once so that I can process a batch of valid proofs quickly.</div>
-  <div class="story-ac"><strong>Acceptance Criteria:</strong>
-    <ul>
-      <li>Checkbox on each queue row; "Select All" checkbox in header.</li>
-      <li>Bulk Approve button appears when 2+ rows selected (max 20 per action).</li>
-      <li>Confirmation dialog lists all selected registration references.</li>
-      <li>Each approved individually (no all-or-nothing) — failures flagged without blocking successes.</li>
-      <li>Summary after bulk: "X approved, Y failed (see details)".</li>
-    </ul>
+  <div class="user-story"><strong>Business outcome:</strong> Enables the administrator to create, reorder, edit and remove ticket tiers. <strong>Why it matters:</strong> pricing and inventory can match each event.</div>
+  <div class="ac-title">What success looks like</div>
+  <ul class="ac"><li>If an event, when a tier is created, then its name, price, currency, quantity, order limit and sale window are stored.</li><li>If a tier with sold usage, when deletion is requested, then Axon protects linked sales data.</li><li>If public event retrieval, when tiers are returned, then they are ordered and include computed availability.</li></ul>
+  <div class="details">
+    <div><strong>How this was assessed</strong><br>Confirmed through a review of the current system and supporting records.</div>
+    <div><strong>What must be in place</strong><br>None</div>
   </div>
-</div>
 
-<div class="story">
-  <div class="story-header"><span class="story-id">E4-F06</span><span class="badge type-f">[F]</span><span class="badge p0">P0</span><span class="badge sp">SP 3</span><div class="story-title">Audit trail for organizer actions</div></div>
-  <div class="story-as">As an organizer, I want every action I take to be recorded in an audit log so that I have a full history for accountability and troubleshooting.</div>
-  <div class="story-ac"><strong>Acceptance Criteria:</strong>
-    <ul>
-      <li>Audit log page at <code>/admin/audit</code>.</li>
-      <li>Logged actions: create event, update event, approve registration, reject registration, resend QR, check-in override, bulk approve, export CSV.</li>
-      <li>Each log entry: admin ID, action, entity type/ID, metadata (reason, count, etc.), timestamp.</li>
-      <li>Filterable by action type and date range.</li>
-      <li>Audit log is read-only (no delete or edit).</li>
-    </ul>
+</article>
+<article class="story" id="MVP-EVT-06">
+  <div class="story-top">
+    <div class="story-heading"><span class="story-id">MVP-EVT-06</span><h3>Payment methods and event media</h3></div>
+    <div class="badges">
+      <span class="badge status-partial">Working with limitations</span>
+      <span class="badge priority-Must">Essential</span>
+      <span class="badge status-deferred">Medium effort</span>
+      <span class="badge status-verify">Current MVP</span>
+    </div>
   </div>
-</div>
-
-<div class="story">
-  <div class="story-header"><span class="story-id">E4-F07</span><span class="badge type-f">[F]</span><span class="badge p1">P1</span><span class="badge sp">SP 2</span><div class="story-title">Resend QR from admin</div></div>
-  <div class="story-as">As an organizer, I want to resend QR codes for an approved registration so that I can help attendees who didn't receive their email.</div>
-  <div class="story-ac"><strong>Acceptance Criteria:</strong>
-    <ul>
-      <li>"Resend QR" button on approved registration detail page.</li>
-      <li>Resends QR emails to all N attendees in the registration.</li>
-      <li>Success toast: "QR codes resent to [N] attendee(s)."</li>
-      <li>Action written to Audit Log.</li>
-    </ul>
+  <div class="user-story"><strong>Business outcome:</strong> Enables the administrator to configure manual payment methods, QR images, covers and sponsor logos. <strong>Why it matters:</strong> attendees receive accurate payment and branding information.</div>
+  <div class="ac-title">What success looks like</div>
+  <ul class="ac"><li>If a supported image, when uploaded, then the approved file-storage service safely stores the image and Axon keeps its link.</li><li>If configured payment methods, when registration reaches payment, then the relevant instructions and QR image are displayed.</li><li>If no payment method, when the payment screen opens, then the attendee receives a clear organizer-contact message.</li></ul>
+  <div class="details">
+    <div><strong>How this was assessed</strong><br>Confirmed through a review of the current system and supporting records.</div>
+    <div><strong>What must be in place</strong><br>None</div>
   </div>
-</div>
-
-<!-- EPIC 5 -->
-<div class="epic-header">
-  <h2>Epic 5 — QR Generation and Email Delivery</h2>
-  <div class="epic-meta">Goal: Each attendee receives an individual, secure QR code via email within minutes of organizer approval.</div>
-</div>
-
-<div class="story">
-  <div class="story-header"><span class="story-id">E5-F01</span><span class="badge type-f">[F]</span><span class="badge p0">P0</span><span class="badge sp">SP 5</span><span class="badge" style="background: #16a34a; color: white;">✓ SHIPPED</span><div class="story-title">Generate 1 QR per attendee on approval</div></div>
-  <div class="story-as">As the system, I want to generate a unique QR code for each attendee in a registration when the organizer approves it so that each person has their individual check-in credential.</div>
-  <div class="story-ac"><strong>Acceptance Criteria:</strong>
-    <ul>
-      <li>N QR tokens generated (N = number of attendees in registration) on approval action.</li>
-      <li>Each QR token: UUID v4 (or HMAC-signed opaque string) — no PII in payload.</li>
-      <li>QR token stored on the <code>Attendee</code> record.</li>
-      <li>QR image rendered as PNG using <code>qrcode</code> npm package.</li>
-      <li>Tokens are unique globally (enforced by DB unique constraint).</li>
-    </ul>
+<div class="note"><strong>What leadership should know:</strong> Multiple manual payment methods can be configured. Additional file-safety checks are still needed to independently confirm that uploaded images are genuinely the permitted file type.</div>
+</article>
+</section>
+<section id="MVP-03">
+  <div class="epic">
+    <div class="epic-id">MVP-03</div>
+    <h2>Registration and Inventory</h2>
+    <p><strong>Business value:</strong> Attendees can register individually or in groups while Axon protects capacity, prevents accidental duplicate submissions and maintains a traceable registration lifecycle.</p>
   </div>
-</div>
 
-<div class="story">
-  <div class="story-header"><span class="story-id">E5-F02</span><span class="badge type-f">[F]</span><span class="badge p0">P0</span><span class="badge sp">SP 5</span><span class="badge" style="background: #16a34a; color: white;">✓ SHIPPED</span><div class="story-title">Styled HTML QR email to each attendee</div></div>
-  <div class="story-as">As an attendee, I want to receive a well-formatted email with my QR code so that I can easily find and present it on event day.</div>
-  <div class="story-ac"><strong>Acceptance Criteria:</strong>
-    <ul>
-      <li>Email sent to each attendee's individual email address (not lead-only).</li>
-      <li>Email contains: attendee name, event title, event date/time, venue name, Google Maps link, tier name, registration reference, QR code image embedded.</li>
-      <li>HTML email renders correctly in Gmail (mobile + desktop) and Outlook.</li>
-      <li>QR image is embedded as base64 or hosted on Cloudinary CDN (not attached as file).</li>
-      <li>Email subject: "Your ticket for [Event Name] — [Reference]"</li>
-      <li>From address: configured custom domain (e.g., hello@axontickets.ph).</li>
-    </ul>
+<article class="story" id="MVP-REG-01">
+  <div class="story-top">
+    <div class="story-heading"><span class="story-id">MVP-REG-01</span><h3>Inline OTP registration journey</h3></div>
+    <div class="badges">
+      <span class="badge status-verified">Working now</span>
+      <span class="badge priority-Must">Essential</span>
+      <span class="badge status-deferred">Large effort</span>
+      <span class="badge status-verify">Current MVP</span>
+    </div>
   </div>
-</div>
-
-<div class="story">
-  <div class="story-header"><span class="story-id">E5-F03</span><span class="badge type-f">[F]</span><span class="badge p0">P0</span><span class="badge sp">SP 3</span><div class="story-title">Rejection email with reason</div></div>
-  <div class="story-as">As an attendee whose proof was rejected, I want to receive an email with the rejection reason and a link to re-upload so that I can fix the issue.</div>
-  <div class="story-ac"><strong>Acceptance Criteria:</strong>
-    <ul>
-      <li>Rejection email sent to lead registrant email.</li>
-      <li>Email contains: event name, reference number, rejection reason, link to <code>/my-registration/[ref]</code> to re-upload.</li>
-      <li>Email subject: "Action Required — Payment Proof Update Needed for [Event Name]"</li>
-      <li>Tone: professional, clear, non-alarming.</li>
-    </ul>
+  <div class="user-story"><strong>Business outcome:</strong> Enables the event visitor to authenticate and register without leaving the event flow. <strong>Why it matters:</strong> registration friction is reduced.</div>
+  <div class="ac-title">What success looks like</div>
+  <ul class="ac"><li>If an unauthenticated visitor, when registration begins, then Axon supports email submission, OTP verification and profile completion inline.</li><li>If successful verification, when the flow continues, then the selected event and registration context are retained.</li></ul>
+  <div class="details">
+    <div><strong>How this was assessed</strong><br>Confirmed through a review of the current system and supporting records.</div>
+    <div><strong>What must be in place</strong><br>None</div>
   </div>
-</div>
 
-<div class="story">
-  <div class="story-header"><span class="story-id">E5-F04</span><span class="badge type-f">[F]</span><span class="badge p1">P1</span><span class="badge sp">SP 2</span><div class="story-title">Invalid / used QR handling</div></div>
-  <div class="story-as">As a check-in staff member, I want to see a clear error when scanning an invalid or already-used QR so that I can handle the situation correctly.</div>
-  <div class="story-ac"><strong>Acceptance Criteria:</strong>
-    <ul>
-      <li>Unknown QR token → "Invalid QR code. Not found in system."</li>
-      <li>QR from non-approved registration → "Registration not verified. Contact organizer."</li>
-      <li>Already checked-in → "Already checked in at [time]. Attendee: [name]."</li>
-      <li>All three cases handled gracefully — no 500 errors displayed.</li>
-    </ul>
+</article>
+<article class="story" id="MVP-REG-02">
+  <div class="story-top">
+    <div class="story-heading"><span class="story-id">MVP-REG-02</span><h3>Solo and group registration</h3></div>
+    <div class="badges">
+      <span class="badge status-verified">Working now</span>
+      <span class="badge priority-Must">Essential</span>
+      <span class="badge status-deferred">Large effort</span>
+      <span class="badge status-verify">Current MVP</span>
+    </div>
   </div>
-</div>
-
-<!-- EPIC 6 -->
-<div class="epic-header">
-  <h2>Epic 6 — Attendance Check-in</h2>
-  <div class="epic-meta">Goal: Event-day check-in is fast, reliable, and works on mobile browsers with camera access.</div>
-</div>
-
-<div class="story">
-  <div class="story-header"><span class="story-id">E6-F01</span><span class="badge type-f">[F]</span><span class="badge p1">P1</span><span class="badge sp">SP 5</span><span class="badge" style="background: #16a34a; color: white;">✓ SHIPPED</span><div class="story-title">Browser camera QR scanner</div></div>
-  <div class="story-as">As check-in staff, I want to use my phone's camera to scan attendee QR codes so that check-in is fast and hands-free.</div>
-  <div class="story-ac"><strong>Acceptance Criteria:</strong>
-    <ul>
-      <li>Camera scan using <code>@zxing/browser</code> library on <code>/admin/checkin</code>.</li>
-      <li>Camera access requested via browser permission API (works on Chrome/Safari mobile).</li>
-      <li>Scanner renders full-screen on mobile (max-width 480px layout).</li>
-      <li>Successful scan triggers check-in API and shows full-screen result within 500ms.</li>
-      <li>Result card: attendee name (large text), tier, event, check-in time, green/red status.</li>
-      <li>Scanner auto-resets 3 seconds after result for next attendee.</li>
-      <li>Camera-denied fallback: shows text input field.</li>
-    </ul>
+  <div class="user-story"><strong>Business outcome:</strong> Enables the lead registrant to register one or more named attendees in one transaction. <strong>Why it matters:</strong> groups can be processed without separate purchases.</div>
+  <div class="ac-title">What success looks like</div>
+  <ul class="ac"><li>If one or more valid attendees, when registration is submitted, then one registration and the complete attendee set are created atomically.</li><li>If a group, when approved, then each attendee can receive an individual QR email.</li><li>If the tier order limit, when the attendee count exceeds it, then registration is rejected.</li></ul>
+  <div class="details">
+    <div><strong>How this was assessed</strong><br>Confirmed through a review of the current system and supporting records.</div>
+    <div><strong>What must be in place</strong><br>None</div>
   </div>
-</div>
 
-<div class="story">
-  <div class="story-header"><span class="story-id">E6-F02</span><span class="badge type-f">[F]</span><span class="badge p1">P1</span><span class="badge sp">SP 2</span><div class="story-title">Manual attendee lookup fallback</div></div>
-  <div class="story-as">As check-in staff, I want to search for an attendee by name or email when they arrive without their QR so that no one is turned away due to a technical issue.</div>
-  <div class="story-ac"><strong>Acceptance Criteria:</strong>
-    <ul>
-      <li>Search field on check-in page (below scanner or on separate tab).</li>
-      <li>Search by: first name, last name, or email (partial match, case-insensitive).</li>
-      <li>Results show: name, tier, registration status, check-in status.</li>
-      <li>Manually mark as checked-in from search result.</li>
-      <li>Manual check-in logged as "manual" in check-in record.</li>
-    </ul>
+</article>
+<article class="story" id="MVP-REG-03">
+  <div class="story-top">
+    <div class="story-heading"><span class="story-id">MVP-REG-03</span><h3>System-controlled pricing and capacity</h3></div>
+    <div class="badges">
+      <span class="badge status-verified">Working now</span>
+      <span class="badge priority-Must">Essential</span>
+      <span class="badge status-deferred">Large effort</span>
+      <span class="badge status-verify">Current MVP</span>
+    </div>
   </div>
-</div>
-
-<div class="story">
-  <div class="story-header"><span class="story-id">E6-F03</span><span class="badge type-f">[F]</span><span class="badge p1">P1</span><span class="badge sp">SP 2</span><div class="story-title">Duplicate check-in prevention</div></div>
-  <div class="story-as">As check-in staff, I want the system to prevent the same QR from being scanned twice so that attendees can't check in multiple times.</div>
-  <div class="story-ac"><strong>Acceptance Criteria:</strong>
-    <ul>
-      <li>If attendee already checked in: returns "Already checked in at [time]" — does NOT create a second check-in record.</li>
-      <li>Check-in record stores: attendee ID, checked-in timestamp, method (scan/manual), check-in-by admin ID.</li>
-      <li>Only approved attendees can be checked in; others return "Registration not verified."</li>
-    </ul>
+  <div class="user-story"><strong>Business outcome:</strong> Enables the buyer to receive pricing and availability calculated by Axon. <strong>Why it matters:</strong> client manipulation and overselling are prevented.</div>
+  <div class="ac-title">What success looks like</div>
+  <ul class="ac"><li>If a selected tier, when registration is created, then price, fees and total are calculated from server data.</li><li>If concurrent requests, when capacity is evaluated, then Axon locks the tier row and rejects requests beyond availability.</li><li>If active registrations, when availability is computed, then all capacity-consuming registration states are counted.</li></ul>
+  <div class="details">
+    <div><strong>How this was assessed</strong><br>Confirmed through a review of the current system and supporting records.</div>
+    <div><strong>What must be in place</strong><br>None</div>
   </div>
-</div>
 
-<!-- EPIC 7 -->
-<div class="epic-header">
-  <h2>Epic 7 — Basic Analytics</h2>
-  <div class="epic-meta">Goal: Organizer has a real-time overview of registrations, revenue, and event-day attendance.</div>
-</div>
-
-<div class="story">
-  <div class="story-header"><span class="story-id">E7-F01</span><span class="badge type-f">[F]</span><span class="badge p1">P1</span><span class="badge sp">SP 3</span><div class="story-title">Analytics dashboard with key metrics</div></div>
-  <div class="story-as">As an organizer, I want a dashboard showing key registration metrics so that I can monitor event health at a glance.</div>
-  <div class="story-ac"><strong>Acceptance Criteria:</strong>
-    <ul>
-      <li>Metrics: total registrations, by-status breakdown, by-tier breakdown, checked-in count, capacity progress.</li>
-      <li>Revenue estimate: sum of (approved registrations × tier price) — labelled as "estimate".</li>
-      <li>Capacity progress bar: per tier and overall (approved / total capacity %).</li>
-      <li>Auto-refreshes every 60 seconds.</li>
-      <li>Filterable by event (for multi-event platform).</li>
-    </ul>
+</article>
+<article class="story" id="MVP-REG-04">
+  <div class="story-top">
+    <div class="story-heading"><span class="story-id">MVP-REG-04</span><h3>Duplicate and per-user controls</h3></div>
+    <div class="badges">
+      <span class="badge status-partial">Working with limitations</span>
+      <span class="badge priority-Must">Essential</span>
+      <span class="badge status-deferred">Medium effort</span>
+      <span class="badge status-verify">Current MVP</span>
+    </div>
   </div>
-</div>
-
-<div class="story">
-  <div class="story-header"><span class="story-id">E7-F02</span><span class="badge type-f">[F]</span><span class="badge p2">P2</span><span class="badge sp">SP 2</span><div class="story-title">Capacity progress on public event page</div></div>
-  <div class="story-as">As an attendee viewing an event, I want to see how many spots remain so that I know if I need to register soon.</div>
-  <div class="story-ac"><strong>Acceptance Criteria:</strong>
-    <ul>
-      <li>Capacity bar shown per tier on event detail page (approved count / total capacity).</li>
-      <li>Updates on each page load (SSR revalidation).</li>
-      <li>Does not expose exact approved count — shows "X% filled" or "Limited spots remaining."</li>
-    </ul>
+  <div class="user-story"><strong>Business outcome:</strong> Enables the attendee to avoid accidental repeated registrations and ticket-limit violations. <strong>Why it matters:</strong> inventory remains fair and understandable.</div>
+  <div class="ac-title">What success looks like</div>
+  <ul class="ac"><li>If an active registration for the same user and event, when another registration is submitted, then Axon blocks the duplicate attempt.</li><li>If a configured per-user cap, when a new group would exceed it, then Axon rejects the request with the remaining allowance.</li></ul>
+  <div class="details">
+    <div><strong>How this was assessed</strong><br>Confirmed through a review of the current system and supporting records.</div>
+    <div><strong>What must be in place</strong><br>None</div>
   </div>
-</div>
-
-<!-- EPIC 8 -->
-<div class="epic-header">
-  <h2>Epic 8 — Future-Ready Data Foundation</h2>
-  <div class="epic-meta">Goal: Capture behavioral data silently (no UI) to enable future analytics, marketing, and recommendations.</div>
-</div>
-
-<div class="story">
-  <div class="story-header"><span class="story-id">E8-F01</span><span class="badge type-f">[F]</span><span class="badge p3">P3</span><span class="badge sp">SP 2</span><div class="story-title">Log event page views</div></div>
-  <div class="story-as">As the platform, I want to record every event page view so that we can analyze event discovery patterns in the future.</div>
-  <div class="story-ac"><strong>Acceptance Criteria:</strong>
-    <ul>
-      <li>Server-side: <code>EventView</code> record created on each event page load (eventId, anonymous sessionId, timestamp).</li>
-      <li>No UI exposed. No cookie or tracking consent required (anonymous, no PII).</li>
-      <li>Table indexed on <code>eventId, createdAt</code>.</li>
-    </ul>
+<div class="note"><strong>What leadership should know:</strong> The system prevents duplicate registration by account and event. In group registrations, it does not yet check every attendee email against all prior registrations.</div>
+</article>
+<article class="story" id="MVP-REG-05">
+  <div class="story-top">
+    <div class="story-heading"><span class="story-id">MVP-REG-05</span><h3>Registration detail and status</h3></div>
+    <div class="badges">
+      <span class="badge status-verified">Working now</span>
+      <span class="badge priority-Must">Essential</span>
+      <span class="badge status-deferred">Medium effort</span>
+      <span class="badge status-verify">Current MVP</span>
+    </div>
   </div>
-</div>
-
-<div class="story">
-  <div class="story-header"><span class="story-id">E8-F02</span><span class="badge type-f">[F]</span><span class="badge p3">P3</span><span class="badge sp">SP 1</span><div class="story-title">Log registration funnel steps</div></div>
-  <div class="story-as">As the platform, I want to record registration funnel events (form opened, tier selected, submitted) so that we can analyze conversion in the future.</div>
-  <div class="story-ac"><strong>Acceptance Criteria:</strong>
-    <ul>
-      <li>Log: <code>registration_started</code>, <code>tier_selected</code>, <code>registration_submitted</code>, <code>proof_uploaded</code> — each with eventId and sessionId.</li>
-      <li>No UI exposed. No PII stored at this point (only after registration is created).</li>
-    </ul>
+  <div class="user-story"><strong>Business outcome:</strong> Enables the registrant to view their registration, attendees, payment instructions and review status. <strong>Why it matters:</strong> They understand what happens next.</div>
+  <div class="ac-title">What success looks like</div>
+  <ul class="ac"><li>If an authenticated registration owner, when the registration page opens, then only their registration is returned.</li><li>If proof or rejection history, when the page loads, then the current status and latest review information are visible.</li></ul>
+  <div class="details">
+    <div><strong>How this was assessed</strong><br>Confirmed through a review of the current system and supporting records.</div>
+    <div><strong>What must be in place</strong><br>None</div>
   </div>
-</div>
 
-<!-- EPIC 9 — TECHNICAL -->
-<div class="epic-header" style="background: #1e40af;">
-  <h2 style="color:white;">Epic 9 — Platform Infrastructure &amp; Technical Stories</h2>
-  <div class="epic-meta">Goal: Data model, API endpoints, services, and infrastructure that support all functional epics.</div>
-</div>
-
-<div class="story">
-  <div class="story-header"><span class="story-id">E9-T01</span><span class="badge type-t">[T]</span><span class="badge p0">P0</span><span class="badge sp">SP 5</span><span class="badge" style="background: #16a34a; color: white;">✓ SHIPPED</span><div class="story-title">Database migration: Registration, Attendee, PaymentProof, AuditLog, EventView</div></div>
-  <div class="story-as">As a developer, I want the new Prisma models and enum values to be migrated to the production database so that the application can store registration and proof data.</div>
-  <div class="story-ac"><strong>Acceptance Criteria:</strong>
-    <ul>
-      <li>New models: <code>Registration</code>, <code>Attendee</code>, <code>PaymentProof</code>, <code>AuditLog</code>, <code>EventView</code>.</li>
-      <li>New enum: <code>RegistrationStatus</code> (draft, submitted, pending_verification, approved, rejected, cancelled).</li>
-      <li>Event model additions: <code>paymentInstructions</code>, <code>paymentQrImages</code> (JSON), <code>venueMapUrl</code>, <code>maxGroupSize</code>.</li>
-      <li><code>npx prisma migrate dev</code> completes without errors.</li>
-      <li>All existing tables and data preserved (additive migration only).</li>
-      <li>Indexes: <code>Registration(eventId, status)</code>, <code>Attendee(registrationId)</code>, <code>Attendee(eventId, email)</code>, <code>PaymentProof(registrationId)</code>.</li>
-    </ul>
+</article>
+<article class="story" id="MVP-REG-06">
+  <div class="story-top">
+    <div class="story-heading"><span class="story-id">MVP-REG-06</span><h3>Edit attendee details before payment</h3></div>
+    <div class="badges">
+      <span class="badge status-verified">Working now</span>
+      <span class="badge priority-Must">Essential</span>
+      <span class="badge status-deferred">Medium effort</span>
+      <span class="badge status-verify">Current MVP</span>
+    </div>
   </div>
-</div>
-
-<div class="story">
-  <div class="story-header"><span class="story-id">E9-T02</span><span class="badge type-t">[T]</span><span class="badge p0">P0</span><span class="badge sp">SP 8</span><div class="story-title">API: POST /registrations (solo and group)</div></div>
-  <div class="story-as">As a developer, I want a POST endpoint that creates a registration with attendees so that the frontend can submit both solo and group registrations.</div>
-  <div class="story-ac"><strong>Acceptance Criteria:</strong>
-    <ul>
-      <li>Endpoint: <code>POST /api/v1/registrations</code>. No JWT required for creation.</li>
-      <li>Body: <code>{ eventId, tierId, registrationType, leadAttendee: {...}, additionalAttendees?: [...] }</code>.</li>
-      <li>Validates: all required fields, event/tier exists and is on sale, duplicate emails per event, group size &lt;= maxGroupSize, tier capacity not exceeded.</li>
-      <li>DB transaction: Registration + N Attendee records created atomically.</li>
-      <li>Returns: registration ID, reference number, status.</li>
-      <li>Triggers: confirmation email to lead attendee.</li>
-      <li>Rate limit: 10 requests/minute per IP.</li>
-    </ul>
+  <div class="user-story"><strong>Business outcome:</strong> Enables the registrant to correct attendee information before proof submission. <strong>Why it matters:</strong> tickets are issued to accurate identities.</div>
+  <div class="ac-title">What success looks like</div>
+  <ul class="ac"><li>If pending_payment status, when the same number of attendee records is submitted, then attendee details are updated.</li><li>If any later registration state, when an edit is attempted, then Axon rejects it.</li></ul>
+  <div class="details">
+    <div><strong>How this was assessed</strong><br>Confirmed through a review of the current system and supporting records.</div>
+    <div><strong>What must be in place</strong><br>None</div>
   </div>
-</div>
 
-<div class="story">
-  <div class="story-header"><span class="story-id">E9-T03</span><span class="badge type-t">[T]</span><span class="badge p0">P0</span><span class="badge sp">SP 5</span><div class="story-title">API: POST /registrations/:id/proof (proof upload)</div></div>
-  <div class="story-as">As a developer, I want a proof upload endpoint that stores files securely and transitions registration status so that the organizer can review them.</div>
-  <div class="story-ac"><strong>Acceptance Criteria:</strong>
-    <ul>
-      <li>Endpoint: <code>POST /api/v1/registrations/:id/proof</code>. Auth: reference session or attendee JWT.</li>
-      <li>MIME validation against file magic bytes (server-side). Accepts: image/jpeg, image/png, application/pdf.</li>
-      <li>Max size: 5MB enforced server-side.</li>
-      <li>File uploaded to Cloudinary private folder: <code>axon-tickets/payment-proofs/private/[registrationId]</code>.</li>
-      <li>IDOR guard: registration must belong to authenticated session.</li>
-      <li>Status machine: only accepts upload when status is <code>draft</code> or <code>rejected</code>.</li>
-      <li>Returns: proof ID, status (<code>submitted</code>).</li>
-    </ul>
+</article>
+<article class="story" id="MVP-REG-07">
+  <div class="story-top">
+    <div class="story-heading"><span class="story-id">MVP-REG-07</span><h3>Cancellation and stale-registration cleanup</h3></div>
+    <div class="badges">
+      <span class="badge status-verified">Working now</span>
+      <span class="badge priority-Must">Essential</span>
+      <span class="badge status-deferred">Medium effort</span>
+      <span class="badge status-verify">Current MVP</span>
+    </div>
   </div>
-</div>
-
-<div class="story">
-  <div class="story-header"><span class="story-id">E9-T04</span><span class="badge type-t">[T]</span><span class="badge p0">P0</span><span class="badge sp">SP 5</span><div class="story-title">API: PATCH /admin/verifications/:id/approve</div></div>
-  <div class="story-as">As a developer, I want an admin endpoint that approves a registration, generates QR tokens, and triggers email delivery so that the approval action is atomic and reliable.</div>
-  <div class="story-ac"><strong>Acceptance Criteria:</strong>
-    <ul>
-      <li>Endpoint: <code>PATCH /api/v1/admin/verifications/:id/approve</code>. Auth: admin JWT.</li>
-      <li>Transaction: status → <code>approved</code>; N QR tokens generated and stored on Attendee records; AuditLog written.</li>
-      <li>Post-transaction: email dispatch (async — email failure does not roll back DB).</li>
-      <li>Returns: registration ID, attendee count, email dispatch status.</li>
-    </ul>
+  <div class="user-story"><strong>Business outcome:</strong> Enables the registrant and operations team to cancel incomplete registrations and release abandoned inventory. <strong>Why it matters:</strong> capacity returns to sale safely.</div>
+  <div class="ac-title">What success looks like</div>
+  <ul class="ac"><li>If a pending or proof-submitted registration, when the owner cancels it, then status changes and tier usage is released.</li><li>If a pending registration beyond its sale window or abandonment threshold, when the scheduler runs, then it is cancelled and inventory is released.</li><li>If automatic cancellation, when processed, then an audit event is written.</li></ul>
+  <div class="details">
+    <div><strong>How this was assessed</strong><br>Confirmed through a review of the current system and supporting records.</div>
+    <div><strong>What must be in place</strong><br>None</div>
   </div>
-</div>
 
-<div class="story">
-  <div class="story-header"><span class="story-id">E9-T05</span><span class="badge type-t">[T]</span><span class="badge p0">P0</span><span class="badge sp">SP 3</span><div class="story-title">API: PATCH /admin/verifications/:id/reject</div></div>
-  <div class="story-as">As a developer, I want an admin endpoint that rejects a registration with a reason, stores it, and triggers the rejection email.</div>
-  <div class="story-ac"><strong>Acceptance Criteria:</strong>
-    <ul>
-      <li>Endpoint: <code>PATCH /api/v1/admin/verifications/:id/reject</code>. Auth: admin JWT.</li>
-      <li>Body: <code>{ reason: string, note?: string }</code>. Reason must be one of the approved preset values or "other".</li>
-      <li>Status → <code>rejected</code>; reason stored on PaymentProof; AuditLog written.</li>
-      <li>Rejection email dispatched to lead registrant.</li>
-    </ul>
+</article>
+</section>
+<section id="MVP-04">
+  <div class="epic">
+    <div class="epic-id">MVP-04</div>
+    <h2>Payments and Verification</h2>
+    <p><strong>Business value:</strong> Axon supports manual payment instructions, proof submission and organizer verification as the approved MVP payment process.</p>
   </div>
-</div>
 
-<div class="story">
-  <div class="story-header"><span class="story-id">E9-T06</span><span class="badge type-t">[T]</span><span class="badge p0">P0</span><span class="badge sp">SP 3</span><div class="story-title">API: GET /registrations/lookup (email + reference)</div></div>
-  <div class="story-as">As a developer, I want an endpoint that authenticates an attendee by email + reference number and returns a session token so that attendees can access their registration without an account.</div>
-  <div class="story-ac"><strong>Acceptance Criteria:</strong>
-    <ul>
-      <li>Endpoint: <code>POST /api/v1/registrations/lookup</code>. No prior auth required.</li>
-      <li>Body: <code>{ email, referenceNumber }</code>.</li>
-      <li>Returns: session JWT (24h TTL) + registration summary if credentials match.</li>
-      <li>On mismatch: HTTP 404 — "No matching registration found."</li>
-      <li>Rate limit: 10 attempts/minute per IP to prevent brute-force on reference numbers.</li>
-    </ul>
+<article class="story" id="MVP-PAY-01">
+  <div class="story-top">
+    <div class="story-heading"><span class="story-id">MVP-PAY-01</span><h3>Manual payment instruction screen</h3></div>
+    <div class="badges">
+      <span class="badge status-verified">Working now</span>
+      <span class="badge priority-Must">Essential</span>
+      <span class="badge status-deferred">Medium effort</span>
+      <span class="badge status-verify">Current MVP</span>
+    </div>
   </div>
-</div>
-
-<div class="story">
-  <div class="story-header"><span class="story-id">E9-T07</span><span class="badge type-t">[T]</span><span class="badge p0">P0</span><span class="badge sp">SP 3</span><div class="story-title">Extract EmailService as shared module</div></div>
-  <div class="story-as">As a developer, I want email sending logic extracted into a shared <code>EmailService</code> module so that all email types (confirmation, QR, rejection) are sent consistently.</div>
-  <div class="story-ac"><strong>Acceptance Criteria:</strong>
-    <ul>
-      <li>New <code>EmailModule</code> with <code>EmailService</code>.</li>
-      <li>Methods: <code>sendRegistrationConfirmation()</code>, <code>sendQrDelivery()</code>, <code>sendRejectionNotice()</code>, <code>sendCancellationNotice()</code>.</li>
-      <li>All email sends logged (structured JSON log with recipient, type, success/failure).</li>
-      <li>Existing order confirmation email migrated to use EmailService.</li>
-    </ul>
+  <div class="user-story"><strong>Business outcome:</strong> Enables the registrant to see the configured transfer options and exact amount. <strong>Why it matters:</strong> They can pay correctly.</div>
+  <div class="ac-title">What success looks like</div>
+  <ul class="ac"><li>If an owned pending registration, when payment opens, then Axon displays amount, event instructions and configured payment methods.</li><li>If a completed or cancelled state, when the payment route opens, then the user is redirected to an appropriate status page.</li></ul>
+  <div class="details">
+    <div><strong>How this was assessed</strong><br>Confirmed through a review of the current system and supporting records.</div>
+    <div><strong>What must be in place</strong><br>None</div>
   </div>
-</div>
 
-<div class="story">
-  <div class="story-header"><span class="story-id">E9-T08</span><span class="badge type-t">[T]</span><span class="badge p0">P0</span><span class="badge sp">SP 3</span><div class="story-title">Cloudinary private proof upload integration</div></div>
-  <div class="story-as">As a developer, I want the UploadService extended to support private payment proof storage with signed URL retrieval so that proofs are secure.</div>
-  <div class="story-ac"><strong>Acceptance Criteria:</strong>
-    <ul>
-      <li>New method: <code>uploadPaymentProof(registrationId, buffer, mimeType)</code>.</li>
-      <li>Uses Cloudinary <code>type: 'private'</code> upload — not publicly accessible.</li>
-      <li>New method: <code>getSignedProofUrl(publicId, expirySeconds = 1800)</code> — returns time-limited signed URL.</li>
-      <li>IDOR guard: only admin or registration owner can request signed URL.</li>
-    </ul>
+</article>
+<article class="story" id="MVP-PAY-02">
+  <div class="story-top">
+    <div class="story-heading"><span class="story-id">MVP-PAY-02</span><h3>Payment-proof upload</h3></div>
+    <div class="badges">
+      <span class="badge status-partial">Working with limitations</span>
+      <span class="badge priority-Must">Essential</span>
+      <span class="badge status-deferred">Medium effort</span>
+      <span class="badge status-verify">Current MVP</span>
+    </div>
   </div>
-</div>
-
-<div class="story">
-  <div class="story-header"><span class="story-id">E9-T09</span><span class="badge type-t">[T]</span><span class="badge p1">P1</span><span class="badge sp">SP 3</span><div class="story-title">Audit logging service</div></div>
-  <div class="story-as">As a developer, I want a shared AuditService that all modules can use to write audit log entries so that every important action is tracked consistently.</div>
-  <div class="story-ac"><strong>Acceptance Criteria:</strong>
-    <ul>
-      <li>New <code>AuditModule</code> with <code>AuditService.log({ adminId, action, entityType, entityId, metadata })</code>.</li>
-      <li>Writes to <code>AuditLog</code> table. Non-blocking (async, does not delay primary operation).</li>
-      <li>Failure to write audit log logged as structured error but does not fail the primary action.</li>
-    </ul>
+  <div class="user-story"><strong>Business outcome:</strong> Enables the registrant to upload an image of their payment proof. <strong>Why it matters:</strong> the organizer can verify their payment.</div>
+  <div class="ac-title">What success looks like</div>
+  <ul class="ac"><li>If an owned pending or rejected registration, when a JPG, PNG or WEBP under 5 MB is uploaded, then Axon stores the proof and changes status to proof_submitted.</li><li>If any other registration state, when upload is attempted, then Axon rejects it.</li><li>If a successful upload, when processing completes, then an audit and funnel event are created.</li></ul>
+  <div class="details">
+    <div><strong>How this was assessed</strong><br>Confirmed through a review of the current system and supporting records.</div>
+    <div><strong>What must be in place</strong><br>None</div>
   </div>
-</div>
-
-<div class="story">
-  <div class="story-header"><span class="story-id">E9-T10</span><span class="badge type-t">[T]</span><span class="badge p1">P1</span><span class="badge sp">SP 3</span><div class="story-title">Fix admin frontend auth guard (remove setTimeout hack)</div></div>
-  <div class="story-as">As a developer, I want the admin layout to immediately check for a valid token on mount so that there is no flash of admin content before redirect on unauthenticated visits.</div>
-  <div class="story-ac"><strong>Acceptance Criteria:</strong>
-    <ul>
-      <li>Replace <code>setTimeout(1500)</code> with synchronous <code>localStorage</code> check for refresh token existence.</li>
-      <li>If no token: redirect immediately (before first render).</li>
-      <li>If token exists: attempt rehydration; show spinner until resolved (max 3s, then redirect).</li>
-      <li>Zero flash of admin content on unauthenticated visits.</li>
-    </ul>
+<div class="note"><strong>What leadership should know:</strong> File type and size limits are enforced. Stronger file-content checks and private, time-limited access to payment proofs are not yet available.</div>
+</article>
+<article class="story" id="MVP-PAY-03">
+  <div class="story-top">
+    <div class="story-heading"><span class="story-id">MVP-PAY-03</span><h3>Verification queue and detail</h3></div>
+    <div class="badges">
+      <span class="badge status-verified">Working now</span>
+      <span class="badge priority-Must">Essential</span>
+      <span class="badge status-deferred">Medium effort</span>
+      <span class="badge status-verify">Current MVP</span>
+    </div>
   </div>
-</div>
-
-<div class="story">
-  <div class="story-header"><span class="story-id">E9-T11</span><span class="badge type-t">[T]</span><span class="badge p1">P1</span><span class="badge sp">SP 2</span><div class="story-title">Auth token persistence (localStorage access token)</div></div>
-  <div class="story-as">As a developer, I want access tokens to persist across page refreshes so that users are not logged out on refresh.</div>
-  <div class="story-ac"><strong>Acceptance Criteria:</strong>
-    <ul>
-      <li>Access token stored in <code>localStorage</code> (short TTL: 15 min).</li>
-      <li>Refresh token stored in <code>localStorage</code> (7-day TTL) with strict same-origin policy.</li>
-      <li><code>AuthHydrator</code> in providers.tsx reads from localStorage on mount and sets Zustand state.</li>
-      <li>Login-related localStorage is cleared on logout.</li>
-    </ul>
+  <div class="user-story"><strong>Business outcome:</strong> Enables the administrator to filter and inspect proof-submitted registrations. <strong>Why it matters:</strong> payments can be processed efficiently.</div>
+  <div class="ac-title">What success looks like</div>
+  <ul class="ac"><li>If pending verifications, when the queue opens, then Axon lists event, buyer, amount, proof state and date.</li><li>If a selected registration, when detail opens, then attendee and proof information are available for review.</li></ul>
+  <div class="details">
+    <div><strong>How this was assessed</strong><br>Confirmed through a review of the current system and supporting records.</div>
+    <div><strong>What must be in place</strong><br>None</div>
   </div>
-</div>
 
-<div class="story">
-  <div class="story-header"><span class="story-id">E9-T12</span><span class="badge type-t">[T]</span><span class="badge p1">P1</span><span class="badge sp">SP 3</span><div class="story-title">Add ZXing camera QR scanner to check-in page</div></div>
-  <div class="story-as">As a developer, I want to integrate <code>@zxing/browser</code> on the check-in page so that QR codes can be scanned using a mobile browser camera.</div>
-  <div class="story-ac"><strong>Acceptance Criteria:</strong>
-    <ul>
-      <li><code>@zxing/browser</code> integrated in <code>apps/web</code>.</li>
-      <li>Camera access requested with permission UX (not a silent crash).</li>
-      <li>Scanned token sent to <code>POST /admin/checkin</code> API.</li>
-      <li>Scanner resets after each result (3-second delay for staff to read result).</li>
-      <li>Fallback text input shown when camera permission denied or unavailable.</li>
-    </ul>
+</article>
+<article class="story" id="MVP-PAY-04">
+  <div class="story-top">
+    <div class="story-heading"><span class="story-id">MVP-PAY-04</span><h3>Approve, reject and bulk review</h3></div>
+    <div class="badges">
+      <span class="badge status-verified">Working now</span>
+      <span class="badge priority-Must">Essential</span>
+      <span class="badge status-deferred">Large effort</span>
+      <span class="badge status-verify">Current MVP</span>
+    </div>
   </div>
-</div>
-
-<div class="story">
-  <div class="story-header"><span class="story-id">E9-T13</span><span class="badge type-t">[T]</span><span class="badge p1">P1</span><span class="badge sp">SP 2</span><div class="story-title">Rate limiting on registration and lookup endpoints</div></div>
-  <div class="story-as">As a developer, I want rate limiting on registration and lookup endpoints so that the platform is protected from abuse.</div>
-  <div class="story-ac"><strong>Acceptance Criteria:</strong>
-    <ul>
-      <li><code>@nestjs/throttler</code> configured globally.</li>
-      <li>Registration endpoint: 10 requests/minute per IP.</li>
-      <li>Lookup endpoint: 10 requests/minute per IP.</li>
-      <li>Proof upload: 5 uploads per registration ID per hour.</li>
-      <li>Rate limit exceeded returns HTTP 429 with Retry-After header.</li>
-    </ul>
+  <div class="user-story"><strong>Business outcome:</strong> Enables the administrator to approve or reject payment evidence individually or in controlled batches. <strong>Why it matters:</strong> attendee eligibility is established.</div>
+  <div class="ac-title">What success looks like</div>
+  <ul class="ac"><li>If a payment proof is awaiting review, when approved, then the registration is approved and attendee QR tickets are created.</li><li>If rejection with a valid reason, when processed, then registration and proof are rejected and the reason is stored.</li><li>If up to 20 selected registrations, when bulk action runs, then Axon reports success or error per registration.</li></ul>
+  <div class="details">
+    <div><strong>How this was assessed</strong><br>Confirmed through a review of the current system and supporting records.</div>
+    <div><strong>What must be in place</strong><br>None</div>
   </div>
-</div>
 
-<div class="story">
-  <div class="story-header"><span class="story-id">E9-T14</span><span class="badge type-t">[T]</span><span class="badge p1">P1</span><span class="badge sp">SP 2</span><div class="story-title">Update Tailwind design system (orange/blue palette)</div></div>
-  <div class="story-as">As a developer, I want the Tailwind configuration updated to the correct brand colors so that all new UI components use the approved palette.</div>
-  <div class="story-ac"><strong>Acceptance Criteria:</strong>
-    <ul>
-      <li>Primary color updated to <code>#EA6C00</code> (orange) with all shade variants.</li>
-      <li>Secondary color added: <code>#1A3A5C</code> (dark navy).</li>
-      <li>Existing blue primary replaced globally (affects Navbar, buttons, focus rings).</li>
-      <li>No regression in existing admin page layouts after color update.</li>
-    </ul>
+</article>
+<article class="story" id="MVP-PAY-05">
+  <div class="story-top">
+    <div class="story-heading"><span class="story-id">MVP-PAY-05</span><h3>Payment-proof privacy</h3></div>
+    <div class="badges">
+      <span class="badge status-gap">Not yet available</span>
+      <span class="badge priority-Must">Essential</span>
+      <span class="badge status-deferred">Medium effort</span>
+      <span class="badge status-verify">Safety improvement</span>
+    </div>
   </div>
-</div>
-
-<div class="story">
-  <div class="story-header"><span class="story-id">E9-T15</span><span class="badge type-t">[T]</span><span class="badge p1">P1</span><span class="badge sp">SP 2</span><div class="story-title">Disable PayMongo checkout from attendee flow</div></div>
-  <div class="story-as">As a developer, I want to hide the existing PayMongo checkout flow from attendees so that only manual payment is available in the MVP.</div>
-  <div class="story-ac"><strong>Acceptance Criteria:</strong>
-    <ul>
-      <li><code>/checkout/[reservationId]</code> page: add feature flag check — if <code>NEXT_PUBLIC_ENABLE_ONLINE_PAYMENT !== 'true'</code>, redirect to <code>/</code>.</li>
-      <li>TierSelector component: remove or disable reservation-creation logic when online payment is disabled.</li>
-      <li>PayMongo code preserved in codebase (not deleted) — disabled via env flag.</li>
-      <li>Reservation module API remains accessible for admin testing purposes only.</li>
-    </ul>
+  <div class="user-story"><strong>Business outcome:</strong> Enables the attendee to have their financial screenshot protected from public access. <strong>Why it matters:</strong> sensitive payment data is not exposed.</div>
+  <div class="ac-title">What success looks like</div>
+  <ul class="ac"><li>If a proof image, when stored, then it should not be anonymously retrievable.</li><li>If an authorized administrator, when proof review is requested, then access should be short-lived and auditable.</li></ul>
+  <div class="details">
+    <div><strong>How this was assessed</strong><br>Confirmed through a review of the current system and supporting records.</div>
+    <div><strong>What must be in place</strong><br>None</div>
   </div>
-</div>
-
-<div class="story">
-  <div class="story-header"><span class="story-id">E9-T16</span><span class="badge type-t">[T]</span><span class="badge p2">P2</span><span class="badge sp">SP 2</span><div class="story-title">OTP cleanup scheduled job</div></div>
-  <div class="story-as">As a developer, I want expired OTP records purged periodically so that the <code>otp_codes</code> table doesn't grow indefinitely.</div>
-  <div class="story-ac"><strong>Acceptance Criteria:</strong>
-    <ul>
-      <li>NestJS <code>@Cron</code> job runs daily at midnight (Asia/Manila).</li>
-      <li>Deletes: <code>OtpCode</code> records where <code>expiresAt &lt; now()</code> OR <code>(used = true AND createdAt &lt; now() - 7 days)</code>.</li>
-      <li>Deletion count logged as structured info log.</li>
-    </ul>
+<div class="note"><strong>What leadership should know:</strong> Payment proofs are stored with the upload provider and shown only in authenticated views, but the files are not yet protected by private, time-limited viewing links.</div>
+</article>
+</section>
+<section id="MVP-05">
+  <div class="epic">
+    <div class="epic-id">MVP-05</div>
+    <h2>Tickets, QR and Notifications</h2>
+    <p><strong>Business value:</strong> Verified attendees receive individual signed credentials and can retrieve them from their account or email.</p>
   </div>
-</div>
 
-<div class="story">
-  <div class="story-header"><span class="story-id">E9-T17</span><span class="badge type-t">[T]</span><span class="badge p1">P1</span><span class="badge sp">SP 2</span><div class="story-title">Extend check-in API to use Attendee.qrToken</div></div>
-  <div class="story-as">As a developer, I want the check-in endpoint to look up tokens from the new <code>Attendee.qrToken</code> field so that the new registration flow is supported at check-in.</div>
-  <div class="story-ac"><strong>Acceptance Criteria:</strong>
-    <ul>
-      <li><code>POST /admin/checkin</code> checks <code>Attendee.qrToken</code> first, then falls back to legacy <code>Ticket.qrCode</code> for backward compatibility.</li>
-      <li>Returns: attendee name, tier, event, registration status, check-in status.</li>
-      <li>Writes check-in record to <code>Attendee.checkedInAt</code>.</li>
-    </ul>
+<article class="story" id="MVP-TIX-01">
+  <div class="story-top">
+    <div class="story-heading"><span class="story-id">MVP-TIX-01</span><h3>Tamper-resistant QR tickets</h3></div>
+    <div class="badges">
+      <span class="badge status-verified">Working now</span>
+      <span class="badge priority-Must">Essential</span>
+      <span class="badge status-deferred">Medium effort</span>
+      <span class="badge status-verify">Current MVP</span>
+    </div>
   </div>
-</div>
-
-<!-- EPIC 10 — NON-FUNCTIONAL -->
-<div class="epic-header" style="background: #92400e;">
-  <h2 style="color:white;">Epic 10 — Non-Functional Quality Stories</h2>
-  <div class="epic-meta">Goal: Platform meets performance, security, accessibility, and reliability standards required for production use.</div>
-</div>
-
-<div class="story">
-  <div class="story-header"><span class="story-id">E10-NF01</span><span class="badge type-nf">[NF]</span><span class="badge p0">P0</span><span class="badge sp">SP 3</span><span class="badge" style="background: #16a34a; color: white;">✓ SHIPPED</span><div class="story-title">Payment proof URLs are never publicly accessible</div></div>
-  <div class="story-as">As a security requirement, payment proof images must never be accessible via public URL so that sensitive financial screenshots are protected.</div>
-  <div class="story-ac"><strong>Acceptance Criteria:</strong>
-    <ul>
-      <li>Cloudinary upload type: <code>private</code> for all proof images.</li>
-      <li>No direct Cloudinary URL ever returned to the frontend.</li>
-      <li>All proof access goes through a signed URL endpoint with 30-minute expiry.</li>
-      <li>Signed URL endpoint requires admin JWT.</li>
-      <li>Security test: direct Cloudinary URL returns HTTP 401.</li>
-    </ul>
+  <div class="user-story"><strong>Business outcome:</strong> Enables the verified attendee to receive a tamper-resistant event credential. <strong>Why it matters:</strong> Their ticket can be validated at the venue.</div>
+  <div class="ac-title">What success looks like</div>
+  <ul class="ac"><li>If registration approval, when attendee QR tokens are missing, then Axon creates one tamper-resistant QR credential per attendee.</li><li>If a modified token, when validation occurs, then the altered QR ticket is rejected.</li></ul>
+  <div class="details">
+    <div><strong>How this was assessed</strong><br>Confirmed through a review of the current system and supporting records.</div>
+    <div><strong>What must be in place</strong><br>None</div>
   </div>
-</div>
 
-<div class="story">
-  <div class="story-header"><span class="story-id">E10-NF02</span><span class="badge type-nf">[NF]</span><span class="badge p0">P0</span><span class="badge sp">SP 2</span><div class="story-title">File upload MIME validation (server-side magic bytes)</div></div>
-  <div class="story-as">As a security requirement, file uploads must be validated by content (not extension) so that disguised malicious files are rejected.</div>
-  <div class="story-ac"><strong>Acceptance Criteria:</strong>
-    <ul>
-      <li>Server reads first 8 bytes of uploaded file to determine MIME type.</li>
-      <li>Accepts: <code>FFD8FF</code> (JPEG), <code>89504E47</code> (PNG), <code>25504446</code> (PDF).</li>
-      <li>Any other magic bytes: HTTP 400 with message "Invalid file type. Accepted: JPG, PNG, PDF."</li>
-      <li>Max size: 5MB enforced before Cloudinary upload (reject early).</li>
-    </ul>
+</article>
+<article class="story" id="MVP-TIX-02">
+  <div class="story-top">
+    <div class="story-heading"><span class="story-id">MVP-TIX-02</span><h3>Individual ticket email delivery</h3></div>
+    <div class="badges">
+      <span class="badge status-verified">Working now</span>
+      <span class="badge priority-Must">Essential</span>
+      <span class="badge status-deferred">Medium effort</span>
+      <span class="badge status-verify">Current MVP</span>
+    </div>
   </div>
-</div>
-
-<div class="story">
-  <div class="story-header"><span class="story-id">E10-NF03</span><span class="badge type-nf">[NF]</span><span class="badge p1">P1</span><span class="badge sp">SP 2</span><div class="story-title">Mobile-first responsive layouts on all attendee pages</div></div>
-  <div class="story-as">As an attendee on a mobile browser, I want all registration and status pages to be fully usable on a small screen so that I can complete registration on my phone.</div>
-  <div class="story-ac"><strong>Acceptance Criteria:</strong>
-    <ul>
-      <li>All new attendee pages tested at 375px (iPhone SE), 390px (iPhone 14), 414px (Android).</li>
-      <li>No horizontal scroll on any attendee-facing page.</li>
-      <li>Touch targets (buttons, links) minimum 44×44px.</li>
-      <li>Group registration attendee rows are collapsible accordion on mobile.</li>
-      <li>File upload supports native mobile file picker.</li>
-    </ul>
+  <div class="user-story"><strong>Business outcome:</strong> Enables the attendee to receive their own QR code by email. <strong>Why it matters:</strong> They can arrive without depending on the lead registrant.</div>
+  <div class="ac-title">What success looks like</div>
+  <ul class="ac"><li>If a verified group registration, when QR delivery runs, then each attendee receives a message at their own email address.</li><li>If one failed address, when group delivery runs, then other attendee emails continue and the failure is logged.</li></ul>
+  <div class="details">
+    <div><strong>How this was assessed</strong><br>Confirmed through a review of the current system and supporting records.</div>
+    <div><strong>What must be in place</strong><br>None</div>
   </div>
-</div>
 
-<div class="story">
-  <div class="story-header"><span class="story-id">E10-NF04</span><span class="badge type-nf">[NF]</span><span class="badge p1">P1</span><span class="badge sp">SP 2</span><div class="story-title">Registration transaction atomicity (no partial writes)</div></div>
-  <div class="story-as">As a reliability requirement, registration submission must either succeed fully or fail cleanly so that no partial data is left in the database.</div>
-  <div class="story-ac"><strong>Acceptance Criteria:</strong>
-    <ul>
-      <li>Registration creation wrapped in Prisma <code>$transaction</code>.</li>
-      <li>If any attendee record fails: entire registration is rolled back.</li>
-      <li>Client receives clear HTTP 500 (or 400) with retry instruction — not a silent partial success.</li>
-      <li>Confirmation email only sent after successful transaction commit.</li>
-    </ul>
+</article>
+<article class="story" id="MVP-TIX-03">
+  <div class="story-top">
+    <div class="story-heading"><span class="story-id">MVP-TIX-03</span><h3>My Tickets experience</h3></div>
+    <div class="badges">
+      <span class="badge status-verified">Working now</span>
+      <span class="badge priority-Must">Essential</span>
+      <span class="badge status-deferred">Medium effort</span>
+      <span class="badge status-verify">Current MVP</span>
+    </div>
   </div>
-</div>
-
-<div class="story">
-  <div class="story-header"><span class="story-id">E10-NF05</span><span class="badge type-nf">[NF]</span><span class="badge p1">P1</span><span class="badge sp">SP 2</span><div class="story-title">WCAG AA accessibility on all new pages</div></div>
-  <div class="story-as">As an accessibility requirement, all new pages must meet WCAG AA so that attendees with disabilities can register independently.</div>
-  <div class="story-ac"><strong>Acceptance Criteria:</strong>
-    <ul>
-      <li>Color contrast ratio: minimum 4.5:1 for body text, 3:1 for large text.</li>
-      <li>All form fields have explicit <code>&lt;label for="..."&gt;</code> associations.</li>
-      <li>Error messages linked to inputs via <code>aria-describedby</code>.</li>
-      <li>All interactive elements reachable and operable via keyboard (Tab, Enter, Space).</li>
-      <li>Focus ring visible on all interactive elements (not <code>outline: none</code>).</li>
-    </ul>
+  <div class="user-story"><strong>Business outcome:</strong> Enables the authenticated registrant to see their approved registration tickets in one place. <strong>Why it matters:</strong> They can retrieve every credential issued through the approved registration flow.</div>
+  <div class="ac-title">What success looks like</div>
+  <ul class="ac"><li>If approved registration tickets, when My Tickets loads, then the attendee credentials are displayed consistently.</li><li>If a registration attendee ticket, when its detail opens, then the correct attendee and event information is shown.</li></ul>
+  <div class="details">
+    <div><strong>How this was assessed</strong><br>Confirmed through a review of the current system and supporting records.</div>
+    <div><strong>What must be in place</strong><br>None</div>
   </div>
-</div>
 
-<div class="story">
-  <div class="story-header"><span class="story-id">E10-NF06</span><span class="badge type-nf">[NF]</span><span class="badge p1">P1</span><span class="badge sp">SP 1</span><div class="story-title">QR scan response time &lt; 500ms</div></div>
-  <div class="story-as">As a performance requirement, check-in must respond within 500ms of QR scan so that event-day queues move quickly.</div>
-  <div class="story-ac"><strong>Acceptance Criteria:</strong>
-    <ul>
-      <li><code>POST /admin/checkin</code> p95 response time &lt; 500ms under 20 concurrent scans.</li>
-      <li>Measured via load test tool (k6 or Artillery) against staging environment.</li>
-      <li>Attendee index: <code>@@index([eventId, qrToken])</code> on Attendee table.</li>
-    </ul>
+</article>
+<article class="story" id="MVP-TIX-04">
+  <div class="story-top">
+    <div class="story-heading"><span class="story-id">MVP-TIX-04</span><h3>Administrative resend</h3></div>
+    <div class="badges">
+      <span class="badge status-verified">Working now</span>
+      <span class="badge priority-Must">Essential</span>
+      <span class="badge status-deferred">Medium effort</span>
+      <span class="badge status-verify">Current MVP</span>
+    </div>
   </div>
-</div>
-
-<div class="story">
-  <div class="story-header"><span class="story-id">E10-NF07</span><span class="badge type-nf">[NF]</span><span class="badge p2">P2</span><span class="badge sp">SP 1</span><div class="story-title">Structured logging for all key operations</div></div>
-  <div class="story-as">As an observability requirement, all key operations must emit structured JSON logs so that issues can be diagnosed quickly in production.</div>
-  <div class="story-ac"><strong>Acceptance Criteria:</strong>
-    <ul>
-      <li>Logged operations: registration created, proof uploaded, approval triggered, QR email sent/failed, check-in, rejection, auto-cancellation.</li>
-      <li>Log format: <code>{ msg, registrationId, attendeeCount, adminId (where applicable), timestamp }</code>.</li>
-      <li>No PII (names, emails) in logs — entity IDs only.</li>
-    </ul>
+  <div class="user-story"><strong>Business outcome:</strong> Enables the administrator to resend a verified registration ticket. <strong>Why it matters:</strong> delivery problems can be resolved.</div>
+  <div class="ac-title">What success looks like</div>
+  <ul class="ac"><li>If a verified registration, when resend is requested, then Axon sends the attendee QR email and writes an audit entry.</li></ul>
+  <div class="details">
+    <div><strong>How this was assessed</strong><br>Confirmed through a review of the current system and supporting records.</div>
+    <div><strong>What must be in place</strong><br>None</div>
   </div>
-</div>
 
-<hr>
+</article>
+<article class="story" id="MVP-TIX-05">
+  <div class="story-top">
+    <div class="story-heading"><span class="story-id">MVP-TIX-05</span><h3>QR expiry, replacement and revocation</h3></div>
+    <div class="badges">
+      <span class="badge status-gap">Not yet available</span>
+      <span class="badge priority-Must">Essential</span>
+      <span class="badge status-deferred">Medium effort</span>
+      <span class="badge status-verify">After MVP</span>
+    </div>
+  </div>
+  <div class="user-story"><strong>Business outcome:</strong> Enables the security owner to expire, rotate and revoke QR credentials predictably. <strong>Why it matters:</strong> copied or stale credentials have bounded risk.</div>
+  <div class="ac-title">What success looks like</div>
+  <ul class="ac"><li>If a QR ticket is created, then it should include its security version, issue date and expiry information.</li><li>If a revoked or replaced credential, when scanned, then Axon should reject it without deleting audit history.</li></ul>
+  <div class="details">
+    <div><strong>How this was assessed</strong><br>Confirmed through a review of the current system and supporting records.</div>
+    <div><strong>What must be in place</strong><br>None</div>
+  </div>
+<div class="note"><strong>What leadership should know:</strong> QR tickets are protected against alteration, but they do not yet have a built-in expiry, controlled key version, or a formal way to revoke and replace one credential.</div>
+</article>
+</section>
+<section id="MVP-06">
+  <div class="epic">
+    <div class="epic-id">MVP-06</div>
+    <h2>Attendance and Event-Day Operations</h2>
+    <p><strong>Business value:</strong> Event staff can admit valid attendees using QR or manual lookup while Axon records attendance.</p>
+  </div>
 
-<h2>Post-MVP Production Readiness Items (May 27, 2026)</h2>
+<article class="story" id="MVP-CHK-01">
+  <div class="story-top">
+    <div class="story-heading"><span class="story-id">MVP-CHK-01</span><h3>Browser camera QR scanner</h3></div>
+    <div class="badges">
+      <span class="badge status-verified">Working now</span>
+      <span class="badge priority-Must">Essential</span>
+      <span class="badge status-deferred">Medium effort</span>
+      <span class="badge status-verify">Current MVP</span>
+    </div>
+  </div>
+  <div class="user-story"><strong>Business outcome:</strong> Enables the event administrator to scan attendee QR codes with a phone camera. <strong>Why it matters:</strong> the entrance queue moves quickly.</div>
+  <div class="ac-title">What success looks like</div>
+  <ul class="ac"><li>If an active selected event and camera permission, when a QR is visible, then the browser decodes it and submits it once.</li><li>If repeated frames, when the same QR remains visible, then the UI applies a scan lock and cooldown.</li></ul>
+  <div class="details">
+    <div><strong>How this was assessed</strong><br>Confirmed through a review of the current system and supporting records.</div>
+    <div><strong>What must be in place</strong><br>None</div>
+  </div>
 
-<div class="info" style="background: #fff7ed; border-color: #EA6C00;">
-  <strong>Production Deployment Blockers — In Progress:</strong>
-  <ul style="margin: 8px 0 0 20px;">
-    <li><strong>Domain Setup:</strong> axontickets.online purchased. DNS + Vercel custom domain configuration in progress.</li>
-    <li><strong>Email Delivery:</strong> Resend custom domain setup (noreply@axontickets.online) to unblock email delivery for all users (currently restricted to sandbox).</li>
-    <li><strong>Google OAuth Publishing:</strong> Requires domain verification + OAuth app publishing to remove test-user restriction.</li>
-    <li><strong>Admin Password Security:</strong> Change production admin password from default <code>admin</code> to strong credential.</li>
-  </ul>
-</div>
+</article>
+<article class="story" id="MVP-CHK-02">
+  <div class="story-top">
+    <div class="story-heading"><span class="story-id">MVP-CHK-02</span><h3>Server-side QR validation</h3></div>
+    <div class="badges">
+      <span class="badge status-verified">Working now</span>
+      <span class="badge priority-Must">Essential</span>
+      <span class="badge status-deferred">Medium effort</span>
+      <span class="badge status-verify">Current MVP</span>
+    </div>
+  </div>
+  <div class="user-story"><strong>Business outcome:</strong> Enables the event staff to validate the token, event and payment state. <strong>Why it matters:</strong> only eligible attendees enter.</div>
+  <div class="ac-title">What success looks like</div>
+  <ul class="ac"><li>If an attendee QR, when scanned, then the credential details must match the attendee, registration and selected event.</li><li>If an unverified registration or invalid attendee credential, when scanned, then Axon rejects entry.</li></ul>
+  <div class="details">
+    <div><strong>How this was assessed</strong><br>Confirmed through a review of the current system and supporting records.</div>
+    <div><strong>What must be in place</strong><br>None</div>
+  </div>
 
-<div class="info" style="background: #fef3c7; border-color: #f59e0b;">
-  <strong>Production Operations — Before First Event:</strong>
-  <ul style="margin: 8px 0 0 20px;">
-    <li><strong>Admin Proof Alert Email:</strong> Implement notification email to all admin users when payment proof is uploaded (spec'd in TODO.md).</li>
-    <li><strong>BetterStack Uptime Monitoring:</strong> Configure free tier uptime pings (every 3 min) on <code>/api/v1/health</code> to prevent Vercel container cold starts.</li>
-    <li><strong>Sentry Error Tracking:</strong> Add <code>SENTRY_DSN</code> to Vercel env for both web + API projects (free tier, 5K errors/mo).</li>
-    <li><strong>Pre-Event Warmup Procedure:</strong> Documented in TODO.md — run 30 min before doors open to wake Vercel serverless containers.</li>
-  </ul>
-</div>
+</article>
+<article class="story" id="MVP-CHK-03">
+  <div class="story-top">
+    <div class="story-heading"><span class="story-id">MVP-CHK-03</span><h3>Manual search and check-in</h3></div>
+    <div class="badges">
+      <span class="badge status-verified">Working now</span>
+      <span class="badge priority-Must">Essential</span>
+      <span class="badge status-deferred">Medium effort</span>
+      <span class="badge status-verify">Current MVP</span>
+    </div>
+  </div>
+  <div class="user-story"><strong>Business outcome:</strong> Enables the event staff to find an attendee by name, email or reference. <strong>Why it matters:</strong> lost or unreadable QR codes do not stop admission.</div>
+  <div class="ac-title">What success looks like</div>
+  <ul class="ac"><li>If a selected event, when staff searches, then Axon returns matching attendees and current check-in state.</li><li>If a verified unchecked attendee, when manual check-in is confirmed, then attendance and audit data are written.</li></ul>
+  <div class="details">
+    <div><strong>How this was assessed</strong><br>Confirmed through a review of the current system and supporting records.</div>
+    <div><strong>What must be in place</strong><br>None</div>
+  </div>
 
-<div class="info" style="background: #fee2e2; border-color: #dc2626;">
-  <strong>Known Security Debt — Deferred to Upgrade Sprint:</strong>
-  <ul style="margin: 8px 0 0 20px;">
-    <li><strong>multer CVE (DoS):</strong> 3 CVEs in multer ≤ 2.1.0. Mitigation: upload endpoints require auth. Fix: NestJS 11 upgrade (breaking change, needs full regression).</li>
-    <li><strong>Next.js 14 CVEs (HTTP smuggling, DoS):</strong> Mitigation: behind Vercel edge, DoS-only. Fix: Next.js 15 upgrade (App Router breaking changes, needs full UI regression).</li>
-    <li><strong>Audit log IP spoofing:</strong> <code>x-forwarded-for</code> used in 3 controllers (logging only, not rate limiting). Low priority — no security enforcement affected.</li>
-  </ul>
-</div>
+</article>
+<article class="story" id="MVP-CHK-04">
+  <div class="story-top">
+    <div class="story-heading"><span class="story-id">MVP-CHK-04</span><h3>Prevent duplicate check-ins across devices</h3></div>
+    <div class="badges">
+      <span class="badge status-verified">Working now</span>
+      <span class="badge priority-Must">Essential</span>
+      <span class="badge status-deferred">Medium effort</span>
+      <span class="badge status-verify">Current MVP</span>
+    </div>
+  </div>
+  <div class="user-story"><strong>Business outcome:</strong> Enables the event operator to ensure simultaneous scans cannot admit the same attendee twice. <strong>Why it matters:</strong> attendance data remains trustworthy.</div>
+  <div class="ac-title">What success looks like</div>
+  <ul class="ac"><li>If two concurrent scans for one attendee, when both reach the database, then only one accepted check-in may be created.</li><li>If the losing request, when returned, then it shows the original successful check-in time.</li></ul>
+  <div class="details">
+    <div><strong>How this was assessed</strong><br>Confirmed through a review of the current system and supporting records.</div>
+    <div><strong>What must be in place</strong><br>None</div>
+  </div>
+<div class="note"><strong>What leadership should know:</strong> The current process prevents two devices from successfully checking in the same attendee at the same time. A permanent, event-by-event attendance history is still listed separately as future work.</div>
+</article>
+</section>
+<section id="MVP-07">
+  <div class="epic">
+    <div class="epic-id">MVP-07</div>
+    <h2>Administrative Operations</h2>
+    <p><strong>Business value:</strong> Administrators can manage events, transactions, attendees, users and operational outputs from a centralized control surface.</p>
+  </div>
 
-<div class="info">
-  <strong>Future Enhancements — Post-Launch Backlog:</strong>
-  <ul style="margin: 8px 0 0 20px;">
-    <li><strong>Audit Log Viewer (Admin UI):</strong> Fully spec'd in TODO.md. API exists, UI not yet built.</li>
-    <li><strong>Anti-Scalper Hardening:</strong> Bundle tier velocity limits, Cloudflare Turnstile, payment-method binding (spec'd in TODO.md).</li>
-    <li><strong>Upstash Redis Global:</strong> Multi-region replication (~$20-40/mo). Current single-region adequate for MVP.</li>
-  </ul>
-</div>
+<article class="story" id="MVP-ADM-01">
+  <div class="story-top">
+    <div class="story-heading"><span class="story-id">MVP-ADM-01</span><h3>Admin dashboard and navigation</h3></div>
+    <div class="badges">
+      <span class="badge status-verified">Working now</span>
+      <span class="badge priority-Must">Essential</span>
+      <span class="badge status-deferred">Medium effort</span>
+      <span class="badge status-verify">Current MVP</span>
+    </div>
+  </div>
+  <div class="user-story"><strong>Business outcome:</strong> Enables the administrator to see platform totals and reach operational tools. <strong>Why it matters:</strong> They can run Axon from one control surface.</div>
+  <div class="ac-title">What success looks like</div>
+  <ul class="ac"><li>If an admin session, when the dashboard opens, then Axon displays revenue/ticket metrics, recent events and quick links.</li><li>If event status change, when saved, then the dashboard updates and rolls back optimistic state on failure.</li></ul>
+  <div class="details">
+    <div><strong>How this was assessed</strong><br>Confirmed through a review of the current system and supporting records.</div>
+    <div><strong>What must be in place</strong><br>None</div>
+  </div>
 
-<hr>
+</article>
+<article class="story" id="MVP-ADM-02">
+  <div class="story-top">
+    <div class="story-heading"><span class="story-id">MVP-ADM-02</span><h3>Registration transaction monitoring</h3></div>
+    <div class="badges">
+      <span class="badge status-verified">Working now</span>
+      <span class="badge priority-Must">Essential</span>
+      <span class="badge status-deferred">Medium effort</span>
+      <span class="badge status-verify">Current MVP</span>
+    </div>
+  </div>
+  <div class="user-story"><strong>Business outcome:</strong> Enables the administrator to review manual-payment registrations in one operational view. <strong>Why it matters:</strong> financial operations are easier to reconcile.</div>
+  <div class="ac-title">What success looks like</div>
+  <ul class="ac"><li>If registrations, when transactions are listed, then Axon presents them in one sortable result.</li><li>If export, when requested, then Axon creates a spreadsheet that blocks unsafe formulas.</li></ul>
+  <div class="details">
+    <div><strong>How this was assessed</strong><br>Confirmed through a review of the current system and supporting records.</div>
+    <div><strong>What must be in place</strong><br>None</div>
+  </div>
 
-<h2>Backlog Summary</h2>
-<table class="summary-table">
-  <thead><tr><th>Epic</th><th>Functional Stories</th><th>Technical Stories</th><th>NF Stories</th><th>Total</th><th>Status</th></tr></thead>
-  <tbody>
-    <tr><td>E1 — Event Setup</td><td>6</td><td>—</td><td>—</td><td>6</td><td style="color: #16a34a; font-weight: 600;">✓ Shipped</td></tr>
-    <tr><td>E2 — Registration</td><td>9</td><td>—</td><td>—</td><td>9</td><td style="color: #16a34a; font-weight: 600;">✓ Shipped</td></tr>
-    <tr><td>E3 — Proof Submission</td><td>5</td><td>—</td><td>—</td><td>5</td><td style="color: #16a34a; font-weight: 600;">✓ Shipped</td></tr>
-    <tr><td>E4 — Organizer Workflow</td><td>7</td><td>—</td><td>—</td><td>7</td><td style="color: #16a34a; font-weight: 600;">✓ Shipped</td></tr>
-    <tr><td>E5 — QR &amp; Email</td><td>4</td><td>—</td><td>—</td><td>4</td><td style="color: #16a34a; font-weight: 600;">✓ Shipped</td></tr>
-    <tr><td>E6 — Attendance</td><td>3</td><td>—</td><td>—</td><td>3</td><td style="color: #16a34a; font-weight: 600;">✓ Shipped</td></tr>
-    <tr><td>E7 — Analytics</td><td>2</td><td>—</td><td>—</td><td>2</td><td style="color: #16a34a; font-weight: 600;">✓ Shipped</td></tr>
-    <tr><td>E8 — Data Foundation</td><td>2</td><td>—</td><td>—</td><td>2</td><td style="color: #16a34a; font-weight: 600;">✓ Shipped</td></tr>
-    <tr><td>E9 — Infrastructure</td><td>—</td><td>17</td><td>—</td><td>17</td><td style="color: #16a34a; font-weight: 600;">✓ Shipped</td></tr>
-    <tr><td>E10 — Quality / NF</td><td>—</td><td>—</td><td>7</td><td>7</td><td style="color: #16a34a; font-weight: 600;">✓ Shipped</td></tr>
-    <tr style="background:#1A3A5C; color:white;"><td><strong>TOTAL</strong></td><td><strong>38</strong></td><td><strong>17</strong></td><td><strong>7</strong></td><td><strong>62</strong></td><td style="color: #dcfce7; font-weight: 700;">✓ ALL COMPLETE</td></tr>
-  </tbody>
-</table>
+</article>
+<article class="story" id="MVP-ADM-03">
+  <div class="story-top">
+    <div class="story-heading"><span class="story-id">MVP-ADM-03</span><h3>Attendee management and exports</h3></div>
+    <div class="badges">
+      <span class="badge status-verified">Working now</span>
+      <span class="badge priority-Must">Essential</span>
+      <span class="badge status-deferred">Medium effort</span>
+      <span class="badge status-verify">Current MVP</span>
+    </div>
+  </div>
+  <div class="user-story"><strong>Business outcome:</strong> Enables the administrator to search attendees and export event rosters. <strong>Why it matters:</strong> event operations have a reliable working list.</div>
+  <div class="ac-title">What success looks like</div>
+  <ul class="ac"><li>If an event, when attendees are requested, then verified registration attendees are returned.</li><li>If a spreadsheet export, when downloaded, then attendee, tier, payment and attendance fields are included.</li></ul>
+  <div class="details">
+    <div><strong>How this was assessed</strong><br>Confirmed through a review of the current system and supporting records.</div>
+    <div><strong>What must be in place</strong><br>None</div>
+  </div>
 
-<div class="info">
-  <strong>Sprint Estimation:</strong> All 62 MVP backlog stories complete (May 25, 2026) — 6 sprints (12 weeks) with 1–2 person team. Current focus shifted to production readiness checklist above (domain, email, monitoring, security hardening).
-</div>
+</article>
+<article class="story" id="MVP-ADM-04">
+  <div class="story-top">
+    <div class="story-heading"><span class="story-id">MVP-ADM-04</span><h3>Printable nametags</h3></div>
+    <div class="badges">
+      <span class="badge status-verified">Working now</span>
+      <span class="badge priority-Must">Essential</span>
+      <span class="badge status-deferred">Medium effort</span>
+      <span class="badge status-verify">Current MVP</span>
+    </div>
+  </div>
+  <div class="user-story"><strong>Business outcome:</strong> Enables the event administrator to generate selected attendee nametags as PDF. <strong>Why it matters:</strong> venue preparation is faster.</div>
+  <div class="ac-title">What success looks like</div>
+  <ul class="ac"><li>If an event and optional attendee IDs, when requested, then Axon returns a printable PDF for eligible records.</li><li>If invalid attendee IDs or no eligible records, when processed, then Axon returns a clear error.</li></ul>
+  <div class="details">
+    <div><strong>How this was assessed</strong><br>Confirmed through a review of the current system and supporting records.</div>
+    <div><strong>What must be in place</strong><br>None</div>
+  </div>
 
-<hr>
-<p style="font-size:9pt; color:#64748b; text-align:center;">Axon Tickets MVP — Product Backlog v1.2 · May 27, 2026 · Confidential · 62 Stories (All Shipped) · Production Readiness In Progress</p>
+</article>
+<article class="story" id="MVP-ADM-05">
+  <div class="story-top">
+    <div class="story-heading"><span class="story-id">MVP-ADM-05</span><h3>User and admin-role management</h3></div>
+    <div class="badges">
+      <span class="badge status-partial">Working with limitations</span>
+      <span class="badge priority-Must">Essential</span>
+      <span class="badge status-deferred">Medium effort</span>
+      <span class="badge status-verify">Current MVP</span>
+    </div>
+  </div>
+  <div class="user-story"><strong>Business outcome:</strong> Enables the administrator to grant or remove administrator access. <strong>Why it matters:</strong> platform access can be maintained.</div>
+  <div class="ac-title">What success looks like</div>
+  <ul class="ac"><li>If an existing user, when role is changed, then isAdmin is updated.</li><li>If the current caller, when attempting to change their own role, then Axon blocks the action.</li></ul>
+  <div class="details">
+    <div><strong>How this was assessed</strong><br>Confirmed through a review of the current system and supporting records.</div>
+    <div><strong>What must be in place</strong><br>None</div>
+  </div>
+<div class="note"><strong>What leadership should know:</strong> Access is currently Administrator or regular user only. Separate permissions for organizers, payment reviewers, support staff and check-in staff are not yet available.</div>
+</article>
+<article class="story" id="MVP-ADM-06">
+  <div class="story-top">
+    <div class="story-heading"><span class="story-id">MVP-ADM-06</span><h3>Fraud-flag visibility</h3></div>
+    <div class="badges">
+      <span class="badge status-partial">Working with limitations</span>
+      <span class="badge priority-Must">Essential</span>
+      <span class="badge status-deferred">Medium effort</span>
+      <span class="badge status-verify">Current MVP</span>
+    </div>
+  </div>
+  <div class="user-story"><strong>Business outcome:</strong> Enables the administrator to view and resolve fraud flags. <strong>Why it matters:</strong> suspicious activity can be reviewed.</div>
+  <div class="ac-title">What success looks like</div>
+  <ul class="ac"><li>If unresolved flags, when the administrator screen or supporting service is opened, then Axon returns user/order context.</li><li>If a reviewed flag, when resolved, then the resolution date and time are recorded.</li></ul>
+  <div class="details">
+    <div><strong>How this was assessed</strong><br>Confirmed through a review of the current system and supporting records.</div>
+    <div><strong>What must be in place</strong><br>None</div>
+  </div>
+<div class="note"><strong>What leadership should know:</strong> Basic fraud-flag handling exists behind the scenes. The business rules and the complete administrator screen still need confirmation.</div>
+</article>
+</section>
+<section id="MVP-08">
+  <div class="epic">
+    <div class="epic-id">MVP-08</div>
+    <h2>Analytics, Funnel and Reporting</h2>
+    <p><strong>Business value:</strong> Axon provides event, revenue, conversion and attendance information for operational decisions.</p>
+  </div>
 
+<article class="story" id="MVP-DATA-01">
+  <div class="story-top">
+    <div class="story-heading"><span class="story-id">MVP-DATA-01</span><h3>Event sales and attendance analytics</h3></div>
+    <div class="badges">
+      <span class="badge status-verified">Working now</span>
+      <span class="badge priority-Must">Essential</span>
+      <span class="badge status-deferred">Medium effort</span>
+      <span class="badge status-verify">Current MVP</span>
+    </div>
+  </div>
+  <div class="user-story"><strong>Business outcome:</strong> Enables the administrator to see registrations, revenue, capacity and check-in performance. <strong>Why it matters:</strong> They can understand event health.</div>
+  <div class="ac-title">What success looks like</div>
+  <ul class="ac"><li>If an event, when analytics loads, then totals reflect verified registrations and recorded attendance.</li><li>If tier inventory, when reported, then sold, available, revenue and fill rate are shown.</li></ul>
+  <div class="details">
+    <div><strong>How this was assessed</strong><br>Confirmed through a review of the current system and supporting records.</div>
+    <div><strong>What must be in place</strong><br>None</div>
+  </div>
+
+</article>
+<article class="story" id="MVP-DATA-02">
+  <div class="story-top">
+    <div class="story-heading"><span class="story-id">MVP-DATA-02</span><h3>Revenue timeline</h3></div>
+    <div class="badges">
+      <span class="badge status-verified">Working now</span>
+      <span class="badge priority-Must">Essential</span>
+      <span class="badge status-deferred">Medium effort</span>
+      <span class="badge status-verify">Current MVP</span>
+    </div>
+  </div>
+  <div class="user-story"><strong>Business outcome:</strong> Enables the administrator to view daily sales and revenue. <strong>Why it matters:</strong> They can understand momentum over time.</div>
+  <div class="ac-title">What success looks like</div>
+  <ul class="ac"><li>If a valid event and day range, when requested, then Axon returns one row per day for the approved manual-payment registration path.</li><li>If an unsupported range, when requested, then Axon constrains it to a safe maximum.</li></ul>
+  <div class="details">
+    <div><strong>How this was assessed</strong><br>Confirmed through a review of the current system and supporting records.</div>
+    <div><strong>What must be in place</strong><br>None</div>
+  </div>
+
+</article>
+<article class="story" id="MVP-DATA-03">
+  <div class="story-top">
+    <div class="story-heading"><span class="story-id">MVP-DATA-03</span><h3>Registration journey tracking</h3></div>
+    <div class="badges">
+      <span class="badge status-verified">Working now</span>
+      <span class="badge priority-Must">Essential</span>
+      <span class="badge status-deferred">Medium effort</span>
+      <span class="badge status-verify">Current MVP</span>
+    </div>
+  </div>
+  <div class="user-story"><strong>Business outcome:</strong> Enables the product operator to measure major registration steps and failures. <strong>Why it matters:</strong> conversion problems can be identified.</div>
+  <div class="ac-title">What success looks like</div>
+  <ul class="ac"><li>If customer progress, when tracked, then Axon stores event, session, user, step, status and safe metadata.</li><li>If an event, when funnel analytics loads, then counts and recent failures are returned.</li></ul>
+  <div class="details">
+    <div><strong>How this was assessed</strong><br>Confirmed through a review of the current system and supporting records.</div>
+    <div><strong>What must be in place</strong><br>None</div>
+  </div>
+
+</article>
+<article class="story" id="MVP-DATA-04">
+  <div class="story-top">
+    <div class="story-heading"><span class="story-id">MVP-DATA-04</span><h3>Permanent attendance and staff-action history</h3></div>
+    <div class="badges">
+      <span class="badge status-gap">Not yet available</span>
+      <span class="badge priority-Must">Essential</span>
+      <span class="badge status-deferred">Large effort</span>
+      <span class="badge status-verify">Before NFC expansion</span>
+    </div>
+  </div>
+  <div class="user-story"><strong>Business outcome:</strong> Enables the operations and audit owner to report from append-only check-in and staff-action events. <strong>Why it matters:</strong> historical changes remain explainable.</div>
+  <div class="ac-title">What success looks like</div>
+  <ul class="ac"><li>If a check-in, override or operational correction, when recorded, then an event entry should be retained instead of only overwriting current state.</li><li>If reporting, when totals are calculated, then the accepted authoritative event is distinguishable from rejected attempts.</li></ul>
+  <div class="details">
+    <div><strong>How this was assessed</strong><br>Confirmed through a review of the current system and supporting records.</div>
+    <div><strong>What must be in place</strong><br>None</div>
+  </div>
+<div class="note"><strong>What leadership should know:</strong> The system records current attendance and general activity logs, but it does not yet preserve every check-in attempt and correction as a permanent, unchangeable history.</div>
+</article>
+</section>
+<section id="MVP-09">
+  <div class="epic">
+    <div class="epic-id">MVP-09</div>
+    <h2>Platform Reliability, Security and Quality</h2>
+    <p><strong>Business value:</strong> The system remains secure, observable and supportable as it moves from MVP into recurring production event operations.</p>
+  </div>
+
+<article class="story" id="MVP-NF-01">
+  <div class="story-top">
+    <div class="story-heading"><span class="story-id">MVP-NF-01</span><h3>Safe data handling and browser protection</h3></div>
+    <div class="badges">
+      <span class="badge status-verified">Working now</span>
+      <span class="badge priority-Must">Essential</span>
+      <span class="badge status-deferred">Medium effort</span>
+      <span class="badge status-verify">Current MVP</span>
+    </div>
+  </div>
+  <div class="user-story"><strong>Business outcome:</strong> Enables the security owner to reject unexpected payloads and apply browser security headers. <strong>Why it matters:</strong> the API has safe defaults.</div>
+  <div class="ac-title">What success looks like</div>
+  <ul class="ac"><li>If unexpected information, when submitted, then the system rejects it.</li><li>If the system responds, when returned, then standard browser and access security protections are applied.</li></ul>
+  <div class="details">
+    <div><strong>How this was assessed</strong><br>Confirmed through a review of the current system and supporting records.</div>
+    <div><strong>What must be in place</strong><br>None</div>
+  </div>
+
+</article>
+<article class="story" id="MVP-NF-02">
+  <div class="story-top">
+    <div class="story-heading"><span class="story-id">MVP-NF-02</span><h3>Protection against repeated or abusive requests</h3></div>
+    <div class="badges">
+      <span class="badge status-verified">Working now</span>
+      <span class="badge priority-Must">Essential</span>
+      <span class="badge status-deferred">Medium effort</span>
+      <span class="badge status-verify">Current MVP</span>
+    </div>
+  </div>
+  <div class="user-story"><strong>Business outcome:</strong> Enables the security owner to limit high-risk requests. <strong>Why it matters:</strong> email abuse and brute-force attempts are constrained.</div>
+  <div class="ac-title">What success looks like</div>
+  <ul class="ac"><li>If repeated requests from one trusted proxy IP, when limits are exceeded, then Axon throttles the caller.</li><li>If OTP verification failures, when five attempts occur, then further attempts are blocked.</li><li>If one IP, when hourly OTP sends exceed the configured ceiling, then Axon throttles them.</li></ul>
+  <div class="details">
+    <div><strong>How this was assessed</strong><br>Confirmed through a review of the current system and supporting records.</div>
+    <div><strong>What must be in place</strong><br>None</div>
+  </div>
+
+</article>
+<article class="story" id="MVP-NF-03">
+  <div class="story-top">
+    <div class="story-heading"><span class="story-id">MVP-NF-03</span><h3>Secure session renewal and logout</h3></div>
+    <div class="badges">
+      <span class="badge status-partial">Working with limitations</span>
+      <span class="badge priority-Must">Essential</span>
+      <span class="badge status-deferred">Medium effort</span>
+      <span class="badge status-verify">Current MVP</span>
+    </div>
+  </div>
+  <div class="user-story"><strong>Business outcome:</strong> Enables the authenticated user to maintain a revocable session. <strong>Why it matters:</strong> stolen or expired sessions have bounded use.</div>
+  <div class="ac-title">What success looks like</div>
+  <ul class="ac"><li>If a valid refresh token, when refreshed, then the old token is revoked and a new pair is issued.</li><li>If logout, when completed, then the refresh-token record is removed.</li></ul>
+  <div class="details">
+    <div><strong>How this was assessed</strong><br>Confirmed through a review of the current system and supporting records.</div>
+    <div><strong>What must be in place</strong><br>None</div>
+  </div>
+<div class="note"><strong>What leadership should know:</strong> Sessions can be renewed and cancelled, but one browser-held session credential should be moved to a more protected storage method.</div>
+</article>
+<article class="story" id="MVP-NF-04">
+  <div class="story-top">
+    <div class="story-heading"><span class="story-id">MVP-NF-04</span><h3>Error monitoring and operational logs</h3></div>
+    <div class="badges">
+      <span class="badge status-verify">Confirmation required</span>
+      <span class="badge priority-Must">Essential</span>
+      <span class="badge status-deferred">Medium effort</span>
+      <span class="badge status-verify">Current MVP</span>
+    </div>
+  </div>
+  <div class="user-story"><strong>Business outcome:</strong> Enables the technical operator to capture production errors and searchable operational logs. <strong>Why it matters:</strong> incidents can be diagnosed.</div>
+  <div class="ac-title">What success looks like</div>
+  <ul class="ac"><li>If production errors, when unhandled, then the monitoring service records them and can alert the responsible team.</li><li>If system requests, when logged, then login credentials and session information are removed from logs.</li></ul>
+  <div class="details">
+    <div><strong>How this was assessed</strong><br>Confirmed through a review of the current system and supporting records.</div>
+    <div><strong>What must be in place</strong><br>None</div>
+  </div>
+<div class="note"><strong>What leadership should know:</strong> Error monitoring is built into the system. The live connection, alert recipients and data-retention settings still need to be confirmed.</div>
+</article>
+<article class="story" id="MVP-NF-05">
+  <div class="story-top">
+    <div class="story-heading"><span class="story-id">MVP-NF-05</span><h3>Automated service health monitoring</h3></div>
+    <div class="badges">
+      <span class="badge status-verified">Working now</span>
+      <span class="badge priority-Must">Essential</span>
+      <span class="badge status-deferred">Small effort</span>
+      <span class="badge status-verify">Current MVP</span>
+    </div>
+  </div>
+  <div class="user-story"><strong>Business outcome:</strong> Enables the operations monitor to check whether the main database and supporting services are available. <strong>Why it matters:</strong> external monitoring can detect outages.</div>
+  <div class="ac-title">What success looks like</div>
+  <ul class="ac"><li>If healthy dependencies, when the automated health check runs, then Axon reports whether its main data and supporting services are available.</li><li>If a failed dependency, when checked, then the unhealthy state is surfaced.</li></ul>
+  <div class="details">
+    <div><strong>How this was assessed</strong><br>Confirmed through a review of the current system and supporting records.</div>
+    <div><strong>What must be in place</strong><br>None</div>
+  </div>
+
+</article>
+<article class="story" id="MVP-NF-06">
+  <div class="story-top">
+    <div class="story-heading"><span class="story-id">MVP-NF-06</span><h3>Automated quality checks</h3></div>
+    <div class="badges">
+      <span class="badge status-partial">Working with limitations</span>
+      <span class="badge priority-Must">Essential</span>
+      <span class="badge status-deferred">Medium effort</span>
+      <span class="badge status-verify">Current MVP</span>
+    </div>
+  </div>
+  <div class="user-story"><strong>Business outcome:</strong> Enables the development team to run repeatable API and browser-flow tests. <strong>Why it matters:</strong> regressions are detected before release.</div>
+  <div class="ac-title">What success looks like</div>
+  <ul class="ac"><li>If the automated system checks, when run, then checks for login, events, tickets and QR credentials pass.</li><li>If the browser-test setup is available, when full-journey tests run, then essential attendee and administrator journeys are tested.</li></ul>
+  <div class="details">
+    <div><strong>How this was assessed</strong><br>Confirmed through a review of the current system and supporting records.</div>
+    <div><strong>What must be in place</strong><br>None</div>
+  </div>
+<div class="note"><strong>What leadership should know:</strong> The available automated checks pass, although some are duplicated. Full testing of the complete registration-to-check-in journey and simultaneous-user scenarios is still incomplete.</div>
+</article>
+<article class="story" id="MVP-NF-07">
+  <div class="story-top">
+    <div class="story-heading"><span class="story-id">MVP-NF-07</span><h3>Accessibility and mobile quality gate</h3></div>
+    <div class="badges">
+      <span class="badge status-verify">Confirmation required</span>
+      <span class="badge priority-Must">Essential</span>
+      <span class="badge status-deferred">Medium effort</span>
+      <span class="badge status-verify">Current MVP</span>
+    </div>
+  </div>
+  <div class="user-story"><strong>Business outcome:</strong> Enables the attendee to use registration and ticket pages on mobile and assistive technology. <strong>Why it matters:</strong> the experience is inclusive.</div>
+  <div class="ac-title">What success looks like</div>
+  <ul class="ac"><li>If supported mobile widths, when attendee pages are used, then no critical interaction requires desktop layout.</li><li>If keyboard and screen-reader use, when forms are completed, then labels, errors and focus behavior should meet a recognized accessibility standard.</li></ul>
+  <div class="details">
+    <div><strong>How this was assessed</strong><br>Confirmed through a review of the current system and supporting records.</div>
+    <div><strong>What must be in place</strong><br>None</div>
+  </div>
+<div class="note"><strong>What leadership should know:</strong> The system is designed for mobile screens. A formal accessibility review and a documented list of tested phones, tablets and browsers are still required.</div>
+</article>
+<article class="story" id="MVP-NF-08">
+  <div class="story-top">
+    <div class="story-heading"><span class="story-id">MVP-NF-08</span><h3>Role-based staff access by event</h3></div>
+    <div class="badges">
+      <span class="badge status-gap">Not yet available</span>
+      <span class="badge priority-Must">Essential</span>
+      <span class="badge status-deferred">Large effort</span>
+      <span class="badge status-verify">Before kiosk rollout</span>
+    </div>
+  </div>
+  <div class="user-story"><strong>Business outcome:</strong> Enables the platform owner to assign least-privilege organizer, reviewer, support and event-staff roles. <strong>Why it matters:</strong> operational users do not receive full platform administration.</div>
+  <div class="ac-title">What success looks like</div>
+  <ul class="ac"><li>If an event-staff account, when authenticated, then it can access only assigned event check-in functions.</li><li>If a payment reviewer, when authenticated, then it cannot create users or delete events.</li><li>If role changes, when made, then they are audited and enforced server-side.</li></ul>
+  <div class="details">
+    <div><strong>How this was assessed</strong><br>Confirmed through a review of the current system and supporting records.</div>
+    <div><strong>What must be in place</strong><br>None</div>
+  </div>
+<div class="note"><strong>What leadership should know:</strong> The system currently provides full Administrator access or regular-user access only; limited event-specific roles are not yet available.</div>
+</article>
+<article class="story" id="MVP-NF-09">
+  <div class="story-top">
+    <div class="story-heading"><span class="story-id">MVP-NF-09</span><h3>Separate test and live environments</h3></div>
+    <div class="badges">
+      <span class="badge status-partial">Working with limitations</span>
+      <span class="badge priority-Must">Essential</span>
+      <span class="badge status-deferred">Medium effort</span>
+      <span class="badge status-verify">Launch preparation</span>
+    </div>
+  </div>
+  <div class="user-story"><strong>Business outcome:</strong> Enables the platform owner to separate UAT from Production and require evidence before promotion. <strong>Why it matters:</strong> test activity cannot silently affect live customers or data.</div>
+  <div class="ac-title">What success looks like</div>
+  <ul class="ac"><li>If the protected business test environment, when it starts and operates, then it uses separate test websites, data, supporting services, file storage and email controls.</li><li>If a change is prepared for the test or live system, when automated release checks run, then code-quality, compatibility, build and database checks must pass.</li><li>If a live release, when approval is requested, then a completed business test record, a rollback plan and recovery evidence should be available.</li></ul>
+  <div class="details">
+    <div><strong>How this was assessed</strong><br>Confirmed through a review of the current system and supporting records.</div>
+    <div><strong>What must be in place</strong><br>None</div>
+  </div>
+<div class="note"><strong>What leadership should know:</strong> A separate protected test environment and automated release checks are in place. Formal approval before a live release, a completed recovery rehearsal and a signed business test record remain open.</div>
+</article>
+</section>
+
+<section id="next">
+  <h2>Open items within the documented MVP scope</h2>
+  <div class="flow">
+    <div class="step"><div class="step-num">1</div><h3>Protect payment proofs</h3><p>Make uploaded payment screenshots private and allow viewing only for an authorized person and a limited time.</p></div>
+    <div class="arrow">→</div>
+    <div class="step"><div class="step-num">2</div><h3>Limit staff access</h3><p>Create separate Organizer and event-staff permissions before giving more people access to administrative tools.</p></div>
+    <div class="arrow">→</div>
+    <div class="step"><div class="step-num">3</div><h3>Prove peak capacity</h3><p>Run controlled tests with many simultaneous users before making a public claim about supporting 1,000 users or a major traffic surge.</p></div>
+    <div class="arrow">→</div>
+    <div class="step"><div class="step-num">4</div><h3>Strengthen operational records</h3><p>Keep a permanent history of attendance actions and complete recovery, accessibility and full-journey testing.</p></div>
+  </div>
+</section>
+
+<section id="approval">
+  <h2>MVP backlog scope sign-off</h2>
+  <div class="decision">
+    <h3>Approval applies only to the requirements and current status shown in this document</h3>
+    <p>By signing below, the approver confirms that the business areas, individual requirements, expected results, priorities and current completion status shown here are accepted as the MVP baseline. This does not approve anything that is not expressly listed in this document.</p>
+    <table>
+      <thead><tr><th>Included in this sign-off</th><th>Approval meaning</th></tr></thead>
+      <tbody>
+        <tr><td>MVP-01 through MVP-09</td><td>The nine business areas and their stated business value are accepted as the MVP scope.</td></tr>
+        <tr><td>Individual requirements</td><td>The expected user and business results shown under each area are accepted as the product baseline.</td></tr>
+        <tr><td>Current completion status</td><td>The labels Working now, Working with limitations, Not yet available and Confirmation required are acknowledged as accurate for this review.</td></tr>
+        <tr><td>Open items</td><td>Anything shown with a limitation or open status remains unfinished and is not being approved as complete.</td></tr>
+      </tbody>
+    </table>
+    <div class="decision-options">
+      <div class="decision-option">☐ APPROVED AS DOCUMENTED</div>
+      <div class="decision-option">☐ NEEDS REVISION</div>
+      <div class="decision-option">☐ NOT APPROVED</div>
+    </div>
+    <div class="signature">
+      <div><div class="signature-line"></div><small>Approver name and signature</small></div>
+      <div><div class="signature-line"></div><small>Date</small></div>
+    </div>
+  </div>
+</section>
+
+<footer class="footer">
+  <strong>Basis of this review:</strong> The current Axon Tickets system and supporting readiness documents were reviewed through June 23, 2026. “Working now” means the capability was found in the current system; it does not automatically mean that business acceptance testing or live-environment certification has been completed.<br><br>
+  Axon Tickets · MVP Product Backlog v2.3 · Executive Review & Scope Sign-Off · June 23, 2026 · Confidential
+</footer>
+</main>
 </body>
 </html>

@@ -77,21 +77,22 @@ export default function ReviewStep({ draft, tiers, paymentMethods, onJump }: Rev
 
         <Section title="Capacity & Tiers" onEdit={() => onJump('capacity')} hasError={!!capacityErr}>
           <p><span className="text-gray-500">Max capacity:</span> {draft.maxCapacity || '0'}</p>
+          {draft.isFree && <p className="text-emerald-700"><span className="font-semibold">Free event:</span> no ticket amount or platform fee</p>}
           {tiers.length === 0 ? (
             <em className="text-gray-400">No tiers yet</em>
           ) : (
             <ul className="mt-1 space-y-1">
               {tiers.map((t) => (
                 <li key={t.key} className="flex items-center justify-between text-xs">
-                  <span>• {t.name} <span className="text-gray-400">({t.totalQuantity} qty)</span></span>
-                  <span className="font-semibold text-primary">₱{(parseFloat(t.price) || 0).toLocaleString()}</span>
+                  <span>• {t.name} <span className="text-gray-400">({t.totalQuantity} qty{t.inclusions.length > 0 ? `, ${t.inclusions.length} inclusion${t.inclusions.length === 1 ? '' : 's'}` : ''})</span></span>
+                  <span className="font-semibold text-primary">{draft.isFree ? 'Free' : `₱${(parseFloat(t.price) || 0).toLocaleString()}`}</span>
                 </li>
               ))}
             </ul>
           )}
         </Section>
 
-        <Section title="Conference (optional)" onEdit={() => onJump('conference')}>
+        <Section title="Event Program & Details (optional)" onEdit={() => onJump('details')}>
           {!draft.speakerName && draft.agenda.length === 0 && draft.sponsors.length === 0 && draft.faqs.length === 0 ? (
             <em className="text-gray-400 text-xs">Skipped</em>
           ) : (
@@ -100,6 +101,7 @@ export default function ReviewStep({ draft, tiers, paymentMethods, onJump }: Rev
               {draft.agenda.length > 0 && <li>📋 {draft.agenda.length} agenda item{draft.agenda.length === 1 ? '' : 's'}</li>}
               {draft.sponsors.length > 0 && <li>🤝 {draft.sponsors.length} sponsor{draft.sponsors.length === 1 ? '' : 's'}</li>}
               {draft.faqs.length > 0 && <li>❓ {draft.faqs.length} FAQ{draft.faqs.length === 1 ? '' : 's'}</li>}
+              {draft.customSections.length > 0 && <li>✨ {draft.customSections.length} custom detail block{draft.customSections.length === 1 ? '' : 's'}</li>}
             </ul>
           )}
         </Section>
@@ -116,19 +118,6 @@ export default function ReviewStep({ draft, tiers, paymentMethods, onJump }: Rev
           )}
         </Section>
 
-        <Section title="Featured (optional)" onEdit={() => onJump('featured')}>
-          {!draft.isFeatured ? (
-            <em className="text-gray-400 text-xs">Not featured on homepage</em>
-          ) : (
-            <ul className="text-xs space-y-0.5">
-              <li>✅ Will appear in homepage hero carousel</li>
-              {draft.tagline && <li>🏷 Tagline: {draft.tagline}</li>}
-              {draft.featuredOrder && <li>📌 Display slot: {draft.featuredOrder}</li>}
-              {draft.featuredUntil && <li>⏰ Featured until: {draft.featuredUntil}</li>}
-              {!draft.featuredUntil && <li className="text-gray-400">No expiry set</li>}
-            </ul>
-          )}
-        </Section>
       </div>
     </>
   );

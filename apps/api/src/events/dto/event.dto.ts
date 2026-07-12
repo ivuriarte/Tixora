@@ -12,7 +12,9 @@ import {
   IsUrl,
   IsArray,
   ValidateNested,
+  ValidateIf,
   IsIn,
+  Matches,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ApiProperty } from '@nestjs/swagger';
@@ -51,7 +53,7 @@ export class SponsorItemDto {
 
   @ApiProperty({ required: false })
   @IsOptional()
-  @IsString()
+  @Matches(/^https:\/\//i, { message: 'Logo URL must use HTTPS' })
   @MaxLength(500)
   logoUrl?: string;
 
@@ -63,9 +65,47 @@ export class SponsorItemDto {
 
   @ApiProperty({ required: false })
   @IsOptional()
-  @IsUrl()
+  @Matches(/^https:\/\//i, { message: 'Website URL must use HTTPS' })
   @MaxLength(500)
   websiteUrl?: string;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  description?: string;
+
+  @ApiProperty({ required: false, default: true })
+  @IsOptional()
+  @IsBoolean()
+  isVisible?: boolean;
+}
+
+export class CustomSectionDto {
+  @IsString()
+  @MinLength(1)
+  @MaxLength(120)
+  title!: string;
+
+  @IsString()
+  @MinLength(1)
+  @MaxLength(5000)
+  description!: string;
+
+  @IsOptional()
+  @Matches(/^https:\/\//i, { message: 'Image URL must use HTTPS' })
+  @MaxLength(500)
+  imageUrl?: string;
+
+  @ValidateIf((section: CustomSectionDto) => Boolean(section.imageUrl))
+  @IsString()
+  @MinLength(3)
+  @MaxLength(200)
+  imageAlt?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  isVisible?: boolean;
 }
 
 export class FaqItemDto {
@@ -213,11 +253,23 @@ export class CreateEventDto {
   @Type(() => FaqItemDto)
   faqs?: FaqItemDto[];
 
+  @ApiProperty({ required: false, type: [CustomSectionDto] })
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => CustomSectionDto)
+  customSections?: CustomSectionDto[];
+
   @ApiProperty({ required: false, default: 50, description: 'Platform fee per ticket in PHP' })
   @IsOptional()
   @IsNumber()
   @Min(0)
   platformFee?: number;
+
+  @ApiProperty({ required: false, default: false, description: 'Marks the event as free and suppresses platform fees at registration.' })
+  @IsOptional()
+  @IsBoolean()
+  isFree?: boolean;
 
   @ApiProperty({ required: false })
   @IsOptional()
@@ -373,9 +425,19 @@ export class UpdateEventDto {
   faqs?: FaqItemDto[];
 
   @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => CustomSectionDto)
+  customSections?: CustomSectionDto[];
+
+  @IsOptional()
   @IsNumber()
   @Min(0)
   platformFee?: number;
+
+  @IsOptional()
+  @IsBoolean()
+  isFree?: boolean;
 
   @IsOptional()
   @IsString()

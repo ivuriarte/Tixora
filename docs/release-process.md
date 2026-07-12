@@ -1,6 +1,6 @@
 # Release Process — Axon Tickets
 
-**Updated:** June 21, 2026
+**Updated:** July 4, 2026
 
 ---
 
@@ -33,7 +33,7 @@ Merge to `uat`
     ▼
 UAT Acceptance
     │  • Stakeholder tests against uat.axontickets.online
-    │  • All UAT-01 through UAT-10 scenarios pass
+    │  • All UAT-01 through UAT-14 scenarios pass
     │  • Sign-off record filed (build SHA, tester, date, outcome)
     ▼
 Merge to `main`  ← requires recorded UAT sign-off
@@ -78,12 +78,16 @@ hotfix/<name> branch (from main)
 - [ ] No secrets committed
 - [ ] `.env.example` updated if new env vars were added
 - [ ] `docs/environment-matrix.md` updated if new env vars were added
+- [ ] Additive migration `20260704180000_add_product_packages_mvp` reviewed when this product package is included
+- [ ] Privacy review completed for birthday, gender, and city collection
 
 ## Pre-production checklist (before merging `uat` → `main`)
 
 - [ ] UAT sign-off record filed with: build SHA, tester name, date, scenarios tested, known issues, decision
 - [ ] No open P0 bugs from UAT testing
 - [ ] Database migration is backwards-compatible (or downtime window is agreed)
+- [ ] Confirm `20260704180000_add_product_packages_mvp` completed before the new API deployment
+- [ ] Verify referral redemption, demographics, sponsors, and custom sections using UAT test data
 - [ ] Event-day pre-flight checklist reviewed if near an event date
 
 ---
@@ -101,3 +105,7 @@ Prisma does not auto-generate down migrations. Before any destructive migration:
 3. If rollback is needed: restore from the backup or apply the rollback SQL manually.
 
 > A Vercel code rollback and a Supabase database restore must be coordinated — never roll back one without the other.
+
+### Product-package rollback note
+
+Migration `20260704180000_add_product_packages_mvp` is additive. If application rollback is required after data has been written, roll back the web/API deployment and temporarily disable use of the new workflows. Do not drop the new columns, referral tables, or enum as an emergency rollback because doing so would destroy captured referral and demographic records.

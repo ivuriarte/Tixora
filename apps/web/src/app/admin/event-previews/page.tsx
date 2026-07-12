@@ -2,7 +2,6 @@
 
 import { useQuery } from '@tanstack/react-query';
 import api from '@/lib/api';
-import Navbar from '@/components/Navbar';
 import Link from 'next/link';
 import Image from 'next/image';
 import { formatShortDate } from '@axon-tickets/utils';
@@ -17,6 +16,7 @@ interface EventSummary {
   startsAt: string;
   imageUrl?: string | null;
   lowestPrice?: number | null;
+  isFree?: boolean;
   status: string;
 }
 
@@ -37,22 +37,12 @@ export default function EventPreviewsPage() {
   });
 
   return (
-    <>
-      <Navbar />
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
-        <div className="mb-8 flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900">Event Previews</h1>
-            <p className="text-gray-500 mt-1">
-              Browse all events as a customer would see them. Registration is disabled in preview mode.
-            </p>
-          </div>
-          <Link
-            href="/admin"
-            className="text-sm font-medium text-primary hover:underline"
-          >
-            ← Back to Dashboard
-          </Link>
+    <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
+        <div className="mb-8">
+          <h1 className="text-3xl font-bold text-gray-900">Event Previews</h1>
+          <p className="text-gray-500 mt-1">
+            Browse all events as a customer would see them. Registration is disabled in preview mode.
+          </p>
         </div>
 
         {isLoading && (
@@ -109,20 +99,18 @@ export default function EventPreviewsPage() {
                     {event.title}
                   </h3>
                   <p className="text-sm text-gray-500 mt-1 line-clamp-1">{event.venue}</p>
-                  {event.lowestPrice != null && event.lowestPrice > 0 && (
-                    <p className="mt-2 text-sm font-semibold text-primary">
-                      From ₱{(event.lowestPrice / 100).toLocaleString()}
-                    </p>
-                  )}
-                  {(event.lowestPrice === 0 || event.lowestPrice == null) && (
+                  {event.isFree || event.lowestPrice === 0 ? (
                     <p className="mt-2 text-sm font-semibold text-primary">Free</p>
-                  )}
+                  ) : event.lowestPrice != null && event.lowestPrice > 0 ? (
+                    <p className="mt-2 text-sm font-semibold text-primary">
+                      From ₱{event.lowestPrice.toLocaleString()}
+                    </p>
+                  ) : null}
                 </div>
               </Link>
             ))}
           </div>
         )}
-      </main>
-    </>
+    </main>
   );
 }

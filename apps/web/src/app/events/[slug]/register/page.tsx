@@ -2,21 +2,27 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import axios from 'axios';
 import { getAccessToken } from '@/lib/auth';
 import { useAuthStore } from '@/store/auth.store';
 import api from '@/lib/api';
 import RegistrationForm from '@/components/RegistrationForm';
 import CheckoutStepper from '@/components/CheckoutStepper';
+import InAppBrowserBanner from '@/components/InAppBrowserBanner';
 import { trackPixelCustomEvent } from '@/lib/metaPixel';
 import { trackInternalFunnelEvent, getOrCreateFunnelSessionId } from '@/lib/funnel';
 import toast from 'react-hot-toast';
 
-// ── Types ────────────────────────────────────────────────────────────────────
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.axontickets.online/api/v1';
+const RESEND_COOLDOWN = 60;
+
+// ── Types ─────────────────────────────────────────────────────────────────────
 
 interface Tier {
   id: string;
   name: string;
   price: number;
+  inclusions?: Array<{ id?: string; label: string; stubEnabled?: boolean; sortOrder?: number }>;
   available: number;
   maxPerOrder: number;
 }
@@ -36,6 +42,7 @@ interface EventData {
   venue: string;
   startsAt: string;
   tiers: Tier[];
+  isFree?: boolean;
   platformFee?: number;
   allowManualPayment?: boolean;
   paymentMethods?: PaymentMethod[] | null;
@@ -57,12 +64,11 @@ interface AttendeeFields {
   city: string;
 }
 
-type WizardStep = 'gate' | 'details' | 'verify';
-
-const RESEND_COOLDOWN = 60;
-
-function emptyAttendee(): AttendeeFields {
-  return { firstName: '', lastName: '', email: '', phone: '', company: '', jobTitle: '', birthday: '', gender: '', city: '' };
+interface GuestInfo {
+  email: string;
+  firstName: string;
+  lastName: string;
+  phone: string; // full number including +63
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -76,65 +82,43 @@ function Spinner() {
   );
 }
 
-// ── Guest Wizard (unauthenticated path) ──────────────────────────────────────
+// ── OTP Confirmation Modal ────────────────────────────────────────────────────
+// Shown after the user has filled the registration form and uploaded payment
+// proof. Email is verified here as a booking confirmation step, not a gate.
 
-interface OtpVerifiedPayload {
-  isExistingAccount: boolean;
-  attendees: AttendeeFields[];
-  notes: string;
-  user: { id: string; email: string; firstName: string | null; lastName: string | null; isAdmin: boolean; isVerified: boolean };
-  accessToken: string;
-  refreshToken: string;
+interface OtpConfirmModalProps {
+  email: string;
+  onConfirmed: (otp: string) => Promise<void>;
+  onResend: () => Promise<void>;
+  onCancel: () => void;
+  onChangeEmail: () => void;
 }
 
-interface GuestWizardProps {
-  event: EventData;
-  tier: Tier;
-  qty: number;
-  existingRegistrationId?: string;
-  onOtpVerified: (payload: OtpVerifiedPayload) => void;
-}
-
-function GuestWizard({ event, tier, qty, existingRegistrationId, onOtpVerified }: GuestWizardProps) {
-  const router = useRouter();
-  const funnelSessionId = getOrCreateFunnelSessionId();
-
-  const [step, setStep] = useState<WizardStep>('gate');
-
-  // Step 1 — contact / attendee details
-  const [email, setEmail] = useState('');
-  const [phone, setPhone] = useState('');
-  const [firstName, setFirstName] = useState('');
-  const [lastName, setLastName] = useState('');
-  // Additional attendees for qty > 1 (index 0 = second attendee, not lead)
-  const [extraAttendees, setExtraAttendees] = useState<AttendeeFields[]>(() =>
-    Array.from({ length: Math.max(0, qty - 1) }, emptyAttendee),
-  );
-  const [notes, setNotes] = useState('');
-
-  // Step 2 — OTP
+function OtpConfirmModal({ email, onConfirmed, onResend, onCancel, onChangeEmail }: OtpConfirmModalProps) {
   const [otp, setOtp] = useState('');
-  const [pendingUserId, setPendingUserId] = useState('');
-  const [secondsLeft, setSecondsLeft] = useState(0);
-  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const otpInputRef = useRef<HTMLInputElement>(null);
-
   const [loading, setLoading] = useState(false);
-  const [fieldError, setFieldError] = useState<string | null>(null);
-  // Synchronous guard — blocks a second handleVerify() call that starts before
-  // the first call's setLoading(true) has actually re-rendered (e.g. OTP
-  // auto-submit firing twice, a double click, or a network retry).
+  const [error, setError] = useState<string | null>(null);
+  const [secondsLeft, setSecondsLeft] = useState(RESEND_COOLDOWN);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const otpRef = useRef<HTMLInputElement>(null);
   const verifyingRef = useRef(false);
 
-  useEffect(() => () => { if (timerRef.current) clearInterval(timerRef.current); }, []);
-
-  // Auto-submit OTP when 6 digits entered
   useEffect(() => {
-    if (otp.length === 6 && step === 'verify') void handleVerify();
+    const focusTimer = setTimeout(() => otpRef.current?.focus(), 50);
+    startTimer();
+    return () => {
+      clearTimeout(focusTimer);
+      if (timerRef.current) clearInterval(timerRef.current);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    if (otp.length === 6 && !verifyingRef.current) void handleVerify();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [otp]);
 
-  function startResendTimer() {
+  function startTimer() {
     setSecondsLeft(RESEND_COOLDOWN);
     timerRef.current = setInterval(() => {
       setSecondsLeft((s) => {
@@ -144,157 +128,18 @@ function GuestWizard({ event, tier, qty, existingRegistrationId, onOtpVerified }
     }, 1000);
   }
 
-  function updateExtra(index: number, field: keyof AttendeeFields, value: string) {
-    setExtraAttendees((prev) => {
-      const next = [...prev];
-      next[index] = { ...next[index], [field]: value };
-      return next;
-    });
-  }
-
-  // ── Step 1: Send OTP ────────────────────────────────────────────────────────
-
-  async function handleSendCode(e: React.FormEvent) {
-    e.preventDefault();
-    setFieldError(null);
-    const normalizedEmail = email.trim().toLowerCase();
-    const normalizedPhone = phone.trim().startsWith('+')
-      ? phone.trim()
-      : phone.trim().length === 10
-        ? `+63${phone.trim()}`
-        : phone.trim();
-
-    // Basic client-side validation
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
-      setFieldError('Please enter a valid email address.');
-      return;
-    }
-    if (normalizedPhone.length < 7) {
-      setFieldError('Please enter your mobile number.');
-      return;
-    }
-
-    setLoading(true);
-    try {
-      const res = await api.post<{ data: { userId: string } }>(
-        '/auth/request-access',
-        {
-          email: normalizedEmail,
-          firstName: firstName.trim(),
-          lastName: lastName.trim(),
-          phone: normalizedPhone,
-          eventId: event.id,
-          eventSlug: event.slug,
-          eventName: event.title,
-          sessionId: funnelSessionId,
-        },
-        { timeout: 15_000 },
-      );
-      setPendingUserId(res.data.data.userId);
-      setStep('verify');
-      startResendTimer();
-      setTimeout(() => otpInputRef.current?.focus(), 50);
-
-      trackPixelCustomEvent('OTP_Requested', { event_id: event.id, event_name: event.title });
-      void trackInternalFunnelEvent({
-        eventId: event.id,
-        email: normalizedEmail,
-        step: 'otp_send_requested',
-        status: 'started',
-        metadata: { eventSlug: event.slug, eventTitle: event.title },
-      });
-    } catch (err: any) {
-      const msg = err?.response?.data?.message ?? 'Could not send your code. Please try again.';
-      setFieldError(Array.isArray(msg) ? msg.join(' ') : msg);
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  // ── Step 2: Verify OTP, create account + registration ──────────────────────
-
   async function handleVerify() {
-    if (!pendingUserId || otp.length !== 6) return;
-    // Synchronous guard — must be checked and set before any await, so a
-    // second call (auto-submit firing twice, double click, retry) can't
-    // slip through during the gap before setLoading(true) takes effect.
-    if (verifyingRef.current) return;
+    if (verifyingRef.current || otp.length !== 6) return;
     verifyingRef.current = true;
     setLoading(true);
-    setFieldError(null);
+    setError(null);
     try {
-      // 1. Verify OTP → get JWT
-      const verifyRes = await api.post<{
-        data: {
-          user: { id: string; email: string; firstName: string | null; lastName: string | null; isAdmin: boolean; isVerified: boolean };
-          accessToken: string;
-          refreshToken: string;
-          isNewUser: boolean;
-          isExistingAccount: boolean;
-        };
-      }>('/auth/verify-access', {
-        userId: pendingUserId,
-        otp,
-        eventId: event.id,
-        eventSlug: event.slug,
-        sessionId: funnelSessionId,
-      });
-
-      const { user: verifiedUser, accessToken, refreshToken, isExistingAccount } = verifyRes.data.data;
-
-      // 2. Build attendee list: lead (from step 1 fields) + extra attendees
-      const normalizedPhone = phone.trim().startsWith('+')
-        ? phone.trim()
-        : `+63${phone.trim()}`;
-
-      const leadAttendee: AttendeeFields = {
-        firstName: firstName.trim(),
-        lastName: lastName.trim(),
-        email: email.trim().toLowerCase(),
-        phone: normalizedPhone,
-        company: '',
-        jobTitle: '',
-        birthday: '',
-        gender: '',
-        city: '',
-      };
-
-      const extraList: AttendeeFields[] = extraAttendees.map((a) => ({
-        firstName: a.firstName.trim(),
-        lastName: a.lastName.trim(),
-        email: a.email.trim(),
-        phone: a.phone.trim().startsWith('+') ? a.phone.trim() : `+63${a.phone.trim()}`,
-        company: a.company.trim(),
-        jobTitle: a.jobTitle.trim(),
-        birthday: a.birthday,
-        gender: a.gender,
-        city: a.city.trim(),
-      }));
-
-      trackPixelCustomEvent('OTP_Verified', { event_id: event.id, event_name: event.title });
-      void trackInternalFunnelEvent({
-        eventId: event.id,
-        email: verifiedUser.email,
-        step: 'otp_verified',
-        status: 'success',
-        metadata: { eventSlug: event.slug, isExistingAccount },
-      });
-
-      // 3. Hand off to parent — parent sets auth + passes pre-filled attendees to RegistrationForm.
-      //    Registration is only created when the user explicitly clicks "Confirm My Registration".
-      onOtpVerified({
-        isExistingAccount,
-        attendees: [leadAttendee, ...extraList],
-        notes,
-        user: verifiedUser,
-        accessToken,
-        refreshToken,
-      });
+      await onConfirmed(otp);
     } catch (err: any) {
-      const msg = err?.response?.data?.message ?? 'Something went wrong. Please try again.';
-      setFieldError(Array.isArray(msg) ? msg.join(' ') : msg);
+      const msg = err?.response?.data?.message ?? err?.message ?? 'That code is incorrect. Please try again.';
+      setError(Array.isArray(msg) ? msg.join(' ') : msg);
       setOtp('');
-      otpInputRef.current?.focus();
+      setTimeout(() => otpRef.current?.focus(), 50);
       verifyingRef.current = false;
     } finally {
       setLoading(false);
@@ -302,347 +147,312 @@ function GuestWizard({ event, tier, qty, existingRegistrationId, onOtpVerified }
   }
 
   async function handleResend() {
-    if (secondsLeft > 0 || !pendingUserId) return;
+    if (secondsLeft > 0 || loading) return;
     setLoading(true);
     try {
-      await api.post('/auth/request-access', {
-        email: email.trim().toLowerCase(),
-        eventId: event.id,
-        eventSlug: event.slug,
-        sessionId: funnelSessionId,
-      });
+      await onResend();
       setOtp('');
-      startResendTimer();
+      startTimer();
       toast.success('A new code has been sent to your email.');
-      setTimeout(() => otpInputRef.current?.focus(), 50);
-    } catch (err: any) {
-      const msg = err?.response?.data?.message ?? 'Could not resend. Please wait and try again.';
-      toast.error(Array.isArray(msg) ? msg.join(' ') : msg);
+      setTimeout(() => otpRef.current?.focus(), 50);
+    } catch {
+      toast.error('Could not resend the code. Please try again.');
     } finally {
       setLoading(false);
     }
   }
 
-  const inputCls =
-    'w-full rounded-xl border border-gray-300 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary bg-white';
-
-  // ── Render: Gate — New or returning? ────────────────────────────────────────
-  if (step === 'gate') {
-    const returnUrl = `/events/${event.slug}/register?tierId=${tier.id}&qty=${qty}`;
-    return (
-      <div className="space-y-4">
-        <div className="bg-white border border-gray-200 rounded-2xl p-6 space-y-1">
-          <h2 className="font-bold text-gray-900 text-lg">Do you already have an account?</h2>
-          <p className="text-sm text-gray-500">
-            If you have registered for an Axon Tickets event before, you already have an account.
-          </p>
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4">
+      <div className="w-full max-w-sm bg-white rounded-2xl shadow-2xl overflow-hidden">
+        {/* Header */}
+        <div className="bg-primary px-5 py-4 flex items-center gap-3">
+          <div className="w-9 h-9 rounded-xl bg-white/20 flex items-center justify-center shrink-0">
+            <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+            </svg>
+          </div>
+          <div>
+            <p className="font-semibold text-white text-sm">One last step — confirm your email</p>
+            <p className="text-white/75 text-xs mt-0.5">Check your inbox for the code</p>
+          </div>
         </div>
 
-        {/* Returning user */}
-        <button
-          type="button"
-          onClick={() => router.push(`/auth/access?redirect=${encodeURIComponent(returnUrl)}`)}
-          className="w-full bg-primary text-white rounded-2xl p-5 text-left hover:bg-primary/90 transition-colors group"
-        >
-          <div className="flex items-start gap-4">
-            <div className="flex-shrink-0 w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center mt-0.5">
-              <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-              </svg>
-            </div>
-            <div className="flex-1">
-              <p className="font-semibold text-white">Yes, I have an account</p>
-              <p className="text-sm text-white/75 mt-0.5">
-                Sign in with your email — no password needed.
-              </p>
-            </div>
-            <svg className="w-5 h-5 text-white/60 mt-2.5 group-hover:translate-x-0.5 transition-transform" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
-            </svg>
-          </div>
-        </button>
+        {/* Body */}
+        <div className="px-5 py-5 space-y-4">
+          <p className="text-sm text-gray-700 leading-relaxed">
+            We sent a <strong>6-digit code</strong> to{' '}
+            <span className="font-semibold text-gray-900">{email}</span>.
+            {' '}Enter it below to confirm your booking.
+          </p>
 
-        {/* New user */}
-        <button
-          type="button"
-          onClick={() => setStep('details')}
-          className="w-full bg-white border-2 border-gray-200 hover:border-primary/40 rounded-2xl p-5 text-left transition-colors group"
-        >
-          <div className="flex items-start gap-4">
-            <div className="flex-shrink-0 w-10 h-10 rounded-xl bg-gray-100 flex items-center justify-center mt-0.5">
-              <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
-              </svg>
-            </div>
-            <div className="flex-1">
-              <p className="font-semibold text-gray-900">No, I&apos;m new here</p>
-              <p className="text-sm text-gray-500 mt-0.5">
-                Create your account in seconds — just fill in your details.
-              </p>
-            </div>
-            <svg className="w-5 h-5 text-gray-400 mt-2.5 group-hover:translate-x-0.5 transition-transform" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
-            </svg>
-          </div>
-        </button>
-
-        <p className="text-center text-xs text-gray-400 pt-1">
-          Not sure? Try &ldquo;Yes, I have an account&rdquo; first — if your email is not found, you can register fresh.
-        </p>
-      </div>
-    );
-  }
-
-  // ── Render: Step 1 — Your Details ───────────────────────────────────────────
-  if (step === 'details') {
-    return (
-      <form onSubmit={handleSendCode} className="space-y-5">
-        {/* Who is registering */}
-        <div className="bg-white border border-gray-200 rounded-2xl p-5 space-y-4">
           <div>
-            <h2 className="font-semibold text-gray-900">Your Details</h2>
-            <p className="text-xs text-gray-500 mt-0.5">
-              We use these to send your registration and QR ticket.
+            <label className="block text-sm font-medium text-gray-700 mb-2 text-center">
+              Enter the 6-digit code
+            </label>
+            <input
+              ref={otpRef}
+              type="text"
+              inputMode="numeric"
+              pattern="\d{6}"
+              maxLength={6}
+              autoComplete="one-time-code"
+              value={otp}
+              onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
+              disabled={loading}
+              placeholder="000000"
+              className="w-full text-center text-3xl font-mono tracking-[0.5em] rounded-xl border border-gray-300 px-4 py-4 focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-50"
+            />
+            <p className="text-[11px] text-gray-400 text-center mt-1.5">
+              Check your inbox and spam folder. The code is valid for 5 minutes.
             </p>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1">
-                First Name <span className="text-red-500">*</span>
-              </label>
-              <input
-                required
-                autoFocus
-                autoComplete="given-name"
-                value={firstName}
-                onChange={(e) => setFirstName(e.target.value)}
-                placeholder="Juan"
-                className={inputCls}
-              />
+          {loading && !error && (
+            <div className="flex items-center justify-center gap-2 text-sm text-gray-500">
+              <Spinner /> Verifying your code…
             </div>
-            <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1">
-                Last Name <span className="text-red-500">*</span>
-              </label>
-              <input
-                required
-                autoComplete="family-name"
-                value={lastName}
-                onChange={(e) => setLastName(e.target.value)}
-                placeholder="dela Cruz"
-                className={inputCls}
-              />
+          )}
+
+          {error && (
+            <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-xl px-4 py-3 text-center">
+              {error}
+            </div>
+          )}
+
+          <div className="text-center space-y-2">
+            {secondsLeft > 0 ? (
+              <p className="text-xs text-gray-400">
+                Resend available in{' '}
+                <span className="font-semibold tabular-nums">{secondsLeft}s</span>
+              </p>
+            ) : (
+              <button
+                type="button"
+                onClick={handleResend}
+                disabled={loading}
+                className="text-xs text-primary font-medium hover:underline disabled:opacity-50"
+              >
+                Did not get the code? Send it again
+              </button>
+            )}
+            <div className="flex items-center justify-center gap-3">
+              <button
+                type="button"
+                onClick={onChangeEmail}
+                className="text-xs text-gray-400 hover:text-gray-600"
+              >
+                ← Use a different email
+              </button>
+              <span className="text-gray-200">|</span>
+              <button
+                type="button"
+                onClick={onCancel}
+                className="text-xs text-gray-400 hover:text-gray-600"
+              >
+                Cancel
+              </button>
             </div>
           </div>
+        </div>
+      </div>
+    </div>
+  );
+}
 
+// ── Guest Wizard ──────────────────────────────────────────────────────────────
+// Collects email and personal details only. OTP is sent later, after payment
+// proof is uploaded, so the verification feels like a booking confirmation
+// rather than a login gate.
+
+interface GuestWizardProps {
+  event: EventData;
+  onCompleted: (info: GuestInfo) => void;
+}
+
+type WizardStep = 'email' | 'details';
+
+function GuestWizard({ event, onCompleted }: GuestWizardProps) {
+  const [step, setStep] = useState<WizardStep>('email');
+  const [email, setEmail] = useState('');
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
+  const [phoneDigits, setPhoneDigits] = useState('');
+  const [fieldError, setFieldError] = useState<string | null>(null);
+
+  const inputCls =
+    'w-full rounded-xl border border-gray-300 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary bg-white';
+
+  // ── Step 1: Email ─────────────────────────────────────────────────────────
+
+  function handleEmailSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setFieldError(null);
+    const normalized = email.trim().toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalized)) {
+      setFieldError('Please enter a valid email address.');
+      return;
+    }
+    setEmail(normalized);
+    setStep('details');
+  }
+
+  if (step === 'email') {
+    return (
+      <form onSubmit={handleEmailSubmit} className="space-y-5">
+        <div className="bg-white border border-gray-200 rounded-2xl p-5 space-y-4">
+          <div>
+            <h2 className="font-semibold text-gray-900">Enter your email to get started</h2>
+            <p className="text-xs text-gray-500 mt-0.5">
+              Your ticket and booking confirmation will be sent here.
+            </p>
+          </div>
           <div>
             <label className="block text-xs font-medium text-gray-700 mb-1">
-              Email Address <span className="text-red-500">*</span>
+              Email address <span className="text-red-500">*</span>
             </label>
             <input
               type="email"
               required
+              autoFocus
               autoComplete="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="you@example.com"
               className={inputCls}
             />
-            <p className="text-[11px] text-gray-400 mt-1">
-              We will send your ticket and updates here.
-            </p>
-          </div>
-
-          <div>
-            <label className="block text-xs font-medium text-gray-700 mb-1">
-              Mobile Number <span className="text-red-500">*</span>
-            </label>
-            <div className="flex">
-              <span className="inline-flex items-center px-3 rounded-l-xl border border-r-0 border-gray-300 bg-gray-50 text-sm text-gray-500 select-none">
-                +63
-              </span>
-              <input
-                type="tel"
-                required
-                inputMode="numeric"
-                autoComplete="tel-national"
-                maxLength={10}
-                value={phone}
-                onChange={(e) => setPhone(e.target.value.replace(/\D/g, '').slice(0, 10))}
-                placeholder="9171234567"
-                className="flex-1 rounded-r-xl border border-gray-300 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary bg-white"
-              />
-            </div>
           </div>
         </div>
 
-        {/* Extra attendees (only when qty > 1) */}
-        {extraAttendees.map((att, i) => (
-          <div key={i} className="bg-white border border-gray-200 rounded-2xl p-5 space-y-4">
-            <h3 className="font-semibold text-gray-900">
-              Attendee {i + 2}
-            </h3>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1">First Name <span className="text-red-500">*</span></label>
-                <input required value={att.firstName} onChange={(e) => updateExtra(i, 'firstName', e.target.value)} className={inputCls} />
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1">Last Name <span className="text-red-500">*</span></label>
-                <input required value={att.lastName} onChange={(e) => updateExtra(i, 'lastName', e.target.value)} className={inputCls} />
-              </div>
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1">Email Address <span className="text-red-500">*</span></label>
-              <input type="email" required value={att.email} onChange={(e) => updateExtra(i, 'email', e.target.value)} className={inputCls} />
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1">Mobile Number <span className="text-red-500">*</span></label>
-              <div className="flex">
-                <span className="inline-flex items-center px-3 rounded-l-xl border border-r-0 border-gray-300 bg-gray-50 text-sm text-gray-500 select-none">+63</span>
-                <input
-                  type="tel"
-                  required
-                  inputMode="numeric"
-                  maxLength={10}
-                  value={att.phone}
-                  onChange={(e) => updateExtra(i, 'phone', e.target.value.replace(/\D/g, '').slice(0, 10))}
-                  placeholder="9171234567"
-                  className="flex-1 rounded-r-xl border border-gray-300 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-white"
-                />
-              </div>
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1">Company (optional)</label>
-              <input value={att.company} onChange={(e) => updateExtra(i, 'company', e.target.value)} className={inputCls} />
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1">Job Title (optional)</label>
-              <input value={att.jobTitle} onChange={(e) => updateExtra(i, 'jobTitle', e.target.value)} className={inputCls} />
-            </div>
-          </div>
-        ))}
-
-        {/* Notes */}
-        <div className="bg-white border border-gray-200 rounded-2xl p-5">
-          <label className="block text-xs font-medium text-gray-700 mb-1">
-            Notes (optional)
-          </label>
-          <textarea
-            rows={2}
-            value={notes}
-            onChange={(e) => setNotes(e.target.value)}
-            placeholder="Anything we should know? e.g. dietary needs, accessibility requirements"
-            className="w-full border border-gray-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary resize-none"
-          />
-        </div>
-
-        {/* Error */}
         {fieldError && (
           <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-xl px-4 py-3">
             {fieldError}
           </div>
         )}
 
-        {/* Info strip */}
         <div className="rounded-xl border border-gray-100 bg-gray-50 px-4 py-3 text-xs text-gray-500 space-y-1">
-          <p>After you fill in your details, we will send a 6-digit code to your email.</p>
-          <p>Enter the code to confirm and your spot will be saved.</p>
-          <p>No password needed — ever.</p>
+          <p>
+            Registering for <span className="font-medium text-gray-700">{event.title}</span>
+          </p>
+          <p>You will verify your email after completing payment — no password needed.</p>
         </div>
 
         <button
           type="submit"
-          disabled={loading || !firstName || !lastName || !email || phone.length < 10}
-          className="w-full py-3 rounded-xl bg-primary text-white font-semibold text-sm hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
+          disabled={!email}
+          className="w-full py-3 rounded-xl bg-primary text-white font-semibold text-sm hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
         >
-          {loading ? <><Spinner /> Sending your code…</> : 'Continue — Send My Code'}
+          Continue
         </button>
       </form>
     );
   }
 
-  // ── Render: Step 2 — Enter Your Code ────────────────────────────────────────
+  // ── Step 2: Name + phone ──────────────────────────────────────────────────
+
+  function handleDetailsSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setFieldError(null);
+    if (phoneDigits.length < 10) {
+      setFieldError('Please enter a valid 10-digit mobile number (e.g. 9171234567).');
+      return;
+    }
+    onCompleted({
+      email,
+      firstName: firstName.trim(),
+      lastName: lastName.trim(),
+      phone: `+63${phoneDigits}`,
+    });
+  }
+
   return (
-    <div className="space-y-5">
-      <div className="bg-white border border-gray-200 rounded-2xl p-6 space-y-5">
-        <div className="text-center">
-          <div className="w-14 h-14 rounded-2xl bg-primary/10 flex items-center justify-center mx-auto mb-3">
-            <svg className="w-7 h-7 text-primary" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-            </svg>
+    <form onSubmit={handleDetailsSubmit} className="space-y-5">
+      <div className="bg-white border border-gray-200 rounded-2xl p-5 space-y-4">
+        <div>
+          <h2 className="font-semibold text-gray-900">Tell us your name</h2>
+          <p className="text-xs text-gray-500 mt-0.5">
+            Your name and number will appear on your ticket.
+          </p>
+        </div>
+
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="block text-xs font-medium text-gray-700 mb-1">
+              First name <span className="text-red-500">*</span>
+            </label>
+            <input
+              required
+              autoFocus
+              autoComplete="given-name"
+              value={firstName}
+              onChange={(e) => setFirstName(e.target.value)}
+              placeholder="Juan"
+              className={inputCls}
+            />
           </div>
-          <h2 className="text-lg font-bold text-gray-900">Check your email</h2>
-          <p className="text-sm text-gray-500 mt-1">
-            We sent a 6-digit code to{' '}
-            <span className="font-semibold text-gray-700">{email}</span>
-          </p>
-          <p className="text-xs text-gray-400 mt-1">
-            Check your inbox and spam folder. The code is valid for 5 minutes.
-          </p>
+          <div>
+            <label className="block text-xs font-medium text-gray-700 mb-1">
+              Last name <span className="text-red-500">*</span>
+            </label>
+            <input
+              required
+              autoComplete="family-name"
+              value={lastName}
+              onChange={(e) => setLastName(e.target.value)}
+              placeholder="dela Cruz"
+              className={inputCls}
+            />
+          </div>
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2 text-center">
-            Enter the 6-digit code
+          <label className="block text-xs font-medium text-gray-700 mb-1">
+            Mobile number <span className="text-red-500">*</span>
           </label>
-          <input
-            ref={otpInputRef}
-            type="text"
-            inputMode="numeric"
-            pattern="\d{6}"
-            maxLength={6}
-            autoFocus
-            autoComplete="one-time-code"
-            value={otp}
-            onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
-            disabled={loading}
-            placeholder="000000"
-            className="w-full text-center text-3xl font-mono tracking-[0.5em] rounded-xl border border-gray-300 px-4 py-4 focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-50"
-          />
-        </div>
-
-        {loading && (
-          <div className="flex items-center justify-center gap-2 text-sm text-gray-500">
-            <Spinner /> Verifying your code and saving your spot…
+          <div className="flex">
+            <span className="inline-flex items-center px-3 rounded-l-xl border border-r-0 border-gray-300 bg-gray-50 text-sm text-gray-500 select-none">
+              +63
+            </span>
+            <input
+              type="tel"
+              required
+              inputMode="numeric"
+              autoComplete="tel-national"
+              maxLength={10}
+              value={phoneDigits}
+              onChange={(e) => setPhoneDigits(e.target.value.replace(/\D/g, '').slice(0, 10))}
+              placeholder="9171234567"
+              className="flex-1 rounded-r-xl border border-gray-300 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary bg-white"
+            />
           </div>
-        )}
-
-        {fieldError && (
-          <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-xl px-4 py-3 text-center">
-            {fieldError}
-          </div>
-        )}
-
-        <div className="text-center space-y-2">
-          {secondsLeft > 0 ? (
-            <p className="text-xs text-gray-400">
-              Send a new code in{' '}
-              <span className="font-semibold tabular-nums">{secondsLeft}s</span>
-            </p>
-          ) : (
-            <button
-              type="button"
-              onClick={handleResend}
-              disabled={loading}
-              className="text-xs text-primary font-medium hover:underline disabled:opacity-50"
-            >
-              Did not get the code? Send it again
-            </button>
-          )}
-          <div>
-            <button
-              type="button"
-              onClick={() => { setStep('details'); setOtp(''); setFieldError(null); }}
-              className="text-xs text-gray-400 hover:text-gray-600"
-            >
-              ← Go back and change my details
-            </button>
-          </div>
+          <p className="text-[11px] text-gray-400 mt-1">
+            We may use this to reach you about your booking.
+          </p>
         </div>
       </div>
-    </div>
+
+      {fieldError && (
+        <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-xl px-4 py-3">
+          {fieldError}
+        </div>
+      )}
+
+      <button
+        type="submit"
+        disabled={!firstName || !lastName || phoneDigits.length < 10}
+        className="w-full py-3 rounded-xl bg-primary text-white font-semibold text-sm hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+      >
+        Review my order
+      </button>
+
+      <button
+        type="button"
+        onClick={() => { setStep('email'); setFieldError(null); }}
+        className="w-full text-center text-xs text-gray-400 hover:text-gray-600 py-1"
+      >
+        ← Change email ({email})
+      </button>
+    </form>
   );
 }
 
@@ -671,47 +481,190 @@ export default function RegisterPage({
     AttendeeFields[] | undefined
   >(undefined);
   const [initialNotes, setInitialNotes] = useState<string | undefined>(undefined);
+  const [initialIsFree, setInitialIsFree] = useState<boolean | undefined>(undefined);
 
-  // 'idle' → 'checking' → 'duplicate' | 'clear'
-  const [dupCheck, setDupCheck] = useState<'idle' | 'checking' | 'duplicate' | 'clear'>('idle');
-  const dupCheckRanRef = useRef(false);
+  // Guest checkout state
+  const [guestInfo, setGuestInfo] = useState<GuestInfo | null>(null);
+  const [otpModal, setOtpModal] = useState<{ userId: string; email: string } | null>(null);
+  const otpTokenRef = useRef<{ resolve: () => void; reject: (e: Error) => void } | null>(null);
+  const funnelSessionId = useRef(getOrCreateFunnelSessionId());
 
-  // Holds attendee data collected by GuestWizard so RegistrationForm can pre-fill after OTP success.
-  // Using a ref avoids a render ordering issue between Zustand (setAuth) and React state updates.
+  // Pre-filled attendee data ref (avoids render ordering race between Zustand and React state)
   const pendingGuestData = useRef<{
     attendees: AttendeeFields[];
     notes: string;
     existingAccountDetected: boolean;
   } | null>(null);
 
-  const handleOtpVerified = useCallback(
-    (payload: OtpVerifiedPayload) => {
-      // Store wizard data first (ref is synchronous — available in the very next render)
-      pendingGuestData.current = {
-        attendees: payload.attendees,
-        notes: payload.notes,
-        existingAccountDetected: payload.isExistingAccount,
-      };
-      // Calling setAuth sets isAuthenticated=true in Zustand, which triggers a re-render
-      // of this component and switches from GuestWizard to RegistrationForm.
-      setAuth(
-        {
-          id: payload.user.id,
-          email: payload.user.email,
-          firstName: payload.user.firstName ?? payload.attendees[0]?.firstName ?? '',
-          lastName: payload.user.lastName ?? payload.attendees[0]?.lastName ?? '',
-          isAdmin: payload.user.isAdmin,
-          isVerified: payload.user.isVerified,
-        },
-        payload.accessToken,
-        payload.refreshToken,
-      );
-    },
-    [setAuth],
-  );
+  // Duplicate-registration check — only runs for users already authenticated on page load
+  const [dupCheck, setDupCheck] = useState<'idle' | 'checking' | 'duplicate' | 'clear'>('idle');
+  const dupCheckRanRef = useRef(false);
 
   const qty = Math.max(1, parseInt(searchParams.qty ?? '1', 10));
   const existingRegistrationId = searchParams.registrationId;
+
+  // ── Guest info collected from GuestWizard (step 1+2) ──────────────────────
+
+  const handleGuestInfoCollected = useCallback(
+    (info: GuestInfo) => {
+      setGuestInfo(info);
+      pendingGuestData.current = {
+        attendees: [{
+          firstName: info.firstName,
+          lastName: info.lastName,
+          email: info.email,
+          phone: info.phone,
+          company: '',
+          jobTitle: '',
+          birthday: '',
+          gender: '',
+          city: '',
+        }],
+        notes: '',
+        existingAccountDetected: false,
+      };
+      void trackInternalFunnelEvent({
+        eventId: event?.id,
+        email: info.email,
+        step: 'ticket_selection_started',
+        status: 'started',
+        metadata: { eventSlug: event?.slug, eventTitle: event?.title },
+      });
+      trackPixelCustomEvent('CheckoutStarted', { event_id: event?.id, event_name: event?.title });
+    },
+    [event],
+  );
+
+  // ── OTP send (triggered just before RegistrationForm submits) ─────────────
+
+  const getAuthToken = useCallback(async (): Promise<void> => {
+    if (!guestInfo || !event) throw new Error('Missing booking info. Please refresh and try again.');
+
+    let userId: string;
+    try {
+      const res = await api.post<{ data: { userId: string } }>(
+        '/auth/request-access',
+        {
+          email: guestInfo.email,
+          eventId: event.id,
+          eventSlug: event.slug,
+          eventName: event.title,
+          sessionId: funnelSessionId.current,
+        },
+        { timeout: 15_000 },
+      );
+      userId = res.data.data.userId;
+    } catch (err: any) {
+      const msg = err?.response?.data?.message ?? 'Could not send your verification code. Please try again.';
+      throw new Error(Array.isArray(msg) ? msg.join(' ') : msg);
+    }
+
+    setOtpModal({ userId, email: guestInfo.email });
+
+    return new Promise<void>((resolve, reject) => {
+      otpTokenRef.current = { resolve, reject };
+    });
+  }, [guestInfo, event]);
+
+  // ── OTP resend (from within the modal) ────────────────────────────────────
+
+  const handleOtpResend = useCallback(async () => {
+    if (!guestInfo || !event || !otpModal) return;
+    const res = await api.post<{ data: { userId: string } }>(
+      '/auth/request-access',
+      {
+        email: guestInfo.email,
+        eventId: event.id,
+        eventSlug: event.slug,
+        eventName: event.title,
+        sessionId: funnelSessionId.current,
+      },
+      { timeout: 15_000 },
+    );
+    // userId is stable for the same email but update it in case the server rotates it
+    const { userId } = res.data.data;
+    setOtpModal((prev) => (prev ? { ...prev, userId } : null));
+  }, [guestInfo, event, otpModal]);
+
+  // ── OTP verified ──────────────────────────────────────────────────────────
+
+  const handleOtpConfirmed = useCallback(
+    async (otp: string) => {
+      if (!otpModal || !guestInfo) throw new Error('Booking context was lost. Please refresh and try again.');
+
+      const verifyRes = await api.post<{
+        data: {
+          user: { id: string; email: string; firstName: string | null; lastName: string | null; isAdmin: boolean; isVerified: boolean };
+          accessToken: string;
+          refreshToken: string;
+          isNewUser: boolean;
+          isExistingAccount: boolean;
+        };
+      }>('/auth/verify-access', {
+        userId: otpModal.userId,
+        otp,
+        eventId: event?.id,
+        eventSlug: event?.slug,
+        sessionId: funnelSessionId.current,
+      });
+
+      const { user, accessToken, refreshToken, isNewUser } = verifyRes.data.data;
+
+      if (isNewUser) {
+        try {
+          await axios.patch(
+            `${API_URL}/users/me`,
+            { firstName: guestInfo.firstName, lastName: guestInfo.lastName, phone: guestInfo.phone },
+            { headers: { Authorization: `Bearer ${accessToken}` } },
+          );
+        } catch {
+          // Non-critical — account exists and is authenticated. Name/phone
+          // falls back to guestInfo values in setAuth below.
+        }
+      }
+
+      trackPixelCustomEvent('OTP_Verified', { event_id: event?.id, event_name: event?.title });
+      void trackInternalFunnelEvent({
+        eventId: event?.id,
+        email: user.email,
+        step: 'otp_verified',
+        status: 'success',
+        metadata: { eventSlug: event?.slug, isExistingAccount: !isNewUser },
+      });
+
+      setAuth(
+        {
+          id: user.id,
+          email: user.email,
+          firstName: user.firstName ?? guestInfo.firstName,
+          lastName: user.lastName ?? guestInfo.lastName,
+          isAdmin: user.isAdmin,
+          isVerified: user.isVerified,
+        },
+        accessToken,
+        refreshToken,
+      );
+
+      setOtpModal(null);
+      otpTokenRef.current?.resolve();
+      otpTokenRef.current = null;
+    },
+    [otpModal, guestInfo, event, setAuth],
+  );
+
+  const handleOtpCancel = useCallback(() => {
+    setOtpModal(null);
+    otpTokenRef.current?.reject(new Error('Email verification was cancelled. Please try again.'));
+    otpTokenRef.current = null;
+  }, []);
+
+  const handleChangeEmail = useCallback(() => {
+    handleOtpCancel();
+    setGuestInfo(null);
+    pendingGuestData.current = null;
+  }, [handleOtpCancel]);
+
+  // ── Data loading ──────────────────────────────────────────────────────────
 
   const loadPage = useCallback(async () => {
     const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'https://api.axontickets.online/api/v1';
@@ -737,7 +690,11 @@ export default function RegisterPage({
           (a: { isLead: boolean }, b: { isLead: boolean }) => (b.isLead ? 1 : 0) - (a.isLead ? 1 : 0),
         );
         setInitialAttendees(
-          sorted.map((a: { firstName: string; lastName: string; email: string; phone?: string | null; company?: string | null; jobTitle?: string | null; birthday?: string | null; gender?: string | null; city?: string | null }) => ({
+          sorted.map((a: {
+            firstName: string; lastName: string; email: string; phone?: string | null;
+            company?: string | null; jobTitle?: string | null; birthday?: string | null;
+            gender?: string | null; city?: string | null;
+          }) => ({
             firstName: a.firstName,
             lastName: a.lastName,
             email: a.email,
@@ -750,6 +707,7 @@ export default function RegisterPage({
           })),
         );
         setInitialNotes(regData.notes ?? '');
+        setInitialIsFree(regData.isFree ?? false);
       }
     } catch {
       router.replace(`/events/${params.slug}`);
@@ -759,16 +717,14 @@ export default function RegisterPage({
   }, [params.slug, existingRegistrationId, router]);
 
   useEffect(() => {
-    // Wait for auth to hydrate so we know which path to render before loading
     if (!isHydrating) void loadPage();
   }, [isHydrating, loadPage]);
 
-  // After authentication (either OTP path), check if this user already has an
-  // active registration for this event. If so, redirect them to the event page
-  // instead of showing the registration form. Skip when editing an existing
-  // registration (existingRegistrationId is set).
+  // Duplicate-registration check — only for users who were already authenticated
+  // when they landed on this page. Guest-flow users skip this; the server returns
+  // a 409 if they try to register twice anyway.
   useEffect(() => {
-    if (!isAuthenticated || !event || dupCheckRanRef.current || existingRegistrationId) return;
+    if (!isAuthenticated || !event || dupCheckRanRef.current || existingRegistrationId || guestInfo) return;
     dupCheckRanRef.current = true;
     setDupCheck('checking');
     api
@@ -784,19 +740,20 @@ export default function RegisterPage({
           setDupCheck('clear');
         }
       })
-      .catch(() => {
-        // Fail open — let them proceed; the server will reject on submit
-        setDupCheck('clear');
-      });
-  }, [isAuthenticated, event, existingRegistrationId, router]);
+      .catch(() => setDupCheck('clear'));
+  }, [isAuthenticated, event, existingRegistrationId, guestInfo, router]);
 
   useEffect(() => {
     if (!event) return;
-    trackPixelCustomEvent('TicketSelection_Started', { event_id: event.id, event_name: event.title },
-      `ticket-selection:${event.id}:${searchParams.tierId ?? ''}:${searchParams.qty ?? '1'}`);
+    trackPixelCustomEvent(
+      'TicketSelection_Started',
+      { event_id: event.id, event_name: event.title },
+      `ticket-selection:${event.id}:${searchParams.tierId ?? ''}:${searchParams.qty ?? '1'}`,
+    );
   }, [event, searchParams.tierId, searchParams.qty]);
 
-  // ── Loading skeleton ────────────────────────────────────────────────────────
+  // ── Loading skeleton ───────────────────────────────────────────────────────
+
   if (pageLoading || isHydrating || !event) {
     return (
       <main className="min-h-screen bg-gray-50 py-10">
@@ -817,8 +774,40 @@ export default function RegisterPage({
     return null;
   }
 
+  // ── Shared RegistrationForm props ─────────────────────────────────────────
+
+  const registrationFormProps = {
+    eventId: event.id,
+    eventSlug: event.slug,
+    tierId: tier.id,
+    tierName: tier.name,
+    unitPrice: event.isFree ? 0 : tier.price,
+    qty,
+    platformFee: event.isFree ? 0 : event.platformFee ?? 50,
+    paymentMethods: event.paymentMethods ?? null,
+    bankName: event.bankName ?? null,
+    bankAccountName: event.bankAccountName ?? null,
+    bankAccountNumber: event.bankAccountNumber ?? null,
+    paymentInstructions: event.paymentInstructions ?? null,
+    registrationId: existingRegistrationId,
+    initialIsFree,
+  };
+
   return (
     <main className="min-h-screen bg-gray-50 py-10">
+      <InAppBrowserBanner />
+
+      {/* OTP confirmation modal — shown after payment proof upload, before final submit */}
+      {otpModal && (
+        <OtpConfirmModal
+          email={otpModal.email}
+          onConfirmed={handleOtpConfirmed}
+          onResend={handleOtpResend}
+          onCancel={handleOtpCancel}
+          onChangeEmail={handleChangeEmail}
+        />
+      )}
+
       <div className="max-w-2xl mx-auto px-4 sm:px-6">
         <CheckoutStepper current={1} />
 
@@ -837,14 +826,21 @@ export default function RegisterPage({
             <span className="text-gray-500"> × {qty}</span>
           </div>
           <span className="text-sm font-semibold text-primary">
-            ₱{(tier.price / 100 * qty).toLocaleString('en-PH', { minimumFractionDigits: 2 })}
+            {event.isFree || tier.price === 0 ? 'Free' : `₱${(tier.price * qty).toLocaleString('en-PH', { minimumFractionDigits: 2 })}`}
           </span>
         </div>
+        {tier.inclusions && tier.inclusions.length > 0 && (
+          <div className="mb-5 -mt-2 flex flex-wrap gap-1.5">
+            {tier.inclusions.map((item) => (
+              <span key={item.id ?? item.label} className="rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700">
+                {item.label}
+              </span>
+            ))}
+          </div>
+        )}
 
-        {/* Path A: authenticated (or just verified via OTP) — RegistrationForm */}
-        {isAuthenticated ? (
-          // While checking for a duplicate registration, show a neutral loading state.
-          // On duplicate, show an error banner and redirect after 3 s.
+        {/* ── Path A: user was already authenticated when they landed ── */}
+        {isAuthenticated && !guestInfo && (
           dupCheck === 'duplicate' ? (
             <div className="rounded-2xl border border-red-200 bg-red-50 p-5 flex items-start gap-3">
               <svg className="mt-0.5 h-5 w-5 shrink-0 text-red-500" viewBox="0 0 20 20" fill="currentColor">
@@ -853,7 +849,7 @@ export default function RegisterPage({
               <div>
                 <p className="font-semibold text-red-900">You&apos;re already registered for this event</p>
                 <p className="mt-0.5 text-sm text-red-700">
-                  You already have an active registration. Redirecting you back to the event page…
+                  You have an active registration. Redirecting you back to the event page…
                 </p>
               </div>
             </div>
@@ -867,33 +863,28 @@ export default function RegisterPage({
             </div>
           ) : (
             <RegistrationForm
-              eventId={event.id}
-              eventSlug={event.slug}
-              tierId={tier.id}
-              tierName={tier.name}
-              unitPrice={tier.price}
-              qty={qty}
-              platformFee={event.platformFee ?? 50}
-              paymentMethods={event.paymentMethods ?? null}
-              bankName={event.bankName ?? null}
-              bankAccountName={event.bankAccountName ?? null}
-              bankAccountNumber={event.bankAccountNumber ?? null}
-              paymentInstructions={event.paymentInstructions ?? null}
-              registrationId={existingRegistrationId}
-              initialAttendees={pendingGuestData.current?.attendees ?? initialAttendees}
-              initialNotes={pendingGuestData.current?.notes ?? initialNotes}
-              existingAccountDetected={pendingGuestData.current?.existingAccountDetected ?? false}
+              {...registrationFormProps}
+              initialAttendees={initialAttendees}
+              initialNotes={initialNotes}
+              existingAccountDetected={false}
             />
           )
-        ) : (
-          /* Path B: guest wizard — collects details + OTP, then hands off to RegistrationForm */
-          <GuestWizard
-            event={event}
-            tier={tier}
-            qty={qty}
-            existingRegistrationId={existingRegistrationId}
-            onOtpVerified={handleOtpVerified}
+        )}
+
+        {/* ── Path B: guest — info collected, showing form with OTP gate on submit ── */}
+        {guestInfo && (
+          <RegistrationForm
+            {...registrationFormProps}
+            initialAttendees={pendingGuestData.current?.attendees}
+            initialNotes={pendingGuestData.current?.notes}
+            existingAccountDetected={pendingGuestData.current?.existingAccountDetected ?? false}
+            getAuthToken={getAuthToken}
           />
+        )}
+
+        {/* ── Path C: no session, no guest info — show the lightweight wizard ── */}
+        {!isAuthenticated && !guestInfo && (
+          <GuestWizard event={event} onCompleted={handleGuestInfoCollected} />
         )}
       </div>
     </main>

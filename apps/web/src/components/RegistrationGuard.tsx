@@ -11,6 +11,7 @@ interface Tier {
   id: string;
   name: string;
   price: number;
+  inclusions?: Array<{ id?: string; label: string; stubEnabled?: boolean; sortOrder?: number }>;
   availableQuantity: number;
   totalQuantity: number;
   maxPerOrder: number;
@@ -33,6 +34,7 @@ interface CheckResponse {
 const STATUS_LABELS: Record<string, string> = {
   pending_payment:  'Pending Payment',
   proof_submitted:  'Under Review',
+  pending_approval: 'Awaiting Confirmation',
   verified:         'Verified',
 };
 

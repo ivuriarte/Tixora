@@ -14,8 +14,7 @@ out/
 .env.local
 .env.*.local
 
-# Prisma
-apps/api/prisma/migrations/
+# Prisma — migrations must be committed (prisma migrate deploy reads from git)
 
 # Vercel ncc bundle output (track placeholder index.js; ignore compiled artifacts)
 apps/api/api/*
@@ -55,3 +54,4 @@ apps/web/playwright-report/
 
 /generated/prisma
 .env.sentry-build-plugin
+.vercel

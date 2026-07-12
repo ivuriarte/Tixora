@@ -4,9 +4,8 @@ import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import Link from 'next/link';
 import api from '@/lib/api';
-import Navbar from '@/components/Navbar';
-import BackButton from '@/components/BackButton';
 import { formatShortDate } from '@axon-tickets/utils';
+import { useAuthStore } from '@/store/auth.store';
 
 interface EventRow {
   id: string;
@@ -16,6 +15,12 @@ interface EventRow {
   startsAt: string;
   status: string;
   ticketsSold: number;
+  organization: { id: string; name: string } | null;
+}
+
+interface OrganizerOption {
+  id: string;
+  name: string;
 }
 
 const STATUS_STYLE: Record<string, string> = {
@@ -27,15 +32,29 @@ const STATUS_STYLE: Record<string, string> = {
 };
 
 export default function EventHistoryPage() {
+  const { user } = useAuthStore();
   const [q, setQ] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
+  const [organizationId, setOrganizationId] = useState('');
 
   const { data, isLoading } = useQuery({
-    queryKey: ['admin-event-history'],
+    queryKey: ['admin-event-history', organizationId],
+    queryFn: () => {
+      const params = new URLSearchParams({ limit: '100' });
+      if (organizationId) params.set('organizationId', organizationId);
+      return api
+        .get<{ data: { data: EventRow[] } }>(`/admin/events?${params}`)
+        .then((r) => r.data.data.data);
+    },
+  });
+
+  const { data: organizers } = useQuery<OrganizerOption[]>({
+    queryKey: ['admin-event-history-organizers'],
+    enabled: !!user?.isAdmin,
     queryFn: () =>
       api
-        .get<{ data: { data: EventRow[] } }>('/admin/events?limit=100')
-        .then((r) => r.data.data.data),
+        .get<{ data: { data: OrganizerOption[] } }>('/admin/organizers?status=approved&limit=100')
+        .then((r) => r.data.data.data.map((org) => ({ id: org.id, name: org.name }))),
   });
 
   const filtered = (data ?? []).filter((e) => {
@@ -45,12 +64,9 @@ export default function EventHistoryPage() {
   });
 
   return (
-    <>
-      <Navbar />
-      <main className="max-w-6xl mx-auto px-4 py-10">
+    <main className="max-w-6xl mx-auto px-4 py-10">
         <div className="flex items-start justify-between mb-6">
           <div>
-            <BackButton href="/admin" label="Back to Admin" className="mb-2" />
             <h1 className="text-2xl font-bold text-gray-900">Event History</h1>
             <p className="text-sm text-gray-500 mt-1">
               A log of every event with quick access to analytics, attendees, and details.
@@ -85,6 +101,18 @@ export default function EventHistoryPage() {
             <option value="completed">Completed</option>
             <option value="cancelled">Cancelled</option>
           </select>
+          {user?.isAdmin && (
+            <select
+              value={organizationId}
+              onChange={(e) => setOrganizationId(e.target.value)}
+              className="border border-gray-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+            >
+              <option value="">All organizers</option>
+              {(organizers ?? []).map((org) => (
+                <option key={org.id} value={org.id}>{org.name}</option>
+              ))}
+            </select>
+          )}
         </div>
 
         {isLoading && <p className="text-gray-400">Loading…</p>}
@@ -115,6 +143,7 @@ export default function EventHistoryPage() {
                 <p className="text-sm text-gray-500">
                   {formatShortDate(new Date(event.startsAt))} · {event.venue} ·{' '}
                   <span className="font-medium text-gray-700">{event.ticketsSold} sold</span>
+                  {event.organization && <span> · {event.organization.name}</span>}
                 </p>
               </div>
               <div className="flex flex-wrap items-center gap-2">
@@ -140,7 +169,6 @@ export default function EventHistoryPage() {
             </div>
           ))}
         </div>
-      </main>
-    </>
+    </main>
   );
 }

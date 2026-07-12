@@ -12,7 +12,6 @@ import {
   ArrayMaxSize,
   MinLength,
   MaxLength,
-  Matches,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 
@@ -80,4 +79,9 @@ export class CreateRegistrationDto {
   @IsString()
   @MaxLength(500)
   notes?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(32)
+  referralCode?: string;
 }

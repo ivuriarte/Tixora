@@ -13,6 +13,7 @@ interface Props {
     startsAt: string;
     imageUrl?: string | null;
     lowestPrice?: number | null;
+    isFree?: boolean;
     status: string;
   };
 }
@@ -50,11 +51,13 @@ export default function EventCard({ event }: Props) {
           {event.title}
         </h3>
         <p className="text-sm text-gray-500 mt-1 line-clamp-1">{event.venue}</p>
-        {event.lowestPrice != null && (
+        {event.isFree || event.lowestPrice === 0 ? (
+          <p className="mt-2 text-sm font-semibold text-primary">Free</p>
+        ) : event.lowestPrice != null ? (
           <p className="mt-2 text-sm font-semibold text-primary">
-            From ₱{(event.lowestPrice / 100).toLocaleString()}
+            From ₱{event.lowestPrice.toLocaleString()}
           </p>
-        )}
+        ) : null}
       </div>
     </Link>
   );
