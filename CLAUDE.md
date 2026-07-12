@@ -124,22 +124,6 @@ Run through this on every diff before approving or pushing.
 
 ---
 
-## SDLC Phase Gates (loop engineering)
-
-Every feature passes through phase gates in order. Each gate = a reviewer agent + a rulebook + Ian's explicit sign-off recorded in the ledger. Run gates with **`/gate <phase> <feature-name>`**; check progress with `/gate status <feature-name>`.
-
-| Order | Gate | Command | Agent | Rulebook |
-|---|---|---|---|---|
-| 1 | Design | `/gate design` | design-reviewer | docs/standards/design-standards.md |
-| 2 | Database | `/gate db` | db-architect | docs/standards/db-standards.md |
-| 3 | API | `/gate api` | api-architect | docs/standards/api-standards.md |
-| 4 | Frontend build | `/gate frontend` | frontend-reviewer | docs/standards/frontend-standards.md |
-| 4 | Backend build | `/gate backend` | backend-reviewer | docs/standards/backend-standards.md |
-| 5 | Release | `/gate release` | devops-reviewer | docs/standards/devops-standards.md |
-| 6 | SEO / AI search | `/gate seo` | seo-auditor | docs/standards/seo-standards.md |
-
-Rules: gates that don't apply get skipped with a recorded reason; db/api gates run **before** implementation when possible; the agent recommends, only Ian approves; every decision (including rejections) is recorded in `docs/signoffs/<feature>.md`.
-
 ## Post-development hooks
 
 | Trigger | What runs | Purpose |

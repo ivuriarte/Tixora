@@ -356,9 +356,9 @@ function AccessForm() {
           </Link>
           {step === 'email' && (
             <>
-              <h1 className="mt-4 text-2xl font-bold text-gray-900">Sign in</h1>
+              <h1 className="mt-4 text-2xl font-bold text-gray-900">Sign in or create account</h1>
               <p className="mt-1 text-sm text-gray-500">
-                Enter your email. No password needed.
+                Enter your email — new or returning, it works the same way.
               </p>
             </>
           )}
@@ -375,7 +375,7 @@ function AccessForm() {
             <>
               <h1 className="mt-4 text-2xl font-bold text-gray-900">Almost done!</h1>
               <p className="mt-1 text-sm text-gray-500">
-                Complete your profile once for faster event registration.
+                Tell us your name and number. You only need to do this once.
               </p>
             </>
           )}
@@ -424,9 +424,9 @@ function AccessForm() {
             </button>
 
             <div className="space-y-1 rounded-xl border border-gray-100 bg-gray-50 px-3 py-3 text-xs text-gray-600">
-              <p>We send a 6-digit code to your email. Enter the code to sign in.</p>
-              <p>No password needed — ever.</p>
-              <p>If the code does not arrive, check your spam or promotions folder.</p>
+              <p>We send a 6-digit code to your email. Enter it to get in — no password, ever.</p>
+              <p>First time here? An account is created automatically.</p>
+              <p>No code in your inbox? Check your spam or promotions folder.</p>
               {isInAppBrowser && (
                 <p className="text-amber-700 font-medium">
                   Tip: Open this page in Safari or Chrome for the best experience.
@@ -560,7 +560,7 @@ function AccessForm() {
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Mobile Number <span className="text-red-500">*</span>
+                Mobile number <span className="text-red-500">*</span>
               </label>
               <div className="flex">
                 <span className="inline-flex items-center px-3 rounded-l-lg border border-r-0 border-gray-300 bg-gray-50 text-sm text-gray-500 select-none">

@@ -75,6 +75,13 @@ interface Props {
   initialNotes?: string;
   /** True when a guest used "I'm new here" but the email matched an existing verified account. */
   existingAccountDetected?: boolean;
+  /**
+   * Guest-flow only. Called once at the start of form submission to trigger
+   * OTP verification. Resolves after the user enters the correct code and
+   * setAuth() has been called — subsequent api requests will be authenticated.
+   * Rejects if the user cancels or verification fails.
+   */
+  getAuthToken?: () => Promise<void>;
 }
 
 export default function RegistrationForm({
@@ -95,6 +102,7 @@ export default function RegistrationForm({
   initialAttendees,
   initialNotes,
   existingAccountDetected = false,
+  getAuthToken,
 }: Props) {
   const router = useRouter();
   const currentUser = useAuthStore((s) => s.user);
@@ -222,6 +230,21 @@ export default function RegistrationForm({
     setLoading(true);
 
     try {
+      // Guest flow: verify email before touching the API. getAuthToken sends
+      // the OTP, shows the modal, and resolves only after setAuth() has been
+      // called — so every api.* call below will have a valid Bearer token.
+      if (getAuthToken) {
+        try {
+          await getAuthToken();
+        } catch (err: any) {
+          const msg = err?.message ?? 'Email verification failed. Please try again.';
+          setError(msg);
+          setLoading(false);
+          submittingRef.current = false;
+          return;
+        }
+      }
+
       const attendeePayload = attendees.map((a) => ({
         firstName: a.firstName.trim(),
         lastName: a.lastName.trim(),
