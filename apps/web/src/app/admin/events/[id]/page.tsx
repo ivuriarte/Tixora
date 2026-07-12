@@ -35,13 +35,12 @@ interface ApiTier {
   id: string;
   name: string;
   description: string | null;
-  price: number; // pesos
+  price: number; // centavos
   totalQuantity: number;
   soldQuantity: number;
   maxPerOrder: number;
   isVisible: boolean;
   sortOrder?: number;
-  inclusions?: Array<{ id: string; label: string; stubEnabled: boolean; sortOrder: number }>;
 }
 
 interface ApiPaymentMethod {
@@ -66,7 +65,6 @@ interface ApiEvent {
   endsAt: string | null;
   maxPerUser: number;
   maxCapacity: number | null;
-  isFree?: boolean;
   platformFee?: number | null;
   status: string;
   imageUrl?: string | null;
@@ -125,12 +123,6 @@ function apiTierToLocal(t: ApiTier, key: number): LocalTier {
     totalQuantity: String(t.totalQuantity),
     maxPerOrder: String(t.maxPerOrder),
     isVisible: t.isVisible,
-    inclusions: (t.inclusions ?? []).map((item) => ({
-      id: item.id,
-      label: item.label,
-      stubEnabled: item.stubEnabled,
-      sortOrder: item.sortOrder,
-    })),
     soldQuantity: t.soldQuantity,
     sortOrder: t.sortOrder ?? 0,
   };
@@ -180,7 +172,6 @@ export default function AdminEventEditPage() {
       endDate: end.date,
       endTime: end.time,
       maxCapacity: event.maxCapacity != null ? String(event.maxCapacity) : '',
-      isFree: event.isFree === true,
       platformFee: event.platformFee != null ? String(event.platformFee) : '50',
       // Defensive filters: drop any blank/incomplete rows so the editor
       // doesn't render empty placeholder cards left over from a bad save.
@@ -276,10 +267,10 @@ export default function AdminEventEditPage() {
           key = nextKey.current++;
           tierKeysByServerId.current[t.id] = key;
         }
-        return apiTierToLocal(event.isFree ? { ...t, price: 0 } : t, key);
+        return apiTierToLocal(t, key);
       }),
     );
-  }, [event?.isFree, event?.tiers]);
+  }, [event?.tiers]);
 
   const update = (patch: Partial<EventDraft>) => setDraft((d) => ({ ...d, ...patch }));
 
@@ -372,16 +363,11 @@ export default function AdminEventEditPage() {
     addTierMutation.mutate({
       name: t.name.trim(),
       description: t.description.trim() || undefined,
-      price: Math.round(parseFloat(t.price)),
+      price: Math.round(parseFloat(t.price) * 100),
       totalQuantity: parseInt(t.totalQuantity, 10),
       maxPerOrder: parseInt(t.maxPerOrder, 10),
       isVisible: t.isVisible,
       sortOrder: tiers.length,
-      inclusions: t.inclusions.map((item, idx) => ({
-        label: item.label.trim(),
-        stubEnabled: item.stubEnabled,
-        sortOrder: idx,
-      })),
     });
   }
   function handleEditTier(t: LocalTier) {
@@ -395,11 +381,6 @@ export default function AdminEventEditPage() {
         totalQuantity: parseInt(t.totalQuantity, 10),
         maxPerOrder: parseInt(t.maxPerOrder, 10),
         isVisible: t.isVisible,
-        inclusions: t.inclusions.map((item, idx) => ({
-          label: item.label.trim(),
-          stubEnabled: item.stubEnabled,
-          sortOrder: idx,
-        })),
       },
     });
   }
@@ -469,8 +450,6 @@ export default function AdminEventEditPage() {
       startsAt: startsAtISO,
       endsAt: endsAtISO ?? null,
       maxCapacity: draft.maxCapacity.trim() === '' ? null : parseInt(draft.maxCapacity, 10),
-      isFree: draft.isFree,
-      platformFee: draft.isFree ? 0 : Number(draft.platformFee || 50),
       status,
       speakerName: draft.speakerName.trim() || null,
       imageUrl: draft.imageUrl.trim() || null,
@@ -711,7 +690,6 @@ export default function AdminEventEditPage() {
                   onSaveFee={(fee) => feeMutation.mutate(fee)}
                   feeSaving={feeMutation.isPending}
                   isAdmin={isAdmin}
-                  isFree={draft.isFree}
                 />
                 <ReferralCodesPanel eventId={id} tiers={tiers} />
               </>);

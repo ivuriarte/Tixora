@@ -3,26 +3,10 @@
 import Link from 'next/link';
 import { useAuthStore } from '@/store/auth.store';
 
-interface OrganizerCtaSectionProps {
-  heading?: string;
-  description?: string;
-  buttonLabel?: string;
-  buttonHref?: string;
-  dataTrack?: string;
-  hideWhenAuthenticated?: boolean;
-}
-
-export default function OrganizerCtaSection({
-  heading = 'Ready to host your next event?',
-  description = 'Join Axon Tickets and sell tickets to thousands of attendees across the Philippines. Get approved in 1–2 business days.',
-  buttonLabel = 'Apply as an organizer',
-  buttonHref = '/become-organizer',
-  dataTrack,
-  hideWhenAuthenticated = true,
-}: OrganizerCtaSectionProps) {
+export default function OrganizerCtaSection() {
   const { isAuthenticated, isHydrating } = useAuthStore();
 
-  if (hideWhenAuthenticated && (isHydrating || isAuthenticated)) return null;
+  if (isHydrating || isAuthenticated) return null;
 
   return (
     <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
@@ -35,18 +19,17 @@ export default function OrganizerCtaSection({
             For Organizers
           </span>
           <h2 className="text-3xl sm:text-4xl font-extrabold text-white mb-3">
-            {heading}
+            Ready to host your next event?
           </h2>
           <p className="text-violet-100 text-base sm:text-lg max-w-xl mx-auto mb-8">
-            {description}
+            Join Axon Tickets and sell tickets to thousands of attendees across the Philippines. Get approved in 1–2 business days.
           </p>
           <Link
-            href={buttonHref}
-            data-track={dataTrack}
-            className="inline-flex items-center gap-2 bg-white text-violet-700 hover:bg-violet-50 font-semibold px-7 py-3.5 rounded-xl transition-colors text-base shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-violet-700"
+            href="/become-organizer"
+            className="inline-flex items-center gap-2 bg-white text-violet-700 hover:bg-violet-50 font-semibold px-7 py-3.5 rounded-xl transition-colors text-base shadow-sm"
           >
-            {buttonLabel}
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" aria-hidden="true">
+            Apply as an organizer
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
             </svg>
           </Link>

@@ -7,48 +7,19 @@ interface TierFormProps {
   initial: LocalTier;
   onSave: (t: LocalTier) => void;
   onCancel: () => void;
-  isFree?: boolean;
 }
 
-export default function TierForm({ initial, onSave, onCancel, isFree = false }: TierFormProps) {
-  const [t, setT] = useState<LocalTier>(() => (isFree ? { ...initial, price: '0' } : initial));
-  const [inclusionInput, setInclusionInput] = useState('');
+export default function TierForm({ initial, onSave, onCancel }: TierFormProps) {
+  const [t, setT] = useState<LocalTier>(initial);
   const upd = (field: keyof LocalTier, value: string | boolean) =>
     setT((prev) => ({ ...prev, [field]: value }));
-  const effectivePrice = isFree ? '0' : t.price;
   const isValid =
     t.name.trim() &&
-    effectivePrice !== '' &&
-    !isNaN(parseFloat(effectivePrice)) &&
-    parseFloat(effectivePrice) >= 0 &&
+    t.price !== '' &&
+    !isNaN(parseFloat(t.price)) &&
+    parseFloat(t.price) >= 0 &&
     parseInt(t.totalQuantity, 10) > 0 &&
     parseInt(t.maxPerOrder, 10) > 0;
-
-  function addInclusion() {
-    const label = inclusionInput.trim();
-    if (!label) return;
-    setT((prev) => {
-      const exists = prev.inclusions.some((item) => item.label.toLowerCase() === label.toLowerCase());
-      if (exists) return prev;
-      return {
-        ...prev,
-        inclusions: [
-          ...prev.inclusions,
-          { label, stubEnabled: true, sortOrder: prev.inclusions.length },
-        ],
-      };
-    });
-    setInclusionInput('');
-  }
-
-  function removeInclusion(label: string) {
-    setT((prev) => ({
-      ...prev,
-      inclusions: prev.inclusions
-        .filter((item) => item.label !== label)
-        .map((item, index) => ({ ...item, sortOrder: index })),
-    }));
-  }
 
   return (
     <div className="border border-primary/30 rounded-xl p-4 space-y-3 bg-primary/5">
@@ -68,12 +39,10 @@ export default function TierForm({ initial, onSave, onCancel, isFree = false }: 
           <input
             type="number" min={0} step="0.01"
             className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
-            placeholder={isFree ? 'Free' : 'e.g. 500'}
-            value={isFree ? '0' : t.price}
-            disabled={isFree}
+            placeholder="e.g. 500"
+            value={t.price}
             onChange={(e) => upd('price', e.target.value)}
           />
-          {isFree && <p className="mt-1 text-xs text-emerald-700">Free event: no ticket amount is collected.</p>}
         </div>
         <div>
           <label className="block text-xs font-medium text-gray-600 mb-1">Total Quantity <span className="text-red-500">*</span></label>
@@ -105,47 +74,6 @@ export default function TierForm({ initial, onSave, onCancel, isFree = false }: 
           onChange={(e) => upd('description', e.target.value)}
         />
       </div>
-      <div className="space-y-2">
-        <label className="block text-xs font-medium text-gray-600">Inclusions (optional)</label>
-        {t.inclusions.length > 0 && (
-          <div className="flex flex-wrap gap-2" aria-live="polite">
-            {t.inclusions.map((item) => (
-              <button
-                key={item.label}
-                type="button"
-                onClick={() => removeInclusion(item.label)}
-                className="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-800 focus:outline-none focus:ring-2 focus:ring-primary"
-                title={`Remove ${item.label}`}
-              >
-                <span>{item.label}</span>
-                <span aria-hidden="true">x</span>
-              </button>
-            ))}
-          </div>
-        )}
-        <div className="flex gap-2">
-          <input
-            className="min-w-0 flex-1 border border-gray-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
-            placeholder="e.g. Meal stub"
-            value={inclusionInput}
-            maxLength={80}
-            onChange={(e) => setInclusionInput(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') {
-                e.preventDefault();
-                addInclusion();
-              }
-            }}
-          />
-          <button
-            type="button"
-            onClick={addInclusion}
-            className="shrink-0 border border-gray-300 text-gray-700 px-3 py-1.5 rounded-lg text-sm hover:bg-white"
-          >
-            Add
-          </button>
-        </div>
-      </div>
       <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
         <input
           type="checkbox" checked={t.isVisible}
@@ -157,7 +85,7 @@ export default function TierForm({ initial, onSave, onCancel, isFree = false }: 
       <div className="flex gap-2">
         <button
           type="button" disabled={!isValid}
-          onClick={() => onSave(isFree ? { ...t, price: '0' } : t)}
+          onClick={() => onSave(t)}
           className="bg-primary text-white font-semibold px-4 py-1.5 rounded-lg text-sm hover:bg-primary-hover disabled:opacity-40"
         >
           {initial.name ? 'Save Changes' : 'Add Tier'}

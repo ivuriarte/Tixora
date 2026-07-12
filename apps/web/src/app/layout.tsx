@@ -8,8 +8,6 @@ import './globals.css';
 import Providers from './providers';
 
 const inter = Inter({ subsets: ['latin'], display: 'swap', weight: ['400', '500', '600', '700'] });
-const isUat = process.env.NEXT_PUBLIC_APP_ENV === 'uat';
-const siteUrl = isUat ? 'https://uat.axontickets.online' : 'https://axontickets.online';
 
 export const viewport: Viewport = {
   width: 'device-width',
@@ -18,7 +16,6 @@ export const viewport: Viewport = {
 };
 
 export const metadata: Metadata = {
-  metadataBase: new URL(siteUrl),
   title: 'Axon Tickets — Online Ticketing Philippines',
   description: 'Buy tickets to the best events in the Philippines. Fast, secure, mobile-first.',
   icons: {
@@ -41,17 +38,6 @@ export const metadata: Metadata = {
     description: 'Buy tickets to the best events in the Philippines.',
     images: ['/og-image.png'],
   },
-  robots: isUat
-    ? {
-        index: false,
-        follow: false,
-        nocache: true,
-        googleBot: { index: false, follow: false, noimageindex: true },
-      }
-    : {
-        index: true,
-        follow: true,
-      },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

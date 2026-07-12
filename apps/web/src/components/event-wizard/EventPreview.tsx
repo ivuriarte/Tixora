@@ -30,9 +30,7 @@ function formatDate(iso: string | undefined): string {
 export default function EventPreview({ draft, tiers }: EventPreviewProps) {
   const startsAt = combineDatetime(draft.startDate, draft.startTime);
   const endsAt = combineDatetime(draft.endDate, draft.endTime);
-  const minPrice = draft.isFree
-    ? 0
-    : tiers.length > 0
+  const minPrice = tiers.length > 0
     ? Math.min(...tiers.map((t) => parseFloat(t.price) || 0))
     : null;
   const maxCap = parseInt(draft.maxCapacity, 10) || 0;
@@ -96,7 +94,7 @@ export default function EventPreview({ draft, tiers }: EventPreviewProps) {
             {minPrice !== null && (
               <div className="pt-1 flex items-baseline gap-1">
                 <span className="text-[10px] uppercase tracking-wider text-gray-400">From</span>
-                <span className="text-lg font-bold text-primary">{draft.isFree ? 'Free' : `₱${minPrice.toLocaleString()}`}</span>
+                <span className="text-lg font-bold text-primary">₱{minPrice.toLocaleString()}</span>
               </div>
             )}
           </div>
@@ -168,9 +166,8 @@ export default function EventPreview({ draft, tiers }: EventPreviewProps) {
                     {t.description && <p className="text-[10px] text-gray-500 truncate">{t.description}</p>}
                   </div>
                   <div className="text-right pl-2">
-                    <p className="text-xs font-bold text-primary">{draft.isFree ? 'Free' : `₱${(parseFloat(t.price) || 0).toLocaleString()}`}</p>
+                    <p className="text-xs font-bold text-primary">₱{(parseFloat(t.price) || 0).toLocaleString()}</p>
                     <p className="text-[10px] text-gray-400">{t.totalQuantity || 0} avail</p>
-                    {t.inclusions.length > 0 && <p className="text-[10px] text-emerald-700">{t.inclusions.length} inclusion{t.inclusions.length === 1 ? '' : 's'}</p>}
                   </div>
                 </div>
               ))}

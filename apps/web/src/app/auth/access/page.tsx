@@ -12,7 +12,6 @@ import { useIsInAppBrowser } from '@/lib/useIsInAppBrowser';
 import { getOrCreateFunnelSessionId, trackInternalFunnelEvent } from '@/lib/funnel';
 import { trackPixelCustomEvent, trackPixelEvent } from '@/lib/metaPixel';
 import LegalModal from '@/components/LegalModal';
-import InAppBrowserBanner from '@/components/InAppBrowserBanner';
 import { USER_TERMS, PRIVACY_POLICY } from '@/lib/legal';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.axontickets.online/api/v1';
@@ -36,7 +35,7 @@ function AccessForm() {
   const [email, setEmail] = useState('');
   const [otp, setOtp] = useState('');
   const [pendingAuth, setPendingAuth] = useState<PendingAuth | null>(null);
-  const [profile, setProfile] = useState({ firstName: '', lastName: '', phoneDigits: '' });
+  const [profile, setProfile] = useState({ firstName: '', lastName: '', phoneDigits: '', birthday: '', gender: '', city: '' });
   const [loading, setLoading] = useState(false);
   const [secondsLeft, setSecondsLeft] = useState(0);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -300,7 +299,7 @@ function AccessForm() {
         data: { id: string; email: string; firstName: string; lastName: string; isAdmin: boolean; isOrganizer?: boolean; isVerified: boolean };
       }>(
         `${API_URL}/users/me`,
-        { firstName: profile.firstName, lastName: profile.lastName, phone },
+        { firstName: profile.firstName, lastName: profile.lastName, phone, birthday: profile.birthday, gender: profile.gender, city: profile.city.trim() },
         { headers: { Authorization: `Bearer ${pendingAuth.accessToken}` } },
       );
 
@@ -330,10 +329,7 @@ function AccessForm() {
         pendingAuth.refreshToken,
       );
       toast.success(`Welcome, ${updatedUser.firstName}!`);
-      // Always send new users to complete-profile to collect demographics;
-      // returnTo carries the original destination through.
-      const originalDest = searchParams.get('redirect') ?? '/account/tickets';
-      router.replace(`/account/complete-profile?returnTo=${encodeURIComponent(originalDest)}`);
+      redirectAfterAuth(updatedUser.isAdmin, updatedUser.isOrganizer);
     } catch (err: any) {
       const msg = err?.response?.data?.message ?? 'Could not save profile';
       toast.error(Array.isArray(msg) ? msg.join(', ') : msg);
@@ -347,7 +343,6 @@ function AccessForm() {
 
   return (
     <div className="min-h-screen flex items-center justify-center px-4 py-12 bg-gray-50">
-      <InAppBrowserBanner />
       <div className="w-full max-w-sm">
         {/* Header */}
         <div className="text-center mb-8">
@@ -356,9 +351,9 @@ function AccessForm() {
           </Link>
           {step === 'email' && (
             <>
-              <h1 className="mt-4 text-2xl font-bold text-gray-900">Sign in or create account</h1>
+              <h1 className="mt-4 text-2xl font-bold text-gray-900">Sign in</h1>
               <p className="mt-1 text-sm text-gray-500">
-                Enter your email — new or returning, it works the same way.
+                Enter your email. No password needed.
               </p>
             </>
           )}
@@ -375,7 +370,7 @@ function AccessForm() {
             <>
               <h1 className="mt-4 text-2xl font-bold text-gray-900">Almost done!</h1>
               <p className="mt-1 text-sm text-gray-500">
-                Tell us your name and number. You only need to do this once.
+                Complete your profile once for faster event registration.
               </p>
             </>
           )}
@@ -424,9 +419,9 @@ function AccessForm() {
             </button>
 
             <div className="space-y-1 rounded-xl border border-gray-100 bg-gray-50 px-3 py-3 text-xs text-gray-600">
-              <p>We send a 6-digit code to your email. Enter it to get in — no password, ever.</p>
-              <p>First time here? An account is created automatically.</p>
-              <p>No code in your inbox? Check your spam or promotions folder.</p>
+              <p>We send a 6-digit code to your email. Enter the code to sign in.</p>
+              <p>No password needed — ever.</p>
+              <p>If the code does not arrive, check your spam or promotions folder.</p>
               {isInAppBrowser && (
                 <p className="text-amber-700 font-medium">
                   Tip: Open this page in Safari or Chrome for the best experience.
@@ -560,7 +555,7 @@ function AccessForm() {
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Mobile number <span className="text-red-500">*</span>
+                Mobile Number <span className="text-red-500">*</span>
               </label>
               <div className="flex">
                 <span className="inline-flex items-center px-3 rounded-l-lg border border-r-0 border-gray-300 bg-gray-50 text-sm text-gray-500 select-none">
@@ -583,6 +578,12 @@ function AccessForm() {
                 />
               </div>
             </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div><label className="block text-sm font-medium text-gray-700 mb-1">Birthday <span className="text-red-500">*</span></label><input type="date" required max={new Date().toISOString().slice(0, 10)} value={profile.birthday} onChange={(e) => setProfile((p) => ({ ...p, birthday: e.target.value }))} className={inputClass} /></div>
+              <div><label className="block text-sm font-medium text-gray-700 mb-1">Gender <span className="text-red-500">*</span></label><select required value={profile.gender} onChange={(e) => setProfile((p) => ({ ...p, gender: e.target.value }))} className={inputClass}><option value="">Select</option><option value="female">Female</option><option value="male">Male</option><option value="non_binary">Non-binary</option><option value="self_described">Self-described</option><option value="prefer_not_to_say">Prefer not to say</option></select></div>
+            </div>
+            <div><label className="block text-sm font-medium text-gray-700 mb-1">City <span className="text-red-500">*</span></label><input required value={profile.city} onChange={(e) => setProfile((p) => ({ ...p, city: e.target.value }))} autoComplete="address-level2" placeholder="Davao City" className={inputClass} /><p className="mt-1 text-[11px] leading-relaxed text-gray-400">Used for attendee demographics and event reporting. Access is restricted to authorized event organizers and platform administrators.</p></div>
 
             {/* Legal consent — required for new accounts */}
             <div className="space-y-3 rounded-xl border border-gray-100 bg-gray-50 px-4 py-4">
@@ -629,7 +630,7 @@ function AccessForm() {
 
             <button
               type="submit"
-              disabled={loading || !profile.firstName.trim() || !profile.lastName.trim() || profile.phoneDigits.length < 10 || !termsAccepted || !privacyAccepted}
+              disabled={loading || !profile.firstName || !profile.lastName || profile.phoneDigits.length < 10 || !profile.birthday || !profile.gender || !profile.city.trim() || !termsAccepted || !privacyAccepted}
               className="w-full py-2.5 rounded-xl bg-primary text-white text-sm font-semibold hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
             >
               {loading ? (

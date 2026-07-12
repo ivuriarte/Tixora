@@ -112,9 +112,9 @@ export default function FeaturedHeroCarousel({ events }: { events: FeaturedHeroE
               )}
 
               <div className="min-h-[152px] sm:min-h-[180px] lg:min-h-[220px]">
-                <h2 className="text-3xl sm:text-4xl lg:text-5xl font-extrabold leading-[1.05] tracking-tight mb-2 line-clamp-3">
+                <h1 className="text-3xl sm:text-4xl lg:text-5xl font-extrabold leading-[1.05] tracking-tight mb-2 line-clamp-3">
                   {activeEvent.title}
-                </h2>
+                </h1>
                 {activeEvent.speakerName && activeEvent.speakerName !== activeEvent.title && (
                   <p className="text-amber-400 text-xl md:text-2xl font-extrabold leading-tight mb-4 line-clamp-2 min-h-[64px]">
                     {activeEvent.speakerName}
@@ -152,7 +152,7 @@ export default function FeaturedHeroCarousel({ events }: { events: FeaturedHeroE
             <div className="pt-2">
               <div className="flex flex-wrap items-center gap-4 min-h-[56px]">
                 <Link
-                  href={`/events/${activeEvent.slug}/register`}
+                  href={`/events/${activeEvent.slug}`}
                   className="inline-flex items-center gap-2 bg-amber-500 hover:bg-amber-400 text-black font-bold px-8 py-3.5 rounded-lg text-base transition-colors shadow-lg shadow-amber-900/30"
                 >
                   Reserve Your Seat

@@ -574,77 +574,6 @@ export class EmailService implements OnModuleDestroy {
     );
   }
 
-  async sendFreeRegistrationConfirmation(
-    to: string,
-    firstName: string,
-    referenceNumber: string,
-    eventTitle: string,
-    registrationUrl?: string,
-  ): Promise<void> {
-    const safeTitle = this.escapeHtml(eventTitle);
-    const safeRef = this.escapeHtml(referenceNumber);
-    const viewLink = registrationUrl
-      ? `<p style="margin-top:16px"><a href="${registrationUrl}" style="color:#EA6C00;text-decoration:none;font-weight:600">View your registration →</a></p>`
-      : '';
-    await this.send(
-      to,
-      `You're registered — ${eventTitle}`,
-      `<div style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:24px">
-        <h1 style="color:#7C3AED;margin-bottom:4px">You're registered!</h1>
-        <h2 style="margin-top:0;color:#1A3A5C">${safeTitle}</h2>
-        <p style="color:#374151">Hi ${this.escapeHtml(firstName)}, we received your registration for this event.</p>
-
-        <div style="background:#f7f9fc;border-radius:12px;padding:16px;margin:20px 0;border-left:4px solid #7C3AED">
-          <p style="margin:0 0 4px;font-size:12px;color:#6b7280;text-transform:uppercase;letter-spacing:0.05em">Your Reference Number</p>
-          <p style="font-size:24px;font-weight:bold;color:#7C3AED;margin:0;letter-spacing:2px">${safeRef}</p>
-        </div>
-
-        <h3 style="color:#1A3A5C">What happens next?</h3>
-        <ol style="color:#374151;font-size:14px;line-height:1.8">
-          <li>The organizer will review your registration.</li>
-          <li>We will send a confirmation to this email address.</li>
-          <li>Your ticket will be in that email — show it at the entrance. No printing needed.</li>
-        </ol>
-
-        ${viewLink}
-        <p style="margin-top:24px;color:#9ca3af;font-size:12px">Axon Tickets · Online Ticketing Platform</p>
-      </div>`,
-    );
-  }
-
-  async sendPaymentReminderEmail(
-    to: string,
-    firstName: string,
-    referenceNumber: string,
-    eventTitle: string,
-    registrationUrl: string,
-  ): Promise<void> {
-    const safeTitle = this.escapeHtml(eventTitle);
-    const safeRef = this.escapeHtml(referenceNumber);
-    await this.send(
-      to,
-      `Action needed — your spot for ${eventTitle} expires soon`,
-      `<div style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:24px">
-        <h1 style="color:#EA6C00;margin-bottom:4px">Your spot expires soon</h1>
-        <h2 style="margin-top:0;color:#1A3A5C">${safeTitle}</h2>
-        <p style="color:#374151">Hi ${this.escapeHtml(firstName)}, your registration is reserved but we have not received your payment proof yet.</p>
-
-        <div style="background:#fff7ed;border-radius:12px;padding:16px;margin:20px 0;border-left:4px solid #EA6C00">
-          <p style="margin:0 0 4px;font-size:12px;color:#6b7280;text-transform:uppercase;letter-spacing:0.05em">Reference Number</p>
-          <p style="font-size:24px;font-weight:bold;color:#EA6C00;margin:0;letter-spacing:2px">${safeRef}</p>
-          <p style="margin:8px 0 0;color:#92400e;font-size:13px">Your spot will be released 24 hours after you registered if no proof is uploaded.</p>
-        </div>
-
-        <p style="color:#374151;font-size:14px">Upload your payment screenshot now to secure your place:</p>
-        <p style="margin-top:16px">
-          <a href="${registrationUrl}" style="background:#7C3AED;color:#ffffff;text-decoration:none;font-weight:600;padding:12px 24px;border-radius:8px;display:inline-block">Upload payment proof →</a>
-        </p>
-
-        <p style="margin-top:24px;color:#9ca3af;font-size:12px">Axon Tickets · Online Ticketing Platform</p>
-      </div>`,
-    );
-  }
-
   async sendProofReceivedNotification(
     to: string,
     firstName: string,
@@ -672,7 +601,6 @@ export class EmailService implements OnModuleDestroy {
     eventVenue: string,
     attendees: { firstName: string; lastName: string; email: string; qrToken: string | null }[],
     receipt?: {
-      isFree?: boolean;
       referenceNumber?: string;
       transactionDate?: string;
       paymentMethod?: string;
@@ -801,7 +729,7 @@ export class EmailService implements OnModuleDestroy {
         <div style="background:#ffffff;padding:28px 32px">
 
           <p style="font-size:16px;color:#111827;margin-top:0">
-            Hi <strong>${this.escapeHtml(firstName)}</strong>, great news — ${receipt?.isFree ? 'your registration has been approved' : 'your payment has been confirmed'} and your ticket is all set. Everything you need to get in is right here in this email.
+            Hi <strong>${this.escapeHtml(firstName)}</strong>, great news — your payment has been confirmed and your ticket is all set. Everything you need to get in is right here in this email.
           </p>
 
           <!-- Event summary -->

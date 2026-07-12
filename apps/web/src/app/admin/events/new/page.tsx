@@ -134,8 +134,6 @@ export default function AdminNewEventPage() {
         latitude: draft.latitude.trim() ? parseFloat(draft.latitude) : undefined,
         longitude: draft.longitude.trim() ? parseFloat(draft.longitude) : undefined,
         maxCapacity: draft.maxCapacity.trim() === '' ? undefined : parseInt(draft.maxCapacity, 10),
-        isFree: draft.isFree,
-        platformFee: draft.isFree ? 0 : platformFee ?? undefined,
         startsAt: startsAtISO,
         endsAt: endsAtISO ?? undefined,
         speakerName: draft.speakerName.trim() || undefined,
@@ -204,11 +202,6 @@ export default function AdminNewEventPage() {
               maxPerOrder: parseInt(t.maxPerOrder, 10),
               isVisible: t.isVisible,
               sortOrder: idx,
-              inclusions: t.inclusions.map((item, inclusionIdx) => ({
-                label: item.label.trim(),
-                stubEnabled: item.stubEnabled,
-                sortOrder: inclusionIdx,
-              })),
             }),
           ),
         );
@@ -322,7 +315,6 @@ export default function AdminNewEventPage() {
                   onAdd={addPM} onEdit={editPM} onRemove={removePM}
                   onReorder={setPaymentMethods}
                   platformFee={platformFee}
-                  isFree={draft.isFree}
                 />
                 <ReferralCodesPanel tiers={tiers} pending={referralCodes} onPendingChange={setReferralCodes} />
               </>);

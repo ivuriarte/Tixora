@@ -243,7 +243,7 @@ export default function VerificationDrawer({
 
   const latestProof = reg?.proofs?.[0];
   const proofImageOk = isSafeImageUrl(latestProof?.imageUrl);
-  const canReview = reg?.status === 'proof_submitted' || reg?.status === 'pending_approval';
+  const canReview = reg?.status === 'proof_submitted';
   const lead = reg?.attendees?.find((a) => a.isLead) ?? reg?.attendees?.[0];
 
   return (

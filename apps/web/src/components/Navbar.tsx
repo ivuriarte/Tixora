@@ -141,8 +141,8 @@ export default function Navbar() {
             </>
           ) : (
             <>
-              <Link href="/organizers" className="text-sm font-medium text-gray-500 hover:text-primary">
-                For organizers
+              <Link href="/become-organizer" className="text-sm font-medium text-gray-500 hover:text-primary">
+                Become an organizer
               </Link>
               <div className="w-px h-4 bg-gray-200" />
               {/* Log in dropdown */}
@@ -263,8 +263,8 @@ export default function Navbar() {
               <Link href="/" className="block px-3 py-2 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors">
                 Home
               </Link>
-              <Link href="/organizers" className="block px-3 py-2 rounded-lg text-sm font-medium text-gray-500 hover:bg-gray-50 transition-colors">
-                For organizers
+              <Link href="/become-organizer" className="block px-3 py-2 rounded-lg text-sm font-medium text-gray-500 hover:bg-gray-50 transition-colors">
+                Become an organizer
               </Link>
               <div className="my-1 border-t border-gray-100" />
               <p className="px-3 pt-1 pb-0.5 text-[11px] font-medium text-gray-400 uppercase tracking-wide">Log in as</p>

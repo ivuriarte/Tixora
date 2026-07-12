@@ -18,7 +18,7 @@ import { CreateRegistrationDto } from './dto/create-registration.dto';
 import { UpdateRegistrationAttendeesDto } from './dto/update-registration-attendees.dto';
 import { ValidateReferralCodeDto } from '../admin/dto/referral-code.dto';
 
-const ACTIVE_REGISTRATION_STATUSES = ['pending_payment', 'proof_submitted', 'pending_approval', 'verified'] as const;
+const ACTIVE_REGISTRATION_STATUSES = ['pending_payment', 'proof_submitted', 'verified'] as const;
 const VALID_TICKET_STATUSES = ['valid', 'used'] as const;
 
 @Injectable()
@@ -54,6 +54,9 @@ export class RegistrationsService {
       include: { tiers: { where: { id: dto.tierId } } },
     });
     if (!event) throw new NotFoundException('Event not found');
+    if (!event.allowManualPayment) {
+      throw new BadRequestException('Manual payment is not enabled for this event');
+    }
     if (!['published', 'on_sale'].includes(event.status)) {
       throw new BadRequestException('Event is not open for registration');
     }
@@ -68,14 +71,9 @@ export class RegistrationsService {
       );
     }
 
-    const unitPrice = event.isFree ? 0 : Number(tier.price);
+    const unitPrice = Number(tier.price);
     const subtotal = unitPrice * attendeeCount;
-    const isFreeEvent = event.isFree || (unitPrice === 0 && Number(event.platformFee ?? 50) === 0);
-    const fees = isFreeEvent ? 0 : Number(event.platformFee ?? 50);
-
-    if (!isFreeEvent && !event.allowManualPayment) {
-      throw new BadRequestException('Manual payment is not enabled for this event');
-    }
+    const fees = Number(event.platformFee ?? 50);
     const referenceNumber = generateReferenceNumber();
     const maxPerUser = event.maxPerUser ?? 0;
 
@@ -89,22 +87,20 @@ export class RegistrationsService {
         await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${userId}), hashtext(${dto.eventId}))`;
 
         // Duplicate registration guard: block if user already has an active
-        // registration for this event.
+        // registration for this event (pending_payment or proof_submitted).
         // Now inside the lock above, so a concurrent request can't slip
         // through before this one commits.
         const activeRegistration = await tx.registration.findFirst({
           where: {
             userId,
             eventId: dto.eventId,
-            status: { in: ['pending_payment', 'proof_submitted', 'pending_approval'] },
+            status: { in: ['pending_payment', 'proof_submitted'] },
           },
           select: { id: true, status: true },
         });
         if (activeRegistration) {
           throw new BadRequestException(
-            activeRegistration.status === 'pending_approval'
-              ? 'You already have a registration awaiting review for this event.'
-              : activeRegistration.status === 'proof_submitted'
+            activeRegistration.status === 'proof_submitted'
               ? 'You already have a registration awaiting review for this event.'
               : 'You already have an incomplete registration for this event. Please complete your existing registration or wait for it to expire.',
           );
@@ -195,7 +191,6 @@ export class RegistrationsService {
             fees,
             discount,
             total,
-            status: isFreeEvent ? 'pending_approval' : 'pending_payment',
             ...(referral && {
               referralCodeId: referral.id,
               referralCodeSnapshot: {
@@ -216,9 +211,9 @@ export class RegistrationsService {
                 phone: a.phone,
                 company: a.company,
                 jobTitle: a.jobTitle,
-                birthday: a.birthday ? new Date(`${a.birthday}T00:00:00.000Z`) : null,
-                gender: a.gender || null,
-                city: a.city?.trim() || null,
+                birthday: new Date(`${a.birthday}T00:00:00.000Z`),
+                gender: a.gender,
+                city: a.city.trim(),
                 isLead: i === 0,
               })),
             },
@@ -235,48 +230,35 @@ export class RegistrationsService {
             },
           });
         }
-        const leadAttendee = dto.attendees[0];
-        const profileDemographics: { birthday?: Date; gender?: string; city?: string } = {};
-        if (leadAttendee.birthday) profileDemographics.birthday = new Date(`${leadAttendee.birthday}T00:00:00.000Z`);
-        if (leadAttendee.gender) profileDemographics.gender = leadAttendee.gender;
-        if (leadAttendee.city?.trim()) profileDemographics.city = leadAttendee.city.trim();
-        if (Object.keys(profileDemographics).length > 0) {
-          await tx.user.update({
-            where: { id: userId },
-            data: profileDemographics,
-          });
-        }
+        await tx.user.update({
+          where: { id: userId },
+          data: {
+            birthday: new Date(`${dto.attendees[0].birthday}T00:00:00.000Z`),
+            gender: dto.attendees[0].gender,
+            city: dto.attendees[0].city.trim(),
+          },
+        });
         return created;
       },
       { isolationLevel: 'ReadCommitted' },
     );
 
     const lead = registration.attendees.find((a) => a.isLead) ?? registration.attendees[0];
-    if (lead) {
+    if (lead && event.bankName && event.bankAccountNumber && event.bankAccountName) {
       const webBase = this.config.get<string>('webUrl') ?? 'https://axontickets.online';
-      const registrationUrl = `${webBase}/registrations/${registration.id}`;
       try {
-        if (isFreeEvent) {
-          await this.emailService.sendFreeRegistrationConfirmation(
-            lead.email,
-            lead.firstName,
-            referenceNumber,
-            event.title,
-            registrationUrl,
-          );
-        } else if (event.bankName && event.bankAccountNumber && event.bankAccountName) {
-          await this.emailService.sendRegistrationConfirmation(
-            lead.email,
-            lead.firstName,
-            referenceNumber,
-            event.title,
-            event.bankName,
-            event.bankAccountNumber,
-            event.bankAccountName,
-            registrationUrl,
-          );
-        }
+        await this.emailService.sendRegistrationConfirmation(
+          lead.email,
+          lead.firstName,
+          referenceNumber,
+          event.title,
+          event.bankName,
+          event.bankAccountNumber,
+          event.bankAccountName,
+          `${webBase}/registrations/${registration.id}`,
+        );
       } catch (e: unknown) {
+        // Log but do not fail the registration creation - user can re-fetch bank details from the page
         const err = e as Error;
         this.logger.warn({
           msg: 'Registration confirmation email failed',
@@ -320,7 +302,6 @@ export class RegistrationsService {
       fees: Number(registration.fees),
       discount: Number(registration.discount),
       total: Number(registration.total),
-      isFree: Number(registration.total) === 0,
       currency: registration.currency,
       status: registration.status,
       createdAt: registration.createdAt.toISOString(),
@@ -330,13 +311,13 @@ export class RegistrationsService {
   async validateReferralCode(dto: ValidateReferralCodeDto) {
     const tier = await this.prisma.ticketTier.findFirst({
       where: { id: dto.tierId, eventId: dto.eventId },
-      select: { price: true, event: { select: { isFree: true } } },
+      select: { price: true },
     });
     if (!tier) throw new NotFoundException('Ticket tier not found');
     const referral = await this.prisma.referralCode.findFirst({
       where: { eventId: dto.eventId, code: dto.code.trim().toUpperCase() },
     });
-    const subtotal = (tier.event.isFree ? 0 : Number(tier.price)) * dto.attendeeCount;
+    const subtotal = Number(tier.price) * dto.attendeeCount;
     const result = await this.evaluateReferral(this.prisma, referral, dto.tierId, subtotal);
     return {
       valid: true,
@@ -369,16 +350,15 @@ export class RegistrationsService {
     return { discount: Math.max(0, Math.min(subtotal, Math.round(raw * 100) / 100)) };
   }
 
-  private validateAttendeeDemographics(attendees: Array<{ birthday?: string; city?: string }>) {
+  private validateAttendeeDemographics(attendees: Array<{ birthday: string; city: string }>) {
     const today = new Date();
     const earliest = new Date(Date.UTC(today.getUTCFullYear() - 120, today.getUTCMonth(), today.getUTCDate()));
     for (const attendee of attendees) {
-      if (!attendee.birthday && !attendee.city?.trim()) continue;
-      if (!attendee.birthday) continue;
       const birthday = new Date(`${attendee.birthday}T00:00:00.000Z`);
       if (!Number.isFinite(birthday.getTime()) || birthday > today || birthday < earliest) {
         throw new BadRequestException('Birthday must be a valid past date within the last 120 years.');
       }
+      if (!attendee.city.trim()) throw new BadRequestException('City is required for every attendee.');
     }
   }
 
@@ -420,7 +400,6 @@ export class RegistrationsService {
         tierName: r.tierName,
         attendeeCount: r.attendeeCount,
         total: Number(r.total),
-        isFree: Number(r.total) === 0,
         currency: r.currency,
         status: r.status,
         createdAt: r.createdAt.toISOString(),
@@ -520,7 +499,6 @@ export class RegistrationsService {
       currency: reg.currency,
       notes: reg.notes,
       rejectionReason: reg.rejectionReason,
-      isFree: Number(reg.total) === 0,
       createdAt: reg.createdAt.toISOString(),
       updatedAt: reg.updatedAt.toISOString(),
       event: {
@@ -593,9 +571,9 @@ export class RegistrationsService {
             phone: dto.attendees[i].phone ?? null,
             company: dto.attendees[i].company ?? null,
             jobTitle: dto.attendees[i].jobTitle ?? null,
-            birthday: dto.attendees[i].birthday ? new Date(`${dto.attendees[i].birthday}T00:00:00.000Z`) : null,
-            gender: dto.attendees[i].gender || null,
-            city: dto.attendees[i].city?.trim() || null,
+            birthday: new Date(`${dto.attendees[i].birthday}T00:00:00.000Z`),
+            gender: dto.attendees[i].gender,
+            city: dto.attendees[i].city.trim(),
           },
         }),
       ),
@@ -616,9 +594,9 @@ export class RegistrationsService {
       },
     });
     if (!reg) throw new NotFoundException('Registration not found');
-    if (!['pending_payment', 'proof_submitted', 'pending_approval'].includes(reg.status)) {
+    if (!['pending_payment', 'proof_submitted'].includes(reg.status)) {
       throw new BadRequestException(
-        'Only pending or awaiting-approval registrations can be cancelled',
+        'Only pending or proof-submitted registrations can be cancelled',
       );
     }
 
@@ -740,14 +718,13 @@ export class RegistrationsService {
       },
     });
     if (!reg) throw new NotFoundException('Registration not found');
-    if (reg.status !== 'proof_submitted' && reg.status !== 'pending_approval') {
+    if (reg.status !== 'proof_submitted') {
       throw new BadRequestException(
-        `Only pending_approval or proof_submitted registrations can be approved (current: ${reg.status})`,
+        `Only proof_submitted registrations can be approved (current: ${reg.status})`,
       );
     }
-    const isFreeRegistration = Number(reg.total) === 0;
     const latestProof = reg.proofs[0];
-    if (!isFreeRegistration && !latestProof) {
+    if (!latestProof) {
       throw new BadRequestException('No payment proof found on this registration');
     }
 
@@ -774,19 +751,15 @@ export class RegistrationsService {
           rejectionReason: null,
         },
       }),
-      ...(latestProof
-        ? [
-            this.prisma.paymentProof.update({
-              where: { id: latestProof.id },
-              data: {
-                status: 'approved',
-                reviewedById: adminUserId,
-                reviewedAt: new Date(),
-                rejectionReason: null,
-              },
-            }),
-          ]
-        : []),
+      this.prisma.paymentProof.update({
+        where: { id: latestProof.id },
+        data: {
+          status: 'approved',
+          reviewedById: adminUserId,
+          reviewedAt: new Date(),
+          rejectionReason: null,
+        },
+      }),
       ...attendeeUpdates.map((u) =>
         this.prisma.attendee.update({
           where: { id: u.id },
@@ -802,7 +775,7 @@ export class RegistrationsService {
       registrationId: id,
       performedById: adminUserId,
       ipAddress: ip,
-      metadata: { proofId: latestProof?.id ?? null, attendeeCount: reg.attendees.length, isFree: isFreeRegistration },
+      metadata: { proofId: latestProof.id, attendeeCount: reg.attendees.length },
     });
 
     await this.funnel.track({
@@ -853,9 +826,9 @@ export class RegistrationsService {
       },
     });
     if (!reg) throw new NotFoundException('Registration not found');
-    if (reg.status !== 'proof_submitted' && reg.status !== 'pending_approval') {
+    if (reg.status !== 'proof_submitted') {
       throw new BadRequestException(
-        `Only pending_approval or proof_submitted registrations can be rejected (current: ${reg.status})`,
+        `Only proof_submitted registrations can be rejected (current: ${reg.status})`,
       );
     }
     const latestProof = reg.proofs[0];
@@ -1001,7 +974,7 @@ export class RegistrationsService {
 
   async listPendingVerifications(
     eventId?: string,
-    status: string = 'pending_approval',
+    status: string = 'proof_submitted',
     page = 1,
     limit = 50,
     dateFrom?: string,
@@ -1079,9 +1052,7 @@ export class RegistrationsService {
   }
 
   async pendingCount(organizerUserId?: string) {
-    const where: Prisma.RegistrationWhereInput = {
-      status: { in: ['pending_approval', 'proof_submitted'] },
-    };
+    const where: Prisma.RegistrationWhereInput = { status: 'proof_submitted' };
     if (organizerUserId) {
       where.event = {
         organization: {
@@ -1117,7 +1088,6 @@ export class RegistrationsService {
     const qrSecret = this.config.get<string>('qr.hmacSecret') ?? '';
     const eventDate = reg.event.startsAt.toISOString().slice(0, 10);
 
-    const isFreeRegistration = Number(reg.total) === 0;
     const receipt = {
       referenceNumber: reg.referenceNumber,
       transactionDate: reg.createdAt.toISOString().slice(0, 10),
@@ -1132,7 +1102,6 @@ export class RegistrationsService {
       total: Number(reg.total),
       organizerName: reg.event.organization?.name ?? undefined,
       eventCity: reg.event.city,
-      isFree: isFreeRegistration,
     };
 
     // Send an individual QR email to every attendee at their own email address.

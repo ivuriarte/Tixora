@@ -428,7 +428,7 @@ export class AdminController {
     }
     return this.registrationsService.listPendingVerifications(
       eventId,
-      status ?? 'pending_approval',
+      status ?? 'proof_submitted',
       page ? parseInt(page, 10) : 1,
       limit ? Math.min(parseInt(limit, 10), 100) : 50,
       dateFrom,
