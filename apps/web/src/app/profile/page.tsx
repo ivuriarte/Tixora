@@ -4,7 +4,6 @@ import { useState, useEffect } from 'react';
 import Navbar from '@/components/Navbar';
 import api from '@/lib/api';
 import { useAuthStore } from '@/store/auth.store';
-import BirthdayPicker from '@/components/BirthdayPicker';
 import toast from 'react-hot-toast';
 import { usePathname, useRouter } from 'next/navigation';
 
@@ -453,7 +452,7 @@ export default function ProfilePage() {
               <input name="city" value={form.city} onChange={update} placeholder="Davao City" className={inputClass} />
             </div>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <div><label className="block text-sm font-medium text-gray-700 mb-1">Birthday <span className="text-gray-400 font-normal">(optional)</span></label><BirthdayPicker value={form.birthday} onChange={(value) => setForm((f) => ({ ...f, birthday: value }))} /></div>
+              <div><label className="block text-sm font-medium text-gray-700 mb-1">Birthday <span className="text-gray-400 font-normal">(optional)</span></label><input name="birthday" type="date" max={new Date().toISOString().slice(0, 10)} value={form.birthday} onChange={update} className={inputClass} /></div>
               <div><label className="block text-sm font-medium text-gray-700 mb-1">Gender <span className="text-gray-400 font-normal">(optional)</span></label><select name="gender" value={form.gender} onChange={(e) => setForm((f) => ({ ...f, gender: e.target.value }))} className={inputClass}><option value="">Select</option><option value="female">Female</option><option value="male">Male</option><option value="non_binary">Non-binary</option><option value="self_described">Self-described</option><option value="prefer_not_to_say">Prefer not to say</option></select></div>
             </div>
           </div>
