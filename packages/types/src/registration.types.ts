@@ -1,7 +1,6 @@
 export type RegistrationStatus =
   | 'pending_payment'
   | 'proof_submitted'
-  | 'pending_approval'
   | 'verified'
   | 'rejected'
   | 'cancelled';
@@ -14,6 +13,9 @@ export interface RegistrationAttendee {
   phone: string | null;
   company: string | null;
   jobTitle: string | null;
+  birthday: string | null;
+  gender: string | null;
+  city: string | null;
   isLead: boolean;
   hasQr: boolean;
   checkedInAt: string | null;
@@ -57,7 +59,6 @@ export interface Registration {
   id: string;
   referenceNumber: string;
   status: RegistrationStatus;
-  isFree: boolean;
   tierId: string | null;
   tierName: string | null;
   unitPrice: number | null;
@@ -65,8 +66,6 @@ export interface Registration {
   subtotal: number;
   fees: number;
   total: number;
-  discount: number;
-  referralCode: string | null;
   currency: string;
   notes: string | null;
   rejectionReason: string | null;
@@ -90,7 +89,6 @@ export interface RegistrationSummary {
   total: number;
   currency: string;
   status: RegistrationStatus;
-  isFree: boolean;
   createdAt: string;
 }
 
@@ -99,7 +97,6 @@ export interface CreateRegistrationDto {
   tierId: string;
   attendees: AttendeeInput[];
   notes?: string;
-  referralCode?: string;
 }
 
 export interface AttendeeInput {

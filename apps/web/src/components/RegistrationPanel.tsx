@@ -26,7 +26,6 @@ interface Tier {
   id: string;
   name: string;
   price: number;
-  inclusions?: Array<{ id?: string; label: string; stubEnabled?: boolean; sortOrder?: number }>;
   availableQuantity: number;
   totalQuantity: number;
   maxPerOrder: number;
@@ -142,15 +141,6 @@ export default function RegistrationPanel({
               <p className="text-xs text-gray-400 mt-0.5">
                 {soldOut ? 'Sold out' : `${tier.availableQuantity} slots left`}
               </p>
-              {tier.inclusions && tier.inclusions.length > 0 && (
-                <div className="mt-2 flex flex-wrap gap-1.5">
-                  {tier.inclusions.map((item) => (
-                    <span key={item.id ?? item.label} className="rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-medium text-emerald-700">
-                      {item.label}
-                    </span>
-                  ))}
-                </div>
-              )}
             </button>
           );
         })}
@@ -176,28 +166,6 @@ export default function RegistrationPanel({
             >
               +
             </button>
-          </div>
-        </div>
-      )}
-
-      {/* Running total */}
-      {selected && !disabled && qty > 0 && (
-        <div className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm space-y-1.5">
-          <div className="flex justify-between text-gray-600">
-            <span>{selected.name}</span>
-            <span>{selected.price === 0 ? 'Free' : formatPHP(centavosToPeso(selected.price))}</span>
-          </div>
-          {qty > 1 && (
-            <div className="flex justify-between text-gray-500 text-xs">
-              <span>Quantity</span>
-              <span>× {qty}</span>
-            </div>
-          )}
-          <div className="flex justify-between font-semibold text-gray-900 border-t border-gray-200 pt-2">
-            <span>Total</span>
-            <span className="text-primary">
-              {selected.price === 0 ? 'Free' : formatPHP(centavosToPeso(selected.price) * qty)}
-            </span>
           </div>
         </div>
       )}

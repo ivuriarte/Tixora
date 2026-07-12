@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import type { EventDraft, LocalTier } from '../types';
 import { emptyTier } from '../types';
 import TierForm from '../TierForm';
@@ -41,24 +41,11 @@ export default function CapacityTiersStep({
   const matches = capacityNum > 0 && tiers.length > 0 && tiersTotal === capacityNum;
   const diff = tiersTotal - capacityNum;
 
-  useEffect(() => {
-    const next = tiers.reduce((max, tier) => Math.max(max, tier.key + 1), 0);
-    setTierKey((current) => Math.max(current, next));
-  }, [tiers]);
-
   function handleAdd(t: LocalTier) {
-    const nextKey = Math.max(tierKey, tiers.reduce((max, tier) => Math.max(max, tier.key + 1), 0));
-    onAddTier({ ...t, key: nextKey, price: draft.isFree ? '0' : t.price });
-    setTierKey(nextKey + 1);
+    onAddTier({ ...t, key: tierKey });
+    setTierKey((k) => k + 1);
     // Keep the panel open with a fresh blank tier
     setShowAdd(true);
-  }
-
-  function toggleFreeEvent(checked: boolean) {
-    update({ isFree: checked, platformFee: checked ? '0' : draft.platformFee });
-    if (checked && onReorderTiers) {
-      onReorderTiers(tiers.map((tier) => ({ ...tier, price: '0' })));
-    }
   }
 
   return (
@@ -79,20 +66,17 @@ export default function CapacityTiersStep({
         </p>
       </div>
 
-      <label className="flex items-start gap-3 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 cursor-pointer">
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-1">Service Fee (₱){REQ}</label>
         <input
-          type="checkbox"
-          checked={draft.isFree}
-          onChange={(e) => toggleFreeEvent(e.target.checked)}
-          className="mt-1 accent-emerald-600"
+          type="number" min="0" step="0.01" className={INP} placeholder="50"
+          value={draft.platformFee}
+          onChange={(e) => update({ platformFee: e.target.value })}
         />
-        <span>
-          <span className="block text-sm font-semibold text-emerald-950">Free event</span>
-          <span className="block text-xs leading-relaxed text-emerald-700">
-            Ticket tiers are tagged Free, tier prices are set to ₱0, and no platform fee is added during registration.
-          </span>
-        </span>
-      </label>
+        <p className="text-xs text-gray-400 mt-1">
+          Flat service fee added to each order, shown to attendees in the Order Summary.
+        </p>
+      </div>
 
       {/* Capacity / tier total live bar */}
       {capacityNum > 0 && (
@@ -133,9 +117,8 @@ export default function CapacityTiersStep({
                 <TierForm
                   key={tier.key}
                   initial={tier}
-                  isFree={draft.isFree}
                   onSave={(updated) => {
-                    onEditTier(draft.isFree ? { ...updated, price: '0' } : updated);
+                    onEditTier(updated);
                     setEditingKey(null);
                   }}
                   onCancel={() => setEditingKey(null)}
@@ -153,8 +136,7 @@ export default function CapacityTiersStep({
                     <div>
                       <p className="font-medium text-gray-800 text-sm">{tier.name}</p>
                       <p className="text-xs text-gray-500">
-                        {draft.isFree ? 'Free' : `₱${parseFloat(tier.price || '0').toLocaleString()}`} · {tier.totalQuantity} total · max {tier.maxPerOrder}/order
-                        {tier.inclusions.length > 0 ? ` · ${tier.inclusions.length} inclusion${tier.inclusions.length === 1 ? '' : 's'}` : ''}
+                        ₱{parseFloat(tier.price || '0').toLocaleString()} · {tier.totalQuantity} total · max {tier.maxPerOrder}/order
                       </p>
                     </div>
                   </div>
@@ -175,7 +157,6 @@ export default function CapacityTiersStep({
           <TierForm
             key={tierKey}
             initial={emptyTier(tierKey)}
-            isFree={draft.isFree}
             onSave={handleAdd}
             onCancel={() => setShowAdd(false)}
           />

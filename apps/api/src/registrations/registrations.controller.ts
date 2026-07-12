@@ -19,8 +19,6 @@ import { JwtPayload } from '@axon-tickets/types';
 import { RegistrationsService } from './registrations.service';
 import { CreateRegistrationDto } from './dto/create-registration.dto';
 import { UpdateRegistrationAttendeesDto } from './dto/update-registration-attendees.dto';
-import { ValidateReferralCodeDto } from '../admin/dto/referral-code.dto';
-import { Throttle } from '@nestjs/throttler';
 
 @ApiTags('registrations')
 @Controller('registrations')
@@ -42,14 +40,6 @@ export class RegistrationsController {
       req.ip ??
       '';
     return this.registrationsService.create(dto, user.sub, ip);
-  }
-
-  @Post('validate-referral')
-  @Throttle({ default: { ttl: 60_000, limit: 10 } })
-  @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Validate an event referral code and preview its discount' })
-  validateReferral(@Body() dto: ValidateReferralCodeDto) {
-    return this.registrationsService.validateReferralCode(dto);
   }
 
   @Get('my')
@@ -99,3 +89,4 @@ export class RegistrationsController {
     return this.registrationsService.cancel(id, user.sub);
   }
 }
+

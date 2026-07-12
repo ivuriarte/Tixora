@@ -75,41 +75,6 @@ async function main() {
     },
   });
 
-  const platformOrg = await prisma.organization.upsert({
-    where: { id: deterministicId('org-platform') },
-    update: {},
-    create: {
-      id: deterministicId('org-platform'),
-      name: 'Axon Tickets Platform',
-      description: 'Internal platform organization for seeded UAT events.',
-      contactName: 'Axon Tickets Admin',
-      phone: '+639171234567',
-      city: 'Manila',
-      idType: 'philsys',
-      idNumber: 'PLATFORM-UAT',
-      organizationType: 'company',
-      approvalStatus: 'approved',
-      approvedById: admin.id,
-      approvedAt: new Date(),
-      createdById: admin.id,
-    },
-  });
-
-  await prisma.organizationMember.upsert({
-    where: {
-      userId_organizationId: {
-        userId: admin.id,
-        organizationId: platformOrg.id,
-      },
-    },
-    update: { role: 'owner' },
-    create: {
-      userId: admin.id,
-      organizationId: platformOrg.id,
-      role: 'owner',
-    },
-  });
-
   process.stdout.write(`✅ Admin:      ${admin.email}\n`);
   if (showGeneratedPassword) {
     process.stdout.write(`🔑 Password:   ${adminPassword}  ← save this now\n`);
@@ -162,7 +127,7 @@ async function main() {
   // ── Event 1: Leadership Conference ──────────────────────────────────────
   const conf = await prisma.event.upsert({
     where: { slug: 'uat-leadership-conference-2026' },
-    update: { organizationId: platformOrg.id },
+    update: {},
     create: {
       id: deterministicId('event-conf'),
       slug: 'uat-leadership-conference-2026',
@@ -186,7 +151,6 @@ async function main() {
       bankAccountNumber: '1234567890',
       bankAccountName: 'UAT Test Account',
       createdById: admin.id,
-      organizationId: platformOrg.id,
     },
   });
 
@@ -198,7 +162,7 @@ async function main() {
       eventId: conf.id,
       name: 'VIP',
       description: 'Front-row seating, lunch included, exclusive Q&A session',
-      price: 350000,
+      price: 3500,
       totalQuantity: 30,
       soldQuantity: 1,
       maxPerOrder: 2,
@@ -214,7 +178,7 @@ async function main() {
       eventId: conf.id,
       name: 'General Admission',
       description: 'Standard seating',
-      price: 150000,
+      price: 1500,
       totalQuantity: 150,
       soldQuantity: 5,
       maxPerOrder: 5,
@@ -230,7 +194,7 @@ async function main() {
       eventId: conf.id,
       name: 'Early Bird',
       description: 'Sold out — discount tier for testing sold-out UI',
-      price: 99900,
+      price: 999,
       totalQuantity: 20,
       soldQuantity: 20,
       maxPerOrder: 2,
@@ -241,7 +205,7 @@ async function main() {
   // ── Event 2: Fun Run ─────────────────────────────────────────────────────
   const funrun = await prisma.event.upsert({
     where: { slug: 'uat-fun-run-2026' },
-    update: { organizationId: platformOrg.id },
+    update: {},
     create: {
       id: deterministicId('event-funrun'),
       slug: 'uat-fun-run-2026',
@@ -259,7 +223,6 @@ async function main() {
       allowManualPayment: true,
       gcashNumber: '09181234567',
       createdById: admin.id,
-      organizationId: platformOrg.id,
     },
   });
 
@@ -270,7 +233,7 @@ async function main() {
       id: deterministicId('tier-funrun-5k'),
       eventId: funrun.id,
       name: '5K Run',
-      price: 50000,
+      price: 500,
       totalQuantity: 200,
       soldQuantity: 2,
       maxPerOrder: 3,
@@ -285,7 +248,7 @@ async function main() {
       id: deterministicId('tier-funrun-10k'),
       eventId: funrun.id,
       name: '10K Run',
-      price: 80000,
+      price: 800,
       totalQuantity: 150,
       soldQuantity: 1,
       maxPerOrder: 3,
@@ -323,7 +286,7 @@ async function main() {
   }) {
     const qty = opts.attendees.length;
     const subtotal = opts.tier.price * qty;
-    const fees = 5000;
+    const fees = 50 * qty;
 
     const reg = await prisma.registration.upsert({
       where: { referenceNumber: opts.refNum },

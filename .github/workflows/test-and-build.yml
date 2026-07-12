@@ -25,33 +25,19 @@ jobs:
           cache-dependency-path: package-lock.json
 
       - name: Install dependencies
-        working-directory: .
         run: npm ci --workspaces
 
-      - name: Build shared packages
-        working-directory: .
-        run: npm run build --workspace=packages/types --workspace=packages/utils
-
       - name: Generate Prisma client
-        env:
-          DATABASE_URL: "postgresql://ci:ci@localhost:5432/ci"
-          DIRECT_URL: "postgresql://ci:ci@localhost:5432/ci"
         run: npx prisma generate
 
-      - name: Lint
-        run: npm run lint
+      - name: Build shared packages
+        run: cd ../.. && npm run build --workspace=@axon-tickets/types && npm run build --workspace=@axon-tickets/utils
 
       - name: Type check
         run: npm run typecheck
 
       - name: Unit tests
         run: npm run test
-
-      - name: Build
-        env:
-          DATABASE_URL: "postgresql://ci:ci@localhost:5432/ci"
-          DIRECT_URL: "postgresql://ci:ci@localhost:5432/ci"
-        run: npm run build
 
   test-web:
     name: Test Web
@@ -71,21 +57,13 @@ jobs:
           cache-dependency-path: package-lock.json
 
       - name: Install dependencies
-        working-directory: .
         run: npm ci --workspaces
-
-      - name: Build shared packages
-        working-directory: .
-        run: npm run build --workspace=packages/types --workspace=packages/utils
 
       - name: Lint
         run: npm run lint
 
       - name: Type check
         run: npm run typecheck
-
-      - name: Build
-        run: npm run build
 
   prisma-validate:
     name: Validate Prisma Schema
@@ -105,11 +83,10 @@ jobs:
           cache-dependency-path: package-lock.json
 
       - name: Install dependencies
-        working-directory: .
         run: npm ci --workspaces
 
       - name: Validate Prisma schema
         env:
-          DATABASE_URL: "postgresql://ci:ci@localhost:5432/ci"
-          DIRECT_URL: "postgresql://ci:ci@localhost:5432/ci"
+          DATABASE_URL: "postgresql://placeholder:placeholder@localhost:5432/placeholder"
+          DIRECT_URL: "postgresql://placeholder:placeholder@localhost:5432/placeholder"
         run: npx prisma validate

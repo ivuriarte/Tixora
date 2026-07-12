@@ -56,21 +56,13 @@
 - Verify internal `otp_verification_failed` increments.
 
 8. Profile completion
-- New user fills required name, birthday, gender, and city and continues.
-- Verify missing, future, or implausibly old birthdays and blank city are rejected.
+- New user fills required name and continues.
 - Verify internal `profile_completed` increments.
 
 9. Ticket selection started
 - Reach attendee details / registration page after auth.
 - Verify `TicketSelection_Started` fires.
 - Verify internal `ticket_selection_started` increments.
-
-9A. Referral validation and pricing
-- Apply valid percentage and fixed-amount referral codes.
-- Verify inactive, expired, future, wrong-tier, and exhausted codes fail safely.
-- Verify the discount is calculated server-side and shown consistently through confirmation.
-- Tamper with the client request and confirm submitted discount values are ignored.
-- Run a concurrent last-use redemption and confirm the usage limit is not exceeded.
 
 10. Checkout started
 - Reach payment step page.
@@ -92,9 +84,6 @@
 - No OTP code appears in server logs.
 - No secrets/provider keys exposed in client payloads.
 - Funnel metadata only contains safe diagnostics.
-- Referral exports and management endpoints require event ownership.
-- Public responses do not expose birthday, gender, or city.
-- Demographic exports are limited to authorized event managers.
 
 ## Reliability checks
 - Registration still works when Meta Pixel is blocked.

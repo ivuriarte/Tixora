@@ -1,32 +1,34 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import Image from 'next/image';
 import { useAuthStore } from '@/store/auth.store';
 import { getRefreshToken } from '@/lib/auth';
-import AdminSidebar from '@/components/admin/AdminSidebar';
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const { user, isAuthenticated, isHydrating } = useAuthStore();
   const router = useRouter();
-  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   useEffect(() => {
+    // If there's no refresh token at all, redirect immediately — no hydration needed.
     if (!getRefreshToken()) {
       router.replace('/auth/admin');
       return;
     }
+    // While AuthHydrator is in-flight, do nothing. Once it completes
+    // (isHydrating=false), enforce the admin check below.
   }, [router]);
 
   useEffect(() => {
     if (isHydrating) return;
-    if (!isAuthenticated || (!user?.isAdmin && user?.loginPortal !== 'organizer')) {
-      router.replace(getRefreshToken() ? '/' : '/auth/admin');
+    if (!isAuthenticated || !user?.isAdmin) {
+      router.replace('/auth/admin');
     }
   }, [isHydrating, isAuthenticated, user, router]);
 
-  if (isHydrating || !isAuthenticated || (!user?.isAdmin && user?.loginPortal !== 'organizer')) {
+  // Show spinner while we have a token but hydration is still in-flight,
+  // or while we're waiting for the redirect to complete.
+  if (isHydrating || !isAuthenticated || !user?.isAdmin) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin" />
@@ -34,28 +36,5 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     );
   }
 
-  return (
-    <div className="flex min-h-screen bg-gray-50">
-      {/* Mobile top bar */}
-      <div className="md:hidden fixed top-0 left-0 right-0 z-40 h-14 flex items-center gap-3 px-4 bg-white border-b border-gray-200">
-        <button
-          onClick={() => setSidebarOpen(true)}
-          aria-label="Open navigation"
-          className="p-1.5 rounded-lg text-gray-600 hover:bg-gray-100 transition-colors"
-        >
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" aria-hidden>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
-          </svg>
-        </button>
-        <Image src="/axon-logo.svg" alt="Axon Tickets" width={100} height={20} priority unoptimized />
-      </div>
-
-      <AdminSidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
-
-      {/* Main content — offset by mobile top bar height */}
-      <div className="flex-1 min-w-0 pt-14 md:pt-0">
-        {children}
-      </div>
-    </div>
-  );
+  return <>{children}</>;
 }

@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import Navbar from '@/components/Navbar';
 import api from '@/lib/api';
 import toast from 'react-hot-toast';
 import WizardShell from '@/components/event-wizard/WizardShell';
@@ -10,8 +11,8 @@ import LocationStep from '@/components/event-wizard/steps/LocationStep';
 import CapacityTiersStep from '@/components/event-wizard/steps/CapacityTiersStep';
 import ConferenceStep from '@/components/event-wizard/steps/ConferenceStep';
 import PaymentStep from '@/components/event-wizard/steps/PaymentStep';
+import FeaturedStep from '@/components/event-wizard/steps/FeaturedStep';
 import ReviewStep from '@/components/event-wizard/steps/ReviewStep';
-import ReferralCodesPanel, { type ReferralDraft } from '@/components/event-wizard/ReferralCodesPanel';
 import {
   emptyDraft,
   combineDatetime,
@@ -34,18 +35,10 @@ async function postWithRetry(url: string, body: object): Promise<{ data: unknown
 export default function AdminNewEventPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
-  const [platformFee, setPlatformFee] = useState<number | null>(null);
 
   const [draft, setDraft] = useState<EventDraft>(emptyDraft());
   const [tiers, setTiers] = useState<LocalTier[]>([]);
   const [paymentMethods, setPaymentMethods] = useState<LocalPaymentMethod[]>([]);
-  const [referralCodes, setReferralCodes] = useState<ReferralDraft[]>([]);
-
-  useEffect(() => {
-    api.get<{ data: { serviceFee: number } }>('/admin/settings/platform')
-      .then((res) => setPlatformFee(res.data.data.serviceFee))
-      .catch(() => setPlatformFee(50));
-  }, []);
 
   // ── Draft restoration banner ───────────────────────────────────────────
   const [restorePrompt, setRestorePrompt] = useState<null | {
@@ -134,8 +127,7 @@ export default function AdminNewEventPage() {
         latitude: draft.latitude.trim() ? parseFloat(draft.latitude) : undefined,
         longitude: draft.longitude.trim() ? parseFloat(draft.longitude) : undefined,
         maxCapacity: draft.maxCapacity.trim() === '' ? undefined : parseInt(draft.maxCapacity, 10),
-        isFree: draft.isFree,
-        platformFee: draft.isFree ? 0 : platformFee ?? undefined,
+        platformFee: parseFloat(draft.platformFee) || 50,
         startsAt: startsAtISO,
         endsAt: endsAtISO ?? undefined,
         speakerName: draft.speakerName.trim() || undefined,
@@ -151,6 +143,11 @@ export default function AdminNewEventPage() {
             }))
           : undefined,
         tagline: draft.tagline.trim() || undefined,
+        isFeatured: draft.isFeatured,
+        featuredOrder: draft.featuredOrder.trim() ? parseInt(draft.featuredOrder, 10) : undefined,
+        featuredUntil: draft.featuredUntil
+          ? new Date(`${draft.featuredUntil}T23:59:59+08:00`).toISOString()
+          : undefined,
       };
       if (draft.agenda.length > 0) {
         const cleaned = draft.agenda
@@ -171,13 +168,10 @@ export default function AdminNewEventPage() {
             ...(s.logoUrl && { logoUrl: s.logoUrl }),
             ...(s.tier && { tier: s.tier }),
             ...(s.websiteUrl?.trim() && { websiteUrl: s.websiteUrl.trim() }),
-            ...(s.description?.trim() && { description: s.description.trim() }),
-            isVisible: s.isVisible,
           }))
           .filter((s) => s.name.length > 0);
         if (cleaned.length > 0) payload.sponsors = cleaned;
       }
-      if (draft.customSections.length > 0) payload.customSections = draft.customSections;
       if (draft.faqs.length > 0) {
         const cleaned = draft.faqs
           .filter((f) => f && typeof f === 'object' && !Array.isArray(f))
@@ -192,49 +186,24 @@ export default function AdminNewEventPage() {
       const { data: eventData } = await api.post<{ data: { id: string } }>('/admin/events', payload);
       const eventId = eventData.data.id;
 
-      let createdTierIds = new Map<number, string>();
       try {
-        const tierResults = await Promise.all(
+        await Promise.all(
           tiers.map((t, idx) =>
             postWithRetry(`/admin/events/${eventId}/tiers`, {
               name: t.name.trim(),
               description: t.description.trim() || undefined,
-              price: parseFloat(t.price),
+              price: Math.round(parseFloat(t.price) * 100),
               totalQuantity: parseInt(t.totalQuantity, 10),
               maxPerOrder: parseInt(t.maxPerOrder, 10),
               isVisible: t.isVisible,
               sortOrder: idx,
-              inclusions: t.inclusions.map((item, inclusionIdx) => ({
-                label: item.label.trim(),
-                stubEnabled: item.stubEnabled,
-                sortOrder: inclusionIdx,
-              })),
             }),
           ),
         );
-        createdTierIds = new Map(tierResults.map((result, index) => {
-          const body = result.data as { data?: { id?: string }; id?: string };
-          return [tiers[index].key, body.data?.id ?? body.id ?? ''] as [number, string];
-        }).filter((entry) => Boolean(entry[1])));
       } catch (tierErr) {
         // Roll back the orphaned event so the user can safely retry from scratch
         try { await api.delete(`/admin/events/${eventId}`); } catch { /* best-effort */ }
         throw tierErr;
-      }
-
-      if (referralCodes.length > 0) {
-        try {
-          await Promise.all(referralCodes.map((code) => api.post(`/admin/events/${eventId}/referral-codes`, {
-            name: code.name.trim(), code: code.code.trim().toUpperCase(), discountType: code.discountType,
-            discountValue: Number(code.discountValue), ...(code.maxUses && { maxUses: Number(code.maxUses) }),
-            ...(code.validFrom && { validFrom: new Date(code.validFrom).toISOString() }),
-            ...(code.validUntil && { validUntil: new Date(code.validUntil).toISOString() }),
-            ...(code.applicableTierIds.length > 0 && { applicableTierIds: code.applicableTierIds.map((tierId) => tierId.startsWith('local:') ? createdTierIds.get(Number(tierId.slice(6))) : tierId).filter(Boolean) }),
-          })));
-        } catch (referralError) {
-          try { await api.delete(`/admin/events/${eventId}`); } catch { /* best-effort rollback */ }
-          throw referralError;
-        }
       }
 
       clearDraft();
@@ -291,7 +260,9 @@ export default function AdminNewEventPage() {
   ) : null;
 
   return (
-    <WizardShell
+    <>
+      <Navbar />
+      <WizardShell
         title="New Event"
         draft={draft}
         tiers={tiers}
@@ -314,18 +285,16 @@ export default function AdminNewEventPage() {
                   onReorderTiers={setTiers}
                 />
               );
-            case 'details': return <ConferenceStep draft={draft} update={update} />;
+            case 'conference': return <ConferenceStep draft={draft} update={update} />;
             case 'payment':
-              return (<>
+              return (
                 <PaymentStep
                   paymentMethods={paymentMethods}
                   onAdd={addPM} onEdit={editPM} onRemove={removePM}
                   onReorder={setPaymentMethods}
-                  platformFee={platformFee}
-                  isFree={draft.isFree}
                 />
-                <ReferralCodesPanel tiers={tiers} pending={referralCodes} onPendingChange={setReferralCodes} />
-              </>);
+              );
+            case 'featured': return <FeaturedStep draft={draft} update={update} />;
             case 'review':
               return (
                 <ReviewStep
@@ -335,5 +304,6 @@ export default function AdminNewEventPage() {
           }
         }}
       />
+    </>
   );
 }

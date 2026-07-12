@@ -66,21 +66,12 @@ module.exports = {
           '0%, 100%': { opacity: '1' },
           '50%': { opacity: '0.6' },
         },
-        'popup-enter': {
-          from: { opacity: '0', transform: 'scale(0.88) translateY(16px)' },
-          to:   { opacity: '1', transform: 'scale(1) translateY(0)' },
-        },
-        'drain': {
-          from: { width: '100%' },
-          to:   { width: '0%' },
-        },
       },
       animation: {
         'fade-in': 'fade-in 0.18s ease-out',
         'fade-in-up': 'fade-in-up 0.25s ease-out',
         'slide-down': 'slide-down 0.2s ease-out',
         'pulse-soft': 'pulse-soft 1.5s ease-in-out infinite',
-        'popup-enter': 'popup-enter 0.22s cubic-bezier(0.34, 1.56, 0.64, 1)',
       },
     },
   },

@@ -1,13 +1,5 @@
 import type { SponsorItem, FaqItem, AgendaItem } from '@/components/ConferenceFields';
 
-export interface CustomSectionItem {
-  title: string;
-  description: string;
-  imageUrl: string;
-  imageAlt: string;
-  isVisible: boolean;
-}
-
 export interface LocalTier {
   key: number;
   serverId?: string; // present when the tier already exists on the server
@@ -17,17 +9,9 @@ export interface LocalTier {
   totalQuantity: string;
   maxPerOrder: string;
   isVisible: boolean;
-  inclusions: LocalTierInclusion[];
   soldQuantity?: number;
   /** Position in the list. Persisted to API as `sortOrder` so the tier order survives reloads. */
   sortOrder?: number;
-}
-
-export interface LocalTierInclusion {
-  id?: string;
-  label: string;
-  stubEnabled: boolean;
-  sortOrder: number;
 }
 
 export interface LocalPaymentMethod {
@@ -64,8 +48,6 @@ export interface EventDraftLocation {
 
 export interface EventDraftCapacity {
   maxCapacity: string;
-  /** Free events collect no ticket amount and no platform fee. */
-  isFree: boolean;
   /** Per-event service fee in pesos (string for form input). Default '50'. */
   platformFee: string;
 }
@@ -77,7 +59,9 @@ export interface EventDraft
   agenda: AgendaItem[];
   sponsors: SponsorItem[];
   faqs: FaqItem[];
-  customSections: CustomSectionItem[];
+  isFeatured: boolean;
+  featuredOrder: string;
+  featuredUntil: string;
 }
 
 export interface StepMeta {
@@ -85,8 +69,9 @@ export interface StepMeta {
     | 'basics'
     | 'location'
     | 'capacity'
-    | 'details'
+    | 'conference'
     | 'payment'
+    | 'featured'
     | 'review';
   readonly label: string;
   readonly short: string;
@@ -97,15 +82,16 @@ export const STEPS: readonly StepMeta[] = [
   { id: 'basics', label: 'Basics', short: '1' },
   { id: 'location', label: 'Location & Schedule', short: '2' },
   { id: 'capacity', label: 'Capacity & Tiers', short: '3' },
-  { id: 'details', label: 'Event Program & Details', short: '4', optional: true },
+  { id: 'conference', label: 'Conference', short: '4', optional: true },
   { id: 'payment', label: 'Payment', short: '5', optional: true },
-  { id: 'review', label: 'Review', short: '6' },
+  { id: 'featured', label: 'Featured', short: '6', optional: true },
+  { id: 'review', label: 'Review', short: '7' },
 ];
 
 export type StepId = StepMeta['id'];
 
 export function emptyTier(key: number): LocalTier {
-  return { key, name: '', description: '', price: '', totalQuantity: '', maxPerOrder: '', isVisible: true, inclusions: [], sortOrder: 0 };
+  return { key, name: '', description: '', price: '', totalQuantity: '', maxPerOrder: '', isVisible: true, sortOrder: 0 };
 }
 
 export function emptyPM(key: number): LocalPaymentMethod {
@@ -130,12 +116,13 @@ export function emptyDraft(): EventDraft {
     endDate: '',
     endTime: '',
     maxCapacity: '',
-    isFree: false,
     platformFee: '50',
     agenda: [],
     sponsors: [],
     faqs: [],
-    customSections: [],
+    isFeatured: false,
+    featuredOrder: '',
+    featuredUntil: '',
   };
 }
 
@@ -196,8 +183,9 @@ export function validateStep(
     case 'basics': return validateBasics(draft);
     case 'location': return validateLocation(draft);
     case 'capacity': return validateCapacity(draft, tiers);
-    case 'details':
+    case 'conference':
     case 'payment':
+    case 'featured':
     case 'review':
       return null;
   }

@@ -3,6 +3,7 @@
 import { useParams } from 'next/navigation';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '@/lib/api';
+import Navbar from '@/components/Navbar';
 import Link from 'next/link';
 import toast from 'react-hot-toast';
 import { formatShortDate } from '@axon-tickets/utils';
@@ -78,30 +79,38 @@ export default function AdminOrderDetailPage() {
     onError: (err: any) => toast.error(err?.response?.data?.message ?? 'Failed to confirm payment'),
   });
 
-  const fmt = (pesos: number) =>
-    `₱${pesos.toLocaleString('en-PH', { minimumFractionDigits: 2 })}`;
+  const fmt = (centavos: number) =>
+    `₱${(centavos / 100).toLocaleString('en-PH', { minimumFractionDigits: 2 })}`;
 
   if (isLoading) {
     return (
-      <main className="max-w-3xl mx-auto px-4 py-10">
-        <p className="text-gray-400">Loading…</p>
-      </main>
+      <>
+        <Navbar />
+        <main className="max-w-3xl mx-auto px-4 py-10">
+          <p className="text-gray-400">Loading…</p>
+        </main>
+      </>
     );
   }
 
   if (!order) {
     return (
-      <main className="max-w-3xl mx-auto px-4 py-10">
-        <p className="text-red-500">Order not found.</p>
-        <Link href="/admin/orders" className="text-primary hover:underline text-sm mt-2 block">
-          ← Back to Orders
-        </Link>
-      </main>
+      <>
+        <Navbar />
+        <main className="max-w-3xl mx-auto px-4 py-10">
+          <p className="text-red-500">Order not found.</p>
+          <Link href="/admin/orders" className="text-primary hover:underline text-sm mt-2 block">
+            ← Back to Orders
+          </Link>
+        </main>
+      </>
     );
   }
 
   return (
-    <main className="max-w-3xl mx-auto px-4 py-10 space-y-6">
+    <>
+      <Navbar />
+      <main className="max-w-3xl mx-auto px-4 py-10 space-y-6">
         {/* Header */}
         <div className="flex items-start justify-between">
           <div>
@@ -241,6 +250,7 @@ export default function AdminOrderDetailPage() {
             </div>
           </section>
         )}
-    </main>
+      </main>
+    </>
   );
 }

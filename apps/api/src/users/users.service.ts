@@ -40,19 +40,21 @@ export class UsersService {
     }
     if (dto.birthday) {
       const birthday = new Date(`${dto.birthday}T00:00:00.000Z`);
-      const earliest = new Date(); earliest.setUTCFullYear(earliest.getUTCFullYear() - 120);
+      const earliest = new Date();
+      earliest.setUTCFullYear(earliest.getUTCFullYear() - 120);
       if (!Number.isFinite(birthday.getTime()) || birthday > new Date() || birthday < earliest) {
         throw new BadRequestException('Birthday must be a valid past date within the last 120 years.');
       }
     }
-    const data: Record<string, string | null | undefined> = {};
+
+    const data: Record<string, Date | string | null | undefined> = {};
     if (dto.firstName !== undefined) data.firstName = dto.firstName;
     if (dto.lastName !== undefined) data.lastName = dto.lastName;
     if (dto.phone !== undefined) data.phone = dto.phone || null;
     if (dto.company !== undefined) data.company = dto.company || null;
     if (dto.jobTitle !== undefined) data.jobTitle = dto.jobTitle || null;
     if (dto.city !== undefined) data.city = dto.city.trim() || null;
-    if (dto.birthday !== undefined) data.birthday = dto.birthday ? new Date(`${dto.birthday}T00:00:00.000Z`) as any : null;
+    if (dto.birthday !== undefined) data.birthday = dto.birthday ? new Date(`${dto.birthday}T00:00:00.000Z`) : null;
     if (dto.gender !== undefined) data.gender = dto.gender || null;
 
     return this.prisma.user.update({

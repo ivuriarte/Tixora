@@ -12,7 +12,6 @@ interface Tier {
   id: string;
   name: string;
   price: number;
-  inclusions?: Array<{ id?: string; label: string; stubEnabled?: boolean; sortOrder?: number }>;
   availableQuantity: number;
   totalQuantity: number;
   maxPerOrder: number;
@@ -21,9 +20,8 @@ interface Tier {
 }
 
 interface AgendaItem { time: string; title: string; description?: string; }
-interface Sponsor { name: string; logoUrl?: string; tier?: string; websiteUrl?: string; description?: string; isVisible?: boolean; }
+interface Sponsor { name: string; logoUrl?: string; tier?: string; websiteUrl?: string; }
 interface Faq { question: string; answer: string; }
-interface CustomSection { title: string; description: string; imageUrl?: string; imageAlt?: string; isVisible?: boolean; }
 
 interface Event {
   id: string;
@@ -38,19 +36,15 @@ interface Event {
   longitude?: number | null;
   startsAt: string;
   endsAt?: string | null;
-  createdAt: string;
   imageUrl?: string | null;
   status: string;
   maxPerUser: number;
   tiers: Tier[];
-  isFree?: boolean;
   // Conference fields
   speakerName?: string | null;
   agenda?: AgendaItem[] | null;
   sponsors?: Sponsor[] | null;
   faqs?: Faq[] | null;
-  customSections?: CustomSection[] | null;
-  organizerName?: string | null;
   // Payment
   allowManualPayment?: boolean;
   bankName?: string | null;
@@ -81,25 +75,10 @@ async function getEvent(slug: string): Promise<Event | null> {
 export async function generateMetadata({ params }: { params: { slug: string } }) {
   const event = await getEvent(params.slug);
   if (!event) return {};
-  const description = event.description?.slice(0, 150);
-  const canonical = `/events/${event.slug}`;
   return {
     title: `${event.title} — Axon Tickets`,
-    description,
-    alternates: { canonical },
-    openGraph: {
-      title: event.title,
-      description,
-      type: 'website',
-      url: canonical,
-      images: event.imageUrl ? [{ url: event.imageUrl, alt: event.title }] : ['/og-image.png'],
-    },
-    twitter: {
-      card: 'summary_large_image',
-      title: event.title,
-      description,
-      images: event.imageUrl ? [event.imageUrl] : ['/og-image.png'],
-    },
+    description: event.description?.slice(0, 150),
+    openGraph: { title: event.title, images: event.imageUrl ? [event.imageUrl] : [] },
   };
 }
 
@@ -152,71 +131,15 @@ export default async function EventPage({ params, searchParams }: { params: { sl
   const isPreview = searchParams.preview === '1';
   const isSoldOut = event.status === 'sold_out';
   const isCancelled = event.status === 'cancelled';
-  const siteUrl = process.env.NEXT_PUBLIC_APP_ENV === 'uat'
-    ? 'https://uat.axontickets.online'
-    : 'https://axontickets.online';
-  const jsonLd = {
-    '@context': 'https://schema.org',
-    '@type': 'Event',
-    name: event.title,
-    description: event.description,
-    startDate: event.startsAt,
-    endDate: event.endsAt ?? event.startsAt,
-    eventStatus: isCancelled
-      ? 'https://schema.org/EventCancelled'
-      : 'https://schema.org/EventScheduled',
-    eventAttendanceMode: 'https://schema.org/OfflineEventAttendanceMode',
-    url: `${siteUrl}/events/${event.slug}`,
-    image: [event.imageUrl ?? `${siteUrl}/og-image.png`],
-    location: {
-      '@type': 'Place',
-      name: event.venue,
-      address: {
-        '@type': 'PostalAddress',
-        streetAddress: event.address ?? event.venue,
-        addressLocality: event.city,
-        addressCountry: 'PH',
-      },
-    },
-    organizer: {
-      '@type': 'Organization',
-      name: event.organizerName ?? 'Axon Tickets',
-      url: siteUrl,
-    },
-    offers: event.tiers.map((tier) => ({
-      '@type': 'Offer',
-      name: tier.name,
-      price: event.isFree ? 0 : tier.price,
-      priceCurrency: 'PHP',
-      availability: tier.availableQuantity > 0
-        ? 'https://schema.org/InStock'
-        : 'https://schema.org/SoldOut',
-      url: `${siteUrl}/events/${event.slug}`,
-      validFrom: tier.saleStartsAt ?? event.createdAt,
-    })),
-  };
-  // JSON-LD must be emitted as raw JSON. Escaping '<' prevents organizer-controlled
-  // text from closing the script element and creating an HTML injection sink.
-  const serializedJsonLd = JSON.stringify(jsonLd).replace(/</g, '\\u003c');
 
   const agenda = sanitizeList<AgendaItem>(event.agenda, ['title']);
-  const tierOrder = ['Platinum', 'Gold', 'Silver', 'Bronze', 'Partner', 'Media Partner', 'Community Partner'];
-  const sponsors = sanitizeList<Sponsor>(event.sponsors, ['name'])
-    .filter((s) => s.isVisible !== false)
-    .map((s, index) => ({ ...s, originalIndex: index }))
-    .sort((a, b) => {
-      const rankA = a.tier ? tierOrder.indexOf(a.tier) : tierOrder.length;
-      const rankB = b.tier ? tierOrder.indexOf(b.tier) : tierOrder.length;
-      return (rankA < 0 ? tierOrder.length : rankA) - (rankB < 0 ? tierOrder.length : rankB) || a.originalIndex - b.originalIndex;
-    });
+  const sponsors = sanitizeList<Sponsor>(event.sponsors, ['name']);
   const faqs = sanitizeList<Faq>(event.faqs, ['question', 'answer']);
-  const customSections = sanitizeList<CustomSection>(event.customSections, ['title', 'description']).filter((section) => section.isVisible !== false);
 
   return (
     <>
       <Navbar />
       <main className="page-container py-10">
-        <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: serializedJsonLd }} />
         <EventFunnelTracker eventId={event.id} eventSlug={event.slug} eventTitle={event.title} />
         {isPreview && (
           <div className="mb-6 flex items-center justify-between bg-amber-50 border border-amber-200 rounded-xl px-4 py-3">
@@ -266,8 +189,6 @@ export default async function EventPage({ params, searchParams }: { params: { sl
                 venue={event.venue}
                 address={event.address}
                 city={event.city}
-                latitude={event.latitude}
-                longitude={event.longitude}
               />
             </div>
 
@@ -294,79 +215,29 @@ export default async function EventPage({ params, searchParams }: { params: { sl
             {/* Sponsors */}
             {sponsors.length > 0 && (
               <div>
-                <h2 className="text-lg font-semibold text-gray-900 mb-6 text-center">Sponsors &amp; Partners</h2>
-                {(() => {
-                  const TIER_ORDER = ['platinum', 'gold', 'silver', 'bronze'];
-                  const TIER_HEIGHT: Record<string, string> = {
-                    platinum: 'h-24',
-                    gold: 'h-16',
-                    silver: 'h-12',
-                    bronze: 'h-10',
-                  };
-                  const grouped = sponsors.reduce<Record<string, Sponsor[]>>((acc, s) => {
-                    const key = s.tier?.toLowerCase() ?? '__none__';
-                    (acc[key] ??= []).push(s);
-                    return acc;
-                  }, {});
-                  const sortedKeys = Object.keys(grouped).sort((a, b) => {
-                    if (a === '__none__') return 1;
-                    if (b === '__none__') return -1;
-                    const ai = TIER_ORDER.indexOf(a);
-                    const bi = TIER_ORDER.indexOf(b);
-                    if (ai === -1 && bi === -1) return a.localeCompare(b);
-                    if (ai === -1) return 1;
-                    if (bi === -1) return -1;
-                    return ai - bi;
-                  });
-                  return sortedKeys.map((tierKey) => {
-                    const tierSponsors = grouped[tierKey];
-                    const tierLabel = tierKey === '__none__' ? null : tierKey.charAt(0).toUpperCase() + tierKey.slice(1);
-                    const logoHeight = TIER_HEIGHT[tierKey] ?? 'h-16';
+                <h2 className="text-lg font-semibold text-gray-900 mb-4">Sponsors &amp; Partners</h2>
+                <div className="flex flex-wrap gap-6 items-center">
+                  {sponsors.map((s, i) => {
+                    const inner = s.logoUrl ? (
+                      <div className="flex items-center justify-center bg-white border border-gray-200 rounded-xl px-5 py-3 shadow-sm h-16 min-w-[100px] transition-opacity hover:opacity-80">
+                        <Image src={s.logoUrl} alt={s.name} width={120} height={40} className="h-10 w-auto object-contain" unoptimized />
+                      </div>
+                    ) : (
+                      <span className="inline-block bg-gray-100 text-gray-700 font-medium px-4 py-2 rounded-lg text-sm hover:bg-gray-200 transition-colors">{s.name}</span>
+                    );
                     return (
-                      <div key={tierKey} className="mb-8 last:mb-0">
-                        {tierLabel && (
-                          <div className="flex items-center gap-3 mb-5">
-                            <div className="flex-1 h-px bg-gray-200" />
-                            <span className="text-[10px] font-semibold uppercase tracking-[0.15em] text-gray-400">{tierLabel}</span>
-                            <div className="flex-1 h-px bg-gray-200" />
-                          </div>
-                        )}
-                        <div className="flex flex-wrap items-center justify-center gap-8">
-                          {tierSponsors.map((s, i) => {
-                            const logo = s.logoUrl ? (
-                              /* eslint-disable-next-line @next/next/no-img-element */
-                              <img src={s.logoUrl} alt={`${s.name} logo`} loading="lazy" decoding="async" className={`${logoHeight} w-auto max-w-[280px] object-contain grayscale opacity-60 transition-all duration-200 hover:grayscale-0 hover:opacity-100`} />
-                            ) : (
-                              <span className="text-sm font-semibold text-gray-500">{s.name}</span>
-                            );
-                            return (
-                              <div key={i} className="flex items-center justify-center">
-                                {s.websiteUrl ? (
-                                  <a href={s.websiteUrl} target="_blank" rel="noopener noreferrer" aria-label={`Visit ${s.name}`}>{logo}</a>
-                                ) : logo}
-                              </div>
-                            );
-                          })}
-                        </div>
+                      <div key={i} className="text-center">
+                        {s.websiteUrl ? (
+                          <a href={s.websiteUrl} target="_blank" rel="noopener noreferrer" aria-label={`Visit ${s.name}`}>
+                            {inner}
+                          </a>
+                        ) : inner}
                       </div>
                     );
-                  });
-                })()}
+                  })}
+                </div>
               </div>
             )}
-
-            {customSections.map((section, index) => (
-              <section key={`${section.title}-${index}`} className="overflow-hidden rounded-2xl border border-gray-200 bg-white">
-                {section.imageUrl && (
-                  <div className="aspect-[16/7] overflow-hidden">
-                    {/* External organizer asset; deliberately not proxied by next/image. */}
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={section.imageUrl} alt={section.imageAlt || section.title} loading="lazy" decoding="async" className="h-full w-full object-cover" />
-                  </div>
-                )}
-                <div className="p-5 sm:p-6"><h2 className="text-xl font-bold text-gray-900">{section.title}</h2><p className="mt-3 whitespace-pre-line text-sm leading-7 text-gray-600">{section.description}</p></div>
-              </section>
-            ))}
 
             {/* FAQs */}
             {faqs.length > 0 && (
@@ -393,12 +264,6 @@ export default async function EventPage({ params, searchParams }: { params: { sl
           <div className="mt-8 lg:mt-0 space-y-4">
             {/* Date & venue card */}
             <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
-              {event.organizerName && (
-                <div className="mb-4 pb-4 border-b border-gray-100">
-                  <p className="text-gray-400 uppercase tracking-wide text-xs font-medium mb-1">Organizer</p>
-                  <p className="font-semibold text-gray-900 text-sm">{event.organizerName}</p>
-                </div>
-              )}
               <div className="grid grid-cols-2 gap-x-6 gap-y-4 text-sm">
                 <div>
                   <p className="text-gray-400 uppercase tracking-wide text-xs font-medium">Date</p>

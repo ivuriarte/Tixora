@@ -1,8 +1,14 @@
-import { SkeletonBlock, SkeletonAdminTable } from '@/components/Skeleton';
+import { SkeletonNavbar, SkeletonBlock, SkeletonAdminTable } from '@/components/Skeleton';
 
+/**
+ * Shown for any admin page while data is loading.
+ * Matches the admin dashboard layout: header + stats + table.
+ */
 export default function Loading() {
   return (
-    <main className="max-w-6xl mx-auto px-4 py-10 space-y-8">
+    <>
+      <SkeletonNavbar />
+      <main className="max-w-6xl mx-auto px-4 py-10 space-y-8">
         {/* Page header */}
         <div className="space-y-2" aria-hidden="true">
           <SkeletonBlock className="h-8 w-48" />
@@ -18,6 +24,7 @@ export default function Loading() {
           ))}
         </div>
         <SkeletonAdminTable rows={8} />
-    </main>
+      </main>
+    </>
   );
 }

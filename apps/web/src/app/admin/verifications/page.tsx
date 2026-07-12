@@ -4,6 +4,8 @@ import { useEffect, useState, useCallback, useMemo } from 'react';
 import dynamic from 'next/dynamic';
 import toast from 'react-hot-toast';
 import api from '@/lib/api';
+import Navbar from '@/components/Navbar';
+import BackButton from '@/components/BackButton';
 const VerificationDrawer = dynamic(
   () => import('@/components/admin/VerificationDrawer'),
   { ssr: false, loading: () => <div className="animate-pulse h-full bg-gray-50" aria-hidden="true" /> },
@@ -56,26 +58,23 @@ function unwrap<T>(res: { data: T | { data: T } }): T {
 }
 
 const STATUSES = [
-  { value: 'pending_approval', label: 'Awaiting review' },
-  { value: 'proof_submitted',  label: 'Proof submitted' },
-  { value: 'pending_payment',  label: 'Pending payment' },
-  { value: 'verified',         label: 'Verified' },
-  { value: 'rejected',         label: 'Rejected' },
+  { value: 'proof_submitted', label: 'Awaiting review' },
+  { value: 'verified', label: 'Verified' },
+  { value: 'rejected', label: 'Rejected' },
 ];
 
 const STATUS_CONFIG: Record<string, { label: string; dot: string; chip: string }> = {
-  pending_approval: { label: 'Awaiting Review',       dot: 'bg-blue-500',    chip: 'bg-blue-50 text-blue-700 ring-1 ring-inset ring-blue-600/20' },
-  proof_submitted:  { label: 'Under Review',          dot: 'bg-blue-500',    chip: 'bg-blue-50 text-blue-700 ring-1 ring-inset ring-blue-600/20' },
-  verified:         { label: 'Verified',              dot: 'bg-emerald-500', chip: 'bg-emerald-50 text-emerald-700 ring-1 ring-inset ring-emerald-600/20' },
-  rejected:         { label: 'Rejected',              dot: 'bg-red-500',     chip: 'bg-red-50 text-red-700 ring-1 ring-inset ring-red-600/20' },
-  pending_payment:  { label: 'Pending Payment',       dot: 'bg-amber-500',   chip: 'bg-amber-50 text-amber-700 ring-1 ring-inset ring-amber-600/20' },
+  proof_submitted: { label: 'Under Review',   dot: 'bg-blue-500',    chip: 'bg-blue-50 text-blue-700 ring-1 ring-inset ring-blue-600/20' },
+  verified:        { label: 'Verified',        dot: 'bg-emerald-500', chip: 'bg-emerald-50 text-emerald-700 ring-1 ring-inset ring-emerald-600/20' },
+  rejected:        { label: 'Rejected',        dot: 'bg-red-500',     chip: 'bg-red-50 text-red-700 ring-1 ring-inset ring-red-600/20' },
+  pending_payment: { label: 'Pending Payment', dot: 'bg-amber-500',   chip: 'bg-amber-50 text-amber-700 ring-1 ring-inset ring-amber-600/20' },
 };
 
 export default function VerificationsQueuePage() {
   const [rows, setRows] = useState<VerificationRow[]>([]);
   const [meta, setMeta] = useState<PageMeta>({ total: 0, page: 1, limit: 50, totalPages: 0 });
   const [eventId, setEventId] = useState<string>('');
-  const [status, setStatus] = useState<string>('pending_approval');
+  const [status, setStatus] = useState<string>('proof_submitted');
   const [dateFrom, setDateFrom] = useState<string>(() => {
     const d = new Date();
     const p = (n: number) => String(n).padStart(2, '0');
@@ -185,7 +184,7 @@ export default function VerificationsQueuePage() {
   };
 
   const toggleAll = () => {
-    const eligible = rows.filter((r) => r.status === 'proof_submitted' || r.status === 'pending_approval').map((r) => r.id);
+    const eligible = rows.filter((r) => r.status === 'proof_submitted').map((r) => r.id);
     if (eligible.every((id) => selected.has(id))) {
       setSelected(new Set());
     } else {
@@ -193,8 +192,8 @@ export default function VerificationsQueuePage() {
     }
   };
 
-  const eligibleCount = rows.filter((r) => r.status === 'proof_submitted' || r.status === 'pending_approval').length;
-  const selectedEligible = rows.filter((r) => (r.status === 'proof_submitted' || r.status === 'pending_approval') && selected.has(r.id)).length;
+  const eligibleCount = rows.filter((r) => r.status === 'proof_submitted').length;
+  const selectedEligible = rows.filter((r) => r.status === 'proof_submitted' && selected.has(r.id)).length;
 
   // Drawer navigation across eligible rows
   const navIds = rows.map((r) => r.id);
@@ -255,12 +254,14 @@ export default function VerificationsQueuePage() {
 
   return (
     <>
+      <Navbar />
       <main className="max-w-7xl mx-auto px-4 py-10 space-y-6">
         <div className="flex items-start justify-between gap-4">
           <div>
+            <BackButton href="/admin" label="Back to Admin" className="mb-2" />
             <h1 className="text-2xl font-bold text-gray-900">Transaction Verification Queue</h1>
             <p className="text-sm text-gray-500 mt-1">
-              Select an event to review registrations awaiting approval.{' '}
+              Select an event to review verified registrations with paid transactions.{' '}
               {meta.total > 0 && <span className="font-medium">{meta.total} total</span>}
             </p>
           </div>
@@ -383,7 +384,7 @@ export default function VerificationsQueuePage() {
               <thead className="bg-gray-50 text-xs uppercase text-gray-500">
                 <tr>
                   <th className="px-4 py-3 w-10">
-                    {(status === 'proof_submitted' || status === 'pending_approval') && (
+                    {status === 'proof_submitted' && (
                       <input
                         type="checkbox"
                         aria-label="Select all"
@@ -404,7 +405,7 @@ export default function VerificationsQueuePage() {
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {rows.map((r) => {
-                  const eligible = r.status === 'proof_submitted' || r.status === 'pending_approval';
+                  const eligible = r.status === 'proof_submitted';
                   return (
                     <tr key={r.id} className="hover:bg-gray-50">
                       <td className="px-4 py-3">
@@ -427,7 +428,7 @@ export default function VerificationsQueuePage() {
                         {r.tierName ?? '—'} × {r.attendeeCount}
                       </td>
                       <td className="px-4 py-3 text-right font-medium">
-                        ₱{Number(r.total).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        ₱{(Number(r.total) / 100).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </td>
                       <td className="px-4 py-3">
                         {(() => {

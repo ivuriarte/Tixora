@@ -2,10 +2,9 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import Link from 'next/link';
-import { useAuthStore } from '@/store/auth.store';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '@/lib/api';
+import Navbar from '@/components/Navbar';
 import ConfirmModal from '@/components/ConfirmModal';
 import toast from 'react-hot-toast';
 import {
@@ -19,8 +18,8 @@ import LocationStep from '@/components/event-wizard/steps/LocationStep';
 import CapacityTiersStep from '@/components/event-wizard/steps/CapacityTiersStep';
 import ConferenceStep from '@/components/event-wizard/steps/ConferenceStep';
 import PaymentStep from '@/components/event-wizard/steps/PaymentStep';
+import FeaturedStep from '@/components/event-wizard/steps/FeaturedStep';
 import ReviewStep from '@/components/event-wizard/steps/ReviewStep';
-import ReferralCodesPanel from '@/components/event-wizard/ReferralCodesPanel';
 import {
   emptyDraft,
   combineDatetime,
@@ -35,13 +34,12 @@ interface ApiTier {
   id: string;
   name: string;
   description: string | null;
-  price: number; // pesos
+  price: number; // centavos
   totalQuantity: number;
   soldQuantity: number;
   maxPerOrder: number;
   isVisible: boolean;
   sortOrder?: number;
-  inclusions?: Array<{ id: string; label: string; stubEnabled: boolean; sortOrder: number }>;
 }
 
 interface ApiPaymentMethod {
@@ -66,13 +64,12 @@ interface ApiEvent {
   endsAt: string | null;
   maxPerUser: number;
   maxCapacity: number | null;
-  isFree?: boolean;
   platformFee?: number | null;
   status: string;
   imageUrl?: string | null;
   speakerName?: string | null;
   agenda?: Array<{ time: string; title: string; description?: string }> | null;
-  sponsors?: Array<{ name: string; logoUrl?: string; tier?: string; websiteUrl?: string; description?: string; isVisible?: boolean }> | null;
+  sponsors?: Array<{ name: string; logoUrl?: string; tier?: string; websiteUrl?: string }> | null;
   faqs?: Array<{ question: string; answer: string }> | null;
   allowManualPayment?: boolean;
   bankName?: string | null;
@@ -83,24 +80,9 @@ interface ApiEvent {
   landmark?: string | null;
   tiers: ApiTier[];
   tagline?: string | null;
-  customSections?: Array<{ title: string; description: string; imageUrl?: string; imageAlt?: string; isVisible?: boolean }> | null;
-}
-
-interface WorkspaceSummary {
-  workspaceId: string;
-  readiness: {
-    score: number;
-    scorableTotal: number;
-    done: number;
-    notStarted: number;
-    inProgress: number;
-    blocked: number;
-    notApplicable: number;
-    hasCriticalBlockers: boolean;
-    blockedCount: number;
-  };
-  criticalBlockers: Array<{ id: string; title: string; status: string }>;
-  blockedItems: Array<{ id: string; title: string; category: string }>;
+  isFeatured?: boolean;
+  featuredOrder?: number | null;
+  featuredUntil?: string | null;
 }
 
 const STATUS_OPTIONS = ['draft', 'on_sale', 'sold_out', 'cancelled'];
@@ -121,16 +103,10 @@ function apiTierToLocal(t: ApiTier, key: number): LocalTier {
     serverId: t.id,
     name: t.name,
     description: t.description ?? '',
-    price: String(Number(t.price)),
+    price: String(t.price / 100),
     totalQuantity: String(t.totalQuantity),
     maxPerOrder: String(t.maxPerOrder),
     isVisible: t.isVisible,
-    inclusions: (t.inclusions ?? []).map((item) => ({
-      id: item.id,
-      label: item.label,
-      stubEnabled: item.stubEnabled,
-      sortOrder: item.sortOrder,
-    })),
     soldQuantity: t.soldQuantity,
     sortOrder: t.sortOrder ?? 0,
   };
@@ -142,8 +118,6 @@ export default function AdminEventEditPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
   const queryClient = useQueryClient();
-  const { user } = useAuthStore();
-  const isAdmin = Boolean(user?.isAdmin);
 
   const { data: event, isLoading } = useQuery<ApiEvent>({
     queryKey: ['admin-event', id],
@@ -180,7 +154,6 @@ export default function AdminEventEditPage() {
       endDate: end.date,
       endTime: end.time,
       maxCapacity: event.maxCapacity != null ? String(event.maxCapacity) : '',
-      isFree: event.isFree === true,
       platformFee: event.platformFee != null ? String(event.platformFee) : '50',
       // Defensive filters: drop any blank/incomplete rows so the editor
       // doesn't render empty placeholder cards left over from a bad save.
@@ -201,8 +174,6 @@ export default function AdminEventEditPage() {
               logoUrl: s.logoUrl ?? '',
               tier: s.tier ?? '',
               websiteUrl: s.websiteUrl ?? '',
-              description: s.description ?? '',
-              isVisible: s.isVisible !== false,
             }))
         : [],
       faqs: Array.isArray(event.faqs)
@@ -211,7 +182,9 @@ export default function AdminEventEditPage() {
             .map<FaqItem>((f) => ({ question: f.question, answer: f.answer }))
         : [],
       tagline: event.tagline ?? '',
-      customSections: Array.isArray(event.customSections) ? event.customSections.map((section) => ({ title: section.title, description: section.description, imageUrl: section.imageUrl ?? '', imageAlt: section.imageAlt ?? '', isVisible: section.isVisible !== false })) : [],
+      isFeatured: event.isFeatured ?? false,
+      featuredOrder: event.featuredOrder != null ? String(event.featuredOrder) : '',
+      featuredUntil: event.featuredUntil ? event.featuredUntil.slice(0, 10) : '',
     });
     setStatus(event.status ?? 'draft');
 
@@ -276,10 +249,10 @@ export default function AdminEventEditPage() {
           key = nextKey.current++;
           tierKeysByServerId.current[t.id] = key;
         }
-        return apiTierToLocal(event.isFree ? { ...t, price: 0 } : t, key);
+        return apiTierToLocal(t, key);
       }),
     );
-  }, [event?.isFree, event?.tiers]);
+  }, [event?.tiers]);
 
   const update = (patch: Partial<EventDraft>) => setDraft((d) => ({ ...d, ...patch }));
 
@@ -292,15 +265,6 @@ export default function AdminEventEditPage() {
       queryClient.invalidateQueries({ queryKey: ['admin-events'] });
     },
     onError: () => toast.error('Changes could not be saved. Please try again.'),
-  });
-
-  const feeMutation = useMutation({
-    mutationFn: (fee: number) => api.put(`/admin/events/${id}`, { platformFee: fee }),
-    onSuccess: () => {
-      toast.success('Service fee updated.');
-      queryClient.invalidateQueries({ queryKey: ['admin-event', id] });
-    },
-    onError: () => toast.error('Could not update service fee. Please try again.'),
   });
 
   const statusMutation = useMutation({
@@ -317,16 +281,6 @@ export default function AdminEventEditPage() {
       queryClient.invalidateQueries({ queryKey: ['admin-events'] });
     },
     onError: () => toast.error('Status could not be updated. Please try again.'),
-  });
-
-  const { data: workspaceSummary } = useQuery({
-    queryKey: ['workspace-summary', id],
-    queryFn: () =>
-      api
-        .get<{ data: WorkspaceSummary | null }>(`/admin/events/${id}/workspace`)
-        .then((r) => r.data.data),
-    enabled: !!id,
-    staleTime: 30_000,
   });
 
   const addTierMutation = useMutation({
@@ -372,16 +326,11 @@ export default function AdminEventEditPage() {
     addTierMutation.mutate({
       name: t.name.trim(),
       description: t.description.trim() || undefined,
-      price: Math.round(parseFloat(t.price)),
+      price: Math.round(parseFloat(t.price) * 100),
       totalQuantity: parseInt(t.totalQuantity, 10),
       maxPerOrder: parseInt(t.maxPerOrder, 10),
       isVisible: t.isVisible,
       sortOrder: tiers.length,
-      inclusions: t.inclusions.map((item, idx) => ({
-        label: item.label.trim(),
-        stubEnabled: item.stubEnabled,
-        sortOrder: idx,
-      })),
     });
   }
   function handleEditTier(t: LocalTier) {
@@ -391,15 +340,10 @@ export default function AdminEventEditPage() {
       data: {
         name: t.name.trim(),
         description: t.description.trim() || null,
-        price: parseFloat(t.price),
+        price: Math.round(parseFloat(t.price) * 100),
         totalQuantity: parseInt(t.totalQuantity, 10),
         maxPerOrder: parseInt(t.maxPerOrder, 10),
         isVisible: t.isVisible,
-        inclusions: t.inclusions.map((item, idx) => ({
-          label: item.label.trim(),
-          stubEnabled: item.stubEnabled,
-          sortOrder: idx,
-        })),
       },
     });
   }
@@ -469,8 +413,7 @@ export default function AdminEventEditPage() {
       startsAt: startsAtISO,
       endsAt: endsAtISO ?? null,
       maxCapacity: draft.maxCapacity.trim() === '' ? null : parseInt(draft.maxCapacity, 10),
-      isFree: draft.isFree,
-      platformFee: draft.isFree ? 0 : Number(draft.platformFee || 50),
+      platformFee: parseFloat(draft.platformFee) || 50,
       status,
       speakerName: draft.speakerName.trim() || null,
       imageUrl: draft.imageUrl.trim() || null,
@@ -492,13 +435,13 @@ export default function AdminEventEditPage() {
               ...(s.logoUrl && { logoUrl: s.logoUrl }),
               ...(s.tier && { tier: s.tier }),
               ...(s.websiteUrl?.trim() && { websiteUrl: s.websiteUrl.trim() }),
-              ...(s.description?.trim() && { description: s.description.trim() }),
-              isVisible: s.isVisible,
             }))
           : null,
       faqs: draft.faqs.length > 0 ? draft.faqs : null,
       tagline: draft.tagline.trim() || null,
-      customSections: draft.customSections.length > 0 ? draft.customSections : null,
+      isFeatured: draft.isFeatured,
+      featuredOrder: draft.featuredOrder.trim() ? parseInt(draft.featuredOrder, 10) : null,
+      featuredUntil: draft.featuredUntil ? new Date(`${draft.featuredUntil}T23:59:59+08:00`).toISOString() : null,
     };
     await updateMutation.mutateAsync(payload);
   }
@@ -590,61 +533,26 @@ export default function AdminEventEditPage() {
       </div>
     </div>
 
-      {/* ── Workspace readiness banner ───────────────────────────────────── */}
-      {workspaceSummary ? (
-        <div
-          className={`rounded-2xl border px-4 py-3 flex items-center justify-between gap-4 ${
-            workspaceSummary.readiness.hasCriticalBlockers
-              ? 'border-red-200 bg-red-50/50'
-              : workspaceSummary.readiness.score >= 80
-              ? 'border-green-200 bg-green-50/40'
-              : 'border-amber-200 bg-amber-50/40'
-          }`}
-        >
-          <div className="min-w-0">
-            <div className="flex items-center gap-2">
-              <p className="text-sm font-semibold text-gray-900">Event Readiness</p>
-              {workspaceSummary.readiness.hasCriticalBlockers && (
-                <span className="text-xs font-medium bg-red-100 text-red-700 border border-red-200 px-1.5 py-0.5 rounded">
-                  {workspaceSummary.criticalBlockers.length} blocker{workspaceSummary.criticalBlockers.length !== 1 ? 's' : ''}
-                </span>
-              )}
-            </div>
-            <div className="flex items-center gap-3 mt-1">
-              <div className="flex-1 max-w-[120px] h-1.5 bg-gray-200 rounded-full overflow-hidden">
-                <div
-                  className={`h-full rounded-full transition-all ${
-                    workspaceSummary.readiness.score >= 80 ? 'bg-green-500' : workspaceSummary.readiness.score >= 50 ? 'bg-amber-400' : 'bg-red-400'
-                  }`}
-                  style={{ width: `${workspaceSummary.readiness.score}%` }}
-                />
-              </div>
-              <span className="text-xs text-gray-500 tabular-nums">
-                {workspaceSummary.readiness.done}/{workspaceSummary.readiness.scorableTotal} done
-              </span>
-            </div>
-          </div>
-          <Link
-            href={`/admin/events/${id}/workspace`}
-            className="shrink-0 text-sm font-medium text-violet-700 hover:text-violet-900 transition-colors"
-          >
-            Open Workspace →
-          </Link>
+      {/* ── Featured hero quick-toggle ───────────────────────────────────── */}
+      <div className="rounded-2xl border border-indigo-200 bg-indigo-50/40 px-4 py-3 flex items-center justify-between gap-4">
+        <div>
+          <p className="text-sm font-semibold text-indigo-900">Homepage Hero</p>
+          <p className="text-xs text-indigo-600 mt-0.5">
+            {draft.isFeatured
+              ? 'This event is featured on the homepage. Open the Featured step to adjust settings.'
+              : 'Feature this event in the homepage hero carousel. Open the Featured step to configure.'}
+          </p>
         </div>
-      ) : workspaceSummary === null ? (
-        <div className="rounded-2xl border border-gray-200 bg-gray-50 px-4 py-3 flex items-center justify-between gap-4">
-          <div>
-            <p className="text-sm font-semibold text-gray-700">Event Workspace</p>
-            <p className="text-xs text-gray-500 mt-0.5">Enable readiness tracking and operational checklists for this event.</p>
-          </div>
-          <Link
-            href={`/admin/events/${id}/workspace`}
-            className="shrink-0 text-sm font-medium text-violet-700 hover:text-violet-900 transition-colors"
-          >
-            Enable Workspace →
-          </Link>
-        </div>
-      ) : null}
+        <label className="relative inline-flex items-center cursor-pointer shrink-0">
+          <input
+            type="checkbox"
+            className="sr-only peer"
+            checked={draft.isFeatured}
+            onChange={(e) => update({ isFeatured: e.target.checked })}
+          />
+          <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-indigo-400 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600" />
+        </label>
+      </div>
     </div>
   ) : null;
 
@@ -653,9 +561,12 @@ export default function AdminEventEditPage() {
 
   if (isLoading || !event) {
     return (
-      <main className="max-w-3xl mx-auto px-4 py-10">
-        <p className="text-gray-400">Loading…</p>
-      </main>
+      <>
+        <Navbar />
+        <main className="max-w-3xl mx-auto px-4 py-10">
+          <p className="text-gray-400">Loading…</p>
+        </main>
+      </>
     );
   }
 
@@ -673,6 +584,7 @@ export default function AdminEventEditPage() {
         }}
         onCancel={() => setDialog(null)}
       />
+      <Navbar />
       <WizardShell
         title="Edit Event"
         draft={draft}
@@ -698,23 +610,18 @@ export default function AdminEventEditPage() {
                   onReorderTiers={handleReorderTiers}
                 />
               );
-            case 'details': return <ConferenceStep draft={draft} update={update} />;
+            case 'conference': return <ConferenceStep draft={draft} update={update} />;
             case 'payment':
-              return (<>
+              return (
                 <PaymentStep
                   paymentMethods={paymentMethods}
                   onAdd={addPM}
                   onEdit={editPM}
                   onRemove={removePM}
                   onReorder={setPaymentMethods}
-                  platformFee={event.platformFee != null ? Number(event.platformFee) : 50}
-                  onSaveFee={(fee) => feeMutation.mutate(fee)}
-                  feeSaving={feeMutation.isPending}
-                  isAdmin={isAdmin}
-                  isFree={draft.isFree}
                 />
-                <ReferralCodesPanel eventId={id} tiers={tiers} />
-              </>);
+              );
+            case 'featured': return <FeaturedStep draft={draft} update={update} currentEventId={id} />;
             case 'review':
               return (
                 <ReviewStep
@@ -727,7 +634,6 @@ export default function AdminEventEditPage() {
           }
         }}
       />
-
     </>
   );
 }

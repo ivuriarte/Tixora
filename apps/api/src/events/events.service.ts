@@ -2,13 +2,12 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { RedisService } from '../redis/redis.service';
-import { WorkspacesService } from '../workspaces/workspaces.service';
 import { CreateEventDto, UpdateEventDto } from './dto/event.dto';
 import { uniqueSlug } from '@axon-tickets/utils';
 
 const TIER_INVENTORY_PREFIX = 'ticket_tier:';
 const INVENTORY_SUFFIX = ':available';
-const ACTIVE_REGISTRATION_STATUSES = ['pending_payment', 'proof_submitted', 'pending_approval', 'verified'] as const;
+const ACTIVE_REGISTRATION_STATUSES = ['pending_payment', 'proof_submitted', 'verified'] as const;
 const VALID_TICKET_STATUSES = ['valid', 'used'] as const;
 
 type TierInventory = {
@@ -22,7 +21,6 @@ export class EventsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly redis: RedisService,
-    private readonly workspaces: WorkspacesService,
   ) {}
 
   /**
@@ -87,8 +85,7 @@ export class EventsService {
         startsAt: e.startsAt.toISOString(),
         imageUrl: e.imageUrl,
         status: e.status,
-        isFree: e.isFree,
-        lowestPrice: e.isFree ? 0 : e.tiers[0] ? Number(e.tiers[0].price) : null,
+        lowestPrice: e.tiers[0] ? Number(e.tiers[0].price) : null,
         totalAvailable: tiers.reduce(
           (sum: number, t) => sum + t.availableQuantity,
           0,
@@ -115,10 +112,8 @@ export class EventsService {
       include: {
         tiers: {
           where: { isVisible: true },
-          include: { inclusions: { orderBy: { sortOrder: 'asc' } } },
           orderBy: { sortOrder: 'asc' },
         },
-        organization: { select: { id: true, name: true } },
       },
     });
     if (!event) throw new NotFoundException('Event not found');
@@ -129,7 +124,7 @@ export class EventsService {
         eventId: tier.eventId,
         name: tier.name,
         description: tier.description,
-        price: event.isFree ? 0 : Number(tier.price),
+        price: Number(tier.price),
         currency: tier.currency,
         totalQuantity: tier.totalQuantity,
         soldQuantity: tier.soldQuantity,
@@ -140,12 +135,6 @@ export class EventsService {
         isVisible: tier.isVisible,
         sortOrder: tier.sortOrder,
         isSoldOut: tier.availableQuantity <= 0,
-        inclusions: tier.inclusions.map((item) => ({
-          id: item.id,
-          label: item.label,
-          stubEnabled: item.stubEnabled,
-          sortOrder: item.sortOrder,
-        })),
       }),
     );
 
@@ -167,32 +156,24 @@ export class EventsService {
       sponsors: event.sponsors ?? null,
       agenda: event.agenda ?? null,
       faqs: event.faqs ?? null,
-      customSections: event.customSections ?? null,
       allowManualPayment: event.allowManualPayment,
       bankName: event.bankName ?? null,
       bankAccountNumber: event.bankAccountNumber ?? null,
       bankAccountName: event.bankAccountName ?? null,
       gcashNumber: event.gcashNumber ?? null,
       paymentMethods: event.paymentMethods ?? null,
-      isFree: event.isFree,
       platformFee: Number(event.platformFee ?? 50),
       landmark: event.landmark ?? null,
       latitude: event.latitude ? Number(event.latitude) : null,
       longitude: event.longitude ? Number(event.longitude) : null,
       tiers: tiersWithAvailable,
-      organizerName: event.organization?.name ?? null,
       createdAt: event.createdAt.toISOString(),
     };
   }
 
-  async create(dto: CreateEventDto, createdById: string, organizationId?: string) {
+  async create(dto: CreateEventDto, createdById: string) {
     const slug = uniqueSlug(dto.title);
-    const platformFee = dto.isFree
-      ? 0
-      : dto.platformFee !== undefined
-      ? dto.platformFee
-      : await this.prisma.platformConfig.findUnique({ where: { key: 'service_fee' } }).then((r) => (r ? Number(r.value) : 50));
-    const event = await this.prisma.event.create({
+    return this.prisma.event.create({
       data: {
         slug,
         title: dto.title,
@@ -211,9 +192,7 @@ export class EventsService {
         agenda: (dto.agenda as unknown as Prisma.InputJsonValue | undefined) ?? Prisma.JsonNull,
         sponsors: (dto.sponsors as unknown as Prisma.InputJsonValue | undefined) ?? Prisma.JsonNull,
         faqs: (dto.faqs as unknown as Prisma.InputJsonValue | undefined) ?? Prisma.JsonNull,
-        customSections: (dto.customSections as unknown as Prisma.InputJsonValue | undefined) ?? Prisma.JsonNull,
-        isFree: dto.isFree ?? false,
-        platformFee,
+        ...(dto.platformFee !== undefined && { platformFee: dto.platformFee }),
         ...(dto.imageUrl && { imageUrl: dto.imageUrl }),
         ...(dto.allowManualPayment !== undefined && { allowManualPayment: dto.allowManualPayment }),
         ...(dto.bankName !== undefined && { bankName: dto.bankName }),
@@ -223,14 +202,8 @@ export class EventsService {
         ...(dto.landmark !== undefined && { landmark: dto.landmark }),
         ...(dto.paymentMethods !== undefined && { paymentMethods: (dto.paymentMethods as unknown as Prisma.InputJsonValue | null) ?? Prisma.JsonNull }),
         createdById,
-        ...(organizationId ? { organizationId } : {}),
       },
     });
-
-    // Auto-create workspace — fire-and-forget; never fails event creation
-    this.workspaces.ensureWorkspace(event.id, createdById).catch(() => void 0);
-
-    return event;
   }
 
   async update(id: string, dto: UpdateEventDto) {
@@ -254,13 +227,7 @@ export class EventsService {
         ...(dto.agenda !== undefined && { agenda: (dto.agenda as unknown as Prisma.InputJsonValue | null) ?? Prisma.JsonNull }),
         ...(dto.sponsors !== undefined && { sponsors: (dto.sponsors as unknown as Prisma.InputJsonValue | null) ?? Prisma.JsonNull }),
         ...(dto.faqs !== undefined && { faqs: (dto.faqs as unknown as Prisma.InputJsonValue | null) ?? Prisma.JsonNull }),
-        ...(dto.customSections !== undefined && { customSections: (dto.customSections as unknown as Prisma.InputJsonValue | null) ?? Prisma.JsonNull }),
-        ...(dto.isFree !== undefined && { isFree: dto.isFree }),
-        ...(dto.isFree === true
-          ? { platformFee: 0 }
-          : dto.platformFee !== undefined
-          ? { platformFee: dto.platformFee }
-          : {}),
+        ...(dto.platformFee !== undefined && { platformFee: dto.platformFee }),
         ...(dto.imageUrl !== undefined && { imageUrl: dto.imageUrl }),
         ...(dto.allowManualPayment !== undefined && { allowManualPayment: dto.allowManualPayment }),
         ...(dto.bankName !== undefined && { bankName: dto.bankName }),
@@ -333,8 +300,7 @@ export class EventsService {
         status: e.status,
         maxCapacity: e.maxCapacity,
         featuredOrder: e.featuredOrder,
-        isFree: e.isFree,
-        lowestPrice: e.isFree ? 0 : e.tiers[0] ? Number(e.tiers[0].price) : null,
+        lowestPrice: e.tiers[0] ? Number(e.tiers[0].price) : null,
         totalAvailable: tiers.reduce(
           (sum: number, t) => sum + t.availableQuantity,
           0,
