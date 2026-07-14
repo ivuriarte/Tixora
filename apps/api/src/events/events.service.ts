@@ -605,7 +605,8 @@ export class EventsService {
 
     const titleSize = 28;
     const titleLines = this.wrapPdfText(event.title, bold, titleSize, width - 128);
-    titleLines.slice(0, 3).forEach((line, index) => {
+    const renderedTitleLines = titleLines.slice(0, 3);
+    renderedTitleLines.forEach((line, index) => {
       page.drawText(line, {
         x: 64,
         y: height - 128 - index * 34,
@@ -615,17 +616,23 @@ export class EventsService {
       });
     });
 
-    page.drawText(`${event.startsAt.toLocaleDateString('en-PH', { dateStyle: 'medium', timeZone: 'Asia/Manila' })} - ${event.venue}`, {
-      x: 64,
-      y: height - 230,
-      size: 14,
-      font,
-      color: muted,
+    const metaText = `${event.startsAt.toLocaleDateString('en-PH', { dateStyle: 'medium', timeZone: 'Asia/Manila' })} - ${event.venue}`;
+    const metaY = height - 230 - Math.max(0, renderedTitleLines.length - 1) * 34;
+    const metaLines = this.wrapPdfText(metaText, font, 14, width - 128).slice(0, 2);
+    metaLines.forEach((line, index) => {
+      page.drawText(line, {
+        x: 64,
+        y: metaY - index * 18,
+        size: 14,
+        font,
+        color: muted,
+      });
     });
 
-    const qrSize = 360;
+    const qrSize = 330;
     const qrX = (width - qrSize) / 2;
-    const qrY = 236;
+    const lastMetaLineY = metaY - Math.max(0, metaLines.length - 1) * 18;
+    const qrY = Math.max(170, lastMetaLineY - 28 - qrSize - 18);
     page.drawRectangle({
       x: qrX - 18,
       y: qrY - 18,
@@ -638,9 +645,10 @@ export class EventsService {
     page.drawImage(qrImage, { x: qrX, y: qrY, width: qrSize, height: qrSize });
 
     const instruction = 'Scan to register and check in';
+    const instructionY = qrY - 48;
     page.drawText(instruction, {
       x: (width - bold.widthOfTextAtSize(instruction, 18)) / 2,
-      y: 170,
+      y: instructionY,
       size: 18,
       font: bold,
       color: navy,
@@ -650,7 +658,7 @@ export class EventsService {
     urlLines.slice(0, 2).forEach((line, index) => {
       page.drawText(line, {
         x: (width - font.widthOfTextAtSize(line, 10)) / 2,
-        y: 140 - index * 14,
+        y: instructionY - 30 - index * 14,
         size: 10,
         font,
         color: muted,

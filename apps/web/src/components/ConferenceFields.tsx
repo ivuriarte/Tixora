@@ -520,8 +520,8 @@ function AgendaForm({
 }) {
   return (
     <div className="border border-primary/30 rounded-xl p-4 space-y-3 bg-primary/5">
-      <div className="grid grid-cols-3 gap-3">
-        <div>
+      <div className="grid grid-cols-1 gap-3 lg:grid-cols-[22rem_minmax(0,1fr)]">
+        <div className="min-w-0">
           <label className="block text-xs font-medium text-gray-600 mb-1">
             Time <span className="text-red-500">*</span>
           </label>
@@ -530,7 +530,7 @@ function AgendaForm({
             onChange={(v) => onChange({ ...value, time: time24hToDisplay(v) })}
           />
         </div>
-        <div className="col-span-2">
+        <div className="min-w-0">
           <label className="block text-xs font-medium text-gray-600 mb-1">
             Title <span className="text-red-500">*</span>
           </label>

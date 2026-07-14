@@ -30,7 +30,7 @@ export default function TimeSelect({ value, onChange }: TimeSelectProps) {
   const { h12, min, period } = parse(value);
 
   return (
-    <div className="flex items-center gap-1.5">
+    <div className="flex max-w-full flex-wrap items-center gap-1.5">
       <select value={isEmpty ? '' : h12} onChange={(e) => emit(+e.target.value, min, period)} className={SELECT_CLS}>
         {isEmpty && <option value="" disabled>--</option>}
         {[12, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11].map((h) => (
