@@ -226,9 +226,13 @@ export default function AdminSidebar({ isOpen, onClose }: { isOpen: boolean; onC
     } catch {
       /* ignore */
     }
-    const isAdmin = user?.isAdmin ?? false;
+    const redirectTo = user?.loginPortal === 'organizer'
+      ? '/'
+      : user?.isAdmin
+        ? '/auth/admin'
+        : '/';
     logout();
-    router.push(isAdmin ? '/auth/admin' : '/');
+    router.replace(redirectTo);
     toast.success('You have been signed out.');
   }
 
@@ -262,7 +266,7 @@ export default function AdminSidebar({ isOpen, onClose }: { isOpen: boolean; onC
               unoptimized
             />
           </Link>
-          <p className="text-[11px] text-gray-400 mt-1.5">Admin panel</p>
+          <p className="text-[11px] text-gray-400 mt-1.5">{user?.isAdmin ? 'Admin panel' : 'Organizer workspace'}</p>
         </div>
         {/* Close button — mobile only */}
         <button

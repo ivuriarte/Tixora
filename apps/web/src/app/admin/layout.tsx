@@ -11,6 +11,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const { user, isAuthenticated, isHydrating } = useAuthStore();
   const router = useRouter();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const hasAdminShellAccess = Boolean(user?.isAdmin || user?.isOrganizer);
 
   useEffect(() => {
     if (!getRefreshToken()) {
@@ -21,12 +22,12 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
   useEffect(() => {
     if (isHydrating) return;
-    if (!isAuthenticated || (!user?.isAdmin && user?.loginPortal !== 'organizer')) {
-      router.replace(getRefreshToken() ? '/' : '/auth/admin');
+    if (!isAuthenticated || !hasAdminShellAccess) {
+      router.replace(getRefreshToken() && user?.loginPortal === 'organizer' ? '/become-organizer' : getRefreshToken() ? '/' : '/auth/admin');
     }
-  }, [isHydrating, isAuthenticated, user, router]);
+  }, [isHydrating, isAuthenticated, hasAdminShellAccess, user?.loginPortal, router]);
 
-  if (isHydrating || !isAuthenticated || (!user?.isAdmin && user?.loginPortal !== 'organizer')) {
+  if (isHydrating || !isAuthenticated || !hasAdminShellAccess) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin" />

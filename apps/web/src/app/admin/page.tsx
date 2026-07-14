@@ -164,6 +164,12 @@ export default function AdminDashboardPage() {
 
         <h2 className="text-lg font-semibold text-gray-900 mb-4">Recent Events</h2>
         {isLoading && <p className="text-gray-400">Loading…</p>}
+        {!isLoading && data?.length === 0 && (
+          <div className="rounded-2xl border border-dashed border-gray-200 bg-white p-8 text-center">
+            <p className="font-semibold text-gray-900">No events yet</p>
+            <p className="mt-1 text-sm text-gray-500">Events you create for your organizer account will appear here.</p>
+          </div>
+        )}
         <div className="space-y-3">
           {data?.map((event) => (
             <div key={event.id} className="flex items-center justify-between bg-white shadow rounded-2xl p-4">
