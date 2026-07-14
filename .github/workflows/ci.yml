@@ -86,7 +86,8 @@ jobs:
       - name: Run public-flows E2E tests
         run: cd apps/web && npx playwright test e2e/public-flows.spec.ts --project=chromium
         env:
-          BASE_URL: https://tixora-online-ticket-app.vercel.app
+          BASE_URL: https://axontickets.online
+          API_URL: https://api.axontickets.online
 
       - name: Upload Playwright report on failure
         if: failure()
@@ -181,20 +182,21 @@ jobs:
         run: cd apps/api && npm run vercel-build
 
       - name: Pull Vercel project settings
-        run: npx vercel pull --yes --environment=production --cwd apps/api
+        run: npx vercel pull --yes --environment=production --cwd .
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_API_PROJECT_ID }}
 
       - name: Build for Vercel (local — avoids server-side framework detection)
-        run: npx vercel build --prod --cwd apps/api
+        run: npx vercel build --prod --cwd .
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_API_PROJECT_ID }}
 
       - name: Deploy prebuilt output to Vercel
-        working-directory: apps/api
-        run: npx vercel deploy --prebuilt --prod --yes
+        run: npx vercel deploy --prebuilt --prod --yes --cwd .
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
@@ -202,6 +204,7 @@ jobs:
 
       - name: Notify Slack on deploy failure
         if: failure()
+        continue-on-error: true
         uses: rtCamp/action-slack-notify@v2
         env:
           SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK_URL }}

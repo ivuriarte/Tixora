@@ -39,13 +39,17 @@ function OrganizerSignInForm() {
 
   const redirect = searchParams.get('redirect') ?? '/become-organizer';
   const safeRedirect = redirect.startsWith('/') ? redirect : '/become-organizer';
+  const organizerDestination = useCallback(
+    (isOrganizer?: boolean) => (isOrganizer ? '/admin' : '/become-organizer'),
+    [],
+  );
 
   // Redirect already-authenticated non-admin users
   useEffect(() => {
     if (!isHydrating && isAuthenticated && user && !user.isAdmin) {
-      router.replace(user.isOrganizer ? '/admin' : safeRedirect);
+      router.replace(organizerDestination(user.isOrganizer));
     }
-  }, [isHydrating, isAuthenticated, user, router, safeRedirect]);
+  }, [isHydrating, isAuthenticated, user, router, organizerDestination]);
 
   useEffect(() => { emailRef.current?.focus(); }, []);
 
@@ -158,7 +162,7 @@ function OrganizerSignInForm() {
           refreshToken,
         );
         toast.success('Welcome back!');
-        router.replace(verifiedUser.isOrganizer ? '/admin' : safeRedirect);
+        router.replace(organizerDestination(verifiedUser.isOrganizer));
       }
     } catch (err: unknown) {
       const msg = axios.isAxiosError(err) ? err.response?.data?.message ?? 'Verification failed.' : 'Verification failed.';
@@ -203,12 +207,21 @@ function OrganizerSignInForm() {
       const updatedUser = res.data.data;
       setLoginPortal('organizer');
       setAuth(
-        { id: updatedUser.id, email: updatedUser.email, firstName: updatedUser.firstName, lastName: updatedUser.lastName, isAdmin: false, isVerified: updatedUser.isVerified, loginPortal: 'organizer' },
+        {
+          id: updatedUser.id,
+          email: updatedUser.email,
+          firstName: updatedUser.firstName,
+          lastName: updatedUser.lastName,
+          isAdmin: false,
+          isOrganizer: false,
+          isVerified: updatedUser.isVerified,
+          loginPortal: 'organizer',
+        },
         pendingAuth.accessToken,
         pendingAuth.refreshToken,
       );
       toast.success(`Welcome, ${updatedUser.firstName}!`);
-      router.replace(safeRedirect);
+      router.replace(safeRedirect === '/admin' ? '/become-organizer' : safeRedirect);
     } catch (err: unknown) {
       const msg = axios.isAxiosError(err) ? err.response?.data?.message ?? 'Could not save profile.' : 'Could not save profile.';
       setError(Array.isArray(msg) ? msg.join(', ') : String(msg));

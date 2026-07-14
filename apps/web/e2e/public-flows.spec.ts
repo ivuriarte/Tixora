@@ -5,9 +5,10 @@ import { test, expect } from '@playwright/test';
 test.describe('Homepage', () => {
   test('renders heading and navbar', async ({ page }) => {
     await page.goto('/');
-    await expect(page.getByRole('navigation')).toBeVisible();
+    const primaryNav = page.getByRole('navigation').first();
+    await expect(primaryNav).toBeVisible();
     // Navbar brand
-    await expect(page.getByRole('link', { name: 'Axon Tickets' })).toBeVisible();
+    await expect(primaryNav.getByRole('link', { name: 'Axon Tickets' })).toBeVisible();
     // Conference mode → h1 from hero; marketplace mode → h1 from carousel (if featured events
     // exist) or h2 "Upcoming Events" (if none). Accept either level.
     const heading = page.locator('h1, h2').first();
@@ -22,10 +23,11 @@ test.describe('Homepage', () => {
     await expect(heading).toBeVisible();
   });
 
-  test('navbar shows Log in and Sign up links', async ({ page }) => {
+  test('navbar shows Log in and Sign up actions', async ({ page }) => {
     await page.goto('/');
-    await expect(page.getByRole('link', { name: 'Log in' })).toBeVisible();
-    await expect(page.getByRole('link', { name: 'Sign up' })).toBeVisible();
+    const primaryNav = page.getByRole('navigation').first();
+    await expect(primaryNav.getByRole('button', { name: 'Log in' })).toBeVisible();
+    await expect(primaryNav.getByRole('link', { name: 'Sign up' })).toBeVisible();
   });
 
   test('Sign up link navigates to register page', async ({ page }) => {
@@ -112,7 +114,7 @@ test.describe('Navigation', () => {
 test.describe('Event Detail', () => {
   test('event page renders without unhandled error', async ({ page }) => {
     await page.goto('/');
-    const firstCard = page.locator('a[href^="/events/"]').first();
+    const firstCard = page.locator('a[href^="/events/"]:has(h3)').first();
     const count = await firstCard.count();
     if (count === 0) {
       // No events in marketplace mode — acceptable
@@ -176,4 +178,3 @@ test.describe('API Health', () => {
     expect([401, 403]).toContain(res.status());
   });
 });
-
