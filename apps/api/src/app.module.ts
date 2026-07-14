@@ -40,9 +40,9 @@ import { WorkspacesModule } from './workspaces/workspaces.module';
 
     LoggerModule.forRoot({
       pinoHttp: {
-        level: process.env.NODE_ENV === 'production' ? 'info' : 'debug',
+        level: process.env.APP_ENV === 'production' ? 'info' : 'debug',
         transport:
-          process.env.NODE_ENV !== 'production'
+          process.env.APP_ENV !== 'production'
             ? { target: 'pino-pretty', options: { colorize: true } }
             : undefined,
         redact: ['req.headers.authorization', 'req.headers.cookie'],
