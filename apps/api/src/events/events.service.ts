@@ -63,9 +63,10 @@ export class EventsService {
     return status.replace(/_/g, ' ');
   }
 
-  private onsiteUrl(slug: string) {
+  private onsiteUrl(slug: string, eventId?: string) {
     const webUrl = this.config.get<string>('webUrl') || 'https://axontickets.online';
-    return `${webUrl.replace(/\/$/, '')}/events/${slug}/onsite`;
+    const onsiteUrl = `${webUrl.replace(/\/$/, '')}/events/${slug}/onsite`;
+    return eventId ? `${onsiteUrl}?eventId=${encodeURIComponent(eventId)}` : onsiteUrl;
   }
 
   private selectedSubEventsFromAgenda(agenda: Prisma.JsonValue, ids?: string[], fallbackId?: string): SelectedSubEvent[] {
@@ -574,14 +575,14 @@ export class EventsService {
   async generateOnsiteQrPdf(slug: string) {
     const event = await this.prisma.event.findUnique({
       where: { slug },
-      select: { title: true, slug: true, venue: true, startsAt: true, onsiteRegistrationEnabled: true },
+      select: { id: true, title: true, slug: true, venue: true, startsAt: true, onsiteRegistrationEnabled: true },
     });
     if (!event) throw new NotFoundException('Event not found');
     if (!event.onsiteRegistrationEnabled) {
       throw new BadRequestException('Enable on-site registration before downloading the QR PDF.');
     }
 
-    const scanUrl = this.onsiteUrl(event.slug);
+    const scanUrl = this.onsiteUrl(event.slug, event.id);
     const qrPng = await QRCode.toBuffer(scanUrl, { type: 'png', width: 900, margin: 2, errorCorrectionLevel: 'H' });
     const pdf = await PDFDocument.create();
     const page = pdf.addPage([595.28, 841.89]);

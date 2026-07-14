@@ -526,14 +526,8 @@ export default function AdminEventEditPage() {
     onConfirm: () => void;
   } | null;
   const [dialog, setDialog] = useState<ConfirmState>(null);
-  const onsiteUrl = event
-    ? `${typeof window !== 'undefined' ? window.location.origin : 'https://axontickets.online'}/events/${event.slug}/onsite`
-    : '';
-  const onsiteQrImageUrl = event
-    ? `${process.env.NEXT_PUBLIC_API_URL || 'https://api.axontickets.online/api/v1'}/qr/${encodeURIComponent(onsiteUrl)}`
-    : '';
   const onsiteQrPdfUrl = event
-    ? `${process.env.NEXT_PUBLIC_API_URL || 'https://api.axontickets.online/api/v1'}/events/${event.slug}/onsite-registration/qr.pdf`
+    ? `${process.env.NEXT_PUBLIC_API_URL || 'https://api.axontickets.online/api/v1'}/events/${event.slug}/onsite-registration/qr.pdf?eventId=${event.id}`
     : '';
 
   // ─── Top banner: status + cancel + delete ─────────────────────────────────
@@ -636,35 +630,19 @@ export default function AdminEventEditPage() {
           </label>
         </div>
         {onsiteRegistrationEnabled && (
-          <div className="flex flex-col gap-3 rounded-xl bg-gray-50 px-3 py-3 sm:flex-row sm:items-center">
-            <img
-              src={onsiteQrImageUrl}
-              alt="On-site registration QR code"
-              width={96}
-              height={96}
-              className="mx-auto h-28 w-28 rounded-lg border border-gray-200 bg-white p-1 sm:mx-0 sm:h-24 sm:w-24"
-            />
-            <div className="min-w-0 flex-1">
-              <p className="text-xs font-medium text-gray-700">Scan URL</p>
-              <p className="break-all text-xs text-gray-500">
-                {onsiteUrl}
+          <div className="flex flex-col gap-3 rounded-xl bg-gray-50 px-3 py-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="text-sm font-semibold text-gray-900">QR poster is ready</p>
+              <p className="mt-1 text-xs text-gray-500">
+                Download the PDF and print it for on-site registration.
               </p>
-              <div className="mt-3 grid grid-cols-1 gap-2 sm:flex sm:flex-wrap sm:items-center sm:gap-3">
-                <Link
-                  href={`/events/${event.slug}/onsite`}
-                  target="_blank"
-                  className="min-h-10 rounded-lg border border-violet-200 px-3 py-2 text-center text-xs font-semibold text-violet-700 hover:bg-violet-50"
-                >
-                  Open mobile form →
-                </Link>
-                <a
-                  href={onsiteQrPdfUrl}
-                  className="min-h-10 rounded-lg bg-gray-900 px-3 py-2 text-center text-xs font-semibold text-white hover:bg-gray-800"
-                >
-                  Download QR
-                </a>
-              </div>
             </div>
+            <a
+              href={onsiteQrPdfUrl}
+              className="min-h-10 rounded-lg bg-gray-900 px-4 py-2 text-center text-sm font-semibold text-white hover:bg-gray-800"
+            >
+              Download QR
+            </a>
           </div>
         )}
       </div>

@@ -60,7 +60,9 @@ export class EventsController {
     res.set({
       'Content-Type': 'application/pdf',
       'Content-Disposition': `attachment; filename="${pdf.filename}"`,
-      'Cache-Control': 'no-store',
+      'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+      Pragma: 'no-cache',
+      Expires: '0',
       'Content-Length': pdf.buffer.length.toString(),
     });
     res.end(pdf.buffer);
