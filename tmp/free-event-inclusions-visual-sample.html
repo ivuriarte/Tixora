@@ -1,0 +1,153 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Free Event + Tier Inclusions Visual Sample</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body { font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+  </style>
+</head>
+<body class="bg-gray-100 text-gray-900">
+  <main class="mx-auto max-w-6xl px-6 py-8">
+    <div class="mb-6">
+      <p class="text-xs font-semibold uppercase tracking-wider text-violet-700">Visual sample</p>
+      <h1 class="mt-1 text-2xl font-bold">Free event + tier inclusions</h1>
+      <p class="mt-1 text-sm text-gray-500">Representative screens from the implemented create/edit, event page, and registration flow.</p>
+    </div>
+
+    <div class="grid gap-6 lg:grid-cols-[1.2fr_.8fr]">
+      <section class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
+        <div class="mb-4 flex items-center justify-between">
+          <div>
+            <p class="text-sm font-semibold text-gray-900">Admin: Capacity & Tiers</p>
+            <p class="text-xs text-gray-500">Free event mode forces tier prices and service fee to zero.</p>
+          </div>
+          <span class="rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-700">Free enabled</span>
+        </div>
+
+        <label class="mb-4 flex items-start gap-3 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3">
+          <input type="checkbox" checked class="mt-1 accent-emerald-600" />
+          <span>
+            <span class="block text-sm font-semibold text-emerald-950">Free event</span>
+            <span class="block text-xs leading-relaxed text-emerald-700">Ticket tiers are tagged Free, tier prices are set to ₱0, and no platform fee is added during registration.</span>
+          </span>
+        </label>
+
+        <div class="space-y-3">
+          <div class="rounded-xl border border-violet-200 bg-violet-50 p-4">
+            <p class="mb-3 text-sm font-medium text-gray-900">Edit Tier</p>
+            <div class="grid grid-cols-2 gap-3">
+              <div>
+                <label class="mb-1 block text-xs font-medium text-gray-600">Name</label>
+                <div class="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm">VIP</div>
+              </div>
+              <div>
+                <label class="mb-1 block text-xs font-medium text-gray-600">Price (₱)</label>
+                <div class="rounded-lg border border-gray-200 bg-gray-100 px-3 py-2 text-sm text-gray-500">0</div>
+                <p class="mt-1 text-xs text-emerald-700">Free event: no ticket amount is collected.</p>
+              </div>
+              <div>
+                <label class="mb-1 block text-xs font-medium text-gray-600">Total Quantity</label>
+                <div class="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm">50</div>
+              </div>
+              <div>
+                <label class="mb-1 block text-xs font-medium text-gray-600">Max Per Order</label>
+                <div class="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm">2</div>
+              </div>
+            </div>
+            <div class="mt-3">
+              <label class="mb-2 block text-xs font-medium text-gray-600">Inclusions</label>
+              <div class="flex flex-wrap gap-2">
+                <span class="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-800">Meal stub <span>x</span></span>
+                <span class="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-800">Coffee stub <span>x</span></span>
+              </div>
+              <div class="mt-2 flex gap-2">
+                <div class="min-w-0 flex-1 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-400">e.g. Certificate</div>
+                <button class="rounded-lg border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700">Add</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="rounded-xl border border-gray-200 bg-gray-50 px-3 py-2">
+            <div class="flex items-center justify-between text-xs">
+              <span class="text-gray-600">Tier total: <span class="font-semibold text-gray-900">500</span> / 500</span>
+              <span class="font-semibold text-green-600">Matches capacity</span>
+            </div>
+            <div class="mt-1.5 h-2 overflow-hidden rounded-full border border-gray-200 bg-white">
+              <div class="h-full w-full rounded-full bg-green-500"></div>
+            </div>
+          </div>
+
+          <div class="grid gap-2">
+            <div class="flex items-center justify-between rounded-xl border border-gray-100 p-3">
+              <div>
+                <p class="text-sm font-medium text-gray-800">VIP</p>
+                <p class="text-xs text-gray-500">Free · 50 total · max 2/order · 2 inclusions</p>
+              </div>
+              <span class="rounded-full bg-green-100 px-2 py-0.5 text-xs text-green-700">visible</span>
+            </div>
+            <div class="flex items-center justify-between rounded-xl border border-gray-100 p-3">
+              <div>
+                <p class="text-sm font-medium text-gray-800">General Admission</p>
+                <p class="text-xs text-gray-500">Free · 450 total · max 4/order · 1 inclusion</p>
+              </div>
+              <span class="rounded-full bg-green-100 px-2 py-0.5 text-xs text-green-700">visible</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <div class="space-y-6">
+        <section class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
+          <h2 class="mb-4 text-sm font-semibold text-gray-900">Attendee: Get Tickets</h2>
+          <div class="space-y-2">
+            <button class="w-full rounded-xl border border-violet-600 bg-violet-50 p-3 text-left">
+              <div class="flex items-center justify-between">
+                <span class="text-sm font-medium text-gray-900">VIP</span>
+                <span class="text-sm font-semibold text-violet-700">Free</span>
+              </div>
+              <p class="mt-0.5 text-xs text-gray-400">50 slots left</p>
+              <div class="mt-2 flex flex-wrap gap-1.5">
+                <span class="rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-medium text-emerald-700">Meal stub</span>
+                <span class="rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-medium text-emerald-700">Coffee stub</span>
+              </div>
+            </button>
+            <button class="w-full rounded-xl border border-gray-200 p-3 text-left">
+              <div class="flex items-center justify-between">
+                <span class="text-sm font-medium text-gray-900">General Admission</span>
+                <span class="text-sm font-semibold text-violet-700">Free</span>
+              </div>
+              <p class="mt-0.5 text-xs text-gray-400">450 slots left</p>
+              <div class="mt-2 flex flex-wrap gap-1.5">
+                <span class="rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-medium text-emerald-700">Certificate</span>
+              </div>
+            </button>
+          </div>
+          <div class="mt-4 rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm">
+            <div class="flex justify-between text-gray-600"><span>VIP</span><span>Free</span></div>
+            <div class="mt-2 flex justify-between border-t border-gray-200 pt-2 font-semibold text-gray-900"><span>Total</span><span class="text-violet-700">Free</span></div>
+          </div>
+          <button class="mt-4 w-full rounded-xl bg-violet-700 py-3 text-sm font-semibold text-white">Register</button>
+        </section>
+
+        <section class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
+          <h2 class="mb-3 text-sm font-semibold text-gray-900">Registration: Order Summary</h2>
+          <div class="rounded-2xl border border-gray-200 p-4">
+            <div class="flex justify-between text-sm text-gray-600">
+              <span>VIP x 1</span>
+              <span>Free</span>
+            </div>
+            <div class="mt-3 flex justify-between border-t border-gray-100 pt-3 font-bold text-gray-900">
+              <span>Total</span>
+              <span class="text-violet-700">Free</span>
+            </div>
+          </div>
+          <p class="mt-3 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-700">No service fee is shown or collected for free events.</p>
+        </section>
+      </div>
+    </div>
+  </main>
+</body>
+</html>

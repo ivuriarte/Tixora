@@ -1,0 +1,593 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Axon Tickets — DICE Style Wireframes</title>
+<style>
+:root {
+  --p: #7C3AED; --pd: #4C1D95; --pl: #ede9fe; --pb: #f5f0ff;
+  --blk: #111; --wht: #fff; --ash: #f0ebff; --con: #e2d9f3;
+  --slt: #6b5b8a; --stn: #9e90b0; --grn: #16a34a; --red: #dc2626; --amb: #d97706;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#e8e0f7;font-size:12px;line-height:1.4;}
+
+.header{background:#1a0533;padding:14px 24px;display:flex;align-items:center;justify-content:space-between;}
+.hlogo{font-size:15px;font-weight:900;letter-spacing:-.02em;color:#fff;}
+.hbadge{font-size:9px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:#a78bfa;background:#2d0f5e;border:1px solid #4C1D95;border-radius:100px;padding:3px 10px;}
+.hdate{font-size:9px;color:#6d28d9;}
+
+.screen{padding:20px 16px 40px;}
+.slabel{font-size:9px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--p);margin-bottom:10px;}
+.screen-divider{border:none;border-top:3px solid #1a0533;margin:8px 0 0;}
+
+.wf{background:#fff;border-radius:6px;overflow:hidden;border:1px solid #c4b5fd;max-width:920px;margin:0 auto;box-shadow:0 2px 12px rgba(124,58,237,.07);}
+.wflabel{font-size:8px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--stn);text-align:right;padding:3px 10px;background:#faf7ff;border-bottom:1px solid var(--pl);}
+.wfgrid{display:grid;gap:16px;max-width:920px;margin:0 auto;}
+.wfgrid.col2{grid-template-columns:1fr 1fr;}
+.wfgrid.col3{grid-template-columns:1fr 1fr 1fr;}
+
+.nav{display:flex;align-items:center;gap:12px;padding:0 20px;height:52px;background:#fff;border-bottom:1px solid var(--con);}
+.nlogo{font-size:13px;font-weight:900;letter-spacing:-.02em;color:var(--p);}
+.nsearch{flex:1;max-width:240px;height:28px;border:1px solid var(--con);border-radius:20px;display:flex;align-items:center;gap:6px;padding:0 10px;font-size:10px;color:var(--stn);}
+.nlinks{display:flex;align-items:center;gap:14px;margin-left:auto;font-size:10px;color:var(--slt);}
+.npill{height:26px;padding:0 12px;border-radius:40px;font-size:9px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;display:inline-flex;align-items:center;}
+.npill.fill{background:var(--p);color:#fff;}
+.npill.out{border:1.5px solid var(--p);color:var(--p);}
+.npill.dark{background:var(--pd);color:#fff;}
+
+.darkband{background:#1a0533;padding:44px 24px;}
+.lightband{background:#fff;padding:32px 24px;}
+
+.hero{background:#1a0533;padding:48px 24px;display:flex;gap:32px;align-items:center;}
+.hleft{flex:1;min-width:0;}
+.hright{flex-shrink:0;width:40%;}
+.himg{width:100%;aspect-ratio:4/3;background:linear-gradient(135deg,#6d28d9,#4c1d95);border-radius:8px;display:flex;align-items:center;justify-content:center;}
+.htag{font-size:8px;font-weight:700;letter-spacing:.15em;text-transform:uppercase;color:#a78bfa;margin-bottom:10px;}
+.htitle{font-size:52px;font-weight:900;line-height:.88;color:#fff;text-transform:uppercase;margin-bottom:14px;letter-spacing:-.01em;}
+.htitle em{font-style:normal;color:#c4b5fd;}
+.hsub{font-size:11px;color:#c4b5fd;max-width:340px;margin-bottom:18px;line-height:1.5;letter-spacing:.03em;}
+.hmeta{display:flex;flex-direction:column;gap:6px;margin-bottom:20px;}
+.hmetarow{display:flex;align-items:center;gap:7px;font-size:10px;color:#a78bfa;}
+.hacts{display:flex;align-items:center;gap:10px;}
+.hcap{font-size:9px;color:#a78bfa;border:1px solid #6d28d9;border-radius:40px;padding:4px 10px;}
+.hdots{display:flex;gap:5px;margin-top:16px;align-items:center;}
+.dot{width:7px;height:7px;border-radius:40px;background:rgba(255,255,255,.25);}
+.dot.a{width:22px;background:var(--p);}
+
+.sechead{display:flex;align-items:flex-end;justify-content:space-between;margin-bottom:20px;}
+.sectitle{font-size:13px;font-weight:800;color:#1a0533;letter-spacing:.06em;text-transform:uppercase;margin-bottom:3px;}
+.secsub{font-size:10px;color:var(--slt);letter-spacing:.03em;}
+
+.cgrid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;}
+.ecard{background:#fff;border-radius:8px;overflow:hidden;border:1px solid var(--con);}
+.eposter{aspect-ratio:1/1;background:var(--ash);display:flex;align-items:center;justify-content:center;position:relative;font-size:18px;font-weight:900;color:var(--p);}
+.eposter.v1{background:linear-gradient(135deg,#7C3AED22,#7C3AED44);}
+.eposter.v2{background:linear-gradient(135deg,#4C1D9522,#7C3AED33);}
+.eposter.v3{background:linear-gradient(135deg,#ede9fe,#c4b5fd44);}
+.eposter.v4{background:linear-gradient(135deg,#ddd6fe,#7C3AED22);}
+.esold{position:absolute;top:6px;right:6px;background:#1a0533;color:#fff;font-size:7px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;padding:2px 6px;border-radius:100px;}
+.ebody{padding:8px 8px 10px;}
+.edate{font-size:9px;color:var(--stn);letter-spacing:.06em;text-transform:uppercase;margin-bottom:3px;}
+.etitle{font-size:11px;font-weight:800;color:#1a0533;line-height:1.2;margin-bottom:2px;}
+.evenue{font-size:10px;color:var(--slt);margin-bottom:4px;}
+.eprice{font-size:10px;font-weight:800;color:#1a0533;}
+
+.dcols{display:grid;grid-template-columns:repeat(3,1fr);gap:20px;max-width:620px;margin:0 auto 24px;}
+.dcol{text-align:center;}
+.dicon{width:48px;height:48px;border-radius:50%;border:1.5px solid #4C1D95;display:flex;align-items:center;justify-content:center;margin:0 auto 10px;}
+.dcohead{font-size:11px;font-weight:800;color:#fff;letter-spacing:.05em;text-transform:uppercase;margin-bottom:4px;}
+.dcotext{font-size:10px;color:#c4b5fd;line-height:1.5;}
+.dtitle{font-size:30px;font-weight:900;color:#fff;text-transform:uppercase;line-height:.9;letter-spacing:-.01em;margin-bottom:12px;}
+.dsub{font-size:11px;color:#a78bfa;max-width:380px;margin:0 auto 20px;line-height:1.6;}
+.dtag{display:inline-flex;align-items:center;border:1px solid #4C1D95;border-radius:100px;padding:3px 10px;font-size:8px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:#a78bfa;margin-bottom:12px;}
+.pfill-w{height:34px;padding:0 16px;border-radius:40px;background:#fff;color:#4C1D95;font-size:10px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;display:inline-flex;align-items:center;gap:5px;}
+
+.edhero{background:#1a0533;padding:40px 24px;display:flex;gap:28px;align-items:flex-start;}
+.edleft{flex:1;min-width:0;}
+.edright{flex-shrink:0;width:280px;}
+.etpanel{background:#fff;border-radius:8px;padding:16px;border:1px solid var(--con);}
+.etptitle{font-size:11px;font-weight:800;color:#1a0533;letter-spacing:.07em;text-transform:uppercase;margin-bottom:12px;padding-bottom:10px;border-bottom:1px solid var(--con);}
+.tier-row{display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--ash);}
+.tier-row:last-of-type{border-bottom:none;margin-bottom:12px;}
+.tname{font-size:11px;font-weight:700;color:#1a0533;letter-spacing:.03em;}
+.tavail{font-size:9px;color:var(--stn);margin-top:1px;}
+.tprice{font-size:11px;font-weight:800;color:#1a0533;}
+.tqty{width:24px;height:24px;border-radius:40px;border:1.5px solid var(--con);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:var(--p);margin-left:6px;}
+.edcontent{display:flex;gap:24px;padding:24px;background:#fff;}
+.edmain{flex:1;}
+.edside{width:240px;flex-shrink:0;}
+.sectdiv{font-size:10px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:#1a0533;margin-bottom:10px;padding-bottom:6px;border-bottom:1.5px solid #1a0533;}
+.agitem{display:flex;gap:10px;padding:8px 0;border-bottom:1px solid var(--ash);}
+.agtime{font-size:9px;font-weight:700;color:var(--p);width:38px;flex-shrink:0;padding-top:1px;}
+.agtitle{font-size:10px;font-weight:700;color:#1a0533;}
+.agdesc{font-size:9px;color:var(--stn);margin-top:1px;}
+.sprow{display:flex;gap:8px;flex-wrap:wrap;margin-top:6px;}
+.spchip{border:1px solid var(--con);border-radius:8px;padding:6px 10px;font-size:9px;font-weight:700;color:var(--slt);}
+.mapbox{border-radius:8px;background:var(--ash);border:1px solid var(--con);height:90px;display:flex;align-items:center;justify-content:center;margin-bottom:8px;}
+.maplabel{font-size:9px;color:var(--stn);}
+
+.authwrap{background:#fff;display:flex;align-items:center;justify-content:center;padding:36px 24px;}
+.authcard{width:100%;max-width:320px;}
+.authtitle{font-size:32px;font-weight:900;text-transform:uppercase;line-height:.9;color:#1a0533;letter-spacing:-.01em;margin-bottom:6px;}
+.authsub{font-size:10px;color:var(--slt);margin-bottom:22px;line-height:1.5;letter-spacing:.03em;}
+.fgroup{margin-bottom:11px;}
+.flabel{display:block;font-size:9px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#1a0533;margin-bottom:4px;}
+.finput{width:100%;height:34px;border:1.5px solid var(--con);border-radius:8px;padding:0 10px;font-size:10px;color:var(--slt);background:#faf7ff;}
+.fsubmit{width:100%;height:38px;border-radius:40px;background:var(--p);color:#fff;font-size:10px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;display:flex;align-items:center;justify-content:center;margin-top:16px;margin-bottom:12px;}
+.alink{text-align:center;font-size:10px;color:var(--slt);}
+.alink a{color:var(--p);font-weight:700;}
+.otp-box{width:100%;height:56px;border:1.5px solid var(--con);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:24px;font-weight:900;letter-spacing:.4em;color:#1a0533;background:#faf7ff;font-family:monospace;}
+.infobox{background:#faf7ff;border:1px solid var(--pl);border-radius:8px;padding:10px 12px;font-size:9px;color:var(--slt);line-height:1.6;margin-top:10px;}
+.checkrow{display:flex;align-items:flex-start;gap:8px;font-size:9px;color:var(--slt);margin-bottom:8px;line-height:1.4;}
+
+.tabbar2{display:inline-flex;background:#f0ebff;border-radius:100px;padding:3px;margin-bottom:16px;}
+.tabn{padding:6px 14px;border-radius:100px;font-size:10px;font-weight:700;color:var(--slt);letter-spacing:.03em;}
+.tabn.act{background:#fff;color:#1a0533;border:1px solid var(--con);}
+.tcount{display:inline-flex;align-items:center;justify-content:center;min-width:16px;height:16px;padding:0 4px;border-radius:100px;background:var(--p);color:#fff;font-size:8px;font-weight:800;margin-left:4px;}
+.tklist{display:flex;flex-direction:column;gap:8px;}
+.tkcard{background:#fff;border-radius:8px;padding:12px;border:1px solid var(--con);display:flex;align-items:center;gap:10px;}
+.tkdate{display:flex;flex-direction:column;align-items:center;justify-content:center;width:44px;height:50px;border-radius:8px;background:var(--pb);border:1px solid var(--pl);flex-shrink:0;}
+.tkmo{font-size:8px;font-weight:700;color:var(--p);letter-spacing:.08em;text-transform:uppercase;}
+.tkday{font-size:18px;font-weight:900;color:#1a0533;line-height:1;}
+.tkthumb{width:50px;height:50px;border-radius:8px;background:linear-gradient(135deg,var(--p),var(--pd));display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:900;color:#fff;flex-shrink:0;}
+.tkmeta{flex:1;min-width:0;}
+.tkmeta .title{font-size:11px;font-weight:800;color:#1a0533;margin-bottom:2px;}
+.tkmeta .venue{font-size:9px;color:var(--slt);margin-bottom:2px;}
+.tkmeta .tier{font-size:9px;color:var(--stn);}
+.tkstatus{flex-shrink:0;}
+.chip{display:inline-flex;align-items:center;gap:4px;font-size:8px;font-weight:700;padding:3px 7px;border-radius:100px;white-space:nowrap;}
+.chip.valid{background:#dcfce7;color:#166534;}
+.chip.pend{background:#fef3c7;color:#92400e;}
+.chip.used{background:#f3f4f6;color:#4b5563;}
+.chip-dot{width:5px;height:5px;border-radius:50%;background:currentColor;}
+.secgrp{margin-bottom:16px;}
+.secgrplabel{font-size:8px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--stn);margin-bottom:6px;padding-bottom:4px;border-bottom:1px solid var(--ash);}
+
+.tkdetail{max-width:340px;margin:0 auto;}
+.tkhdr{background:var(--p);padding:18px;border-radius:8px 8px 0 0;}
+.tkhdrtitle{font-size:15px;font-weight:900;color:#fff;text-transform:uppercase;line-height:1.1;margin-bottom:4px;}
+.tkhdrdate{font-size:9px;color:#c4b5fd;}
+.tkbody{border:1px solid var(--con);border-top:0;border-radius:0 0 8px 8px;padding:20px;}
+.qrbox{width:100px;height:100px;background:var(--ash);border-radius:4px;border:1px solid var(--con);display:flex;align-items:center;justify-content:center;margin:0 auto 8px;}
+.qrlabel{text-align:center;font-size:8px;color:var(--stn);text-transform:uppercase;letter-spacing:.08em;margin-bottom:14px;}
+.tkrow{display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--ash);font-size:10px;}
+.tkrow:last-child{border-bottom:none;}
+.tkrowlabel{color:var(--slt);}
+.tkrowval{font-weight:700;color:#1a0533;}
+
+.profsec{background:#fff;border:1px solid var(--con);border-radius:8px;padding:16px;margin-bottom:12px;}
+.profsectitle{font-size:9px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--stn);margin-bottom:12px;padding-bottom:8px;border-bottom:1px solid var(--ash);}
+.profavatar{width:44px;height:44px;border-radius:50%;background:var(--p);color:#fff;display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:900;flex-shrink:0;}
+.profheader{display:flex;align-items:center;gap:12px;padding:16px;background:#fff;border:1px solid var(--con);border-radius:8px;margin-bottom:12px;}
+.profname{font-size:12px;font-weight:800;color:#1a0533;}
+.profemail{font-size:10px;color:var(--slt);}
+.profbadge{display:inline-flex;align-items:center;gap:3px;font-size:8px;font-weight:700;color:var(--grn);margin-top:2px;}
+.pgrid2{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+
+.orglanding{padding:40px 24px;background:#fff;}
+.orgcta{text-align:center;margin-bottom:32px;}
+.orgchip{display:inline-block;background:var(--pb);color:var(--p);font-size:8px;font-weight:800;padding:3px 10px;border-radius:100px;text-transform:uppercase;letter-spacing:.1em;margin-bottom:10px;}
+.orgtitle{font-size:36px;font-weight:900;color:#1a0533;line-height:.9;text-transform:uppercase;margin-bottom:10px;letter-spacing:-.01em;}
+.orgtitle em{font-style:normal;color:var(--p);}
+.orgsub{font-size:11px;color:var(--slt);max-width:400px;margin:0 auto 20px;line-height:1.6;}
+.orgbenefits{display:grid;grid-template-columns:1fr 1fr;gap:10px;max-width:520px;margin:0 auto;}
+.orgbcard{display:flex;align-items:flex-start;gap:10px;background:#fff;border:1px solid var(--con);border-radius:8px;padding:12px;}
+.orgbicon{width:32px;height:32px;border-radius:8px;background:var(--pb);color:var(--p);display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+.orgbtitle{font-size:10px;font-weight:800;color:#1a0533;margin-bottom:2px;}
+.orgbdesc{font-size:9px;color:var(--slt);line-height:1.4;}
+
+.orgformwrap{padding:24px;background:#fff;}
+.orgformcard{border:1px solid var(--con);border-radius:8px;padding:20px;max-width:640px;margin:0 auto;}
+.orgformtitle{font-size:20px;font-weight:900;text-transform:uppercase;color:#1a0533;line-height:.9;margin-bottom:6px;letter-spacing:-.01em;}
+.orgformsub{font-size:10px;color:var(--slt);margin-bottom:20px;line-height:1.5;}
+.fsection{font-size:8px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--stn);padding:8px 0;border-bottom:1px solid var(--ash);margin-bottom:12px;margin-top:16px;}
+.fsection:first-child{margin-top:0;}
+.frow2{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+.ftextarea{width:100%;height:60px;border:1.5px solid var(--con);border-radius:8px;padding:8px 10px;font-size:10px;color:var(--slt);background:#faf7ff;resize:none;}
+.flegal{background:#faf7ff;border:1px solid var(--pl);border-radius:8px;padding:10px 12px;margin-bottom:10px;}
+.finfo{display:flex;gap:8px;background:var(--pb);border:1px solid var(--pl);border-radius:8px;padding:10px 12px;margin-bottom:10px;}
+.finfo-text{font-size:9px;color:var(--p);line-height:1.5;}
+.fbtnrow{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
+.fbtnsec{height:36px;border-radius:40px;border:1.5px solid var(--con);font-size:9px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:#1a0533;display:flex;align-items:center;justify-content:center;}
+.fbtnsub{height:36px;border-radius:40px;background:var(--p);font-size:9px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:#fff;display:flex;align-items:center;justify-content:center;}
+
+.statcard{max-width:360px;margin:0 auto;text-align:center;padding:32px 24px;}
+.sticon{width:56px;height:56px;border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 16px;}
+.sticon.amb{background:#fef3c7;}
+.sticon.grn{background:#dcfce7;}
+.sticon.red{background:#fee2e2;}
+.sticon.gry{background:#f3f4f6;}
+.sttitle{font-size:22px;font-weight:900;text-transform:uppercase;color:#1a0533;line-height:.9;margin-bottom:8px;letter-spacing:-.01em;}
+.storg{font-size:11px;font-weight:700;color:#1a0533;margin-bottom:4px;}
+.stdate{font-size:9px;color:var(--stn);margin-bottom:16px;}
+.stbox{border-radius:8px;padding:12px 14px;text-align:left;margin-bottom:14px;}
+.stbox.amb{background:#fef3c7;border:1px solid #fde68a;}
+.stbox.grn{background:#dcfce7;border:1px solid #86efac;}
+.stbox.red{background:#fee2e2;border:1px solid #fca5a5;}
+.stboxtitle{font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px;}
+.stboxtitle.amb{color:#92400e;}.stboxtitle.grn{color:#166534;}.stboxtitle.red{color:#991b1b;}
+.stboxlist{font-size:9px;line-height:1.6;}
+.stboxlist.amb{color:#92400e;}.stboxlist.grn{color:#166534;}.stboxlist.red{color:#991b1b;}
+
+.succband{background:var(--pd);padding:48px 24px;text-align:center;}
+.succicon{width:60px;height:60px;border-radius:50%;background:rgba(255,255,255,.15);display:flex;align-items:center;justify-content:center;margin:0 auto 16px;}
+.succtitle{font-size:48px;font-weight:900;text-transform:uppercase;line-height:.88;color:#fff;letter-spacing:-.01em;margin-bottom:10px;}
+.succsub{font-size:11px;color:#c4b5fd;margin-bottom:22px;letter-spacing:.03em;}
+.succticket{background:#fff;border-radius:8px;padding:16px;max-width:280px;margin:0 auto 20px;text-align:left;}
+.suckevt{font-size:13px;font-weight:900;color:#1a0533;text-transform:uppercase;letter-spacing:.02em;margin-bottom:3px;}
+.suckdate{font-size:9px;color:var(--slt);margin-bottom:12px;}
+.suckqr{width:72px;height:72px;background:var(--ash);border-radius:4px;border:1px solid var(--con);margin:0 auto 6px;display:flex;align-items:center;justify-content:center;}
+.suckqrl{font-size:8px;color:var(--stn);text-align:center;letter-spacing:.07em;text-transform:uppercase;}
+.succbtns{display:flex;gap:10px;justify-content:center;}
+
+.ic{display:inline-block;vertical-align:middle;}
+
+@media print {
+  body { background: white; }
+  .screen { page-break-before: always; }
+  .screen:first-child { page-break-before: avoid; }
+}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="hlogo">AXON TICKETS</div>
+  <div class="hbadge">DICE-Style Wireframes · v1</div>
+  <div class="hdate">July 2026 · Internal</div>
+</div>
+
+<!-- ══════════ 1. HOMEPAGE ══════════ -->
+<div class="screen">
+  <div class="slabel">Screen 1 · Homepage — Marketplace Mode</div>
+  <div class="wf">
+    <div class="wflabel">NAVBAR</div>
+    <div class="nav">
+      <div class="nlogo">AXON</div>
+      <div class="nsearch"><svg class="ic" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>Search by event, venue or city</div>
+      <div class="nlinks"><span>Browse Events</span><span>Become Organizer</span><span>Log in</span><div class="npill fill">Sign Up</div></div>
+    </div>
+    <div class="hero">
+      <div class="hleft">
+        <div class="htag">Featured Event</div>
+        <div class="htitle">DAVAO<br>VALLEY<br><em>SUMMIT</em></div>
+        <div class="hsub">The Philippines' premier tech &amp; startup gathering. Three days, 80+ speakers, one city.</div>
+        <div class="hmeta">
+          <div class="hmetarow"><svg class="ic" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="3" y1="10" x2="21" y2="10"/></svg>Saturday, 18 October 2025</div>
+          <div class="hmetarow"><svg class="ic" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>08:00 AM – 06:00 PM</div>
+          <div class="hmetarow"><svg class="ic" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>SMX Convention Center, Davao</div>
+        </div>
+        <div class="hacts">
+          <div class="npill fill" style="height:34px;padding:0 16px;font-size:10px;">Reserve Your Seat</div>
+          <div class="hcap">420 seats remaining</div>
+        </div>
+        <div class="hdots"><div class="dot a"></div><div class="dot"></div><div class="dot"></div><span style="font-size:9px;color:#a78bfa;margin-left:4px;">1 / 3</span></div>
+      </div>
+      <div class="hright">
+        <div class="himg"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.3)" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="m3 9 18 0"/></svg></div>
+      </div>
+    </div>
+    <div class="lightband">
+      <div class="sechead">
+        <div><div class="sectitle">Upcoming Events</div><div class="secsub">Find and book tickets to the best events in the Philippines</div></div>
+        <div class="npill out" style="height:26px;">Browse All</div>
+      </div>
+      <div class="cgrid">
+        <div class="ecard"><div class="eposter v1"><div class="esold">SOLD OUT</div>🎤</div><div class="ebody"><div class="edate">18 OCT · DAVAO</div><div class="etitle">Davao Valley Summit</div><div class="evenue">SMX Convention Center</div><div class="eprice">From ₱1,500</div></div></div>
+        <div class="ecard"><div class="eposter v2">🎵</div><div class="ebody"><div class="edate">25 OCT · MANILA</div><div class="etitle">Night Market Live</div><div class="evenue">The Palace BGC</div><div class="eprice">From ₱800</div></div></div>
+        <div class="ecard"><div class="eposter v3">⭐</div><div class="ebody"><div class="edate">3 NOV · CEBU</div><div class="etitle">Visayas Creator Fest</div><div class="evenue">IT Park Grounds, Cebu</div><div class="eprice">Free</div></div></div>
+        <div class="ecard"><div class="eposter v4">🛡️</div><div class="ebody"><div class="edate">11 NOV · QC</div><div class="etitle">Philippine Dev Conference</div><div class="evenue">Eastwood Ballroom</div><div class="eprice">Free</div></div></div>
+      </div>
+    </div>
+    <div class="darkband" style="text-align:center;">
+      <div class="dtag">For Organizers</div>
+      <div class="dtitle">HOST YOUR<br>NEXT EVENT</div>
+      <div class="dsub">Join Axon Tickets and sell tickets to thousands of attendees. Get approved in 1–2 business days.</div>
+      <div class="dcols">
+        <div class="dcol"><div class="dicon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#7C3AED" stroke-width="1.5"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg></div><div class="dcohead">Event Workspace</div><div class="dcotext">Tasks, team, vendors, timeline in one command center</div></div>
+        <div class="dcol"><div class="dicon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#7C3AED" stroke-width="1.5"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg></div><div class="dcohead">Live Analytics</div><div class="dcotext">Real-time sales, check-ins, and attendee data</div></div>
+        <div class="dcol"><div class="dicon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#7C3AED" stroke-width="1.5"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg></div><div class="dcohead">Instant Payouts</div><div class="dcotext">GCash, bank transfer — your earnings, your schedule</div></div>
+      </div>
+      <div class="pfill-w">Apply as Organizer →</div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════ 2. EVENT DETAIL ══════════ -->
+<div class="screen">
+  <div class="slabel">Screen 2 · Event Detail — /events/[slug]</div>
+  <div class="wf">
+    <div class="wflabel">NAVBAR (authenticated)</div>
+    <div class="nav"><div class="nlogo">AXON</div><div class="nsearch"><svg class="ic" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>Search…</div><div class="nlinks"><span>Browse Events</span><span>My Events</span><span>My Profile</span><span style="color:var(--stn);">Log out</span></div></div>
+    <div class="edhero">
+      <div class="edleft">
+        <div style="display:inline-flex;align-items:center;gap:5px;border:1px solid #4C1D95;border-radius:100px;padding:3px 10px;font-size:8px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:#a78bfa;margin-bottom:12px;"><span style="width:5px;height:5px;border-radius:50%;background:#7C3AED;display:inline-block;"></span>Open · 420 seats left</div>
+        <div style="font-size:40px;font-weight:900;line-height:.88;color:#fff;text-transform:uppercase;margin-bottom:10px;">DAVAO<br>VALLEY<br>SUMMIT</div>
+        <div style="font-size:12px;font-weight:800;color:#a78bfa;letter-spacing:.04em;text-transform:uppercase;margin-bottom:12px;">feat. Maria Santos</div>
+        <div style="font-size:10px;color:#c4b5fd;line-height:1.6;max-width:380px;margin-bottom:18px;">The Philippines' premier tech &amp; startup gathering. 80+ speakers, workshops and networking.</div>
+        <div class="hmeta" style="margin-bottom:18px;">
+          <div class="hmetarow"><svg class="ic" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="3" y1="10" x2="21" y2="10"/></svg>Saturday, 18 October 2025 · 08:00 AM – 06:00 PM</div>
+          <div class="hmetarow"><svg class="ic" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>SMX Convention Center, Davao City</div>
+        </div>
+        <div style="display:flex;gap:8px;"><div class="npill fill" style="height:34px;padding:0 16px;font-size:10px;">Get Tickets</div><div class="npill out" style="height:34px;padding:0 12px;font-size:9px;">Share Event</div></div>
+      </div>
+      <div class="edright">
+        <div class="etpanel">
+          <div class="etptitle">Select Tickets</div>
+          <div class="tier-row"><div><div class="tname">Early Bird</div><div class="tavail">50 remaining</div></div><div style="display:flex;align-items:center;"><div class="tprice">₱1,500</div><div class="tqty">+</div></div></div>
+          <div class="tier-row"><div><div class="tname">Regular</div><div class="tavail">200 remaining</div></div><div style="display:flex;align-items:center;"><div class="tprice">₱2,200</div><div class="tqty">+</div></div></div>
+          <div class="tier-row"><div><div class="tname">VIP</div><div class="tavail">12 remaining</div></div><div style="display:flex;align-items:center;"><div class="tprice">₱4,500</div><div class="tqty">+</div></div></div>
+          <div style="width:100%;height:34px;border-radius:40px;background:var(--p);color:#fff;font-size:10px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;display:flex;align-items:center;justify-content:center;">Register Now</div>
+        </div>
+      </div>
+    </div>
+    <div class="edcontent">
+      <div class="edmain">
+        <div style="margin-bottom:20px;"><div class="sectdiv">About This Event</div><div style="font-size:10px;color:var(--slt);line-height:1.7;">The Davao Valley Summit brings together the Philippines' top entrepreneurs, developers, and innovators for three intensive days of learning, networking, and growth.</div></div>
+        <div style="margin-bottom:20px;"><div class="sectdiv">Location</div><div class="mapbox"><div class="maplabel">Map · VenueMap</div></div><div style="font-size:9px;color:var(--slt);"><strong style="color:#1a0533;">SMX Convention Center</strong><br>SM Lanang Premier, JP Laurel Ave, Davao City</div></div>
+        <div style="margin-bottom:20px;"><div class="sectdiv">Program / Agenda</div>
+          <div class="agitem"><div class="agtime">08:00</div><div><div class="agtitle">Registration &amp; Welcome Coffee</div><div class="agdesc">Doors open, networking begins</div></div></div>
+          <div class="agitem"><div class="agtime">09:30</div><div><div class="agtitle">Opening Keynote — Maria Santos</div><div class="agdesc">The Future of PH Tech</div></div></div>
+          <div class="agitem"><div class="agtime">13:00</div><div><div class="agtitle">Lunch Break &amp; Expo</div></div></div>
+        </div>
+        <div><div class="sectdiv">Sponsors</div>
+          <div style="font-size:8px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--stn);text-align:center;margin:6px 0 8px;">Platinum</div>
+          <div class="sprow" style="justify-content:center;margin-bottom:10px;"><div class="spchip" style="padding:10px 16px;">Globe Telecom</div></div>
+          <div style="font-size:8px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--stn);text-align:center;margin:6px 0 8px;">Gold</div>
+          <div class="sprow" style="justify-content:center;"><div class="spchip">QBO Innovation Hub</div><div class="spchip">DOST</div></div>
+        </div>
+      </div>
+      <div class="edside">
+        <div style="margin-bottom:16px;"><div class="sectdiv">FAQs</div>
+          <div style="font-size:10px;font-weight:700;color:#1a0533;margin-bottom:3px;">Is there parking?</div>
+          <div style="font-size:9px;color:var(--slt);line-height:1.5;margin-bottom:8px;">Yes, SM Lanang has free parking for the first 3 hours.</div>
+          <div style="font-size:10px;font-weight:700;color:#1a0533;margin-bottom:3px;">Is food included?</div>
+          <div style="font-size:9px;color:var(--slt);line-height:1.5;">Lunch is included for all ticket tiers.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════ 3. AUTH ══════════ -->
+<div class="screen">
+  <div class="slabel">Screen 3 · Auth Flow — Login Gateway + 3-Step OTP</div>
+  <div class="wfgrid col3">
+    <div class="wf">
+      <div class="wflabel">LOGIN GATEWAY · /auth/login</div>
+      <div class="authwrap" style="padding:28px 20px;"><div class="authcard">
+        <div class="authtitle">SIGN<br>IN</div>
+        <div class="authsub">Welcome back to Axon Tickets.</div>
+        <div style="width:100%;height:38px;border-radius:40px;background:var(--p);color:#fff;font-size:10px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;display:flex;align-items:center;justify-content:center;gap:7px;margin-bottom:10px;"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>Continue with Email</div>
+        <div class="alink">No account? <a href="#">Join free</a></div>
+        <div style="font-size:8px;color:var(--stn);text-align:center;margin-top:10px;line-height:1.5;">By continuing you agree to our Terms and Privacy Policy</div>
+      </div></div>
+    </div>
+    <div class="wf">
+      <div class="wflabel">STEP 1 · Email → /auth/access</div>
+      <div class="authwrap" style="padding:28px 20px;"><div class="authcard">
+        <div class="authtitle">ENTER<br>EMAIL</div>
+        <div class="authsub">No password needed — ever.</div>
+        <div class="fgroup"><label class="flabel">Email Address</label><div class="finput" style="display:flex;align-items:center;color:var(--stn);">you@example.com</div></div>
+        <div class="fsubmit">Send My Code →</div>
+        <div class="infobox">We send a 6-digit code to your email. Check spam if it doesn't arrive.</div>
+      </div></div>
+    </div>
+    <div class="wf">
+      <div class="wflabel">STEP 2 · OTP Entry</div>
+      <div class="authwrap" style="padding:28px 20px;"><div class="authcard">
+        <div class="authtitle">CHECK<br>EMAIL</div>
+        <div class="authsub">We sent a 6-digit code to <strong>you@example.com</strong></div>
+        <label class="flabel" style="display:block;margin-bottom:6px;text-align:center;">Enter the 6-digit code</label>
+        <div class="otp-box">_ _ _ _ _ _</div>
+        <div style="text-align:center;font-size:9px;color:var(--stn);margin-top:8px;">Resend available in <strong>58s</strong></div>
+        <div style="text-align:center;font-size:9px;color:var(--slt);margin-top:5px;">Use a different email address</div>
+      </div></div>
+    </div>
+  </div>
+  <div class="wf" style="margin-top:16px;">
+    <div class="wflabel">STEP 3 · New User — Complete Profile</div>
+    <div class="authwrap" style="padding:28px 24px;"><div class="authcard" style="max-width:480px;">
+      <div class="authtitle">ALMOST<br>DONE</div>
+      <div class="authsub">Complete your profile once for faster event registration.</div>
+      <div class="pgrid2" style="margin-bottom:10px;">
+        <div><label class="flabel">First Name *</label><div class="finput" style="display:flex;align-items:center;">Juan</div></div>
+        <div><label class="flabel">Last Name *</label><div class="finput" style="display:flex;align-items:center;">Dela Cruz</div></div>
+      </div>
+      <div class="fgroup"><label class="flabel">Mobile Number *</label><div style="display:flex;"><div class="finput" style="width:44px;border-right:none;border-radius:8px 0 0 8px;display:flex;align-items:center;justify-content:center;color:#1a0533;font-weight:700;flex-shrink:0;">+63</div><div class="finput" style="flex:1;border-radius:0 8px 8px 0;display:flex;align-items:center;">9171234567</div></div></div>
+      <div class="pgrid2" style="margin-bottom:10px;">
+        <div><label class="flabel">Birthday *</label><div class="finput" style="display:flex;align-items:center;">1995-04-12</div></div>
+        <div><label class="flabel">Gender *</label><div class="finput" style="display:flex;align-items:center;color:var(--stn);">Select gender…</div></div>
+      </div>
+      <div class="fgroup"><label class="flabel">City *</label><div class="finput" style="display:flex;align-items:center;">Davao City</div></div>
+      <div style="background:#faf7ff;border:1px solid var(--pl);border-radius:8px;padding:10px 12px;margin-bottom:12px;">
+        <div class="checkrow"><input type="checkbox" checked/><span>I agree to the Terms &amp; Conditions</span></div>
+        <div class="checkrow"><input type="checkbox" checked/><span>I agree to the Privacy Policy</span></div>
+      </div>
+      <div class="fsubmit">Continue →</div>
+    </div></div>
+  </div>
+</div>
+
+<!-- ══════════ 4. MY EVENTS ══════════ -->
+<div class="screen">
+  <div class="slabel">Screen 4 · My Events — /account/tickets</div>
+  <div class="wf">
+    <div class="wflabel">NAVBAR</div>
+    <div class="nav"><div class="nlogo">AXON</div><div class="nsearch"><svg class="ic" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>Search…</div><div class="nlinks"><span>My Events</span><span>My Profile</span><span style="color:var(--stn);">Log out</span></div></div>
+    <div class="lightband">
+      <div style="margin-bottom:20px;"><div class="sectitle" style="font-size:22px;margin-bottom:4px;">MY EVENTS</div><div class="secsub">Your tickets and registration history.</div></div>
+      <div class="tabbar2">
+        <div class="tabn act"><svg class="ic" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9a2 2 0 012-2h14a2 2 0 012 2v1.5a2 2 0 100 4V16a2 2 0 01-2 2H5a2 2 0 01-2-2v-1.5a2 2 0 100-4V9z"/></svg> Tickets <span class="tcount">3</span></div>
+        <div class="tabn"><svg class="ic" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg> Registrations <span class="tcount">2</span></div>
+      </div>
+      <div class="secgrp">
+        <div class="secgrplabel">Upcoming · 2</div>
+        <div class="tklist">
+          <div class="tkcard"><div class="tkdate"><div class="tkmo">OCT</div><div class="tkday">18</div></div><div class="tkthumb">D</div><div class="tkmeta"><div class="title">Davao Valley Summit</div><div class="venue">SMX Convention Center, Davao</div><div class="tier">Regular · Juan Dela Cruz</div></div><div class="tkstatus"><div class="chip valid"><div class="chip-dot"></div>Valid</div></div></div>
+          <div class="tkcard"><div class="tkdate"><div class="tkmo">NOV</div><div class="tkday">3</div></div><div class="tkthumb">V</div><div class="tkmeta"><div class="title">Visayas Creator Fest</div><div class="venue">IT Park Grounds, Cebu</div><div class="tier">General Admission</div></div><div class="tkstatus"><div class="chip pend"><div class="chip-dot"></div>QR Pending</div></div></div>
+        </div>
+      </div>
+      <div class="secgrp">
+        <div class="secgrplabel">Past · 1</div>
+        <div class="tklist">
+          <div class="tkcard" style="opacity:.7;"><div class="tkdate"><div class="tkmo">AUG</div><div class="tkday">12</div></div><div class="tkthumb">P</div><div class="tkmeta"><div class="title">PH Dev Conference 2025</div><div class="venue">Eastwood Ballroom, QC</div><div class="tier">Standard Ticket</div></div><div class="tkstatus"><div class="chip used"><div class="chip-dot"></div>Used</div></div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════ 5. TICKET DETAIL ══════════ -->
+<div class="screen">
+  <div class="slabel">Screen 5 · Ticket Detail — /account/tickets/[id]</div>
+  <div class="wf" style="max-width:400px;">
+    <div class="wflabel">TICKET DETAIL</div>
+    <div class="nav"><div class="nlogo">AXON</div><div class="nlinks" style="margin-left:auto;font-size:10px;color:var(--p);">← Back to tickets</div></div>
+    <div class="lightband" style="padding:24px;">
+      <div class="tkdetail">
+        <div class="tkhdr"><div class="tkhdrtitle">Davao Valley Summit 2025</div><div class="tkhdrdate">Saturday, 18 October 2025 · 08:00 AM</div><div class="tkhdrdate">SMX Convention Center, Davao</div></div>
+        <div class="tkbody">
+          <div class="qrbox"><svg width="52" height="52" viewBox="0 0 24 24" fill="none" stroke="#c4b5fd" stroke-width="1.2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="5" y="5" width="3" height="3" fill="#c4b5fd"/><rect x="16" y="5" width="3" height="3" fill="#c4b5fd"/><rect x="5" y="16" width="3" height="3" fill="#c4b5fd"/></svg></div>
+          <div class="qrlabel">Show this QR code at the venue entrance</div>
+          <div class="tkrow"><span class="tkrowlabel">Tier</span><span class="tkrowval">Regular</span></div>
+          <div class="tkrow"><span class="tkrowlabel">Ticket ID</span><span style="font-family:monospace;font-size:9px;color:var(--stn);">A1B2C3D4</span></div>
+          <div class="tkrow"><span class="tkrowlabel">Status</span><span><div class="chip valid" style="display:inline-flex;"><div class="chip-dot"></div>Valid</div></span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════ 6. ORDER SUCCESS ══════════ -->
+<div class="screen">
+  <div class="slabel">Screen 6 · Order Success — /orders/[id]/success</div>
+  <div class="wf" style="max-width:480px;">
+    <div class="wflabel">ORDER SUCCESS</div>
+    <div class="nav"><div class="nlogo">AXON</div><div class="nlinks" style="margin-left:auto;"><div class="npill fill">My Events</div></div></div>
+    <div class="succband">
+      <div class="succicon"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg></div>
+      <div class="succtitle">YOU'RE<br>IN.</div>
+      <div class="succsub">Payment confirmed. Your ticket has been sent to your email.</div>
+      <div class="succticket">
+        <div class="suckevt">Davao Valley Summit</div>
+        <div class="suckdate">Sat 18 Oct 2025 · SMX Davao · Regular Tier</div>
+        <div class="suckqr"><svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#c4b5fd" stroke-width="1.3"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="5" y="5" width="3" height="3" fill="#c4b5fd"/><rect x="16" y="5" width="3" height="3" fill="#c4b5fd"/><rect x="5" y="16" width="3" height="3" fill="#c4b5fd"/></svg></div>
+        <div class="suckqrl">Scan at entry</div>
+      </div>
+      <div class="succbtns"><div class="pfill-w">View My Tickets</div><div class="npill out" style="border-color:rgba(255,255,255,.3);color:#fff;height:34px;padding:0 14px;font-size:9px;">Browse Events</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════ 7. PROFILE ══════════ -->
+<div class="screen">
+  <div class="slabel">Screen 7 · Profile — /profile</div>
+  <div class="wf">
+    <div class="wflabel">PROFILE PAGE</div>
+    <div class="nav"><div class="nlogo">AXON</div><div class="nlinks" style="margin-left:auto;"><span>My Events</span><span style="color:var(--stn);">Log out</span></div></div>
+    <div class="lightband" style="max-width:600px;margin:0 auto;">
+      <div class="sectitle" style="font-size:20px;margin-bottom:16px;">MY PROFILE</div>
+      <div class="profheader"><div class="profavatar">JD</div><div><div class="profname">Juan Dela Cruz</div><div class="profemail">juan@example.com</div><div class="profbadge"><svg width="11" height="11" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z" clip-rule="evenodd"/></svg>Verified</div><div style="font-size:8px;color:var(--p);font-weight:700;margin-top:1px;">Customer</div></div></div>
+      <div class="profsec"><div class="profsectitle">Basic Info</div>
+        <div class="pgrid2" style="margin-bottom:10px;"><div><label class="flabel">First Name *</label><div class="finput" style="display:flex;align-items:center;">Juan</div></div><div><label class="flabel">Last Name *</label><div class="finput" style="display:flex;align-items:center;">Dela Cruz</div></div></div>
+        <div class="fgroup"><label class="flabel">Email</label><div class="finput" style="display:flex;align-items:center;background:#f3f0f8;color:var(--stn);">juan@example.com</div></div>
+        <div class="fgroup"><label class="flabel">Mobile Number *</label><div style="display:flex;"><div class="finput" style="width:44px;border-right:none;border-radius:8px 0 0 8px;display:flex;align-items:center;justify-content:center;color:#1a0533;font-weight:700;flex-shrink:0;">+63</div><div class="finput" style="flex:1;border-radius:0 8px 8px 0;display:flex;align-items:center;">9171234567</div></div></div>
+      </div>
+      <div class="profsec"><div class="profsectitle">Professional Details</div>
+        <div class="fgroup"><label class="flabel">Company (optional)</label><div class="finput" style="display:flex;align-items:center;color:var(--stn);">Acme Corp</div></div>
+        <div class="fgroup"><label class="flabel">Job Title (optional)</label><div class="finput" style="display:flex;align-items:center;color:var(--stn);">General Manager</div></div>
+        <div class="fgroup"><label class="flabel">City *</label><div class="finput" style="display:flex;align-items:center;">Davao City</div></div>
+        <div class="pgrid2"><div><label class="flabel">Birthday *</label><div class="finput" style="display:flex;align-items:center;">1995-04-12</div></div><div><label class="flabel">Gender *</label><div class="finput" style="display:flex;align-items:center;">Male</div></div></div>
+      </div>
+      <div class="fsubmit" style="max-width:600px;">Save Changes</div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════ 8. BECOME ORGANIZER ══════════ -->
+<div class="screen">
+  <div class="slabel">Screen 8 · Become Organizer — Landing + Application Form</div>
+  <div class="wfgrid col2" style="align-items:start;">
+    <div class="wf">
+      <div class="wflabel">UNAUTHENTICATED LANDING</div>
+      <div class="orglanding">
+        <div class="orgcta">
+          <div class="orgchip">Organizer Program</div>
+          <div class="orgtitle">RUN SEAMLESS<br>EVENTS,<br><em>START TO FINISH</em></div>
+          <div class="orgsub">Axon Tickets gives organizers a dedicated workspace per event — tasks, team, vendors, readiness, and ticketing all in one platform.</div>
+          <div class="npill fill" style="height:36px;padding:0 18px;font-size:10px;margin-bottom:8px;">Apply as Organizer →</div>
+          <div style="font-size:9px;color:var(--stn);">Already have an account? <span style="color:var(--p);font-weight:700;">Sign in as organizer</span></div>
+        </div>
+        <div class="orgbenefits">
+          <div class="orgbcard"><div class="orgbicon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg></div><div><div class="orgbtitle">Event Workspace</div><div class="orgbdesc">Tasks, team, vendors, timeline in one command center</div></div></div>
+          <div class="orgbcard"><div class="orgbicon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg></div><div><div class="orgbtitle">Readiness Center</div><div class="orgbdesc">See what's done and pending before event day</div></div></div>
+          <div class="orgbcard"><div class="orgbicon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M16.5 6v.75m0 3v.75m0 3v.75m0 3V18m-9-5.25h5.25M7.5 15h3"/></svg></div><div><div class="orgbtitle">Sell Tickets</div><div class="orgbdesc">Tiers, capacity, attendee management, revenue tracking</div></div></div>
+          <div class="orgbcard"><div class="orgbicon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M15.75 5.25a3 3 0 013 3m3 0a6 6 0 01-7.029 5.912c-.563-.097-1.159.026-1.563.43L10.5 17.25H8.25v2.25H6v2.25H2.25v-2.818"/></svg></div><div><div class="orgbtitle">KYC-Verified</div><div class="orgbdesc">Every organizer manually reviewed before going live</div></div></div>
+        </div>
+      </div>
+    </div>
+    <div class="wf">
+      <div class="wflabel">APPLICATION FORM (4 SECTIONS)</div>
+      <div class="orgformwrap"><div class="orgformcard">
+        <div class="orgformtitle">ORGANIZER<br>APPLICATION</div>
+        <div class="orgformsub">Complete your KYC details. Reviewed within 1–2 business days.</div>
+        <div class="fsection">Organization Details</div>
+        <div class="fgroup"><label class="flabel">Organization Name *</label><div class="finput" style="display:flex;align-items:center;">Acme Events Inc.</div></div>
+        <div class="fgroup"><label class="flabel">Description *</label><div class="ftextarea"></div></div>
+        <div class="frow2" style="margin-bottom:10px;"><div><label class="flabel">Organization Type *</label><div class="finput" style="display:flex;align-items:center;color:var(--stn);">Business / Company</div></div><div><label class="flabel">DTI / SEC Reg. No.</label><div class="finput" style="display:flex;align-items:center;color:var(--stn);">DTI-123456</div></div></div>
+        <div class="fsection">Primary Contact</div>
+        <div class="fgroup"><label class="flabel">Contact Person *</label><div class="finput" style="display:flex;align-items:center;">Juan Dela Cruz</div></div>
+        <div class="frow2" style="margin-bottom:10px;"><div><label class="flabel">Phone *</label><div class="finput" style="display:flex;align-items:center;">+639171234567</div></div><div><label class="flabel">City *</label><div class="finput" style="display:flex;align-items:center;">Davao City</div></div></div>
+        <div class="fsection">Identity Verification</div>
+        <div class="frow2" style="margin-bottom:10px;"><div><label class="flabel">Government ID Type *</label><div class="finput" style="display:flex;align-items:center;color:var(--stn);">Philippine Passport</div></div><div><label class="flabel">ID Number *</label><div class="finput" style="display:flex;align-items:center;">P1234567A</div></div></div>
+        <div class="fsection">Online Presence (optional)</div>
+        <div class="frow2" style="margin-bottom:10px;"><div><label class="flabel">Website</label><div class="finput" style="display:flex;align-items:center;color:var(--stn);">yoursite.com</div></div><div><label class="flabel">Facebook Page URL</label><div class="finput" style="display:flex;align-items:center;color:var(--stn);">fb.com/yourpage</div></div></div>
+        <div class="finfo"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#7C3AED" stroke-width="2" style="flex-shrink:0;margin-top:1px;"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg><div class="finfo-text">Our team reviews all applications within 1–2 business days.</div></div>
+        <div class="flegal"><div class="checkrow"><input type="checkbox"/><span>I agree to the Organizer Terms of Service *</span></div></div>
+        <div class="fbtnrow"><div class="fbtnsec">Cancel</div><div class="fbtnsub">Submit Application</div></div>
+      </div></div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════ 9. ORG STATUS ══════════ -->
+<div class="screen">
+  <div class="slabel">Screen 9 · Organizer Status States — 4 outcomes</div>
+  <div class="wfgrid col2">
+    <div class="wf"><div class="wflabel">STATUS · PENDING</div><div class="lightband"><div class="statcard">
+      <div class="sticon amb"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#d97706" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z"/></svg></div>
+      <div class="sttitle">APPLICATION<br>UNDER<br>REVIEW</div>
+      <div class="storg">Acme Events Inc.</div><div class="stdate">Submitted 1 July 2025</div>
+      <div class="stbox amb"><div class="stboxtitle amb">What happens next?</div><div class="stboxlist amb">1. Our team reviews your details (1–2 business days)<br>2. You'll receive an email when a decision is made<br>3. Once approved, you can create events immediately</div></div>
+      <div style="font-size:9px;color:var(--slt);">← Back to homepage</div>
+    </div></div></div>
+    <div class="wf"><div class="wflabel">STATUS · APPROVED</div><div class="lightband"><div class="statcard">
+      <div class="sticon grn"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#16a34a" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg></div>
+      <div class="sttitle">YOU'RE AN<br>APPROVED<br>ORGANIZER</div>
+      <div class="storg">Acme Events Inc.</div><div class="stdate">Approved 5 July 2025</div>
+      <div class="stbox grn"><div class="stboxtitle grn">What's next?</div><div class="stboxlist grn">Your organizer dashboard is ready. Create events, review registrations, run check-in, and monitor data.</div></div>
+      <div class="npill dark" style="height:34px;padding:0 16px;font-size:9px;">Open Organizer Dashboard</div>
+    </div></div></div>
+    <div class="wf"><div class="wflabel">STATUS · REJECTED</div><div class="lightband"><div class="statcard">
+      <div class="sticon red"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#dc2626" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z"/></svg></div>
+      <div class="sttitle">APPLICATION<br>NOT<br>APPROVED</div>
+      <div class="storg">Acme Events Inc.</div><div class="stdate">Reviewed 3 July 2025</div>
+      <div class="stbox red"><div class="stboxtitle red">Reason Provided</div><div class="stboxlist red">We could not verify the ID number provided. Please reapply with a clear copy of a valid government-issued ID.</div></div>
+      <div style="font-size:9px;color:var(--slt);margin-bottom:12px;">If you've addressed the issue, apply again with corrected details.</div>
+      <div class="npill fill" style="height:34px;padding:0 16px;font-size:9px;">Apply Again</div>
+    </div></div></div>
+    <div class="wf"><div class="wflabel">STATUS · SUSPENDED</div><div class="lightband"><div class="statcard">
+      <div class="sticon gry"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#6b7280" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"/></svg></div>
+      <div class="sttitle">ACCOUNT<br>SUSPENDED</div>
+      <div class="storg">Acme Events Inc.</div>
+      <div class="stdate" style="margin-bottom:20px;">Your organizer account has been suspended. Please contact support for assistance.</div>
+      <div class="npill out" style="height:34px;padding:0 14px;font-size:9px;">Contact Support</div>
+    </div></div></div>
+  </div>
+</div>
+
+</body>
+</html>

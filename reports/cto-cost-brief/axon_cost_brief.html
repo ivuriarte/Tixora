@@ -1,0 +1,588 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Axon Tickets Commercialization Cost Brief</title>
+  <style>
+    @page { size: A4; margin: 13mm 13mm 14mm 13mm; }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
+      color: #172033;
+      background: #ffffff;
+      font-size: 10.6px;
+      line-height: 1.42;
+    }
+    .page {
+      page-break-after: always;
+      min-height: 270mm;
+      position: relative;
+    }
+    .page:last-child { page-break-after: auto; }
+    .eyebrow {
+      color: #2f6fb2;
+      font-weight: 800;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+      font-size: 9px;
+      margin-bottom: 8px;
+    }
+    h1 {
+      font-size: 31px;
+      line-height: 1.02;
+      margin: 0 0 8px;
+      color: #0b2545;
+      letter-spacing: -0.02em;
+    }
+    h2 {
+      font-size: 16px;
+      margin: 20px 0 8px;
+      color: #0b2545;
+    }
+    h3 {
+      font-size: 12.5px;
+      margin: 14px 0 6px;
+      color: #1f4d78;
+    }
+    p { margin: 0 0 7px; }
+    .subhead {
+      font-size: 13px;
+      color: #5c6874;
+      max-width: 620px;
+      margin-bottom: 16px;
+    }
+    .rule {
+      height: 4px;
+      width: 100%;
+      border-radius: 99px;
+      background: linear-gradient(90deg, #2f6fb2, #87b7d8 55%, #d9e8f3);
+      margin: 10px 0 15px;
+    }
+    .meta {
+      display: grid;
+      grid-template-columns: 120px 1fr;
+      gap: 4px 12px;
+      margin: 10px 0 16px;
+      color: #344054;
+    }
+    .meta .label { color: #697586; font-weight: 700; }
+    .metric-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 10px;
+      margin: 14px 0 14px;
+    }
+    .metric {
+      border: 1px solid #d9e2ec;
+      border-radius: 10px;
+      padding: 13px 12px;
+      background: #f8fafc;
+    }
+    .metric.green { background: #eef8f2; border-color: #cce9d8; }
+    .metric.gold { background: #fff7df; border-color: #ecd890; }
+    .metric .label {
+      font-size: 8.5px;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+      color: #697586;
+      font-weight: 800;
+      margin-bottom: 5px;
+    }
+    .metric .value {
+      font-size: 19px;
+      color: #0b2545;
+      font-weight: 850;
+      line-height: 1;
+      margin-bottom: 5px;
+    }
+    .metric .note { font-size: 9px; color: #5c6874; }
+    .callout {
+      border: 1px solid #cfe3d6;
+      background: #f0f8f3;
+      border-radius: 10px;
+      padding: 11px 13px;
+      margin: 12px 0 14px;
+      page-break-inside: avoid;
+    }
+    .callout.blue {
+      border-color: #c7d7ea;
+      background: #f1f6fb;
+    }
+    .callout.gold {
+      border-color: #ead893;
+      background: #fff8e2;
+    }
+    .callout.compact {
+      padding: 8px 11px;
+      margin-top: 8px;
+      margin-bottom: 8px;
+      line-height: 1.3;
+    }
+    .callout strong {
+      color: #0b2545;
+      display: block;
+      margin-bottom: 3px;
+    }
+    .callout strong.inline {
+      display: inline;
+      margin-bottom: 0;
+    }
+    table {
+      width: 100%;
+      border-collapse: separate;
+      border-spacing: 0;
+      margin: 7px 0 11px;
+      page-break-inside: avoid;
+    }
+    th, td {
+      border-right: 1px solid #d9e2ec;
+      border-bottom: 1px solid #d9e2ec;
+      padding: 7px 8px;
+      vertical-align: middle;
+    }
+    th:first-child, td:first-child { border-left: 1px solid #d9e2ec; }
+    thead th {
+      border-top: 1px solid #d9e2ec;
+      background: #e8eef5;
+      color: #0b2545;
+      text-align: left;
+      font-size: 9px;
+      text-transform: uppercase;
+      letter-spacing: .04em;
+    }
+    thead th:first-child { border-top-left-radius: 8px; }
+    thead th:last-child { border-top-right-radius: 8px; }
+    tbody tr:last-child td:first-child { border-bottom-left-radius: 8px; }
+    tbody tr:last-child td:last-child { border-bottom-right-radius: 8px; }
+    tbody tr:nth-child(even) td { background: #fbfcfe; }
+    .right { text-align: right; white-space: nowrap; }
+    .center { text-align: center; }
+    .muted { color: #697586; }
+    .pill {
+      display: inline-block;
+      border-radius: 999px;
+      padding: 2px 7px;
+      background: #eef2f6;
+      color: #344054;
+      font-size: 9px;
+      font-weight: 700;
+    }
+    .pill.green { background: #e6f5ec; color: #17663a; }
+    .pill.gold { background: #fff1bd; color: #7a5a00; }
+    .two-col {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin-top: 4px;
+    }
+    .box {
+      border: 1px solid #d9e2ec;
+      border-radius: 10px;
+      padding: 11px 12px;
+      background: #ffffff;
+      page-break-inside: avoid;
+    }
+    .box h3 { margin-top: 0; }
+    ul {
+      margin: 6px 0 0 15px;
+      padding: 0;
+    }
+    li { margin-bottom: 4px; }
+    .foot {
+      position: absolute;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      display: flex;
+      justify-content: space-between;
+      border-top: 1px solid #e6eaf0;
+      padding-top: 6px;
+      color: #7b8794;
+      font-size: 8.5px;
+    }
+    .section-kicker {
+      display: inline-block;
+      margin: 4px 0 6px;
+      color: #2f6fb2;
+      font-size: 9px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+    }
+    .scenario-note {
+      margin-top: 4px;
+      font-size: 9.5px;
+      color: #5c6874;
+    }
+    .runtime-page table { font-size: 8.9px; }
+    .runtime-page th, .runtime-page td { padding: 4px 6px; }
+    .runtime-page .box { padding: 7px 9px; }
+    .runtime-page h2 { margin-bottom: 6px; }
+    .runtime-page .section-kicker { margin-bottom: 4px; }
+    .runtime-page .callout { font-size: 9.4px; }
+    .runtime-page .commercial-rationale { line-height: 1.25; }
+    .summary-page table { font-size: 9.2px; }
+    .summary-page th, .summary-page td { padding: 4px 6px; }
+    .summary-page h2 { margin: 13px 0 6px; }
+    .summary-page .metric { padding: 10px 11px; }
+    .summary-page .callout { padding: 8px 11px; margin: 9px 0 10px; }
+    .summary-page .metric-grid { margin: 10px 0; }
+    body > section:not(.ceo-page) { display: none; }
+    .plain-table td:first-child { font-weight: 700; }
+    .decision {
+      border-left: 4px solid #2f6fb2;
+      padding: 8px 11px;
+      margin: 10px 0;
+      background: #f4f8fc;
+    }
+  </style>
+</head>
+<body>
+  <section class="page ceo-page">
+    <div class="eyebrow">Axon Tickets</div>
+    <h1>CEO Cost Summary</h1>
+    <p class="subhead">A simple view of costs paid, costs running today, and the expected monthly budget for commercialization.</p>
+    <div class="rule"></div>
+
+    <div class="meta">
+      <div class="label">Cost position</div><div>As of <strong>June 21, 2026</strong></div>
+      <div class="label">Planning rate</div><div>USD 1 = PHP 58</div>
+    </div>
+
+    <div class="metric-grid">
+      <div class="metric green">
+        <div class="label">Paid Since May</div>
+        <div class="value">PHP 10,614</div>
+        <div class="note">USD 183 actually purchased</div>
+      </div>
+      <div class="metric green">
+        <div class="label">Monthly Cost Today</div>
+        <div class="value">PHP 8,352</div>
+        <div class="note">USD 144 current recurring cost</div>
+      </div>
+      <div class="metric gold">
+        <div class="label">Commercial Monthly Budget</div>
+        <div class="value">PHP 30,676</div>
+        <div class="note">Potential cost when fully commercial</div>
+      </div>
+    </div>
+
+    <div class="callout">
+      <strong>CEO takeaway</strong>
+      The company is currently committed to <strong class="inline">PHP 8,352 per month</strong>. A realistic commercialization budget is <strong class="inline">PHP 30,676 per month</strong>. The higher amount should only be activated when event volume and funding justify the additional operating capacity.
+    </div>
+
+    <h2>What We Pay Every Month Today</h2>
+    <table class="plain-table">
+      <thead><tr><th>Business Purpose</th><th>What It Covers</th><th class="right">Monthly Cost</th></tr></thead>
+      <tbody>
+        <tr><td>Website and application hosting</td><td>Vercel Pro and Speed Insights</td><td class="right">PHP 1,740</td></tr>
+        <tr><td>Production database</td><td>Supabase Pro for the live application</td><td class="right">PHP 1,450</td></tr>
+        <tr><td>UAT testing database</td><td>Separate Supabase compute for safe pre-release testing</td><td class="right">PHP 580</td></tr>
+        <tr><td>Development assistants</td><td>ChatGPT/Codex, Claude, and GitHub Copilot</td><td class="right">PHP 4,582</td></tr>
+        <tr><td><strong>Total monthly cost today</strong></td><td>Current recurring subscriptions</td><td class="right"><strong>PHP 8,352</strong></td></tr>
+      </tbody>
+    </table>
+
+    <h2>What Has Already Been Paid</h2>
+    <table class="plain-table">
+      <thead><tr><th>Month</th><th>What Was Purchased</th><th class="right">Amount</th></tr></thead>
+      <tbody>
+        <tr><td>May 2026</td><td>GitHub Copilot</td><td class="right">PHP 2,262</td></tr>
+        <tr><td>June 2026</td><td>Hosting, Production/UAT databases, and development assistants</td><td class="right">PHP 8,352</td></tr>
+        <tr><td><strong>Total paid since May</strong></td><td>Recorded software purchases</td><td class="right"><strong>PHP 10,614</strong></td></tr>
+      </tbody>
+    </table>
+
+    <p class="scenario-note">Annualized current cost: approximately PHP 100,575, including the current annual domain and DNS cost.</p>
+    <div class="foot"><span>Axon Tickets CEO Cost Summary</span><span>Page 1</span></div>
+  </section>
+
+  <section class="page ceo-page">
+    <span class="section-kicker">Commercialization Planning</span>
+    <h2 style="margin-top:0">Potential Monthly Cost</h2>
+    <p>This is the expected budget when Axon supports upcoming events with separate UAT and Production environments, stronger operational tools, and higher-capacity development support.</p>
+
+    <table class="plain-table">
+      <thead><tr><th>Cost Group</th><th>Why It Is Needed</th><th class="right">Monthly Budget</th></tr></thead>
+      <tbody>
+        <tr><td>Core platform and two environments</td><td>Hosting, Production database, UAT database, email, media, monitoring, security, and temporary reservation capacity</td><td class="right">PHP 18,386</td></tr>
+        <tr><td>Commercial development capacity</td><td>ChatGPT Pro and Claude Max for higher limits during releases, event preparation, debugging, and urgent fixes</td><td class="right">PHP 12,290</td></tr>
+        <tr><td><strong>Commercial monthly baseline</strong></td><td>Recommended funded operating budget</td><td class="right"><strong>PHP 30,676</strong></td></tr>
+      </tbody>
+    </table>
+
+    <div class="decision">
+      <strong>Why UAT and Production are separate</strong>
+      UAT gives the team a safe place to test changes before customers use them. Production remains stable for ticket buyers and event staff. This lowers the risk of failed registration, payment, email, QR ticket, or check-in changes reaching a live event.
+    </div>
+
+    <div class="decision">
+      <strong>Why higher AI plans are proposed</strong>
+      During commercialization, testing and fixing UAT must happen while Production is supported. ChatGPT Pro and Claude Max provide more working capacity for release preparation and incident response. They support the engineering process; they do not replace human approval, QA, monitoring, or backups.
+    </div>
+
+    <h2>CEO Decisions and Cost Controls</h2>
+    <table class="plain-table">
+      <thead><tr><th>Decision</th><th>Recommended Treatment</th><th class="right">Financial Effect</th></tr></thead>
+      <tbody>
+        <tr><td>GitHub Copilot</td><td>Discontinue after the transition to ChatGPT Pro and Claude Max</td><td class="right">Save PHP 2,262/month</td></tr>
+        <tr><td>ChatGPT Pro and Claude Max</td><td>Activate when commercialization work begins; review after each event cycle</td><td class="right">PHP 12,290/month</td></tr>
+        <tr><td>Google Maps paid capacity</td><td>Keep as an optional reserve unless actual usage requires it</td><td class="right">Up to PHP 15,950/month</td></tr>
+        <tr><td>Legal, payment, security, and emergency support</td><td>Obtain quotations before adding to the approved budget</td><td class="right">Not yet included</td></tr>
+      </tbody>
+    </table>
+
+    <div class="callout gold">
+      <strong>Funding presentation</strong>
+      Present <strong class="inline">PHP 8,352/month</strong> as today’s recurring cost and <strong class="inline">PHP 30,676/month</strong> as the funded commercialization target. Keep the optional reserve and unquoted professional services separate so the report remains honest and unambiguous.
+    </div>
+
+    <p class="scenario-note">Projected annual commercialization baseline: PHP 370,889, including the assumed first-year domain cost. Optional reserve scenario: PHP 46,626/month.</p>
+    <div class="foot"><span>Axon Tickets CEO Cost Summary</span><span>Page 2</span></div>
+  </section>
+
+  <section class="page summary-page">
+    <div class="eyebrow">Axon Tickets</div>
+    <h1>Commercialization Cost Brief</h1>
+    <p class="subhead">CEO-ready view of monthly and annual expenses for production launch planning and investor discussion.</p>
+    <div class="rule"></div>
+
+    <div class="meta">
+      <div class="label">Prepared for</div><div>CEO / Investor Review</div>
+      <div class="label">Prepared by</div><div>CTO, Axon Tickets</div>
+      <div class="label">Cost status</div><div>As of <strong>June 21, 2026</strong>; paid costs are separated from projections.</div>
+      <div class="label">Currency basis</div><div>Vendor prices are retained in USD and converted at <strong>USD 1 = PHP 58</strong> for planning.</div>
+    </div>
+
+    <div class="metric-grid">
+      <div class="metric green">
+        <div class="label">Live App Runtime</div>
+        <div class="value">PHP 3,770</div>
+        <div class="note">USD 65/month: Vercel + Supabase Prod/UAT</div>
+      </div>
+      <div class="metric green">
+        <div class="label">Total Committed Now</div>
+        <div class="value">PHP 8,352</div>
+        <div class="note">USD 144/month including current AI tools</div>
+      </div>
+      <div class="metric gold">
+        <div class="label">Commercial Baseline</div>
+        <div class="value">PHP 30,676</div>
+        <div class="note">Projected monthly funding-stage budget</div>
+      </div>
+    </div>
+
+    <div class="callout">
+      <strong>CTO recommendation</strong>
+      Report the current committed run-rate as <strong class="inline">USD 144 (PHP 8,352) per month</strong>. Separately disclose <strong class="inline">USD 183 (PHP 10,614)</strong> in recorded software expenses since May 2026.
+    </div>
+
+    <h2>Monthly and Annual Expense Summary</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>Scenario</th>
+          <th class="right">Monthly Expense</th>
+          <th class="right">Annual Expense</th>
+          <th>Notes</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>Current app runtime</strong></td>
+          <td class="right">USD 65 / PHP 3,770</td>
+          <td class="right">PHP 45,591</td>
+          <td>Vercel USD 30, Supabase Pro USD 25, and Supabase UAT compute USD 10 are paid and active. Annual total includes Namecheap domain + PremiumDNS.</td>
+        </tr>
+        <tr>
+          <td><strong>Total current committed cost</strong></td>
+          <td class="right">USD 144 / PHP 8,352</td>
+          <td class="right">PHP 100,575</td>
+          <td>Current app runtime plus Claude, GitHub Copilot, and ChatGPT/Codex. This is the present run-rate before other commercial upgrades.</td>
+        </tr>
+        <tr>
+          <td><strong>Recommended commercial baseline</strong></td>
+          <td class="right">PHP 30,676</td>
+          <td class="right">PHP 370,889</td>
+          <td>Commercialization budget with Vercel, Supabase, ChatGPT Pro, and Claude Max; excludes Google Maps paid upgrade and pay-as-you-go items.</td>
+        </tr>
+        <tr>
+          <td><strong>Conservative reserve scenario</strong></td>
+          <td class="right">PHP 46,626</td>
+          <td class="right">PHP 562,289</td>
+          <td>Adds Google Maps paid upgrade as a reserve scenario.</td>
+        </tr>
+      </tbody>
+    </table>
+    <p class="scenario-note">Monthly figures exclude annual domain charges. Annual totals add the selected domain scenario: current costs use Namecheap with PremiumDNS; projected scenarios use Hostinger first-year pricing.</p>
+
+    <h2>Recorded Expenses Since May 2026</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>Billing Month</th>
+          <th>Subscription</th>
+          <th class="right">Vendor Charge</th>
+          <th class="right">PHP Equivalent</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr><td>May 2026</td><td>GitHub Copilot</td><td class="right">USD 39</td><td class="right">PHP 2,262</td><td><span class="pill green">Paid</span></td></tr>
+        <tr><td>June 2026</td><td>Claude Code</td><td class="right">USD 20</td><td class="right">PHP 1,160</td><td><span class="pill green">Paid</span></td></tr>
+        <tr><td>June 2026</td><td>ChatGPT / Codex</td><td class="right">USD 20</td><td class="right">PHP 1,160</td><td><span class="pill green">Paid</span></td></tr>
+        <tr><td>June 2026</td><td>GitHub Copilot</td><td class="right">USD 39</td><td class="right">PHP 2,262</td><td><span class="pill green">Paid</span></td></tr>
+        <tr><td>June 2026</td><td>Vercel Pro + Speed Insights</td><td class="right">USD 30</td><td class="right">PHP 1,740</td><td><span class="pill green">Paid</span></td></tr>
+        <tr><td>June 2026</td><td>Supabase Pro</td><td class="right">USD 25</td><td class="right">PHP 1,450</td><td><span class="pill green">Paid</span></td></tr>
+        <tr><td>June 2026</td><td>Supabase UAT compute allocation</td><td class="right">USD 10</td><td class="right">PHP 580</td><td><span class="pill green">Paid</span></td></tr>
+        <tr><td><strong>Total</strong></td><td><strong>Recorded software expenses</strong></td><td class="right"><strong>USD 183</strong></td><td class="right"><strong>PHP 10,614</strong></td><td><span class="pill green">Paid history</span></td></tr>
+      </tbody>
+    </table>
+
+    <div class="foot"><span>Axon Tickets Commercialization Cost Brief</span><span>Page 1</span></div>
+  </section>
+
+  <section class="page runtime-page">
+    <span class="section-kicker">Fixed Runtime Subscriptions</span>
+    <h2 style="margin-top:0">Third-Party App Tools</h2>
+    <table>
+      <thead>
+        <tr>
+          <th style="width:17%">Tool</th>
+          <th style="width:12%">Current</th>
+          <th style="width:18%">Future</th>
+          <th>CEO-Friendly Notes</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr><td><strong>Vercel</strong></td><td>USD 30 / PHP 1,740</td><td>PHP 1,740/month</td><td>Paid and active: USD 20 Pro + USD 10 Speed Insights. Hosts the website and backend API.</td></tr>
+        <tr><td><strong>Supabase PostgreSQL</strong></td><td>USD 25 / PHP 1,450</td><td>PHP 1,450/month</td><td>Paid and active. Production database for application and administrative records.</td></tr>
+        <tr><td><strong>Supabase UAT compute</strong></td><td>USD 10 / PHP 580</td><td>PHP 580/month</td><td>Paid and active compute allocation for the separate Axon UAT environment.</td></tr>
+        <tr><td><strong>Upstash Redis</strong></td><td>Free</td><td>PHP 1,160/month or PAYG</td><td>Fast temporary data for reservations, rate limiting, login protection, and verification flows. PAYG is about PHP 11.60 per 100,000 commands.</td></tr>
+        <tr><td><strong>Cloudinary</strong></td><td>Free</td><td>PHP 5,162/month</td><td>Stores and delivers event images and uploaded proof/payment images.</td></tr>
+        <tr><td><strong>hCaptcha</strong></td><td>Free</td><td>PHP 5,742/month</td><td>Bot and abuse protection for login, registration, and checkout-related forms.</td></tr>
+        <tr><td><strong>Google OAuth</strong></td><td>Free</td><td>Free</td><td>Optional Google login. Currently hidden due to a bug; existing login works.</td></tr>
+        <tr><td><strong>Google Maps</strong></td><td>Free</td><td>PHP 15,950/month</td><td>Future reserve only. Used for event location display/linking; free usage may be enough initially.</td></tr>
+        <tr><td><strong>Mapbox</strong></td><td>Free</td><td>Pay-as-you-go</td><td>Used for static location images. Excluded from fixed totals because final cost depends on usage.</td></tr>
+        <tr><td><strong>Brevo SMTP</strong></td><td>Free</td><td>PHP 1,044/month</td><td>Sends OTP codes, ticket confirmations, QR emails, and admin resend emails.</td></tr>
+        <tr><td><strong>Sentry</strong></td><td>Free</td><td>PHP 1,508/month</td><td>Production error tracking so issues can be fixed before repeated customer reports.</td></tr>
+        <tr><td><strong>Domain</strong></td><td>Namecheap: PHP 351/year for domain + PremiumDNS</td><td>Hostinger: PHP 2,777 first year; PHP 637/year renewal</td><td>Domain name cost. This is annual, not monthly. If Axon keeps Namecheap, PremiumDNS is recommended for stronger DNS uptime, DNSSEC, Anycast DNS, DNS-layer DDoS protection, and ALIAS record support. Hostinger remains the future option if the CEO prefers registrar consolidation, simpler billing, support ownership, or bundled DNS/domain management.</td></tr>
+      </tbody>
+    </table>
+
+    <div class="two-col">
+      <div class="box">
+        <h3>Runtime Subtotal</h3>
+        <p><strong>Paid app runtime now:</strong> USD 65 / PHP 3,770 per month</p>
+        <p><strong>Recommended:</strong> PHP 18,386/month</p>
+        <p><strong>Conservative reserve:</strong> PHP 34,336/month</p>
+        <p class="muted">The conservative reserve adds Google Maps paid upgrade. Mapbox remains pay-as-you-go.</p>
+      </div>
+      <div class="box">
+        <h3>Domain Treatment</h3>
+        <p>Current totals use Namecheap plus PremiumDNS. PremiumDNS adds the uptime SLA, Anycast DNS, DNSSEC, DNS-layer DDoS protection, and ALIAS support. Hostinger remains an optional future consolidation choice.</p>
+      </div>
+    </div>
+
+    <span class="section-kicker" style="margin-top:18px">Developer Productivity</span>
+    <h2 style="margin-top:0">AI Development Tools</h2>
+    <table>
+      <thead>
+        <tr>
+          <th style="width:17%">Tool</th>
+          <th style="width:15%">Current</th>
+          <th style="width:18%">Future</th>
+          <th>CEO-Friendly Notes</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr><td><strong>GitHub Copilot</strong></td><td>PHP 2,262/month</td><td><span class="pill gold">Discontinue</span></td><td>Remove because it overlaps with ChatGPT/Codex and Claude Code.</td></tr>
+        <tr><td><strong>ChatGPT / Codex</strong></td><td>PHP 1,160/month</td><td>Pro: PHP 6,490/month</td><td>Commercialization upgrade for higher Codex usage, deeper research, larger context, and sustained release support.</td></tr>
+        <tr><td><strong>Claude Code</strong></td><td>PHP 1,160/month</td><td>Max: USD 100 / PHP 5,800/month</td><td>Commercialization upgrade for higher limits and priority access during UAT remediation and production incidents.</td></tr>
+      </tbody>
+    </table>
+    <div class="callout blue compact">
+      <strong>AI tooling decision</strong>
+      Discontinue GitHub Copilot after transition. For commercialization, budget ChatGPT Pro and Claude Max at <strong class="inline">PHP 12,290/month</strong>. These are operational-capacity upgrades, not hosting requirements.
+    </div>
+
+    <div class="callout compact commercial-rationale">
+      <strong>Why Pro and Max support UAT + Production</strong>
+      Two environments create parallel work: UAT testing and remediation must continue while Production remains stable. Higher limits reduce delivery risk during release hardening, event-week changes, security reviews, and urgent incident response. ChatGPT Pro serves as the primary implementation and research workspace; Claude Max provides a second high-capacity path for debugging and independent review. Activate these upgrades for commercialization, then review their value after each event cycle.
+    </div>
+
+    <div class="foot"><span>Axon Tickets Commercialization Cost Brief</span><span>Page 2</span></div>
+  </section>
+
+  <section class="page">
+    <span class="section-kicker">Founder Operating Cost</span>
+    <h2 style="margin-top:0">Domain and Planning Assumptions</h2>
+    <table>
+      <thead>
+        <tr>
+          <th style="width:25%">Item</th>
+          <th style="width:25%">Amount</th>
+          <th>Notes</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr><td><strong>Current domain</strong></td><td>Namecheap: PHP 68/year (USD 1.18)</td><td>Current registrar for axontickets.online.</td></tr>
+        <tr><td><strong>Namecheap DNS add-on</strong></td><td>PremiumDNS: PHP 283/year (USD 4.88)</td><td>Recommended if staying with Namecheap for stronger DNS uptime, DNSSEC, Anycast DNS, DNS-layer DDoS protection, and ALIAS record support.</td></tr>
+        <tr><td><strong>Future domain option</strong></td><td>Hostinger: PHP 2,777 first year</td><td>Succeeding-year renewal estimate: PHP 637/year. Consider if it improves billing, support, DNS management, or ownership control.</td></tr>
+        <tr><td><strong>Exchange rate</strong></td><td>USD 1 = PHP 58</td><td>Planning assumption as of June 21, 2026. USD vendor prices are authoritative; update only the PHP conversion when the rate changes.</td></tr>
+      </tbody>
+    </table>
+
+    <div class="callout">
+      <strong>Personnel cost treatment</strong>
+      CTO salary and founder compensation are excluded from this cost brief because they are separate personnel decisions and are not yet active operating expenses.
+    </div>
+
+    <span class="section-kicker">Quote-Dependent Items</span>
+    <h2 style="margin-top:0">Commercialization Contingency</h2>
+    <p>These items are intentionally kept out of the fixed monthly and annual totals because pricing depends on supplier quotations, legal scope, payment gateway terms, actual usage, and final launch assumptions.</p>
+    <table>
+      <thead>
+        <tr>
+          <th style="width:27%">Group</th>
+          <th>Includes</th>
+          <th style="width:24%">Budget Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr><td><strong>Commercial Launch Contingency</strong></td><td>Legal documents, payment gateway onboarding, cybersecurity review, production readiness testing.</td><td><span class="pill gold">To be quoted</span></td></tr>
+        <tr><td><strong>Monthly Operations Contingency</strong></td><td>Monitoring, support tooling, backup retention, accounting, tax support.</td><td><span class="pill gold">To be quoted</span></td></tr>
+        <tr><td><strong>Emergency Application Contingency</strong></td><td>Urgent fixes, outage recovery, failed payment incidents, security response, emergency consultant support.</td><td><span class="pill gold">Reserved fund; amount to be approved</span></td></tr>
+      </tbody>
+    </table>
+
+    <div class="two-col">
+      <div class="box">
+        <h3>Contingency Scope Checklist</h3>
+        <ul>
+          <li>Payment and finance: BDO setup, fees, refunds, chargebacks, accounting, tax, settlement, and PayMongo decision.</li>
+          <li>Security: audit, penetration testing, vulnerability monitoring, secrets handling, admin access review, and incident response.</li>
+          <li>Operations: backups, disaster recovery, uptime monitoring, status page, alerts, runbook, admin manual, and support workflow.</li>
+        </ul>
+      </div>
+      <div class="box">
+        <h3>Assumptions Still Needed</h3>
+        <ul>
+          <li>Expected events, attendees, transactions, email volume, image/storage volume, Redis usage, and support volume.</li>
+          <li>Target launch date, final BDO pricing, and final peso-to-USD exchange rate.</li>
+          <li>Decision on hCaptcha Plus and Google Maps paid upgrade timing.</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="callout gold">
+      <strong>How to use this brief</strong>
+      Lead with the current committed cost: <strong class="inline">USD 144 (PHP 8,352) per month</strong>. Also disclose recorded software spending since May of <strong class="inline">USD 183 (PHP 10,614)</strong>. Present projections and reserves separately.
+    </div>
+
+    <div class="foot"><span>Axon Tickets Commercialization Cost Brief</span><span>Page 3</span></div>
+  </section>
+</body>
+</html>
