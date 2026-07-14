@@ -304,41 +304,6 @@ export default function OnsiteRegistrationPage({ params }: { params: { slug: str
               </div>
             )}
 
-            {subEvents.length > 0 && (
-              <div className="rounded-xl border border-gray-200 p-4">
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                  <div>
-                    <p className="text-sm font-semibold text-gray-800">Sub-events to attend</p>
-                    <p className="text-xs text-gray-500">All are selected by default. Uncheck only the sessions you will not attend.</p>
-                  </div>
-                  <div className="grid grid-cols-2 gap-2 sm:flex sm:shrink-0">
-                    <button type="button" onClick={selectAllSubEvents} className="min-h-10 rounded-lg border border-violet-200 px-3 text-xs font-semibold text-violet-700 hover:bg-violet-50">
-                      Select all
-                    </button>
-                    <button type="button" onClick={clearSubEvents} className="min-h-10 rounded-lg border border-gray-200 px-3 text-xs font-semibold text-gray-600 hover:bg-gray-50">
-                      Clear
-                    </button>
-                  </div>
-                </div>
-                <div className="mt-3 space-y-2">
-                  {subEvents.map((item) => (
-                    <label key={item.id} className="flex min-h-12 items-start gap-3 rounded-lg border border-gray-200 px-3 py-3">
-                      <input
-                        type="checkbox"
-                        checked={form.subEventIds.includes(item.id)}
-                        onChange={() => toggleSubEvent(item.id)}
-                        className="mt-0.5 h-5 w-5 shrink-0 rounded border-gray-300 text-primary focus:ring-primary"
-                      />
-                      <span className="text-base leading-snug text-gray-800 sm:text-sm">
-                        {item.time && <span className="font-medium text-gray-500">{item.time} - </span>}
-                        {item.title}
-                      </span>
-                    </label>
-                  ))}
-                </div>
-              </div>
-            )}
-
             <div className="grid gap-3 sm:grid-cols-2">
               <Field label="First name" value={form.firstName} onChange={(v) => field('firstName', v)} autoComplete="given-name" />
               <Field label="Last name" value={form.lastName} onChange={(v) => field('lastName', v)} autoComplete="family-name" />
@@ -397,6 +362,41 @@ export default function OnsiteRegistrationPage({ params }: { params: { slug: str
               <Field label="Company" value={form.company} onChange={(v) => field('company', v)} required={false} />
               <Field label="Title" value={form.jobTitle} onChange={(v) => field('jobTitle', v)} required={false} />
             </div>
+
+            {subEvents.length > 0 && (
+              <div className="rounded-xl border border-gray-200 p-4">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <p className="text-sm font-semibold text-gray-800">Sub-events to attend</p>
+                    <p className="text-xs text-gray-500">All are selected by default. Uncheck only the sessions you will not attend.</p>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 sm:flex sm:shrink-0">
+                    <button type="button" onClick={selectAllSubEvents} className="min-h-10 rounded-lg border border-violet-200 px-3 text-xs font-semibold text-violet-700 hover:bg-violet-50">
+                      Select all
+                    </button>
+                    <button type="button" onClick={clearSubEvents} className="min-h-10 rounded-lg border border-gray-200 px-3 text-xs font-semibold text-gray-600 hover:bg-gray-50">
+                      Clear
+                    </button>
+                  </div>
+                </div>
+                <div className="mt-3 space-y-2">
+                  {subEvents.map((item) => (
+                    <label key={item.id} className="flex min-h-12 items-start gap-3 rounded-lg border border-gray-200 px-3 py-3">
+                      <input
+                        type="checkbox"
+                        checked={form.subEventIds.includes(item.id)}
+                        onChange={() => toggleSubEvent(item.id)}
+                        className="mt-0.5 h-5 w-5 shrink-0 rounded border-gray-300 text-primary focus:ring-primary"
+                      />
+                      <span className="text-base leading-snug text-gray-800 sm:text-sm">
+                        {item.time && <span className="font-medium text-gray-500">{item.time} - </span>}
+                        {item.title}
+                      </span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {error && <p className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p>}
 
