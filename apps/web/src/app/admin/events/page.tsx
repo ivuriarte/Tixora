@@ -152,7 +152,7 @@ export default function EventHistoryPage() {
               <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto sm:flex-wrap sm:items-center">
                 {event.onsiteRegistrationEnabled && (
                   <a
-                    href={`${API_URL}/events/${event.slug}/onsite-registration/qr.pdf`}
+                    href={`${API_URL}/events/${event.slug}/onsite-registration/qr.pdf?eventId=${event.id}`}
                     className="min-h-10 rounded-lg bg-gray-900 px-3 py-2 text-center text-xs font-semibold text-white hover:bg-gray-800"
                   >
                     Download QR

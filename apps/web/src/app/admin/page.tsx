@@ -10,6 +10,7 @@ import toast from 'react-hot-toast';
 
 // completed is auto-only — never in the dropdown
 const STATUS_OPTIONS = ['draft', 'on_sale', 'sold_out', 'cancelled'];
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.axontickets.online/api/v1';
 
 function statusStyle(s: string) {
   if (s === 'on_sale') return 'bg-green-100 text-green-700';
@@ -27,6 +28,7 @@ interface Event {
   city: string;
   startsAt: string;
   status: string;
+  onsiteRegistrationEnabled?: boolean;
   ticketsSold: number;
   organization: { id: string; name: string } | null;
 }
@@ -176,6 +178,14 @@ export default function AdminDashboardPage() {
               </div>
               <div className="flex items-center gap-3">
                 <span className="text-sm text-gray-500">{event.ticketsSold} sold</span>
+                {event.onsiteRegistrationEnabled && (
+                  <a
+                    href={`${API_URL}/events/${event.slug}/onsite-registration/qr.pdf?eventId=${event.id}`}
+                    className="text-sm font-semibold text-gray-900 hover:underline"
+                  >
+                    Download QR
+                  </a>
+                )}
                 {event.status === 'completed' ? (
                   <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${statusStyle(event.status)}`}>
                     completed

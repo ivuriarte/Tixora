@@ -170,9 +170,16 @@ function OrgDrawer({
   const { data: org, isLoading } = useQuery<OrgDetail>({
     queryKey: ['admin-organizer', orgId],
     queryFn: () =>
-      api.get<{ data: OrgDetail }>(`/admin/organizers/${orgId}`).then((r) => r.data.data),
+      api
+        .get<{ data: OrgDetail }>(`/admin/organizers/${orgId}`, {
+          params: { _: Date.now() },
+        })
+        .then((r) => r.data.data),
     refetchOnMount: 'always',
     refetchOnWindowFocus: 'always',
+    refetchOnReconnect: 'always',
+    refetchInterval: 10_000,
+    staleTime: 0,
   });
 
   const invalidate = () => {
@@ -530,9 +537,13 @@ export default function AdminOrganizersPage() {
     queryFn: () =>
       api
         .get<{ data: ListResponse }>('/admin/organizers', {
-          params: { status: statusFilter || undefined, page, limit: 20 },
+          params: { status: statusFilter || undefined, page, limit: 20, _: Date.now() },
         })
         .then((r) => r.data.data),
+    refetchOnMount: 'always',
+    refetchOnWindowFocus: 'always',
+    refetchOnReconnect: 'always',
+    staleTime: 0,
   });
 
   const orgs = data?.data ?? [];
