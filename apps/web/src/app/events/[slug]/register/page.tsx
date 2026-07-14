@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import axios from 'axios';
 import { getAccessToken } from '@/lib/auth';
 import { useAuthStore } from '@/store/auth.store';
 import api from '@/lib/api';
@@ -13,7 +12,6 @@ import { trackPixelCustomEvent } from '@/lib/metaPixel';
 import { trackInternalFunnelEvent, getOrCreateFunnelSessionId } from '@/lib/funnel';
 import toast from 'react-hot-toast';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.axontickets.online/api/v1';
 const RESEND_COOLDOWN = 60;
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -64,13 +62,6 @@ interface AttendeeFields {
   city: string;
 }
 
-interface GuestInfo {
-  email: string;
-  firstName: string;
-  lastName: string;
-  phone: string; // full number including +63
-}
-
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 function Spinner() {
@@ -82,43 +73,62 @@ function Spinner() {
   );
 }
 
-// ── OTP Confirmation Modal ────────────────────────────────────────────────────
-// Shown after the user has filled the registration form and uploaded payment
-// proof. Email is verified here as a booking confirmation step, not a gate.
+// ── Guest Wizard (unauthenticated path) ──────────────────────────────────────
 
-interface OtpConfirmModalProps {
-  email: string;
-  onConfirmed: (otp: string) => Promise<void>;
-  onResend: () => Promise<void>;
-  onCancel: () => void;
-  onChangeEmail: () => void;
+interface OtpVerifiedPayload {
+  isExistingAccount: boolean;
+  attendees: AttendeeFields[];
+  notes: string;
+  user: { id: string; email: string; firstName: string | null; lastName: string | null; isAdmin: boolean; isVerified: boolean };
+  accessToken: string;
+  refreshToken: string;
 }
 
-function OtpConfirmModal({ email, onConfirmed, onResend, onCancel, onChangeEmail }: OtpConfirmModalProps) {
+interface GuestWizardProps {
+  event: EventData;
+  tier: Tier;
+  qty: number;
+  onOtpVerified: (payload: OtpVerifiedPayload) => void;
+}
+
+type WizardStep = 'gate' | 'details' | 'verify';
+
+function emptyAttendee(): AttendeeFields {
+  return { firstName: '', lastName: '', email: '', phone: '', company: '', jobTitle: '', birthday: '', gender: '', city: '' };
+}
+
+function GuestWizard({ event, tier, qty, onOtpVerified }: GuestWizardProps) {
+  const router = useRouter();
+  const funnelSessionId = getOrCreateFunnelSessionId();
+  const [step, setStep] = useState<WizardStep>('gate');
+  const [email, setEmail] = useState('');
+  const [phone, setPhone] = useState('');
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
+  const [extraAttendees, setExtraAttendees] = useState<AttendeeFields[]>(() =>
+    Array.from({ length: Math.max(0, qty - 1) }, emptyAttendee),
+  );
+  const [notes, setNotes] = useState('');
   const [otp, setOtp] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [secondsLeft, setSecondsLeft] = useState(RESEND_COOLDOWN);
+  const [pendingUserId, setPendingUserId] = useState('');
+  const [secondsLeft, setSecondsLeft] = useState(0);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const otpRef = useRef<HTMLInputElement>(null);
+  const otpInputRef = useRef<HTMLInputElement>(null);
+  const [loading, setLoading] = useState(false);
+  const [fieldError, setFieldError] = useState<string | null>(null);
   const verifyingRef = useRef(false);
 
-  useEffect(() => {
-    const focusTimer = setTimeout(() => otpRef.current?.focus(), 50);
-    startTimer();
-    return () => {
-      clearTimeout(focusTimer);
-      if (timerRef.current) clearInterval(timerRef.current);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  const inputCls =
+    'w-full rounded-xl border border-gray-300 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary bg-white';
+
+  useEffect(() => () => { if (timerRef.current) clearInterval(timerRef.current); }, []);
 
   useEffect(() => {
-    if (otp.length === 6 && !verifyingRef.current) void handleVerify();
+    if (otp.length === 6 && step === 'verify') void handleVerify();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [otp]);
 
-  function startTimer() {
+  function startResendTimer() {
     setSecondsLeft(RESEND_COOLDOWN);
     timerRef.current = setInterval(() => {
       setSecondsLeft((s) => {
@@ -128,18 +138,139 @@ function OtpConfirmModal({ email, onConfirmed, onResend, onCancel, onChangeEmail
     }, 1000);
   }
 
+  function updateExtra(index: number, field: keyof AttendeeFields, value: string) {
+    setExtraAttendees((prev) => {
+      const next = [...prev];
+      next[index] = { ...next[index], [field]: value };
+      return next;
+    });
+  }
+
+  async function handleSendCode(e: React.FormEvent) {
+    e.preventDefault();
+    setFieldError(null);
+    const normalizedEmail = email.trim().toLowerCase();
+    const normalizedPhone = phone.trim().startsWith('+')
+      ? phone.trim()
+      : phone.trim().length === 10
+        ? `+63${phone.trim()}`
+        : phone.trim();
+
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
+      setFieldError('Please enter a valid email address.');
+      return;
+    }
+    if (normalizedPhone.length < 7) {
+      setFieldError('Please enter your mobile number.');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const res = await api.post<{ data: { userId: string } }>(
+        '/auth/request-access',
+        {
+          email: normalizedEmail,
+          firstName: firstName.trim(),
+          lastName: lastName.trim(),
+          phone: normalizedPhone,
+          eventId: event.id,
+          eventSlug: event.slug,
+          eventName: event.title,
+          sessionId: funnelSessionId,
+        },
+        { timeout: 15_000 },
+      );
+      setEmail(normalizedEmail);
+      setPendingUserId(res.data.data.userId);
+      setStep('verify');
+      startResendTimer();
+      setTimeout(() => otpInputRef.current?.focus(), 50);
+
+      trackPixelCustomEvent('OTP_Requested', { event_id: event.id, event_name: event.title });
+      void trackInternalFunnelEvent({
+        eventId: event.id,
+        email: normalizedEmail,
+        step: 'otp_send_requested',
+        status: 'started',
+        metadata: { eventSlug: event.slug, eventTitle: event.title },
+      });
+    } catch (err: any) {
+      const msg = err?.response?.data?.message ?? 'Could not send your code. Please try again.';
+      setFieldError(Array.isArray(msg) ? msg.join(' ') : msg);
+    } finally {
+      setLoading(false);
+    }
+  }
+
   async function handleVerify() {
-    if (verifyingRef.current || otp.length !== 6) return;
+    if (!pendingUserId || otp.length !== 6 || verifyingRef.current) return;
     verifyingRef.current = true;
     setLoading(true);
-    setError(null);
+    setFieldError(null);
     try {
-      await onConfirmed(otp);
+      const verifyRes = await api.post<{
+        data: {
+          user: { id: string; email: string; firstName: string | null; lastName: string | null; isAdmin: boolean; isVerified: boolean };
+          accessToken: string;
+          refreshToken: string;
+          isExistingAccount: boolean;
+        };
+      }>('/auth/verify-access', {
+        userId: pendingUserId,
+        otp,
+        eventId: event.id,
+        eventSlug: event.slug,
+        sessionId: funnelSessionId,
+      });
+
+      const { user: verifiedUser, accessToken, refreshToken, isExistingAccount } = verifyRes.data.data;
+      const normalizedPhone = phone.trim().startsWith('+') ? phone.trim() : `+63${phone.trim()}`;
+      const leadAttendee: AttendeeFields = {
+        firstName: firstName.trim(),
+        lastName: lastName.trim(),
+        email: email.trim().toLowerCase(),
+        phone: normalizedPhone,
+        company: '',
+        jobTitle: '',
+        birthday: '',
+        gender: '',
+        city: '',
+      };
+      const extraList: AttendeeFields[] = extraAttendees.map((a) => ({
+        firstName: a.firstName.trim(),
+        lastName: a.lastName.trim(),
+        email: a.email.trim(),
+        phone: a.phone.trim().startsWith('+') ? a.phone.trim() : `+63${a.phone.trim()}`,
+        company: a.company.trim(),
+        jobTitle: a.jobTitle.trim(),
+        birthday: a.birthday,
+        gender: a.gender,
+        city: a.city.trim(),
+      }));
+
+      trackPixelCustomEvent('OTP_Verified', { event_id: event.id, event_name: event.title });
+      void trackInternalFunnelEvent({
+        eventId: event.id,
+        email: verifiedUser.email,
+        step: 'otp_verified',
+        status: 'success',
+        metadata: { eventSlug: event.slug, isExistingAccount },
+      });
+
+      onOtpVerified({
+        isExistingAccount,
+        attendees: [leadAttendee, ...extraList],
+        notes,
+        user: verifiedUser,
+        accessToken,
+        refreshToken,
+      });
     } catch (err: any) {
-      const msg = err?.response?.data?.message ?? err?.message ?? 'That code is incorrect. Please try again.';
-      setError(Array.isArray(msg) ? msg.join(' ') : msg);
+      const msg = err?.response?.data?.message ?? 'Something went wrong. Please try again.';
+      setFieldError(Array.isArray(msg) ? msg.join(' ') : msg);
       setOtp('');
-      setTimeout(() => otpRef.current?.focus(), 50);
+      otpInputRef.current?.focus();
       verifyingRef.current = false;
     } finally {
       setLoading(false);
@@ -147,312 +278,330 @@ function OtpConfirmModal({ email, onConfirmed, onResend, onCancel, onChangeEmail
   }
 
   async function handleResend() {
-    if (secondsLeft > 0 || loading) return;
+    if (secondsLeft > 0 || !pendingUserId) return;
     setLoading(true);
     try {
-      await onResend();
+      await api.post('/auth/request-access', {
+        email: email.trim().toLowerCase(),
+        eventId: event.id,
+        eventSlug: event.slug,
+        sessionId: funnelSessionId,
+      });
       setOtp('');
-      startTimer();
+      startResendTimer();
       toast.success('A new code has been sent to your email.');
-      setTimeout(() => otpRef.current?.focus(), 50);
-    } catch {
-      toast.error('Could not resend the code. Please try again.');
+      setTimeout(() => otpInputRef.current?.focus(), 50);
+    } catch (err: any) {
+      const msg = err?.response?.data?.message ?? 'Could not resend. Please wait and try again.';
+      toast.error(Array.isArray(msg) ? msg.join(' ') : msg);
     } finally {
       setLoading(false);
     }
   }
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4">
-      <div className="w-full max-w-sm bg-white rounded-2xl shadow-2xl overflow-hidden">
-        {/* Header */}
-        <div className="bg-primary px-5 py-4 flex items-center gap-3">
-          <div className="w-9 h-9 rounded-xl bg-white/20 flex items-center justify-center shrink-0">
-            <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+  if (step === 'gate') {
+    const returnUrl = `/events/${event.slug}/register?tierId=${tier.id}&qty=${qty}`;
+    return (
+      <div className="space-y-4">
+        <div className="bg-white border border-gray-200 rounded-2xl p-6 space-y-1">
+          <h2 className="font-bold text-gray-900 text-lg">Do you already have an account?</h2>
+          <p className="text-sm text-gray-500">
+            If you have registered for an Axon Tickets event before, you already have an account.
+          </p>
+        </div>
+
+        <button
+          type="button"
+          onClick={() => router.push(`/auth/access?redirect=${encodeURIComponent(returnUrl)}`)}
+          className="w-full bg-primary text-white rounded-2xl p-5 text-left hover:bg-primary/90 transition-colors group"
+        >
+          <div className="flex items-start gap-4">
+            <div className="flex-shrink-0 w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center mt-0.5">
+              <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+              </svg>
+            </div>
+            <div className="flex-1">
+              <p className="font-semibold text-white">Yes, I have an account</p>
+              <p className="text-sm text-white/75 mt-0.5">
+                Sign in with your email — no password needed.
+              </p>
+            </div>
+            <svg className="w-5 h-5 text-white/60 mt-2.5 group-hover:translate-x-0.5 transition-transform" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
             </svg>
           </div>
-          <div>
-            <p className="font-semibold text-white text-sm">One last step — confirm your email</p>
-            <p className="text-white/75 text-xs mt-0.5">Check your inbox for the code</p>
-          </div>
-        </div>
+        </button>
 
-        {/* Body */}
-        <div className="px-5 py-5 space-y-4">
-          <p className="text-sm text-gray-700 leading-relaxed">
-            We sent a <strong>6-digit code</strong> to{' '}
-            <span className="font-semibold text-gray-900">{email}</span>.
-            {' '}Enter it below to confirm your booking.
-          </p>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2 text-center">
-              Enter the 6-digit code
-            </label>
-            <input
-              ref={otpRef}
-              type="text"
-              inputMode="numeric"
-              pattern="\d{6}"
-              maxLength={6}
-              autoComplete="one-time-code"
-              value={otp}
-              onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
-              disabled={loading}
-              placeholder="000000"
-              className="w-full text-center text-3xl font-mono tracking-[0.5em] rounded-xl border border-gray-300 px-4 py-4 focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-50"
-            />
-            <p className="text-[11px] text-gray-400 text-center mt-1.5">
-              Check your inbox and spam folder. The code is valid for 5 minutes.
-            </p>
-          </div>
-
-          {loading && !error && (
-            <div className="flex items-center justify-center gap-2 text-sm text-gray-500">
-              <Spinner /> Verifying your code…
+        <button
+          type="button"
+          onClick={() => setStep('details')}
+          className="w-full bg-white border-2 border-gray-200 hover:border-primary/40 rounded-2xl p-5 text-left transition-colors group"
+        >
+          <div className="flex items-start gap-4">
+            <div className="flex-shrink-0 w-10 h-10 rounded-xl bg-gray-100 flex items-center justify-center mt-0.5">
+              <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
+              </svg>
             </div>
-          )}
-
-          {error && (
-            <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-xl px-4 py-3 text-center">
-              {error}
-            </div>
-          )}
-
-          <div className="text-center space-y-2">
-            {secondsLeft > 0 ? (
-              <p className="text-xs text-gray-400">
-                Resend available in{' '}
-                <span className="font-semibold tabular-nums">{secondsLeft}s</span>
+            <div className="flex-1">
+              <p className="font-semibold text-gray-900">No, I&apos;m new here</p>
+              <p className="text-sm text-gray-500 mt-0.5">
+                Create your account in seconds — just fill in your details.
               </p>
-            ) : (
-              <button
-                type="button"
-                onClick={handleResend}
-                disabled={loading}
-                className="text-xs text-primary font-medium hover:underline disabled:opacity-50"
-              >
-                Did not get the code? Send it again
-              </button>
-            )}
-            <div className="flex items-center justify-center gap-3">
-              <button
-                type="button"
-                onClick={onChangeEmail}
-                className="text-xs text-gray-400 hover:text-gray-600"
-              >
-                ← Use a different email
-              </button>
-              <span className="text-gray-200">|</span>
-              <button
-                type="button"
-                onClick={onCancel}
-                className="text-xs text-gray-400 hover:text-gray-600"
-              >
-                Cancel
-              </button>
             </div>
+            <svg className="w-5 h-5 text-gray-400 mt-2.5 group-hover:translate-x-0.5 transition-transform" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+            </svg>
           </div>
-        </div>
+        </button>
+
+        <p className="text-center text-xs text-gray-400 pt-1">
+          Not sure? Try &ldquo;Yes, I have an account&rdquo; first — if your email is not found, you can register fresh.
+        </p>
       </div>
-    </div>
-  );
-}
-
-// ── Guest Wizard ──────────────────────────────────────────────────────────────
-// Collects email and personal details only. OTP is sent later, after payment
-// proof is uploaded, so the verification feels like a booking confirmation
-// rather than a login gate.
-
-interface GuestWizardProps {
-  event: EventData;
-  onCompleted: (info: GuestInfo) => void;
-}
-
-type WizardStep = 'email' | 'details';
-
-function GuestWizard({ event, onCompleted }: GuestWizardProps) {
-  const [step, setStep] = useState<WizardStep>('email');
-  const [email, setEmail] = useState('');
-  const [firstName, setFirstName] = useState('');
-  const [lastName, setLastName] = useState('');
-  const [phoneDigits, setPhoneDigits] = useState('');
-  const [fieldError, setFieldError] = useState<string | null>(null);
-
-  const inputCls =
-    'w-full rounded-xl border border-gray-300 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary bg-white';
-
-  // ── Step 1: Email ─────────────────────────────────────────────────────────
-
-  function handleEmailSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    setFieldError(null);
-    const normalized = email.trim().toLowerCase();
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalized)) {
-      setFieldError('Please enter a valid email address.');
-      return;
-    }
-    setEmail(normalized);
-    setStep('details');
+    );
   }
 
-  if (step === 'email') {
+  if (step === 'details') {
     return (
-      <form onSubmit={handleEmailSubmit} className="space-y-5">
+      <form onSubmit={handleSendCode} className="space-y-5">
         <div className="bg-white border border-gray-200 rounded-2xl p-5 space-y-4">
           <div>
-            <h2 className="font-semibold text-gray-900">Enter your email to get started</h2>
+            <h2 className="font-semibold text-gray-900">Your Details</h2>
             <p className="text-xs text-gray-500 mt-0.5">
-              Your ticket and booking confirmation will be sent here.
+              We use these to send your registration and QR ticket.
             </p>
           </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-medium text-gray-700 mb-1">
+                First Name <span className="text-red-500">*</span>
+              </label>
+              <input
+                required
+                autoFocus
+                autoComplete="given-name"
+                value={firstName}
+                onChange={(e) => setFirstName(e.target.value)}
+                placeholder="Juan"
+                className={inputCls}
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-700 mb-1">
+                Last Name <span className="text-red-500">*</span>
+              </label>
+              <input
+                required
+                autoComplete="family-name"
+                value={lastName}
+                onChange={(e) => setLastName(e.target.value)}
+                placeholder="dela Cruz"
+                className={inputCls}
+              />
+            </div>
+          </div>
+
           <div>
             <label className="block text-xs font-medium text-gray-700 mb-1">
-              Email address <span className="text-red-500">*</span>
+              Email Address <span className="text-red-500">*</span>
             </label>
             <input
               type="email"
               required
-              autoFocus
               autoComplete="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="you@example.com"
               className={inputCls}
             />
+            <p className="text-[11px] text-gray-400 mt-1">
+              We will send your ticket and updates here.
+            </p>
+          </div>
+
+          <div>
+            <label className="block text-xs font-medium text-gray-700 mb-1">
+              Mobile Number <span className="text-red-500">*</span>
+            </label>
+            <div className="flex">
+              <span className="inline-flex items-center px-3 rounded-l-xl border border-r-0 border-gray-300 bg-gray-50 text-sm text-gray-500 select-none">
+                +63
+              </span>
+              <input
+                type="tel"
+                required
+                inputMode="numeric"
+                autoComplete="tel-national"
+                maxLength={10}
+                value={phone}
+                onChange={(e) => setPhone(e.target.value.replace(/\D/g, '').slice(0, 10))}
+                placeholder="9171234567"
+                className="flex-1 rounded-r-xl border border-gray-300 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary bg-white"
+              />
+            </div>
           </div>
         </div>
 
-        {fieldError && (
-          <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-xl px-4 py-3">
-            {fieldError}
+        {extraAttendees.map((att, i) => (
+          <div key={i} className="bg-white border border-gray-200 rounded-2xl p-5 space-y-4">
+            <h3 className="font-semibold text-gray-900">
+              Attendee {i + 2}
+            </h3>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">First Name <span className="text-red-500">*</span></label>
+                <input required value={att.firstName} onChange={(e) => updateExtra(i, 'firstName', e.target.value)} className={inputCls} />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">Last Name <span className="text-red-500">*</span></label>
+                <input required value={att.lastName} onChange={(e) => updateExtra(i, 'lastName', e.target.value)} className={inputCls} />
+              </div>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-700 mb-1">Email Address <span className="text-red-500">*</span></label>
+              <input type="email" required value={att.email} onChange={(e) => updateExtra(i, 'email', e.target.value)} className={inputCls} />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-700 mb-1">Mobile Number <span className="text-red-500">*</span></label>
+              <div className="flex">
+                <span className="inline-flex items-center px-3 rounded-l-xl border border-r-0 border-gray-300 bg-gray-50 text-sm text-gray-500 select-none">+63</span>
+                <input
+                  type="tel"
+                  required
+                  inputMode="numeric"
+                  maxLength={10}
+                  value={att.phone}
+                  onChange={(e) => updateExtra(i, 'phone', e.target.value.replace(/\D/g, '').slice(0, 10))}
+                  placeholder="9171234567"
+                  className="flex-1 rounded-r-xl border border-gray-300 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-white"
+                />
+              </div>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-700 mb-1">Company (optional)</label>
+              <input value={att.company} onChange={(e) => updateExtra(i, 'company', e.target.value)} className={inputCls} />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-700 mb-1">Job Title (optional)</label>
+              <input value={att.jobTitle} onChange={(e) => updateExtra(i, 'jobTitle', e.target.value)} className={inputCls} />
+            </div>
           </div>
-        )}
+        ))}
+
+        <div className="bg-white border border-gray-200 rounded-2xl p-5">
+          <label className="block text-xs font-medium text-gray-700 mb-1">
+            Notes (optional)
+          </label>
+          <textarea
+            rows={2}
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+            placeholder="Anything we should know? e.g. dietary needs, accessibility requirements"
+            className="w-full border border-gray-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary resize-none"
+          />
+        </div>
+
+        {fieldError && <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-xl px-4 py-3">{fieldError}</div>}
 
         <div className="rounded-xl border border-gray-100 bg-gray-50 px-4 py-3 text-xs text-gray-500 space-y-1">
-          <p>
-            Registering for <span className="font-medium text-gray-700">{event.title}</span>
-          </p>
-          <p>You will verify your email after completing payment — no password needed.</p>
+          <p>After you fill in your details, we will send a 6-digit code to your email.</p>
+          <p>Enter the code to confirm and your spot will be saved.</p>
+          <p>No password needed — ever.</p>
         </div>
 
         <button
           type="submit"
-          disabled={!email}
-          className="w-full py-3 rounded-xl bg-primary text-white font-semibold text-sm hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          disabled={loading || !firstName || !lastName || !email || phone.length < 10}
+          className="w-full py-3 rounded-xl bg-primary text-white font-semibold text-sm hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
         >
-          Continue
+          {loading ? <><Spinner /> Sending your code…</> : 'Continue — Send My Code'}
         </button>
       </form>
     );
   }
 
-  // ── Step 2: Name + phone ──────────────────────────────────────────────────
-
-  function handleDetailsSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    setFieldError(null);
-    if (phoneDigits.length < 10) {
-      setFieldError('Please enter a valid 10-digit mobile number (e.g. 9171234567).');
-      return;
-    }
-    onCompleted({
-      email,
-      firstName: firstName.trim(),
-      lastName: lastName.trim(),
-      phone: `+63${phoneDigits}`,
-    });
-  }
-
   return (
-    <form onSubmit={handleDetailsSubmit} className="space-y-5">
-      <div className="bg-white border border-gray-200 rounded-2xl p-5 space-y-4">
-        <div>
-          <h2 className="font-semibold text-gray-900">Tell us your name</h2>
-          <p className="text-xs text-gray-500 mt-0.5">
-            Your name and number will appear on your ticket.
+    <div className="space-y-5">
+      <div className="bg-white border border-gray-200 rounded-2xl p-6 space-y-5">
+        <div className="text-center">
+          <div className="w-14 h-14 rounded-2xl bg-primary/10 flex items-center justify-center mx-auto mb-3">
+            <svg className="w-7 h-7 text-primary" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+            </svg>
+          </div>
+          <h2 className="text-lg font-bold text-gray-900">Check your email</h2>
+          <p className="text-sm text-gray-500 mt-1">
+            We sent a 6-digit code to{' '}
+            <span className="font-semibold text-gray-700">{email}</span>
+          </p>
+          <p className="text-xs text-gray-400 mt-1">
+            Check your inbox and spam folder. The code is valid for 5 minutes.
           </p>
         </div>
 
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label className="block text-xs font-medium text-gray-700 mb-1">
-              First name <span className="text-red-500">*</span>
-            </label>
-            <input
-              required
-              autoFocus
-              autoComplete="given-name"
-              value={firstName}
-              onChange={(e) => setFirstName(e.target.value)}
-              placeholder="Juan"
-              className={inputCls}
-            />
-          </div>
-          <div>
-            <label className="block text-xs font-medium text-gray-700 mb-1">
-              Last name <span className="text-red-500">*</span>
-            </label>
-            <input
-              required
-              autoComplete="family-name"
-              value={lastName}
-              onChange={(e) => setLastName(e.target.value)}
-              placeholder="dela Cruz"
-              className={inputCls}
-            />
-          </div>
-        </div>
-
         <div>
-          <label className="block text-xs font-medium text-gray-700 mb-1">
-            Mobile number <span className="text-red-500">*</span>
+          <label className="block text-sm font-medium text-gray-700 mb-2 text-center">
+            Enter the 6-digit code
           </label>
-          <div className="flex">
-            <span className="inline-flex items-center px-3 rounded-l-xl border border-r-0 border-gray-300 bg-gray-50 text-sm text-gray-500 select-none">
-              +63
-            </span>
-            <input
-              type="tel"
-              required
-              inputMode="numeric"
-              autoComplete="tel-national"
-              maxLength={10}
-              value={phoneDigits}
-              onChange={(e) => setPhoneDigits(e.target.value.replace(/\D/g, '').slice(0, 10))}
-              placeholder="9171234567"
-              className="flex-1 rounded-r-xl border border-gray-300 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary bg-white"
-            />
+          <input
+            ref={otpInputRef}
+            type="text"
+            inputMode="numeric"
+            pattern="\d{6}"
+            maxLength={6}
+            autoFocus
+            autoComplete="one-time-code"
+            value={otp}
+            onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
+            disabled={loading}
+            placeholder="000000"
+            className="w-full text-center text-3xl font-mono tracking-[0.5em] rounded-xl border border-gray-300 px-4 py-4 focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-50"
+          />
+        </div>
+
+        {loading && (
+          <div className="flex items-center justify-center gap-2 text-sm text-gray-500">
+            <Spinner /> Verifying your code and saving your spot…
           </div>
-          <p className="text-[11px] text-gray-400 mt-1">
-            We may use this to reach you about your booking.
-          </p>
+        )}
+
+        {fieldError && (
+          <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-xl px-4 py-3 text-center">
+            {fieldError}
+          </div>
+        )}
+
+        <div className="text-center space-y-2">
+          {secondsLeft > 0 ? (
+            <p className="text-xs text-gray-400">
+              Send a new code in{' '}
+              <span className="font-semibold tabular-nums">{secondsLeft}s</span>
+            </p>
+          ) : (
+            <button
+              type="button"
+              onClick={handleResend}
+              disabled={loading}
+              className="text-xs text-primary font-medium hover:underline disabled:opacity-50"
+            >
+              Did not get the code? Send it again
+            </button>
+          )}
+          <div>
+            <button
+              type="button"
+              onClick={() => { setStep('details'); setOtp(''); setFieldError(null); }}
+              className="text-xs text-gray-400 hover:text-gray-600"
+            >
+              ← Go back and change my details
+            </button>
+          </div>
         </div>
       </div>
-
-      {fieldError && (
-        <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-xl px-4 py-3">
-          {fieldError}
-        </div>
-      )}
-
-      <button
-        type="submit"
-        disabled={!firstName || !lastName || phoneDigits.length < 10}
-        className="w-full py-3 rounded-xl bg-primary text-white font-semibold text-sm hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-      >
-        Review my order
-      </button>
-
-      <button
-        type="button"
-        onClick={() => { setStep('email'); setFieldError(null); }}
-        className="w-full text-center text-xs text-gray-400 hover:text-gray-600 py-1"
-      >
-        ← Change email ({email})
-      </button>
-    </form>
+    </div>
   );
 }
 
@@ -481,13 +630,7 @@ export default function RegisterPage({
   const [initialNotes, setInitialNotes] = useState<string | undefined>(undefined);
   const [initialIsFree, setInitialIsFree] = useState<boolean | undefined>(undefined);
 
-  // Guest checkout state
-  const [guestInfo, setGuestInfo] = useState<GuestInfo | null>(null);
-  const [otpModal, setOtpModal] = useState<{ userId: string; email: string } | null>(null);
-  const otpTokenRef = useRef<{ resolve: () => void; reject: (e: Error) => void } | null>(null);
-  const funnelSessionId = useRef(getOrCreateFunnelSessionId());
-
-  // Pre-filled attendee data ref (avoids render ordering race between Zustand and React state)
+  // Holds attendee data collected by GuestWizard so RegistrationForm can pre-fill after OTP success.
   const pendingGuestData = useRef<{
     attendees: AttendeeFields[];
     notes: string;
@@ -501,166 +644,28 @@ export default function RegisterPage({
   const qty = Math.max(1, parseInt(searchParams.qty ?? '1', 10));
   const existingRegistrationId = searchParams.registrationId;
 
-  // ── Guest info collected from GuestWizard (step 1+2) ──────────────────────
-
-  const handleGuestInfoCollected = useCallback(
-    (info: GuestInfo) => {
-      setGuestInfo(info);
+  const handleOtpVerified = useCallback(
+    (payload: OtpVerifiedPayload) => {
       pendingGuestData.current = {
-        attendees: [{
-          firstName: info.firstName,
-          lastName: info.lastName,
-          email: info.email,
-          phone: info.phone,
-          company: '',
-          jobTitle: '',
-          birthday: '',
-          gender: '',
-          city: '',
-        }],
-        notes: '',
-        existingAccountDetected: false,
+        attendees: payload.attendees,
+        notes: payload.notes,
+        existingAccountDetected: payload.isExistingAccount,
       };
-      void trackInternalFunnelEvent({
-        eventId: event?.id,
-        email: info.email,
-        step: 'ticket_selection_started',
-        status: 'started',
-        metadata: { eventSlug: event?.slug, eventTitle: event?.title },
-      });
-      trackPixelCustomEvent('CheckoutStarted', { event_id: event?.id, event_name: event?.title });
-    },
-    [event],
-  );
-
-  // ── OTP send (triggered just before RegistrationForm submits) ─────────────
-
-  const getAuthToken = useCallback(async (): Promise<void> => {
-    if (!guestInfo || !event) throw new Error('Missing booking info. Please refresh and try again.');
-
-    let userId: string;
-    try {
-      const res = await api.post<{ data: { userId: string } }>(
-        '/auth/request-access',
-        {
-          email: guestInfo.email,
-          eventId: event.id,
-          eventSlug: event.slug,
-          eventName: event.title,
-          sessionId: funnelSessionId.current,
-        },
-        { timeout: 15_000 },
-      );
-      userId = res.data.data.userId;
-    } catch (err: any) {
-      const msg = err?.response?.data?.message ?? 'Could not send your verification code. Please try again.';
-      throw new Error(Array.isArray(msg) ? msg.join(' ') : msg);
-    }
-
-    setOtpModal({ userId, email: guestInfo.email });
-
-    return new Promise<void>((resolve, reject) => {
-      otpTokenRef.current = { resolve, reject };
-    });
-  }, [guestInfo, event]);
-
-  // ── OTP resend (from within the modal) ────────────────────────────────────
-
-  const handleOtpResend = useCallback(async () => {
-    if (!guestInfo || !event || !otpModal) return;
-    const res = await api.post<{ data: { userId: string } }>(
-      '/auth/request-access',
-      {
-        email: guestInfo.email,
-        eventId: event.id,
-        eventSlug: event.slug,
-        eventName: event.title,
-        sessionId: funnelSessionId.current,
-      },
-      { timeout: 15_000 },
-    );
-    // userId is stable for the same email but update it in case the server rotates it
-    const { userId } = res.data.data;
-    setOtpModal((prev) => (prev ? { ...prev, userId } : null));
-  }, [guestInfo, event, otpModal]);
-
-  // ── OTP verified ──────────────────────────────────────────────────────────
-
-  const handleOtpConfirmed = useCallback(
-    async (otp: string) => {
-      if (!otpModal || !guestInfo) throw new Error('Booking context was lost. Please refresh and try again.');
-
-      const verifyRes = await api.post<{
-        data: {
-          user: { id: string; email: string; firstName: string | null; lastName: string | null; isAdmin: boolean; isVerified: boolean };
-          accessToken: string;
-          refreshToken: string;
-          isNewUser: boolean;
-          isExistingAccount: boolean;
-        };
-      }>('/auth/verify-access', {
-        userId: otpModal.userId,
-        otp,
-        eventId: event?.id,
-        eventSlug: event?.slug,
-        sessionId: funnelSessionId.current,
-      });
-
-      const { user, accessToken, refreshToken, isNewUser } = verifyRes.data.data;
-
-      if (isNewUser) {
-        try {
-          await axios.patch(
-            `${API_URL}/users/me`,
-            { firstName: guestInfo.firstName, lastName: guestInfo.lastName, phone: guestInfo.phone },
-            { headers: { Authorization: `Bearer ${accessToken}` } },
-          );
-        } catch {
-          // Non-critical — account exists and is authenticated. Name/phone
-          // falls back to guestInfo values in setAuth below.
-        }
-      }
-
-      trackPixelCustomEvent('OTP_Verified', { event_id: event?.id, event_name: event?.title });
-      void trackInternalFunnelEvent({
-        eventId: event?.id,
-        email: user.email,
-        step: 'otp_verified',
-        status: 'success',
-        metadata: { eventSlug: event?.slug, isExistingAccount: !isNewUser },
-      });
-
       setAuth(
         {
-          id: user.id,
-          email: user.email,
-          firstName: user.firstName ?? guestInfo.firstName,
-          lastName: user.lastName ?? guestInfo.lastName,
-          isAdmin: user.isAdmin,
-          isVerified: user.isVerified,
+          id: payload.user.id,
+          email: payload.user.email,
+          firstName: payload.user.firstName ?? payload.attendees[0]?.firstName ?? '',
+          lastName: payload.user.lastName ?? payload.attendees[0]?.lastName ?? '',
+          isAdmin: payload.user.isAdmin,
+          isVerified: payload.user.isVerified,
         },
-        accessToken,
-        refreshToken,
+        payload.accessToken,
+        payload.refreshToken,
       );
-
-      setOtpModal(null);
-      otpTokenRef.current?.resolve();
-      otpTokenRef.current = null;
     },
-    [otpModal, guestInfo, event, setAuth],
+    [setAuth],
   );
-
-  const handleOtpCancel = useCallback(() => {
-    setOtpModal(null);
-    otpTokenRef.current?.reject(new Error('Email verification was cancelled. Please try again.'));
-    otpTokenRef.current = null;
-  }, []);
-
-  const handleChangeEmail = useCallback(() => {
-    handleOtpCancel();
-    setGuestInfo(null);
-    pendingGuestData.current = null;
-  }, [handleOtpCancel]);
 
   // ── Data loading ──────────────────────────────────────────────────────────
 
@@ -718,11 +723,12 @@ export default function RegisterPage({
     if (!isHydrating) void loadPage();
   }, [isHydrating, loadPage]);
 
-  // Duplicate-registration check — only for users who were already authenticated
-  // when they landed on this page. Guest-flow users skip this; the server returns
-  // a 409 if they try to register twice anyway.
+  // After authentication (either OTP path), check if this user already has an
+  // active registration for this event. If so, redirect them to the event page
+  // instead of showing the registration form. Skip when editing an existing
+  // registration (existingRegistrationId is set).
   useEffect(() => {
-    if (!isAuthenticated || !event || dupCheckRanRef.current || existingRegistrationId || guestInfo) return;
+    if (!isAuthenticated || !event || dupCheckRanRef.current || existingRegistrationId) return;
     dupCheckRanRef.current = true;
     setDupCheck('checking');
     api
@@ -738,8 +744,11 @@ export default function RegisterPage({
           setDupCheck('clear');
         }
       })
-      .catch(() => setDupCheck('clear'));
-  }, [isAuthenticated, event, existingRegistrationId, guestInfo, router]);
+      .catch(() => {
+        // Fail open — let them proceed; the server will reject on submit
+        setDupCheck('clear');
+      });
+  }, [isAuthenticated, event, existingRegistrationId, router]);
 
   useEffect(() => {
     if (!event) return;
@@ -795,17 +804,6 @@ export default function RegisterPage({
     <main className="min-h-screen bg-gray-50 py-10">
       <InAppBrowserBanner />
 
-      {/* OTP confirmation modal — shown after payment proof upload, before final submit */}
-      {otpModal && (
-        <OtpConfirmModal
-          email={otpModal.email}
-          onConfirmed={handleOtpConfirmed}
-          onResend={handleOtpResend}
-          onCancel={handleOtpCancel}
-          onChangeEmail={handleChangeEmail}
-        />
-      )}
-
       <div className="max-w-2xl mx-auto px-4 sm:px-6">
         <CheckoutStepper current={1} />
 
@@ -837,8 +835,8 @@ export default function RegisterPage({
           </div>
         )}
 
-        {/* ── Path A: user was already authenticated when they landed ── */}
-        {isAuthenticated && !guestInfo && (
+        {/* Path A: authenticated (or just verified via OTP) — RegistrationForm */}
+        {isAuthenticated ? (
           dupCheck === 'duplicate' ? (
             <div className="rounded-2xl border border-red-200 bg-red-50 p-5 flex items-start gap-3">
               <svg className="mt-0.5 h-5 w-5 shrink-0 text-red-500" viewBox="0 0 20 20" fill="currentColor">
@@ -862,27 +860,18 @@ export default function RegisterPage({
           ) : (
             <RegistrationForm
               {...registrationFormProps}
-              initialAttendees={initialAttendees}
-              initialNotes={initialNotes}
-              existingAccountDetected={false}
+              initialAttendees={pendingGuestData.current?.attendees ?? initialAttendees}
+              initialNotes={pendingGuestData.current?.notes ?? initialNotes}
+              existingAccountDetected={pendingGuestData.current?.existingAccountDetected ?? false}
             />
           )
-        )}
-
-        {/* ── Path B: guest — info collected, showing form with OTP gate on submit ── */}
-        {guestInfo && (
-          <RegistrationForm
-            {...registrationFormProps}
-            initialAttendees={pendingGuestData.current?.attendees}
-            initialNotes={pendingGuestData.current?.notes}
-            existingAccountDetected={pendingGuestData.current?.existingAccountDetected ?? false}
-            getAuthToken={getAuthToken}
+        ) : (
+          <GuestWizard
+            event={event}
+            tier={tier}
+            qty={qty}
+            onOtpVerified={handleOtpVerified}
           />
-        )}
-
-        {/* ── Path C: no session, no guest info — show the lightweight wizard ── */}
-        {!isAuthenticated && !guestInfo && (
-          <GuestWizard event={event} onCompleted={handleGuestInfoCollected} />
         )}
       </div>
     </main>

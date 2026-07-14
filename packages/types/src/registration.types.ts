@@ -14,6 +14,9 @@ export interface RegistrationAttendee {
   phone: string | null;
   company: string | null;
   jobTitle: string | null;
+  birthday: string | null;
+  gender: string | null;
+  city: string | null;
   isLead: boolean;
   hasQr: boolean;
   checkedInAt: string | null;
