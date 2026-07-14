@@ -518,6 +518,11 @@ export class OnsiteRegistrationDto {
   @IsOptional()
   @IsString()
   @MaxLength(100)
+  eventId?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
   attendeeId?: string;
 
   @IsOptional()
@@ -578,6 +583,11 @@ export class OnsiteRegistrationDto {
 }
 
 export class OnsiteProfileSuggestionDto {
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  eventId?: string;
+
   @IsString()
   @MinLength(1)
   @MaxLength(100)
