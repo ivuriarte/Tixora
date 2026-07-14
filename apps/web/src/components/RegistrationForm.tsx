@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { centavosToPeso, formatPHP } from '@axon-tickets/utils';
+import { formatPHP } from '@axon-tickets/utils';
 import api from '@/lib/api';
 import { useAuthStore } from '@/store/auth.store';
 import type { CreateRegistrationDto } from '@axon-tickets/types';
@@ -75,13 +75,6 @@ interface Props {
   initialNotes?: string;
   /** True when a guest used "I'm new here" but the email matched an existing verified account. */
   existingAccountDetected?: boolean;
-  /**
-   * Guest-flow only. Called once at the start of form submission to trigger
-   * OTP verification. Resolves after the user enters the correct code and
-   * setAuth() has been called — subsequent api requests will be authenticated.
-   * Rejects if the user cancels or verification fails.
-   */
-  getAuthToken?: () => Promise<void>;
 }
 
 export default function RegistrationForm({
@@ -102,7 +95,6 @@ export default function RegistrationForm({
   initialAttendees,
   initialNotes,
   existingAccountDetected = false,
-  getAuthToken,
 }: Props) {
   const router = useRouter();
   const currentUser = useAuthStore((s) => s.user);
@@ -135,7 +127,7 @@ export default function RegistrationForm({
 
   const subtotalPesos = unitPrice * qty;
   const feesPesos = Number(platformFee) || 0;
-  const totalPesos = Math.max(0, subtotalPesos - centavosToPeso(referralDiscount)) + feesPesos;
+  const totalPesos = Math.max(0, subtotalPesos - referralDiscount) + feesPesos;
   const isFreeRegistration = unitPrice === 0 && feesPesos === 0;
 
   const updateAttendee = (index: number, field: keyof AttendeeFields, value: string) => {
@@ -203,7 +195,7 @@ export default function RegistrationForm({
       const result = response.data.data;
       setReferralDiscount(result.discount);
       setReferralCode(referralCode.trim().toUpperCase());
-      setReferralMessage(`${result.name} applied — you save ${formatPHP(centavosToPeso(result.discount))}.`);
+      setReferralMessage(`${result.name} applied — you save ${formatPHP(result.discount)}.`);
     } catch (err: any) {
       setReferralDiscount(0);
       setReferralMessage(null);
@@ -230,21 +222,6 @@ export default function RegistrationForm({
     setLoading(true);
 
     try {
-      // Guest flow: verify email before touching the API. getAuthToken sends
-      // the OTP, shows the modal, and resolves only after setAuth() has been
-      // called — so every api.* call below will have a valid Bearer token.
-      if (getAuthToken) {
-        try {
-          await getAuthToken();
-        } catch (err: any) {
-          const msg = err?.message ?? 'Email verification failed. Please try again.';
-          setError(msg);
-          setLoading(false);
-          submittingRef.current = false;
-          return;
-        }
-      }
-
       const attendeePayload = attendees.map((a) => ({
         firstName: a.firstName.trim(),
         lastName: a.lastName.trim(),
@@ -332,7 +309,7 @@ export default function RegistrationForm({
         {referralDiscount > 0 && (
           <div className="flex justify-between text-sm font-medium text-emerald-700 mt-1">
             <span>Referral discount ({referralCode})</span>
-            <span>−{formatPHP(centavosToPeso(referralDiscount))}</span>
+            <span>−{formatPHP(referralDiscount)}</span>
           </div>
         )}
         <div className="flex justify-between font-bold text-gray-900 mt-3 pt-3 border-t border-gray-100">
