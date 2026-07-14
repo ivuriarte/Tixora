@@ -13,13 +13,19 @@ import { TicketTiersService } from '../ticket-tiers/ticket-tiers.service';
 import { OrdersService } from '../orders/orders.service';
 import { CreateEventDto, UpdateEventDto } from '../events/dto/event.dto';
 import { CreateTierDto, UpdateTierDto } from '../ticket-tiers/dto/tier.dto';
-import { verifyQrToken, verifyAttendeeQrToken } from '@axon-tickets/utils';
+import {
+  generateAttendeeQrToken,
+  generateReferenceNumber,
+  verifyQrToken,
+  verifyAttendeeQrToken,
+} from '@axon-tickets/utils';
 import { ConfigService } from '@nestjs/config';
 import { AuditService } from '../audit/audit.service';
 import { EmailService } from '../email/email.service';
 import { PDFDocument, PDFFont, PDFPage, StandardFonts, rgb } from 'pdf-lib';
 import { JwtPayload } from '@axon-tickets/types';
 import { CreateReferralCodeDto, UpdateReferralCodeDto } from './dto/referral-code.dto';
+import { WalkInRegistrationDto } from './dto/admin.dto';
 
 interface NametagRow {
   id: string;
@@ -56,6 +62,73 @@ export class AdminService {
 
   async assertRegistrationAccess(registrationId: string, user: JwtPayload): Promise<void> {
     return this.eventAccess.assertRegistrationAccess(registrationId, user);
+  }
+
+  private checkInDateFor(date = new Date()): Date {
+    const parts = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Asia/Manila',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).formatToParts(date);
+    const year = parts.find((part) => part.type === 'year')?.value;
+    const month = parts.find((part) => part.type === 'month')?.value;
+    const day = parts.find((part) => part.type === 'day')?.value;
+    return new Date(`${year}-${month}-${day}T00:00:00.000Z`);
+  }
+
+  private parseCheckInDate(date?: string): Date {
+    if (!date) return this.checkInDateFor();
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+      throw new BadRequestException('date must use YYYY-MM-DD format');
+    }
+    const parsed = new Date(`${date}T00:00:00.000Z`);
+    if (!Number.isFinite(parsed.getTime())) {
+      throw new BadRequestException('date must be a valid calendar date');
+    }
+    return parsed;
+  }
+
+  private async createDailyAttendance(
+    tx: Prisma.TransactionClient,
+    attendee: { id: string; registrationId: string },
+    eventId: string,
+    adminId: string,
+    method: string,
+    now = new Date(),
+  ) {
+    const checkInDate = this.checkInDateFor(now);
+    try {
+      const attendance = await tx.attendeeAttendance.create({
+        data: {
+          attendeeId: attendee.id,
+          registrationId: attendee.registrationId,
+          eventId,
+          checkInDate,
+          checkedInAt: now,
+          checkedInById: adminId,
+          checkInMethod: method,
+        },
+      });
+
+      await tx.attendee.updateMany({
+        where: { id: attendee.id, checkedInAt: null },
+        data: { checkedInAt: now, checkedInById: adminId, checkInMethod: method },
+      });
+
+      return attendance;
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+        const existing = await tx.attendeeAttendance.findFirst({
+          where: { attendeeId: attendee.id, eventId, checkInDate },
+          select: { checkedInAt: true },
+        });
+        throw new ConflictException(
+          `Already checked in today at ${existing?.checkedInAt?.toISOString() ?? 'unknown time'}`,
+        );
+      }
+      throw error;
+    }
   }
 
   // ── User Management ────────────────────────────────────────────────────
@@ -708,20 +781,9 @@ export class AdminService {
       }
 
       const now = new Date();
-      const scanResult = await this.prisma.attendee.updateMany({
-        where: { id: attendee.id, checkedInAt: null },
-        data: { checkedInAt: now, checkedInById: adminId, checkInMethod: 'scan' },
-      });
-
-      if (scanResult.count === 0) {
-        const fresh = await this.prisma.attendee.findUnique({
-          where: { id: attendee.id },
-          select: { checkedInAt: true },
-        });
-        throw new ConflictException(
-          `Already checked in at ${fresh?.checkedInAt?.toISOString() ?? 'unknown time'}`,
-        );
-      }
+      const attendance = await this.prisma.$transaction((tx) =>
+        this.createDailyAttendance(tx, attendee, eventId, adminId, 'scan', now),
+      );
 
       await this.audit.log({
         action: 'CHECKIN_SCAN',
@@ -729,7 +791,12 @@ export class AdminService {
         entityId: attendee.id,
         registrationId: attendee.registrationId,
         performedById: adminId,
-        metadata: { eventId: attendeePayload.eventId, checkInMethod: 'scan' },
+        metadata: {
+          eventId: attendeePayload.eventId,
+          attendanceId: attendance.id,
+          checkInDate: attendance.checkInDate.toISOString().slice(0, 10),
+          checkInMethod: 'scan',
+        },
       });
 
       return {
@@ -738,6 +805,7 @@ export class AdminService {
         tierName: attendee.registration.tierName ?? null,
         eventTitle: attendee.registration.event.title,
         checkedInAt: now.toISOString(),
+        checkInDate: attendance.checkInDate.toISOString().slice(0, 10),
         checkInMethod: 'scan',
       };
     }
@@ -825,6 +893,7 @@ export class AdminService {
     const safePage = Math.max(1, page);
     const safeLimit = Math.min(limit, 50);
     const skip = (safePage - 1) * safeLimit;
+    const today = this.checkInDateFor();
 
     const where: Prisma.AttendeeWhereInput = {
       registration: { eventId },
@@ -874,6 +943,11 @@ export class AdminService {
               event: { select: { title: true } },
             },
           },
+          attendanceRecords: {
+            where: { eventId, checkInDate: today },
+            select: { checkedInAt: true, checkInMethod: true },
+            take: 1,
+          },
         },
       }),
     ]);
@@ -888,7 +962,8 @@ export class AdminService {
         referenceNumber: a.registration.referenceNumber,
         eventTitle: a.registration.event.title,
         registrationStatus: a.registration.status,
-        checkedInAt: a.checkedInAt?.toISOString() ?? null,
+        checkedInAt: a.attendanceRecords[0]?.checkedInAt.toISOString() ?? null,
+        firstCheckedInAt: a.checkedInAt?.toISOString() ?? null,
         hasQr: !!a.qrToken,
       })),
       meta: { total, page: safePage, limit: safeLimit, totalPages: Math.ceil(total / safeLimit) },
@@ -927,20 +1002,9 @@ export class AdminService {
       );
     }
     const now = new Date();
-    const manualResult = await this.prisma.attendee.updateMany({
-      where: { id: attendeeId, checkedInAt: null },
-      data: { checkedInAt: now, checkedInById: adminId, checkInMethod: 'manual' },
-    });
-
-    if (manualResult.count === 0) {
-      const fresh = await this.prisma.attendee.findUnique({
-        where: { id: attendeeId },
-        select: { checkedInAt: true },
-      });
-      throw new ConflictException(
-        `Already checked in at ${fresh?.checkedInAt?.toISOString() ?? 'unknown time'}`,
-      );
-    }
+    const attendance = await this.prisma.$transaction((tx) =>
+      this.createDailyAttendance(tx, attendee, eventId, adminId, 'manual', now),
+    );
 
     await this.audit.log({
       action: 'CHECKIN_MANUAL',
@@ -948,7 +1012,11 @@ export class AdminService {
       entityId: attendeeId,
       registrationId: attendee.registrationId,
       performedById: adminId,
-      metadata: { checkInMethod: 'manual' },
+      metadata: {
+        attendanceId: attendance.id,
+        checkInDate: attendance.checkInDate.toISOString().slice(0, 10),
+        checkInMethod: 'manual',
+      },
     });
 
     return {
@@ -957,13 +1025,237 @@ export class AdminService {
       tierName: attendee.registration.tierName ?? null,
       eventTitle: attendee.registration.event.title,
       checkedInAt: now.toISOString(),
+      checkInDate: attendance.checkInDate.toISOString().slice(0, 10),
       checkInMethod: 'manual',
+    };
+  }
+
+  async createWalkInRegistration(eventId: string, dto: WalkInRegistrationDto, adminId: string, ip?: string) {
+    if (!eventId) throw new BadRequestException('Event is required');
+    const firstName = dto.firstName.trim();
+    const lastName = dto.lastName.trim();
+    const email = dto.email.trim().toLowerCase();
+    const phone = dto.contactNumber.trim();
+    const birthday = new Date(`${dto.birthday}T00:00:00.000Z`);
+    const today = new Date();
+    const earliest = new Date(Date.UTC(today.getUTCFullYear() - 120, today.getUTCMonth(), today.getUTCDate()));
+
+    if (!Number.isFinite(birthday.getTime()) || birthday > today || birthday < earliest) {
+      throw new BadRequestException('Birthday must be a valid past date within the last 120 years.');
+    }
+
+    const result = await this.prisma.$transaction(async (tx) => {
+      const [event, tier] = await Promise.all([
+        tx.event.findUnique({ where: { id: eventId }, select: { id: true, title: true, status: true, isFree: true, platformFee: true } }),
+        tx.ticketTier.findFirst({
+          where: { id: dto.tierId, eventId },
+          select: { id: true, name: true, price: true, currency: true, totalQuantity: true },
+        }),
+      ]);
+      if (!event) throw new NotFoundException('Event not found');
+      if (event.status === 'cancelled') throw new BadRequestException('Cancelled events cannot accept walk-ins');
+      if (!tier) throw new NotFoundException('Ticket tier not found');
+
+      const duplicate = await tx.attendee.findFirst({
+        where: {
+          registration: {
+            eventId,
+            status: { in: ['pending_payment', 'proof_submitted', 'pending_approval', 'verified'] },
+          },
+          OR: [
+            { email: { equals: email, mode: 'insensitive' } },
+            {
+              firstName: { equals: firstName, mode: 'insensitive' },
+              lastName: { equals: lastName, mode: 'insensitive' },
+              birthday,
+            },
+          ],
+        },
+        include: {
+          registration: {
+            select: { id: true, referenceNumber: true, status: true, tierName: true },
+          },
+        },
+      });
+      if (duplicate) {
+        throw new ConflictException(
+          `An attendee matching this walk-in already exists for this event (#${duplicate.registration.referenceNumber}). Use search to check them in instead.`,
+        );
+      }
+
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${eventId}), hashtext(${dto.tierId}))`;
+      const registrationUsage = await tx.registration.aggregate({
+        where: {
+          tierId: dto.tierId,
+          status: { in: ['pending_payment', 'proof_submitted', 'pending_approval', 'verified'] },
+        },
+        _sum: { attendeeCount: true },
+      });
+      const ticketUsage = await tx.ticket.count({
+        where: { ticketTierId: dto.tierId, status: { in: ['valid', 'used'] } },
+      });
+      const occupied = Number(registrationUsage._sum.attendeeCount ?? 0) + ticketUsage;
+      if (tier.totalQuantity - occupied < 1) {
+        throw new BadRequestException('No seats are available for this ticket tier.');
+      }
+      await tx.ticketTier.update({
+        where: { id: dto.tierId },
+        data: { soldQuantity: occupied + 1 },
+      });
+
+      const user = await tx.user.upsert({
+        where: { email },
+        create: {
+          email,
+          phone,
+          firstName,
+          lastName,
+          isVerified: true,
+          birthday,
+          gender: dto.gender,
+        },
+        update: {
+          phone,
+          birthday,
+          gender: dto.gender,
+        },
+        select: { id: true },
+      });
+
+      const unitPrice = event.isFree ? 0 : Number(tier.price);
+      const subtotal = unitPrice;
+      const fees = event.isFree ? 0 : Number(event.platformFee ?? 0);
+      const total = subtotal + fees;
+
+      const registration = await tx.registration.create({
+        data: {
+          referenceNumber: generateReferenceNumber(),
+          userId: user.id,
+          eventId,
+          tierId: tier.id,
+          tierName: tier.name,
+          unitPrice,
+          attendeeCount: 1,
+          subtotal,
+          fees,
+          total,
+          status: 'verified',
+          verifiedById: adminId,
+          verifiedAt: new Date(),
+          currency: tier.currency,
+          paymentMethod: 'walk_in',
+          notes: 'Staff-assisted walk-in registration',
+          attendees: {
+            create: {
+              firstName,
+              lastName,
+              email,
+              phone,
+              birthday,
+              gender: dto.gender,
+              company: dto.company?.trim() || null,
+              jobTitle: dto.jobTitle?.trim() || null,
+              isLead: true,
+            },
+          },
+        },
+        include: { attendees: true },
+      });
+
+      const attendee = registration.attendees[0];
+      const qrSecret = this.config.get<string>('qr.hmacSecret') ?? '';
+      const qrToken = generateAttendeeQrToken(
+        { attendeeId: attendee.id, registrationId: registration.id, eventId },
+        qrSecret,
+      );
+      const now = new Date();
+      const updatedAttendee = await tx.attendee.update({
+        where: { id: attendee.id },
+        data: { qrToken },
+      });
+      const attendance = await this.createDailyAttendance(tx, updatedAttendee, eventId, adminId, 'walk_in', now);
+
+      return { event, tier, registration, attendee: updatedAttendee, attendance };
+    });
+
+    await this.audit.log({
+      action: 'WALK_IN_REGISTERED',
+      entityType: 'Registration',
+      entityId: result.registration.id,
+      registrationId: result.registration.id,
+      performedById: adminId,
+      ipAddress: ip,
+      metadata: {
+        eventId,
+        attendeeId: result.attendee.id,
+        attendanceId: result.attendance.id,
+        checkInDate: result.attendance.checkInDate.toISOString().slice(0, 10),
+      },
+    });
+
+    return {
+      registration: {
+        id: result.registration.id,
+        referenceNumber: result.registration.referenceNumber,
+        status: result.registration.status,
+      },
+      attendee: {
+        id: result.attendee.id,
+        firstName: result.attendee.firstName,
+        lastName: result.attendee.lastName,
+        email: result.attendee.email,
+        tierName: result.tier.name,
+      },
+      attendance: {
+        id: result.attendance.id,
+        checkInDate: result.attendance.checkInDate.toISOString().slice(0, 10),
+        checkedInAt: result.attendance.checkedInAt.toISOString(),
+        checkInMethod: result.attendance.checkInMethod,
+      },
+      nametag: {
+        eventId,
+        attendeeId: result.attendee.id,
+      },
+    };
+  }
+
+  async getDailyAttendance(eventId: string, date?: string) {
+    const checkInDate = this.parseCheckInDate(date);
+    const records = await this.prisma.attendeeAttendance.findMany({
+      where: { eventId, checkInDate },
+      orderBy: { checkedInAt: 'desc' },
+      include: {
+        attendee: { select: { id: true, firstName: true, lastName: true, email: true, phone: true } },
+        registration: { select: { id: true, referenceNumber: true, tierName: true } },
+        checkedInBy: { select: { firstName: true, lastName: true, email: true } },
+      },
+    });
+
+    return {
+      date: checkInDate.toISOString().slice(0, 10),
+      total: records.length,
+      data: records.map((record) => ({
+        id: record.id,
+        attendeeId: record.attendeeId,
+        registrationId: record.registrationId,
+        referenceNumber: record.registration.referenceNumber,
+        attendeeName: this.compactName(record.attendee.firstName, record.attendee.lastName),
+        email: record.attendee.email,
+        phone: record.attendee.phone,
+        tierName: record.registration.tierName,
+        checkedInAt: record.checkedInAt.toISOString(),
+        checkInMethod: record.checkInMethod,
+        checkedInBy: record.checkedInBy
+          ? this.compactName(record.checkedInBy.firstName, record.checkedInBy.lastName) || record.checkedInBy.email
+          : null,
+      })),
     };
   }
 
   async getAttendees(eventId: string, page = 1, limit = 50, q?: string) {
     const skip = (page - 1) * limit;
     const term = q?.trim();
+    const today = this.checkInDateFor();
 
     // ── Path A: Registration flow (Attendee records from verified registrations) ──
     const attendeeWhere: Prisma.AttendeeWhereInput = {
@@ -1006,6 +1298,11 @@ export class AdminService {
         take: 2_000,
         include: {
           registration: { select: { tierName: true, paymentMethod: true, status: true } },
+          attendanceRecords: {
+            where: { eventId, checkInDate: today },
+            select: { checkedInAt: true },
+            take: 1,
+          },
         },
       }),
       this.prisma.ticket.findMany({
@@ -1033,8 +1330,9 @@ export class AdminService {
         tierName: a.registration.tierName ?? 'Registration',
         orderStatus: a.registration.status === 'verified' ? 'paid' : 'pending',
         paymentMethod: a.registration.paymentMethod ?? null,
-        status: a.checkedInAt ? 'used' : 'valid',
-        checkedInAt: a.checkedInAt?.toISOString() ?? null,
+        status: a.attendanceRecords[0] ? 'used' : 'valid',
+        checkedInAt: a.attendanceRecords[0]?.checkedInAt.toISOString() ?? null,
+        firstCheckedInAt: a.checkedInAt?.toISOString() ?? null,
       })),
       ...tickets.map((t) => ({
         id: t.id,

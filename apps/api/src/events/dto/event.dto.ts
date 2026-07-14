@@ -282,6 +282,11 @@ export class CreateEventDto {
   @IsBoolean()
   allowManualPayment?: boolean;
 
+  @ApiProperty({ required: false, default: false, description: 'Allow public QR-initiated on-site registration and daily attendance check-in.' })
+  @IsOptional()
+  @IsBoolean()
+  onsiteRegistrationEnabled?: boolean;
+
   @ApiProperty({ required: false })
   @IsOptional()
   @IsString()
@@ -448,6 +453,10 @@ export class UpdateEventDto {
   allowManualPayment?: boolean;
 
   @IsOptional()
+  @IsBoolean()
+  onsiteRegistrationEnabled?: boolean;
+
+  @IsOptional()
   @IsString()
   @MaxLength(120)
   bankName?: string;
@@ -492,4 +501,56 @@ export class UpdateEventDto {
   @IsOptional()
   @IsDateString()
   featuredUntil?: string;
+}
+
+export class OnsiteRegistrationDto {
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  attendeeId?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  tierId?: string;
+
+  @ValidateIf((dto: OnsiteRegistrationDto) => !dto.attendeeId)
+  @IsString()
+  @MinLength(1)
+  @MaxLength(100)
+  firstName?: string;
+
+  @ValidateIf((dto: OnsiteRegistrationDto) => !dto.attendeeId)
+  @IsString()
+  @MinLength(1)
+  @MaxLength(100)
+  lastName?: string;
+
+  @ValidateIf((dto: OnsiteRegistrationDto) => !dto.attendeeId)
+  @Matches(/^[^\s@]+@[^\s@]+\.[^\s@]+$/)
+  email?: string;
+
+  @ValidateIf((dto: OnsiteRegistrationDto) => !dto.attendeeId)
+  @IsString()
+  @MinLength(7)
+  @MaxLength(20)
+  contactNumber?: string;
+
+  @ValidateIf((dto: OnsiteRegistrationDto) => !dto.attendeeId)
+  @IsIn(['female', 'male', 'non_binary', 'prefer_not_to_say', 'self_described'])
+  gender?: string;
+
+  @ValidateIf((dto: OnsiteRegistrationDto) => !dto.attendeeId)
+  @IsDateString()
+  birthday?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(150)
+  company?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(150)
+  jobTitle?: string;
 }

@@ -1,6 +1,7 @@
-import { Controller, Get, Query, Param, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Post, Query, Param, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiQuery } from '@nestjs/swagger';
 import { EventsService } from './events.service';
+import { OnsiteRegistrationDto } from './dto/event.dto';
 import { Public } from '../common/decorators/public.decorator';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 
@@ -34,5 +35,12 @@ export class EventsController {
   @ApiOperation({ summary: 'Get event details by slug' })
   findOne(@Param('slug') slug: string) {
     return this.eventsService.findBySlug(slug);
+  }
+
+  @Public()
+  @Post(':slug/onsite-registration')
+  @ApiOperation({ summary: 'Self-register or check in from an event on-site QR code' })
+  onsiteRegistration(@Param('slug') slug: string, @Body() dto: OnsiteRegistrationDto) {
+    return this.eventsService.handleOnsiteRegistrationScan(slug, dto);
   }
 }
