@@ -17,12 +17,20 @@ interface AttendeeRow {
   registrationStatus: string;
   checkedInAt: string | null;
   hasQr: boolean;
+  subEventTitle?: string | null;
+  subEventTime?: string | null;
 }
 
 interface Event {
   id: string;
   title: string;
   status: string;
+}
+
+interface AgendaSubEvent {
+  id: string;
+  title: string;
+  time?: string;
 }
 
 interface Tier {
@@ -33,7 +41,7 @@ interface Tier {
 
 interface WalkInResult {
   registration: { id: string; referenceNumber: string; status: string };
-  attendee: { id: string; firstName: string; lastName: string; email: string; tierName: string };
+  attendee: { id: string; firstName: string; lastName: string; email: string; tierName: string; subEventTitle?: string | null; subEventTime?: string | null };
   attendance: { id: string; checkInDate: string; checkedInAt: string; checkInMethod: string };
   nametag: { eventId: string; attendeeId: string };
 }
@@ -44,6 +52,8 @@ interface DailyAttendanceRow {
   attendeeName: string;
   email: string;
   tierName: string | null;
+  subEventTitle?: string | null;
+  subEventTime?: string | null;
   checkedInAt: string;
   checkInMethod: string;
 }
@@ -58,6 +68,7 @@ export default function AdminCheckinPage() {
   const [selectedEventId, setSelectedEventId] = useState('');
   const selectedEventIdRef = useRef('');
   const [tiers, setTiers] = useState<Tier[]>([]);
+  const [subEvents, setSubEvents] = useState<AgendaSubEvent[]>([]);
 
   // Camera state
   const [cameraActive, setCameraActive] = useState(false);
@@ -88,6 +99,7 @@ export default function AdminCheckinPage() {
   // Walk-in
   const [walkInForm, setWalkInForm] = useState({
     tierId: '',
+    subEventId: '',
     firstName: '',
     lastName: '',
     email: '',
@@ -119,24 +131,41 @@ export default function AdminCheckinPage() {
   useEffect(() => {
     if (!selectedEventId) {
       setTiers([]);
-      setWalkInForm((form) => ({ ...form, tierId: '' }));
+      setSubEvents([]);
+      setWalkInForm((form) => ({ ...form, tierId: '', subEventId: '' }));
       setDailyAttendance([]);
       setAttendanceTotal(0);
       return;
     }
     api
-      .get<{ data: { tiers?: Tier[] } }>(`/admin/events/${selectedEventId}`)
+      .get<{ data: { tiers?: Tier[]; agenda?: Array<{ id?: string; title?: string; time?: string; isSubEvent?: boolean }> | null } }>(`/admin/events/${selectedEventId}`)
       .then((r) => {
         const nextTiers = r.data.data.tiers ?? [];
+        const nextSubEvents = Array.isArray(r.data.data.agenda)
+          ? r.data.data.agenda
+              .filter((item) => item?.isSubEvent === true && typeof item.id === 'string' && item.id.trim() && typeof item.title === 'string' && item.title.trim())
+              .map((item) => ({
+                id: item.id!.trim(),
+                title: item.title!.trim(),
+                ...(item.time?.trim() ? { time: item.time.trim() } : {}),
+              }))
+          : [];
         setTiers(nextTiers);
+        setSubEvents(nextSubEvents);
         setWalkInForm((form) => ({
           ...form,
           tierId: form.tierId && nextTiers.some((tier) => tier.id === form.tierId)
             ? form.tierId
             : nextTiers[0]?.id ?? '',
+          subEventId: form.subEventId && nextSubEvents.some((item) => item.id === form.subEventId)
+            ? form.subEventId
+            : '',
         }));
       })
-      .catch(() => setTiers([]));
+      .catch(() => {
+        setTiers([]);
+        setSubEvents([]);
+      });
     loadDailyAttendance(selectedEventId).catch(() => {});
   }, [selectedEventId]);
 
@@ -518,6 +547,7 @@ export default function AdminCheckinPage() {
       setLastWalkIn(result);
       setWalkInForm((form) => ({
         tierId: form.tierId,
+        subEventId: form.subEventId,
         firstName: '',
         lastName: '',
         email: '',
@@ -675,6 +705,11 @@ export default function AdminCheckinPage() {
                         {a.firstName} {a.lastName}
                       </p>
                       <p className="text-xs text-gray-500 truncate">{a.email}</p>
+                      {a.subEventTitle && (
+                        <p className="text-xs text-violet-600 truncate">
+                          {a.subEventTime ? `${a.subEventTime} - ${a.subEventTitle}` : a.subEventTitle}
+                        </p>
+                      )}
                       <p className="text-xs text-gray-400">{a.tierName ?? '—'}</p>
                       <p className="text-xs text-gray-400 font-mono"># {a.referenceNumber}</p>
                     </div>
@@ -743,6 +778,26 @@ export default function AdminCheckinPage() {
                   ))}
                 </select>
               </div>
+
+              {subEvents.length > 0 && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Sub-event</label>
+                  <select
+                    value={walkInForm.subEventId}
+                    onChange={(e) => setWalkInField('subEventId', e.target.value)}
+                    disabled={!selectedEventId}
+                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary disabled:bg-gray-50"
+                    required
+                  >
+                    <option value="">Select sub-event</option>
+                    {subEvents.map((item) => (
+                      <option key={item.id} value={item.id}>
+                        {item.time ? `${item.time} - ${item.title}` : item.title}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
@@ -823,7 +878,7 @@ export default function AdminCheckinPage() {
               <Button
                 type="submit"
                 loading={registeringWalkIn}
-                disabled={!selectedEventId || !walkInForm.tierId}
+                disabled={!selectedEventId || !walkInForm.tierId || (subEvents.length > 0 && !walkInForm.subEventId)}
                 className="w-full"
               >
                 Register, Check In, Print Nametag
@@ -836,6 +891,13 @@ export default function AdminCheckinPage() {
                   <p className="text-sm font-semibold text-green-900 truncate">
                     {lastWalkIn.attendee.firstName} {lastWalkIn.attendee.lastName}
                   </p>
+                  {lastWalkIn.attendee.subEventTitle && (
+                    <p className="text-xs text-green-700 truncate">
+                      {lastWalkIn.attendee.subEventTime
+                        ? `${lastWalkIn.attendee.subEventTime} - ${lastWalkIn.attendee.subEventTitle}`
+                        : lastWalkIn.attendee.subEventTitle}
+                    </p>
+                  )}
                   <p className="text-xs text-green-700 font-mono"># {lastWalkIn.registration.referenceNumber}</p>
                 </div>
                 <Button
@@ -860,6 +922,11 @@ export default function AdminCheckinPage() {
                       <div className="min-w-0">
                         <p className="text-sm font-medium text-gray-900 truncate">{row.attendeeName}</p>
                         <p className="text-xs text-gray-500 truncate">{row.email}</p>
+                        {row.subEventTitle && (
+                          <p className="text-xs text-violet-600 truncate">
+                            {row.subEventTime ? `${row.subEventTime} - ${row.subEventTitle}` : row.subEventTitle}
+                          </p>
+                        )}
                       </div>
                       <div className="text-right flex-shrink-0 space-y-1">
                         <div>

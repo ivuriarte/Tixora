@@ -426,6 +426,10 @@ model Attendee {
   birthday       DateTime? @db.Date
   gender         String?
   city           String?
+  subEventId     String?   @map("sub_event_id")
+  subEventTitle  String?   @map("sub_event_title")
+  subEventTime   String?   @map("sub_event_time")
+  selectedSubEvents Json?   @map("selected_sub_events")
   isLead         Boolean   @default(false) @map("is_lead")
   // Anti-scalper: tickets are bound to the attendee record above and cannot
   // be re-assigned. Reserved for a future admin-controlled transfer flow.
@@ -441,6 +445,7 @@ model Attendee {
 
   @@index([registrationId])
   @@index([email])
+  @@index([subEventId])
   @@map("attendees")
 }
 

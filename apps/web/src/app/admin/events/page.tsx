@@ -14,6 +14,7 @@ interface EventRow {
   venue: string;
   startsAt: string;
   status: string;
+  onsiteRegistrationEnabled?: boolean;
   ticketsSold: number;
   organization: { id: string; name: string } | null;
 }
@@ -30,6 +31,8 @@ const STATUS_STYLE: Record<string, string> = {
   completed: 'bg-blue-100 text-blue-700',
   draft: 'bg-gray-100 text-gray-500',
 };
+
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.axontickets.online/api/v1';
 
 export default function EventHistoryPage() {
   const { user } = useAuthStore();
@@ -146,22 +149,30 @@ export default function EventHistoryPage() {
                   {event.organization && <span> · {event.organization.name}</span>}
                 </p>
               </div>
-              <div className="flex flex-wrap items-center gap-2">
+              <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto sm:flex-wrap sm:items-center">
+                {event.onsiteRegistrationEnabled && (
+                  <a
+                    href={`${API_URL}/events/${event.slug}/onsite-registration/qr.pdf`}
+                    className="min-h-10 rounded-lg bg-gray-900 px-3 py-2 text-center text-xs font-semibold text-white hover:bg-gray-800"
+                  >
+                    Download QR
+                  </a>
+                )}
                 <Link
                   href={`/admin/analytics?eventId=${event.id}`}
-                  className="text-xs font-medium px-3 py-1.5 rounded-lg bg-indigo-50 text-indigo-700 hover:bg-indigo-100"
+                  className="min-h-10 rounded-lg bg-indigo-50 px-3 py-2 text-center text-xs font-semibold text-indigo-700 hover:bg-indigo-100"
                 >
                   Analytics
                 </Link>
                 <Link
                   href={`/admin/attendees?eventId=${event.id}`}
-                  className="text-xs font-medium px-3 py-1.5 rounded-lg bg-green-50 text-green-700 hover:bg-green-100"
+                  className="min-h-10 rounded-lg bg-green-50 px-3 py-2 text-center text-xs font-semibold text-green-700 hover:bg-green-100"
                 >
                   Attendees
                 </Link>
                 <Link
                   href={`/admin/events/${event.id}`}
-                  className="text-xs font-medium px-3 py-1.5 rounded-lg bg-gray-100 text-gray-700 hover:bg-gray-200"
+                  className="min-h-10 rounded-lg bg-gray-100 px-3 py-2 text-center text-xs font-semibold text-gray-700 hover:bg-gray-200"
                 >
                   Details
                 </Link>

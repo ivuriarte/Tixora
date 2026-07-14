@@ -483,9 +483,26 @@ export function FaqListManager({
 // ── Agenda ─────────────────────────────────────────────────────────────────────
 
 export interface AgendaItem {
+  id?: string;
   time: string;
   title: string;
   description?: string;
+  isSubEvent?: boolean;
+}
+
+function newAgendaId(): string {
+  if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) return crypto.randomUUID();
+  return `agenda-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
+function cleanAgendaItem(item: AgendaItem): AgendaItem {
+  return {
+    id: item.id || newAgendaId(),
+    time: item.time.trim(),
+    title: item.title.trim(),
+    ...(item.description?.trim() ? { description: item.description.trim() } : {}),
+    ...(item.isSubEvent ? { isSubEvent: true } : {}),
+  };
 }
 
 function AgendaForm({
@@ -537,6 +554,18 @@ function AgendaForm({
           onChange={(e) => onChange({ ...value, description: e.target.value })}
         />
       </div>
+      <label className="flex items-start gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700">
+        <input
+          type="checkbox"
+          checked={value.isSubEvent === true}
+          onChange={(e) => onChange({ ...value, isSubEvent: e.target.checked })}
+          className="mt-0.5 rounded border-gray-300 text-primary focus:ring-primary"
+        />
+        <span>
+          Make selectable during registration
+          <span className="block text-xs text-gray-500">Attendees will choose this agenda item as the sub-event they will attend.</span>
+        </span>
+      </label>
       <div className="flex gap-2">
         <button
           type="button"
@@ -567,18 +596,14 @@ export function AgendaListManager({
 }) {
   const [editingIdx, setEditingIdx] = useState<number | null>(null);
   const [showAdd, setShowAdd] = useState(false);
-  const [draft, setDraft] = useState<AgendaItem>({ time: '', title: '', description: '' });
+  const [draft, setDraft] = useState<AgendaItem>({ id: newAgendaId(), time: '', title: '', description: '', isSubEvent: false });
 
   useFlushPendingDraft<AgendaItem>({
     showAdd,
     draft,
     items: agenda,
     isValid: (d) => d.time.trim().length > 0 && d.title.trim().length > 0,
-    clean: (d) => ({
-      time: d.time.trim(),
-      title: d.title.trim(),
-      ...(d.description?.trim() ? { description: d.description.trim() } : {}),
-    }),
+    clean: cleanAgendaItem,
     onChange,
   });
 
@@ -590,24 +615,16 @@ export function AgendaListManager({
 
   function saveEdit() {
     if (!draft.time.trim() || !draft.title.trim() || editingIdx === null) return;
-    const cleaned: AgendaItem = {
-      time: draft.time.trim(),
-      title: draft.title.trim(),
-      ...(draft.description?.trim() ? { description: draft.description.trim() } : {}),
-    };
+    const cleaned = cleanAgendaItem(draft);
     onChange(agenda.map((a, i) => (i === editingIdx ? cleaned : a)));
     setEditingIdx(null);
   }
 
   function addItem() {
     if (!draft.time.trim() || !draft.title.trim()) return;
-    const cleaned: AgendaItem = {
-      time: draft.time.trim(),
-      title: draft.title.trim(),
-      ...(draft.description?.trim() ? { description: draft.description.trim() } : {}),
-    };
+    const cleaned = cleanAgendaItem(draft);
     onChange([...agenda, cleaned]);
-    setDraft({ time: '', title: '', description: '' });
+    setDraft({ id: newAgendaId(), time: '', title: '', description: '', isSubEvent: false });
     // keep panel open so user can immediately add another
   }
 
@@ -618,7 +635,7 @@ export function AgendaListManager({
         {!showAdd && editingIdx === null && (
           <button
             type="button"
-            onClick={() => { setShowAdd(true); setDraft({ time: '', title: '', description: '' }); }}
+            onClick={() => { setShowAdd(true); setDraft({ id: newAgendaId(), time: '', title: '', description: '', isSubEvent: false }); }}
             className="text-xs text-primary hover:underline font-medium"
           >
             + Add Agenda Item
@@ -642,7 +659,7 @@ export function AgendaListManager({
               saveLabel="Save"
             />
           ) : (
-            <div key={idx} className="flex items-start justify-between border border-gray-100 rounded-xl px-3 py-2.5">
+            <div key={a.id ?? idx} className="flex items-start justify-between border border-gray-100 rounded-xl px-3 py-2.5">
               <div className="flex gap-3 min-w-0 flex-1">
                 <ReorderButtons
                   index={idx}
@@ -653,6 +670,11 @@ export function AgendaListManager({
                 <div className="text-primary font-bold text-sm whitespace-nowrap min-w-[80px]">{a.time}</div>
                 <div className="min-w-0">
                   <p className="text-sm font-medium text-gray-800">{a.title}</p>
+                  {a.isSubEvent && (
+                    <span className="mt-1 inline-flex rounded-full bg-violet-50 px-2 py-0.5 text-[11px] font-medium text-violet-700">
+                      Registration option
+                    </span>
+                  )}
                   {a.description && (
                     <p className="text-xs text-gray-500 mt-0.5">{a.description}</p>
                   )}

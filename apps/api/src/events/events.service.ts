@@ -1,10 +1,13 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Prisma } from '@prisma/client';
+import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
+import * as QRCode from 'qrcode';
 import { PrismaService } from '../prisma/prisma.service';
 import { RedisService } from '../redis/redis.service';
 import { WorkspacesService } from '../workspaces/workspaces.service';
-import { CreateEventDto, OnsiteRegistrationDto, UpdateEventDto } from './dto/event.dto';
+import { CreateEventDto, OnsiteProfileSuggestionDto, OnsiteRegistrationDto, UpdateEventDto } from './dto/event.dto';
+import { resolveAgendaSubEvent } from './agenda-sub-events';
 import { generateAttendeeQrToken, generateReferenceNumber, uniqueSlug } from '@axon-tickets/utils';
 
 const TIER_INVENTORY_PREFIX = 'ticket_tier:';
@@ -16,6 +19,12 @@ type TierInventory = {
   id: string;
   totalQuantity: number;
   soldQuantity?: number;
+};
+
+type SelectedSubEvent = {
+  id: string;
+  title: string;
+  time?: string;
 };
 
 @Injectable()
@@ -48,6 +57,85 @@ export class EventsService {
       throw new BadRequestException('Birthday must be a valid past date within the last 120 years.');
     }
     return birthday;
+  }
+
+  private readableStatus(status: string) {
+    return status.replace(/_/g, ' ');
+  }
+
+  private onsiteUrl(slug: string) {
+    const webUrl = this.config.get<string>('webUrl') || 'https://axontickets.online';
+    return `${webUrl.replace(/\/$/, '')}/events/${slug}/onsite`;
+  }
+
+  private selectedSubEventsFromAgenda(agenda: Prisma.JsonValue, ids?: string[], fallbackId?: string): SelectedSubEvent[] {
+    const requestedIds = [...new Set([...(ids ?? []), fallbackId].filter((id): id is string => Boolean(id?.trim())).map((id) => id.trim()))];
+    if (requestedIds.length === 0) return [];
+
+    const resolved = requestedIds.map((id) => resolveAgendaSubEvent(agenda, id));
+    const missing = requestedIds.filter((_, index) => !resolved[index]);
+    if (missing.length > 0) {
+      throw new BadRequestException('One or more selected sub-events are no longer available. Please refresh the form and choose again.');
+    }
+
+    return resolved
+      .filter((item): item is NonNullable<typeof item> => Boolean(item))
+      .map((item) => ({
+        id: item.id,
+        title: item.title,
+        ...(item.time ? { time: item.time } : {}),
+      }));
+  }
+
+  private agendaHasSubEvents(agenda: Prisma.JsonValue) {
+    return Array.isArray(agenda) && agenda.some((item) => {
+      if (!item || typeof item !== 'object' || Array.isArray(item)) return false;
+      const candidate = item as Record<string, unknown>;
+      return candidate.isSubEvent === true && typeof candidate.id === 'string' && typeof candidate.title === 'string';
+    });
+  }
+
+  private summarizeSubEvents(items: SelectedSubEvent[]) {
+    if (items.length === 0) return null;
+    if (items.length === 1) return items[0].time ? `${items[0].time} - ${items[0].title}` : items[0].title;
+    return `${items.length} sub-events selected`;
+  }
+
+  private async profileSuggestionForName(firstName: string, lastName: string) {
+    const attendee = await this.prisma.attendee.findFirst({
+      where: {
+        firstName: { equals: firstName, mode: 'insensitive' },
+        lastName: { equals: lastName, mode: 'insensitive' },
+        registration: {
+          status: 'verified',
+          paymentMethod: { in: ['onsite_qr', 'walk_in'] },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+      select: {
+        firstName: true,
+        lastName: true,
+        email: true,
+        phone: true,
+        gender: true,
+        birthday: true,
+        company: true,
+        jobTitle: true,
+      },
+    });
+
+    if (!attendee) return null;
+    return {
+      firstName: attendee.firstName,
+      lastName: attendee.lastName,
+      email: attendee.email,
+      contactNumber: attendee.phone ?? '',
+      gender: attendee.gender ?? '',
+      birthday: attendee.birthday?.toISOString().slice(0, 10) ?? '',
+      company: attendee.company ?? '',
+      jobTitle: attendee.jobTitle ?? '',
+      maskedEmail: attendee.email.replace(/^(.).+(@.+)$/, '$1***$2'),
+    };
   }
 
   private async createDailyAttendance(
@@ -264,8 +352,8 @@ export class EventsService {
     if (!event.onsiteRegistrationEnabled) {
       throw new BadRequestException('On-site registration is not enabled for this event.');
     }
-    if (event.status === 'cancelled') {
-      throw new BadRequestException('This event is cancelled.');
+    if (event.status !== 'on_sale') {
+      throw new BadRequestException(`Registration is not open yet. This event is currently ${this.readableStatus(event.status)}.`);
     }
 
     const now = new Date();
@@ -294,6 +382,11 @@ export class EventsService {
         throw new BadRequestException('Required attendee details are missing.');
       }
       const birthday = this.validateBirthday(dto.birthday);
+      const selectedSubEvents = this.selectedSubEventsFromAgenda(event.agenda, dto.subEventIds, dto.subEventId);
+      if (this.agendaHasSubEvents(event.agenda) && selectedSubEvents.length === 0) {
+        throw new BadRequestException('Please choose at least one sub-event to attend.');
+      }
+      const primarySubEvent = selectedSubEvents[0] ?? null;
 
       const existing = await tx.attendee.findFirst({
         where: {
@@ -396,8 +489,12 @@ export class EventsService {
               gender,
               company: dto.company?.trim() || null,
               jobTitle: dto.jobTitle?.trim() || null,
+              subEventId: primarySubEvent?.id ?? null,
+              subEventTitle: this.summarizeSubEvents(selectedSubEvents),
+              subEventTime: selectedSubEvents.length === 1 ? primarySubEvent?.time ?? null : null,
+              selectedSubEvents: selectedSubEvents.length > 0 ? (selectedSubEvents as unknown as Prisma.InputJsonValue) : Prisma.JsonNull,
               isLead: true,
-            },
+            } as any,
           },
         },
         include: { attendees: true },
@@ -450,6 +547,137 @@ export class EventsService {
         checkedInAt: result.attendance.checkedInAt.toISOString(),
       },
     };
+  }
+
+  async findOnsiteProfileSuggestion(slug: string, dto: OnsiteProfileSuggestionDto) {
+    const event = await this.prisma.event.findUnique({
+      where: { slug },
+      select: { id: true, status: true, onsiteRegistrationEnabled: true },
+    });
+    if (!event) throw new NotFoundException('Event not found');
+    if (!event.onsiteRegistrationEnabled) {
+      throw new BadRequestException('On-site registration is not enabled for this event.');
+    }
+    if (event.status !== 'on_sale') {
+      throw new BadRequestException(`Registration is not open yet. This event is currently ${this.readableStatus(event.status)}.`);
+    }
+
+    const firstName = dto.firstName.trim();
+    const lastName = dto.lastName.trim();
+    if (firstName.length < 2 || lastName.length < 2) {
+      return { match: null };
+    }
+
+    return { match: await this.profileSuggestionForName(firstName, lastName) };
+  }
+
+  async generateOnsiteQrPdf(slug: string) {
+    const event = await this.prisma.event.findUnique({
+      where: { slug },
+      select: { title: true, slug: true, venue: true, startsAt: true, onsiteRegistrationEnabled: true },
+    });
+    if (!event) throw new NotFoundException('Event not found');
+    if (!event.onsiteRegistrationEnabled) {
+      throw new BadRequestException('Enable on-site registration before downloading the QR PDF.');
+    }
+
+    const scanUrl = this.onsiteUrl(event.slug);
+    const qrPng = await QRCode.toBuffer(scanUrl, { type: 'png', width: 900, margin: 2, errorCorrectionLevel: 'H' });
+    const pdf = await PDFDocument.create();
+    const page = pdf.addPage([595.28, 841.89]);
+    const font = await pdf.embedFont(StandardFonts.Helvetica);
+    const bold = await pdf.embedFont(StandardFonts.HelveticaBold);
+    const qrImage = await pdf.embedPng(qrPng);
+    const { width, height } = page.getSize();
+    const orange = rgb(0.92, 0.42, 0);
+    const navy = rgb(0.06, 0.1, 0.2);
+    const muted = rgb(0.39, 0.45, 0.55);
+
+    page.drawRectangle({ x: 0, y: height - 20, width, height: 20, color: orange });
+    page.drawText('ON-SITE REGISTRATION', {
+      x: 64,
+      y: height - 86,
+      size: 13,
+      font: bold,
+      color: orange,
+    });
+
+    const titleSize = 28;
+    const titleLines = this.wrapPdfText(event.title, bold, titleSize, width - 128);
+    titleLines.slice(0, 3).forEach((line, index) => {
+      page.drawText(line, {
+        x: 64,
+        y: height - 128 - index * 34,
+        size: titleSize,
+        font: bold,
+        color: navy,
+      });
+    });
+
+    page.drawText(`${event.startsAt.toLocaleDateString('en-PH', { dateStyle: 'medium', timeZone: 'Asia/Manila' })} - ${event.venue}`, {
+      x: 64,
+      y: height - 230,
+      size: 14,
+      font,
+      color: muted,
+    });
+
+    const qrSize = 360;
+    const qrX = (width - qrSize) / 2;
+    const qrY = 236;
+    page.drawRectangle({
+      x: qrX - 18,
+      y: qrY - 18,
+      width: qrSize + 36,
+      height: qrSize + 36,
+      borderColor: rgb(0.88, 0.9, 0.94),
+      borderWidth: 2,
+      color: rgb(1, 1, 1),
+    });
+    page.drawImage(qrImage, { x: qrX, y: qrY, width: qrSize, height: qrSize });
+
+    const instruction = 'Scan to register and check in';
+    page.drawText(instruction, {
+      x: (width - bold.widthOfTextAtSize(instruction, 18)) / 2,
+      y: 170,
+      size: 18,
+      font: bold,
+      color: navy,
+    });
+
+    const urlLines = this.wrapPdfText(scanUrl, font, 10, width - 128);
+    urlLines.slice(0, 2).forEach((line, index) => {
+      page.drawText(line, {
+        x: (width - font.widthOfTextAtSize(line, 10)) / 2,
+        y: 140 - index * 14,
+        size: 10,
+        font,
+        color: muted,
+      });
+    });
+
+    const buffer = Buffer.from(await pdf.save());
+    return {
+      buffer,
+      filename: `${event.slug}-onsite-registration-qr.pdf`,
+    };
+  }
+
+  private wrapPdfText(text: string, font: { widthOfTextAtSize(value: string, size: number): number }, size: number, maxWidth: number) {
+    const words = text.split(/\s+/);
+    const lines: string[] = [];
+    let current = '';
+    for (const word of words) {
+      const next = current ? `${current} ${word}` : word;
+      if (font.widthOfTextAtSize(next, size) <= maxWidth) {
+        current = next;
+      } else {
+        if (current) lines.push(current);
+        current = word;
+      }
+    }
+    if (current) lines.push(current);
+    return lines;
   }
 
   async create(dto: CreateEventDto, createdById: string, organizationId?: string) {

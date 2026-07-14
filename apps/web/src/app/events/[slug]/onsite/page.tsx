@@ -12,14 +12,22 @@ interface Tier {
   isSoldOut: boolean;
 }
 
+interface AgendaSubEvent {
+  id: string;
+  title: string;
+  time?: string;
+}
+
 interface EventData {
   id: string;
   slug: string;
   title: string;
   venue: string;
   startsAt: string;
+  status: string;
   onsiteRegistrationEnabled: boolean;
   tiers: Tier[];
+  agenda?: Array<{ id?: string; title?: string; time?: string; isSubEvent?: boolean }> | null;
 }
 
 interface OnsiteResult {
@@ -31,6 +39,7 @@ interface OnsiteResult {
 
 const blankForm = {
   tierId: '',
+  subEventIds: [] as string[],
   firstName: '',
   lastName: '',
   email: '',
@@ -41,6 +50,34 @@ const blankForm = {
   jobTitle: '',
 };
 
+interface ProfileSuggestion {
+  firstName: string;
+  lastName: string;
+  email: string;
+  contactNumber: string;
+  gender: string;
+  birthday: string;
+  company: string;
+  jobTitle: string;
+  maskedEmail: string;
+}
+
+function getSubEvents(event?: EventData | null): AgendaSubEvent[] {
+  return Array.isArray(event?.agenda)
+    ? event.agenda
+        .filter((item) => item?.isSubEvent === true && typeof item.id === 'string' && item.id.trim() && typeof item.title === 'string' && item.title.trim())
+        .map((item) => ({
+          id: item.id!.trim(),
+          title: item.title!.trim(),
+          ...(item.time?.trim() ? { time: item.time.trim() } : {}),
+        }))
+    : [];
+}
+
+function statusLabel(status?: string) {
+  return (status || '').replace(/_/g, ' ');
+}
+
 export default function OnsiteRegistrationPage({ params }: { params: { slug: string } }) {
   const storageKey = useMemo(() => `axon-onsite-attendee:${params.slug}`, [params.slug]);
   const [event, setEvent] = useState<EventData | null>(null);
@@ -50,6 +87,10 @@ export default function OnsiteRegistrationPage({ params }: { params: { slug: str
   const [autoChecking, setAutoChecking] = useState(false);
   const [result, setResult] = useState<OnsiteResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [suggestion, setSuggestion] = useState<ProfileSuggestion | null>(null);
+  const [checkingSuggestion, setCheckingSuggestion] = useState(false);
+  const subEvents = useMemo<AgendaSubEvent[]>(() => getSubEvents(event), [event]);
+  const registrationOpen = event?.onsiteRegistrationEnabled === true && event.status === 'on_sale';
 
   useEffect(() => {
     let cancelled = false;
@@ -58,13 +99,15 @@ export default function OnsiteRegistrationPage({ params }: { params: { slug: str
       .then((res) => {
         if (cancelled) return;
         const nextEvent = res.data.data;
+        const nextSubEvents = getSubEvents(nextEvent);
         setEvent(nextEvent);
         setForm((current) => ({
           ...current,
           tierId: current.tierId || nextEvent.tiers.find((tier) => !tier.isSoldOut)?.id || nextEvent.tiers[0]?.id || '',
+          subEventIds: current.subEventIds.length > 0 ? current.subEventIds : nextSubEvents.map((item) => item.id),
         }));
         const attendeeId = window.localStorage.getItem(storageKey);
-        if (attendeeId && nextEvent.onsiteRegistrationEnabled) {
+        if (attendeeId && nextEvent.onsiteRegistrationEnabled && nextEvent.status === 'on_sale') {
           void checkInExisting(attendeeId);
         }
       })
@@ -80,6 +123,23 @@ export default function OnsiteRegistrationPage({ params }: { params: { slug: str
 
   function field(name: keyof typeof form, value: string) {
     setForm((current) => ({ ...current, [name]: value }));
+  }
+
+  function toggleSubEvent(id: string) {
+    setForm((current) => {
+      const selected = new Set(current.subEventIds);
+      if (selected.has(id)) selected.delete(id);
+      else selected.add(id);
+      return { ...current, subEventIds: Array.from(selected) };
+    });
+  }
+
+  function selectAllSubEvents() {
+    setForm((current) => ({ ...current, subEventIds: subEvents.map((item) => item.id) }));
+  }
+
+  function clearSubEvents() {
+    setForm((current) => ({ ...current, subEventIds: [] }));
   }
 
   function messageFromError(err: unknown) {
@@ -115,6 +175,7 @@ export default function OnsiteRegistrationPage({ params }: { params: { slug: str
         `${API_URL}/events/${params.slug}/onsite-registration`,
         {
           ...form,
+          subEventIds: form.subEventIds,
           email: form.email.trim().toLowerCase(),
           firstName: form.firstName.trim(),
           lastName: form.lastName.trim(),
@@ -126,13 +187,47 @@ export default function OnsiteRegistrationPage({ params }: { params: { slug: str
       const payload = res.data.data;
       window.localStorage.setItem(storageKey, payload.attendee.id);
       setResult(payload);
-      setForm((current) => ({ ...blankForm, tierId: current.tierId }));
+      setForm((current) => ({ ...blankForm, tierId: current.tierId, subEventIds: subEvents.map((item) => item.id) }));
     } catch (err) {
       setError(messageFromError(err));
     } finally {
       setSubmitting(false);
     }
   }
+
+  useEffect(() => {
+    if (!registrationOpen || result) return;
+    const firstName = form.firstName.trim();
+    const lastName = form.lastName.trim();
+    if (firstName.length < 2 || lastName.length < 2) {
+      setSuggestion(null);
+      return;
+    }
+
+    let cancelled = false;
+    const timer = window.setTimeout(() => {
+      setCheckingSuggestion(true);
+      axios
+        .post<{ data: { match: ProfileSuggestion | null } }>(
+          `${API_URL}/events/${params.slug}/onsite-registration/suggestions`,
+          { firstName, lastName },
+        )
+        .then((res) => {
+          if (!cancelled) setSuggestion(res.data.data.match);
+        })
+        .catch(() => {
+          if (!cancelled) setSuggestion(null);
+        })
+        .finally(() => {
+          if (!cancelled) setCheckingSuggestion(false);
+        });
+    }, 500);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [form.firstName, form.lastName, params.slug, registrationOpen, result]);
 
   if (loading) {
     return (
@@ -143,11 +238,11 @@ export default function OnsiteRegistrationPage({ params }: { params: { slug: str
   }
 
   return (
-    <main className="min-h-screen bg-gray-50 px-4 py-6">
+    <main className="min-h-screen bg-gray-50 px-3 py-5 sm:px-4 sm:py-6">
       <div className="mx-auto max-w-md space-y-5">
         <header className="space-y-1">
           <p className="text-xs font-semibold uppercase tracking-wide text-primary">On-site Registration</p>
-          <h1 className="text-2xl font-bold text-gray-900">{event?.title ?? 'Event'}</h1>
+          <h1 className="text-2xl font-bold leading-tight text-gray-900">{event?.title ?? 'Event'}</h1>
           {event && (
             <p className="text-sm text-gray-500">
               {new Date(event.startsAt).toLocaleDateString('en-PH', { dateStyle: 'medium' })} · {event.venue}
@@ -159,6 +254,13 @@ export default function OnsiteRegistrationPage({ params }: { params: { slug: str
           <section className="rounded-2xl border border-amber-200 bg-amber-50 p-5">
             <p className="font-semibold text-amber-900">On-site registration is not enabled.</p>
             <p className="mt-1 text-sm text-amber-700">Please ask the event staff for assistance.</p>
+          </section>
+        ) : event.status !== 'on_sale' ? (
+          <section className="rounded-2xl border border-amber-200 bg-amber-50 p-5">
+            <p className="font-semibold text-amber-900">Registration is not open right now.</p>
+            <p className="mt-1 text-sm text-amber-700">
+              This event is currently {statusLabel(event.status)}. Please ask the event staff when on-site registration will open.
+            </p>
           </section>
         ) : result ? (
           <section className="rounded-2xl border border-green-200 bg-white p-5 shadow-sm space-y-4">
@@ -180,14 +282,17 @@ export default function OnsiteRegistrationPage({ params }: { params: { slug: str
             </p>
           </section>
         ) : (
-          <form onSubmit={handleSubmit} className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm space-y-4">
+          <form onSubmit={handleSubmit} className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm space-y-4 sm:p-5">
+            <div className="rounded-xl border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-900">
+              This form registers your event attendance and creates your Axon Tickets account, so future event days can be faster.
+            </div>
             {event.tiers.length > 1 && (
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Registration type</label>
                 <select
                   value={form.tierId}
                   onChange={(e) => field('tierId', e.target.value)}
-                  className="w-full rounded-xl border border-gray-300 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                  className="w-full rounded-xl border border-gray-300 px-3 py-3 text-base focus:outline-none focus:ring-2 focus:ring-primary sm:py-2.5 sm:text-sm"
                   required
                 >
                   {event.tiers.map((tier) => (
@@ -199,19 +304,83 @@ export default function OnsiteRegistrationPage({ params }: { params: { slug: str
               </div>
             )}
 
-            <div className="grid grid-cols-2 gap-3">
+            {subEvents.length > 0 && (
+              <div className="rounded-xl border border-gray-200 p-4">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <p className="text-sm font-semibold text-gray-800">Sub-events to attend</p>
+                    <p className="text-xs text-gray-500">All are selected by default. Uncheck only the sessions you will not attend.</p>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 sm:flex sm:shrink-0">
+                    <button type="button" onClick={selectAllSubEvents} className="min-h-10 rounded-lg border border-violet-200 px-3 text-xs font-semibold text-violet-700 hover:bg-violet-50">
+                      Select all
+                    </button>
+                    <button type="button" onClick={clearSubEvents} className="min-h-10 rounded-lg border border-gray-200 px-3 text-xs font-semibold text-gray-600 hover:bg-gray-50">
+                      Clear
+                    </button>
+                  </div>
+                </div>
+                <div className="mt-3 space-y-2">
+                  {subEvents.map((item) => (
+                    <label key={item.id} className="flex min-h-12 items-start gap-3 rounded-lg border border-gray-200 px-3 py-3">
+                      <input
+                        type="checkbox"
+                        checked={form.subEventIds.includes(item.id)}
+                        onChange={() => toggleSubEvent(item.id)}
+                        className="mt-0.5 h-5 w-5 shrink-0 rounded border-gray-300 text-primary focus:ring-primary"
+                      />
+                      <span className="text-base leading-snug text-gray-800 sm:text-sm">
+                        {item.time && <span className="font-medium text-gray-500">{item.time} - </span>}
+                        {item.title}
+                      </span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <div className="grid gap-3 sm:grid-cols-2">
               <Field label="First name" value={form.firstName} onChange={(v) => field('firstName', v)} autoComplete="given-name" />
               <Field label="Last name" value={form.lastName} onChange={(v) => field('lastName', v)} autoComplete="family-name" />
             </div>
             <Field label="Email" type="email" value={form.email} onChange={(v) => field('email', v)} autoComplete="email" />
+            {checkingSuggestion && (
+              <p className="text-xs text-gray-500">Checking saved attendee details…</p>
+            )}
+            {suggestion && (
+              <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3">
+                <p className="text-sm font-semibold text-emerald-900">Saved details found for {suggestion.firstName} {suggestion.lastName}</p>
+                <p className="mt-1 text-xs text-emerald-800">Use saved details from {suggestion.maskedEmail}, then choose today&apos;s sub-events.</p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setForm((current) => ({
+                      ...current,
+                      firstName: suggestion.firstName,
+                      lastName: suggestion.lastName,
+                      email: suggestion.email,
+                      contactNumber: suggestion.contactNumber,
+                      gender: suggestion.gender,
+                      birthday: suggestion.birthday,
+                      company: suggestion.company,
+                      jobTitle: suggestion.jobTitle,
+                    }));
+                    setSuggestion(null);
+                  }}
+                  className="mt-3 min-h-11 rounded-lg bg-emerald-700 px-4 text-sm font-semibold text-white hover:bg-emerald-800"
+                >
+                  Fill in my details
+                </button>
+              </div>
+            )}
             <Field label="Contact number" type="tel" value={form.contactNumber} onChange={(v) => field('contactNumber', v)} autoComplete="tel" />
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid gap-3 sm:grid-cols-2">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Gender</label>
                 <select
                   value={form.gender}
                   onChange={(e) => field('gender', e.target.value)}
-                  className="w-full rounded-xl border border-gray-300 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                  className="w-full rounded-xl border border-gray-300 px-3 py-3 text-base focus:outline-none focus:ring-2 focus:ring-primary sm:py-2.5 sm:text-sm"
                   required
                 >
                   <option value="">Select</option>
@@ -224,7 +393,7 @@ export default function OnsiteRegistrationPage({ params }: { params: { slug: str
               </div>
               <Field label="Birthday" type="date" value={form.birthday} onChange={(v) => field('birthday', v)} />
             </div>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid gap-3 sm:grid-cols-2">
               <Field label="Company" value={form.company} onChange={(v) => field('company', v)} required={false} />
               <Field label="Title" value={form.jobTitle} onChange={(v) => field('jobTitle', v)} required={false} />
             </div>
@@ -233,8 +402,8 @@ export default function OnsiteRegistrationPage({ params }: { params: { slug: str
 
             <button
               type="submit"
-              disabled={submitting || autoChecking || !form.tierId}
-              className="w-full rounded-xl bg-primary px-4 py-3 text-sm font-semibold text-white hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
+              disabled={submitting || autoChecking || !form.tierId || (subEvents.length > 0 && form.subEventIds.length === 0)}
+              className="min-h-12 w-full rounded-xl bg-primary px-4 py-3 text-base font-semibold text-white hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50 sm:text-sm"
             >
               {submitting ? 'Submitting…' : autoChecking ? 'Checking in…' : 'Submit and Check In'}
             </button>
@@ -284,7 +453,7 @@ function Field({
         onChange={(e) => onChange(e.target.value)}
         autoComplete={autoComplete}
         required={required}
-        className="w-full rounded-xl border border-gray-300 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+        className="w-full rounded-xl border border-gray-300 px-3 py-3 text-base focus:outline-none focus:ring-2 focus:ring-primary sm:py-2.5 sm:text-sm"
       />
     </div>
   );

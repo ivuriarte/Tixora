@@ -26,6 +26,7 @@ import { PDFDocument, PDFFont, PDFPage, StandardFonts, rgb } from 'pdf-lib';
 import { JwtPayload } from '@axon-tickets/types';
 import { CreateReferralCodeDto, UpdateReferralCodeDto } from './dto/referral-code.dto';
 import { WalkInRegistrationDto } from './dto/admin.dto';
+import { resolveAgendaSubEvent } from '../events/agenda-sub-events';
 
 interface NametagRow {
   id: string;
@@ -435,6 +436,7 @@ export class AdminService {
         startsAt: e.startsAt.toISOString(),
         status: e.status,
         isFree: e.isFree,
+        onsiteRegistrationEnabled: e.onsiteRegistrationEnabled,
         organization: e.organization ? { id: e.organization.id, name: e.organization.name } : null,
         maxCapacity: e.maxCapacity ?? null,
         ticketsSold: tiersByEvent[index].reduce((sum, tier) => sum + tier.soldQuantity, 0),
@@ -958,6 +960,8 @@ export class AdminService {
         firstName: a.firstName,
         lastName: a.lastName,
         email: a.email,
+        subEventTitle: a.subEventTitle ?? null,
+        subEventTime: a.subEventTime ?? null,
         tierName: a.registration.tierName ?? null,
         referenceNumber: a.registration.referenceNumber,
         eventTitle: a.registration.event.title,
@@ -1046,7 +1050,7 @@ export class AdminService {
 
     const result = await this.prisma.$transaction(async (tx) => {
       const [event, tier] = await Promise.all([
-        tx.event.findUnique({ where: { id: eventId }, select: { id: true, title: true, status: true, isFree: true, platformFee: true } }),
+        tx.event.findUnique({ where: { id: eventId }, select: { id: true, title: true, status: true, isFree: true, platformFee: true, agenda: true } }),
         tx.ticketTier.findFirst({
           where: { id: dto.tierId, eventId },
           select: { id: true, name: true, price: true, currency: true, totalQuantity: true },
@@ -1055,6 +1059,7 @@ export class AdminService {
       if (!event) throw new NotFoundException('Event not found');
       if (event.status === 'cancelled') throw new BadRequestException('Cancelled events cannot accept walk-ins');
       if (!tier) throw new NotFoundException('Ticket tier not found');
+      const selectedSubEvent = resolveAgendaSubEvent(event.agenda, dto.subEventId);
 
       const duplicate = await tx.attendee.findFirst({
         where: {
@@ -1155,6 +1160,9 @@ export class AdminService {
               gender: dto.gender,
               company: dto.company?.trim() || null,
               jobTitle: dto.jobTitle?.trim() || null,
+              subEventId: selectedSubEvent?.id ?? null,
+              subEventTitle: selectedSubEvent?.title ?? null,
+              subEventTime: selectedSubEvent?.time ?? null,
               isLead: true,
             },
           },
@@ -1205,6 +1213,8 @@ export class AdminService {
         lastName: result.attendee.lastName,
         email: result.attendee.email,
         tierName: result.tier.name,
+        subEventTitle: result.attendee.subEventTitle,
+        subEventTime: result.attendee.subEventTime,
       },
       attendance: {
         id: result.attendance.id,
@@ -1225,7 +1235,7 @@ export class AdminService {
       where: { eventId, checkInDate },
       orderBy: { checkedInAt: 'desc' },
       include: {
-        attendee: { select: { id: true, firstName: true, lastName: true, email: true, phone: true } },
+        attendee: { select: { id: true, firstName: true, lastName: true, email: true, phone: true, subEventTitle: true, subEventTime: true } },
         registration: { select: { id: true, referenceNumber: true, tierName: true } },
         checkedInBy: { select: { firstName: true, lastName: true, email: true } },
       },
@@ -1243,6 +1253,8 @@ export class AdminService {
         email: record.attendee.email,
         phone: record.attendee.phone,
         tierName: record.registration.tierName,
+        subEventTitle: record.attendee.subEventTitle,
+        subEventTime: record.attendee.subEventTime,
         checkedInAt: record.checkedInAt.toISOString(),
         checkInMethod: record.checkInMethod,
         checkedInBy: record.checkedInBy
@@ -1834,7 +1846,7 @@ export class AdminService {
       },
     });
 
-    const header = 'ID,Name,Email,Phone,Company,Job Title,Birthday,Gender,City,Tier,Payment Status,Payment Method,Discount (PHP),Referral Code,Checked In,Checked In At\n';
+    const header = 'ID,Name,Email,Phone,Company,Job Title,Birthday,Gender,City,Tier,Sub Events,Payment Status,Payment Method,Discount (PHP),Referral Code,Checked In,Checked In At\n';
 
     const attendeeRows = attendees.map((a) => {
       const referralCode = (a.registration.referralCodeSnapshot as { code?: string } | null)?.code ?? '';
@@ -1849,6 +1861,7 @@ export class AdminService {
         this.escapeCsvCell(a.gender ?? ''),
         `"${this.escapeCsvCell(a.city ?? a.registration.user?.city ?? '')}"`,
         `"${this.escapeCsvCell(a.registration.tierName ?? 'Registration')}"`,
+        `"${this.escapeCsvCell(a.subEventTitle ?? '')}"`,
         a.registration.status === 'verified' ? 'paid' : 'pending',
         this.escapeCsvCell(a.registration.paymentMethod ?? ''),
         Number(a.registration.discount).toFixed(2),
@@ -1869,6 +1882,7 @@ export class AdminService {
       '',
       `"${this.escapeCsvCell(t.user.city ?? '')}"`,
       `"${this.escapeCsvCell(t.ticketTier.name)}"`,
+      '',
       t.order?.status ?? '',
       t.order?.paymentMethod ?? '',
       t.status === 'used' ? 'Yes' : 'No',

@@ -17,6 +17,7 @@ import {
 import { CreateRegistrationDto } from './dto/create-registration.dto';
 import { UpdateRegistrationAttendeesDto } from './dto/update-registration-attendees.dto';
 import { ValidateReferralCodeDto } from '../admin/dto/referral-code.dto';
+import { resolveAgendaSubEvent } from '../events/agenda-sub-events';
 
 const ACTIVE_REGISTRATION_STATUSES = ['pending_payment', 'proof_submitted', 'pending_approval', 'verified'] as const;
 const VALID_TICKET_STATUSES = ['valid', 'used'] as const;
@@ -57,6 +58,7 @@ export class RegistrationsService {
     if (!['published', 'on_sale'].includes(event.status)) {
       throw new BadRequestException('Event is not open for registration');
     }
+    const selectedSubEvent = resolveAgendaSubEvent(event.agenda, dto.subEventId);
 
     const tier = event.tiers[0];
     if (!tier) throw new NotFoundException('Ticket tier not found');
@@ -219,6 +221,9 @@ export class RegistrationsService {
                 birthday: a.birthday ? new Date(`${a.birthday}T00:00:00.000Z`) : null,
                 gender: a.gender || null,
                 city: a.city?.trim() || null,
+                subEventId: selectedSubEvent?.id ?? null,
+                subEventTitle: selectedSubEvent?.title ?? null,
+                subEventTime: selectedSubEvent?.time ?? null,
                 isLead: i === 0,
               })),
             },

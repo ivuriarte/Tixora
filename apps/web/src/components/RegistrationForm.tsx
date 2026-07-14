@@ -51,6 +51,12 @@ interface PaymentMethod {
   instructions?: string;
 }
 
+interface AgendaSubEventOption {
+  id: string;
+  title: string;
+  time?: string;
+}
+
 interface Props {
   eventId: string;
   eventSlug: string;
@@ -65,6 +71,7 @@ interface Props {
   bankAccountName?: string | null;
   bankAccountNumber?: string | null;
   paymentInstructions?: string | null;
+  subEvents?: AgendaSubEventOption[];
   /** When set, form is in edit mode — PATCH existing registration instead of POST new. */
   registrationId?: string;
   /** Server-returned isFree for edit mode — used to decide post-submit routing. */
@@ -90,6 +97,7 @@ export default function RegistrationForm({
   bankAccountName,
   bankAccountNumber,
   paymentInstructions,
+  subEvents = [],
   registrationId,
   initialIsFree,
   initialAttendees,
@@ -106,6 +114,7 @@ export default function RegistrationForm({
   const [profileData, setProfileData] = useState<ProfileData | null>(null);
   const [profileLoading, setProfileLoading] = useState(false);
   const [notes, setNotes] = useState(initialNotes ?? '');
+  const [subEventId, setSubEventId] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [referralCode, setReferralCode] = useState('');
@@ -129,6 +138,7 @@ export default function RegistrationForm({
   const feesPesos = Number(platformFee) || 0;
   const totalPesos = Math.max(0, subtotalPesos - referralDiscount) + feesPesos;
   const isFreeRegistration = unitPrice === 0 && feesPesos === 0;
+  const requiresSubEvent = !registrationId && subEvents.length > 0;
 
   const updateAttendee = (index: number, field: keyof AttendeeFields, value: string) => {
     setAttendees((prev) => {
@@ -222,6 +232,11 @@ export default function RegistrationForm({
     setLoading(true);
 
     try {
+      if (requiresSubEvent && !subEventId) {
+        setError('Please choose the sub-event you will attend.');
+        return;
+      }
+
       const attendeePayload = attendees.map((a) => ({
         firstName: a.firstName.trim(),
         lastName: a.lastName.trim(),
@@ -266,6 +281,7 @@ export default function RegistrationForm({
         const payload: CreateRegistrationDto = {
           eventId,
           tierId,
+          ...(subEventId && { subEventId }),
           attendees: attendeePayload,
           ...(notes.trim() && { notes: notes.trim() }),
           ...(referralDiscount > 0 && referralCode.trim() && { referralCode: referralCode.trim() }),
@@ -338,6 +354,30 @@ export default function RegistrationForm({
           </div>
           {referralMessage && <p role="status" className="mt-2 text-xs font-medium text-emerald-700">✓ {referralMessage}</p>}
           {referralError && <p role="alert" className="mt-2 text-xs font-medium text-red-600">✗ {referralError}</p>}
+        </div>
+      )}
+
+      {requiresSubEvent && (
+        <div className="bg-white border border-gray-200 rounded-2xl p-5">
+          <label className="block text-sm font-semibold text-gray-900 mb-2">
+            Sub-event <span className="text-red-500">*</span>
+          </label>
+          <select
+            value={subEventId}
+            onChange={(e) => {
+              setSubEventId(e.target.value);
+              setError(null);
+            }}
+            className="w-full rounded-xl border border-gray-300 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-white"
+            required
+          >
+            <option value="">Choose a sub-event</option>
+            {subEvents.map((item) => (
+              <option key={item.id} value={item.id}>
+                {item.time ? `${item.time} - ${item.title}` : item.title}
+              </option>
+            ))}
+          </select>
         </div>
       )}
 

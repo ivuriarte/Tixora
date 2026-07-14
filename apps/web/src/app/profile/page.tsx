@@ -114,7 +114,7 @@ export default function ProfilePage() {
           birthday: p.birthday?.slice(0, 10) ?? '',
           gender: p.gender ?? '',
         });
-        if (authUser?.loginPortal === 'organizer') {
+        if (!authUser?.isAdmin && (authUser?.loginPortal === 'organizer' || authUser?.isOrganizer)) {
           api
             .get<{ data: OrganizationProfile }>('/organizations/me')
             .then((orgRes) => {
@@ -139,7 +139,7 @@ export default function ProfilePage() {
       })
       .catch(() => toast.error('Could not load your profile. Please refresh the page to try again.'))
       .finally(() => setLoading(false));
-  }, [isHydrating, isAuthenticated, authUser?.loginPortal, isAdminShell, router]);
+  }, [isHydrating, isAuthenticated, authUser?.isAdmin, authUser?.isOrganizer, authUser?.loginPortal, isAdminShell, router]);
 
   function update(e: React.ChangeEvent<HTMLInputElement>) {
     setForm((f) => ({ ...f, [e.target.name]: e.target.value }));
@@ -257,7 +257,7 @@ export default function ProfilePage() {
   const initials = profile
     ? `${profile.firstName[0] ?? ''}${profile.lastName[0] ?? ''}`.toUpperCase()
     : '?';
-  const isOrganizerPortal = authUser?.loginPortal === 'organizer';
+  const isOrganizerPortal = !authUser?.isAdmin && (authUser?.loginPortal === 'organizer' || authUser?.isOrganizer);
   const accountLabel = authUser?.isAdmin ? 'Platform Admin' : isOrganizerPortal ? 'Organizer' : 'Customer';
   const detailTitle = authUser?.isAdmin
     ? 'Admin Details'

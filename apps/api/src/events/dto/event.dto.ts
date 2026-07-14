@@ -27,6 +27,12 @@ import { ApiProperty } from '@nestjs/swagger';
 // to `[]` (data loss).
 
 export class AgendaItemDto {
+  @ApiProperty({ required: false, description: 'Stable agenda item id used for sub-event registration selections' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  id?: string;
+
   @ApiProperty()
   @IsOptional()
   @IsString()
@@ -43,6 +49,11 @@ export class AgendaItemDto {
   @IsString()
   @MaxLength(1000)
   description?: string;
+
+  @ApiProperty({ required: false, default: false, description: 'When true, attendees can choose this agenda item during registration.' })
+  @IsOptional()
+  @IsBoolean()
+  isSubEvent?: boolean;
 }
 
 export class SponsorItemDto {
@@ -514,6 +525,17 @@ export class OnsiteRegistrationDto {
   @MaxLength(100)
   tierId?: string;
 
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  subEventId?: string;
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  @MaxLength(100, { each: true })
+  subEventIds?: string[];
+
   @ValidateIf((dto: OnsiteRegistrationDto) => !dto.attendeeId)
   @IsString()
   @MinLength(1)
@@ -553,4 +575,16 @@ export class OnsiteRegistrationDto {
   @IsString()
   @MaxLength(150)
   jobTitle?: string;
+}
+
+export class OnsiteProfileSuggestionDto {
+  @IsString()
+  @MinLength(1)
+  @MaxLength(100)
+  firstName: string;
+
+  @IsString()
+  @MinLength(1)
+  @MaxLength(100)
+  lastName: string;
 }

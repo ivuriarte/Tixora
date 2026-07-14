@@ -41,6 +41,11 @@ export class WalkInRegistrationDto {
   @IsUUID()
   tierId: string;
 
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  subEventId?: string;
+
   @ApiProperty({ description: 'Attendee first name' })
   @IsString()
   @MinLength(1)

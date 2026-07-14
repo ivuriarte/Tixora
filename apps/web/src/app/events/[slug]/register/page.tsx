@@ -33,6 +33,12 @@ interface PaymentMethod {
   instructions?: string;
 }
 
+interface AgendaSubEvent {
+  id: string;
+  title: string;
+  time?: string;
+}
+
 interface EventData {
   id: string;
   slug: string;
@@ -48,6 +54,7 @@ interface EventData {
   bankAccountName?: string | null;
   bankAccountNumber?: string | null;
   paymentInstructions?: string | null;
+  agenda?: Array<{ id?: string; title?: string; time?: string; isSubEvent?: boolean }> | null;
 }
 
 interface AttendeeFields {
@@ -775,6 +782,15 @@ export default function RegisterPage({
 
   const tierId = searchParams.tierId ?? event.tiers[0]?.id;
   const tier = event.tiers.find((t) => t.id === tierId);
+  const subEvents: AgendaSubEvent[] = Array.isArray(event.agenda)
+    ? event.agenda
+        .filter((item) => item?.isSubEvent === true && typeof item.id === 'string' && item.id.trim() && typeof item.title === 'string' && item.title.trim())
+        .map((item) => ({
+          id: item.id!.trim(),
+          title: item.title!.trim(),
+          ...(item.time?.trim() ? { time: item.time.trim() } : {}),
+        }))
+    : [];
 
   if (!tier) {
     router.replace(`/events/${event.slug}`);
@@ -796,6 +812,7 @@ export default function RegisterPage({
     bankAccountName: event.bankAccountName ?? null,
     bankAccountNumber: event.bankAccountNumber ?? null,
     paymentInstructions: event.paymentInstructions ?? null,
+    subEvents,
     registrationId: existingRegistrationId,
     initialIsFree,
   };

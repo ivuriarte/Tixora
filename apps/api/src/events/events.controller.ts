@@ -1,7 +1,8 @@
-import { Body, Controller, Get, Post, Query, Param, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Post, Query, Param, Res, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiQuery } from '@nestjs/swagger';
+import type { Response } from 'express';
 import { EventsService } from './events.service';
-import { OnsiteRegistrationDto } from './dto/event.dto';
+import { OnsiteProfileSuggestionDto, OnsiteRegistrationDto } from './dto/event.dto';
 import { Public } from '../common/decorators/public.decorator';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 
@@ -42,5 +43,26 @@ export class EventsController {
   @ApiOperation({ summary: 'Self-register or check in from an event on-site QR code' })
   onsiteRegistration(@Param('slug') slug: string, @Body() dto: OnsiteRegistrationDto) {
     return this.eventsService.handleOnsiteRegistrationScan(slug, dto);
+  }
+
+  @Public()
+  @Post(':slug/onsite-registration/suggestions')
+  @ApiOperation({ summary: 'Find a prior on-site attendee profile for repeat-day registration' })
+  onsiteProfileSuggestion(@Param('slug') slug: string, @Body() dto: OnsiteProfileSuggestionDto) {
+    return this.eventsService.findOnsiteProfileSuggestion(slug, dto);
+  }
+
+  @Public()
+  @Get(':slug/onsite-registration/qr.pdf')
+  @ApiOperation({ summary: 'Download a printable on-site registration QR PDF' })
+  async onsiteQrPdf(@Param('slug') slug: string, @Res() res: Response) {
+    const pdf = await this.eventsService.generateOnsiteQrPdf(slug);
+    res.set({
+      'Content-Type': 'application/pdf',
+      'Content-Disposition': `attachment; filename="${pdf.filename}"`,
+      'Cache-Control': 'no-store',
+      'Content-Length': pdf.buffer.length.toString(),
+    });
+    res.end(pdf.buffer);
   }
 }
