@@ -70,7 +70,7 @@ export default function AdminAuthPage() {
         if (err.response?.status === 429) {
           setError('Too many sign-in attempts. Please wait a moment and try again.');
         } else if (err.code === 'ECONNABORTED' || err.code === 'ERR_NETWORK' || !err.response) {
-          setError('The UAT server did not respond. Please try again.');
+          setError('Unable to reach the server. Please try again.');
         } else {
           setError(
             (Array.isArray(message) ? message.join(', ') : message) ||

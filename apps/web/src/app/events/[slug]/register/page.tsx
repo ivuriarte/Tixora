@@ -7,16 +7,20 @@ import { useAuthStore } from '@/store/auth.store';
 import api from '@/lib/api';
 import RegistrationForm from '@/components/RegistrationForm';
 import CheckoutStepper from '@/components/CheckoutStepper';
+import InAppBrowserBanner from '@/components/InAppBrowserBanner';
 import { trackPixelCustomEvent } from '@/lib/metaPixel';
 import { trackInternalFunnelEvent, getOrCreateFunnelSessionId } from '@/lib/funnel';
 import toast from 'react-hot-toast';
 
-// ── Types ────────────────────────────────────────────────────────────────────
+const RESEND_COOLDOWN = 60;
+
+// ── Types ─────────────────────────────────────────────────────────────────────
 
 interface Tier {
   id: string;
   name: string;
   price: number;
+  inclusions?: Array<{ id?: string; label: string; stubEnabled?: boolean; sortOrder?: number }>;
   available: number;
   maxPerOrder: number;
 }
@@ -29,6 +33,12 @@ interface PaymentMethod {
   instructions?: string;
 }
 
+interface AgendaSubEvent {
+  id: string;
+  title: string;
+  time?: string;
+}
+
 interface EventData {
   id: string;
   slug: string;
@@ -36,6 +46,7 @@ interface EventData {
   venue: string;
   startsAt: string;
   tiers: Tier[];
+  isFree?: boolean;
   platformFee?: number;
   allowManualPayment?: boolean;
   paymentMethods?: PaymentMethod[] | null;
@@ -43,6 +54,7 @@ interface EventData {
   bankAccountName?: string | null;
   bankAccountNumber?: string | null;
   paymentInstructions?: string | null;
+  agenda?: Array<{ id?: string; title?: string; time?: string; isSubEvent?: boolean }> | null;
 }
 
 interface AttendeeFields {
@@ -55,14 +67,6 @@ interface AttendeeFields {
   birthday: string;
   gender: string;
   city: string;
-}
-
-type WizardStep = 'gate' | 'details' | 'verify';
-
-const RESEND_COOLDOWN = 60;
-
-function emptyAttendee(): AttendeeFields {
-  return { firstName: '', lastName: '', email: '', phone: '', company: '', jobTitle: '', birthday: '', gender: '', city: '' };
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -91,44 +95,41 @@ interface GuestWizardProps {
   event: EventData;
   tier: Tier;
   qty: number;
-  existingRegistrationId?: string;
   onOtpVerified: (payload: OtpVerifiedPayload) => void;
 }
 
-function GuestWizard({ event, tier, qty, existingRegistrationId, onOtpVerified }: GuestWizardProps) {
+type WizardStep = 'gate' | 'details' | 'verify';
+
+function emptyAttendee(): AttendeeFields {
+  return { firstName: '', lastName: '', email: '', phone: '', company: '', jobTitle: '', birthday: '', gender: '', city: '' };
+}
+
+function GuestWizard({ event, tier, qty, onOtpVerified }: GuestWizardProps) {
   const router = useRouter();
   const funnelSessionId = getOrCreateFunnelSessionId();
-
   const [step, setStep] = useState<WizardStep>('gate');
-
-  // Step 1 — contact / attendee details
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
-  // Additional attendees for qty > 1 (index 0 = second attendee, not lead)
   const [extraAttendees, setExtraAttendees] = useState<AttendeeFields[]>(() =>
     Array.from({ length: Math.max(0, qty - 1) }, emptyAttendee),
   );
   const [notes, setNotes] = useState('');
-
-  // Step 2 — OTP
   const [otp, setOtp] = useState('');
   const [pendingUserId, setPendingUserId] = useState('');
   const [secondsLeft, setSecondsLeft] = useState(0);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const otpInputRef = useRef<HTMLInputElement>(null);
-
   const [loading, setLoading] = useState(false);
   const [fieldError, setFieldError] = useState<string | null>(null);
-  // Synchronous guard — blocks a second handleVerify() call that starts before
-  // the first call's setLoading(true) has actually re-rendered (e.g. OTP
-  // auto-submit firing twice, a double click, or a network retry).
   const verifyingRef = useRef(false);
+
+  const inputCls =
+    'w-full rounded-xl border border-gray-300 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary bg-white';
 
   useEffect(() => () => { if (timerRef.current) clearInterval(timerRef.current); }, []);
 
-  // Auto-submit OTP when 6 digits entered
   useEffect(() => {
     if (otp.length === 6 && step === 'verify') void handleVerify();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -152,8 +153,6 @@ function GuestWizard({ event, tier, qty, existingRegistrationId, onOtpVerified }
     });
   }
 
-  // ── Step 1: Send OTP ────────────────────────────────────────────────────────
-
   async function handleSendCode(e: React.FormEvent) {
     e.preventDefault();
     setFieldError(null);
@@ -164,7 +163,6 @@ function GuestWizard({ event, tier, qty, existingRegistrationId, onOtpVerified }
         ? `+63${phone.trim()}`
         : phone.trim();
 
-    // Basic client-side validation
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
       setFieldError('Please enter a valid email address.');
       return;
@@ -190,6 +188,7 @@ function GuestWizard({ event, tier, qty, existingRegistrationId, onOtpVerified }
         },
         { timeout: 15_000 },
       );
+      setEmail(normalizedEmail);
       setPendingUserId(res.data.data.userId);
       setStep('verify');
       startResendTimer();
@@ -211,25 +210,17 @@ function GuestWizard({ event, tier, qty, existingRegistrationId, onOtpVerified }
     }
   }
 
-  // ── Step 2: Verify OTP, create account + registration ──────────────────────
-
   async function handleVerify() {
-    if (!pendingUserId || otp.length !== 6) return;
-    // Synchronous guard — must be checked and set before any await, so a
-    // second call (auto-submit firing twice, double click, retry) can't
-    // slip through during the gap before setLoading(true) takes effect.
-    if (verifyingRef.current) return;
+    if (!pendingUserId || otp.length !== 6 || verifyingRef.current) return;
     verifyingRef.current = true;
     setLoading(true);
     setFieldError(null);
     try {
-      // 1. Verify OTP → get JWT
       const verifyRes = await api.post<{
         data: {
           user: { id: string; email: string; firstName: string | null; lastName: string | null; isAdmin: boolean; isVerified: boolean };
           accessToken: string;
           refreshToken: string;
-          isNewUser: boolean;
           isExistingAccount: boolean;
         };
       }>('/auth/verify-access', {
@@ -241,12 +232,7 @@ function GuestWizard({ event, tier, qty, existingRegistrationId, onOtpVerified }
       });
 
       const { user: verifiedUser, accessToken, refreshToken, isExistingAccount } = verifyRes.data.data;
-
-      // 2. Build attendee list: lead (from step 1 fields) + extra attendees
-      const normalizedPhone = phone.trim().startsWith('+')
-        ? phone.trim()
-        : `+63${phone.trim()}`;
-
+      const normalizedPhone = phone.trim().startsWith('+') ? phone.trim() : `+63${phone.trim()}`;
       const leadAttendee: AttendeeFields = {
         firstName: firstName.trim(),
         lastName: lastName.trim(),
@@ -258,7 +244,6 @@ function GuestWizard({ event, tier, qty, existingRegistrationId, onOtpVerified }
         gender: '',
         city: '',
       };
-
       const extraList: AttendeeFields[] = extraAttendees.map((a) => ({
         firstName: a.firstName.trim(),
         lastName: a.lastName.trim(),
@@ -280,8 +265,6 @@ function GuestWizard({ event, tier, qty, existingRegistrationId, onOtpVerified }
         metadata: { eventSlug: event.slug, isExistingAccount },
       });
 
-      // 3. Hand off to parent — parent sets auth + passes pre-filled attendees to RegistrationForm.
-      //    Registration is only created when the user explicitly clicks "Confirm My Registration".
       onOtpVerified({
         isExistingAccount,
         attendees: [leadAttendee, ...extraList],
@@ -323,10 +306,6 @@ function GuestWizard({ event, tier, qty, existingRegistrationId, onOtpVerified }
     }
   }
 
-  const inputCls =
-    'w-full rounded-xl border border-gray-300 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary bg-white';
-
-  // ── Render: Gate — New or returning? ────────────────────────────────────────
   if (step === 'gate') {
     const returnUrl = `/events/${event.slug}/register?tierId=${tier.id}&qty=${qty}`;
     return (
@@ -338,7 +317,6 @@ function GuestWizard({ event, tier, qty, existingRegistrationId, onOtpVerified }
           </p>
         </div>
 
-        {/* Returning user */}
         <button
           type="button"
           onClick={() => router.push(`/auth/access?redirect=${encodeURIComponent(returnUrl)}`)}
@@ -362,7 +340,6 @@ function GuestWizard({ event, tier, qty, existingRegistrationId, onOtpVerified }
           </div>
         </button>
 
-        {/* New user */}
         <button
           type="button"
           onClick={() => setStep('details')}
@@ -393,11 +370,9 @@ function GuestWizard({ event, tier, qty, existingRegistrationId, onOtpVerified }
     );
   }
 
-  // ── Render: Step 1 — Your Details ───────────────────────────────────────────
   if (step === 'details') {
     return (
       <form onSubmit={handleSendCode} className="space-y-5">
-        {/* Who is registering */}
         <div className="bg-white border border-gray-200 rounded-2xl p-5 space-y-4">
           <div>
             <h2 className="font-semibold text-gray-900">Your Details</h2>
@@ -477,7 +452,6 @@ function GuestWizard({ event, tier, qty, existingRegistrationId, onOtpVerified }
           </div>
         </div>
 
-        {/* Extra attendees (only when qty > 1) */}
         {extraAttendees.map((att, i) => (
           <div key={i} className="bg-white border border-gray-200 rounded-2xl p-5 space-y-4">
             <h3 className="font-semibold text-gray-900">
@@ -524,7 +498,6 @@ function GuestWizard({ event, tier, qty, existingRegistrationId, onOtpVerified }
           </div>
         ))}
 
-        {/* Notes */}
         <div className="bg-white border border-gray-200 rounded-2xl p-5">
           <label className="block text-xs font-medium text-gray-700 mb-1">
             Notes (optional)
@@ -538,14 +511,8 @@ function GuestWizard({ event, tier, qty, existingRegistrationId, onOtpVerified }
           />
         </div>
 
-        {/* Error */}
-        {fieldError && (
-          <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-xl px-4 py-3">
-            {fieldError}
-          </div>
-        )}
+        {fieldError && <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-xl px-4 py-3">{fieldError}</div>}
 
-        {/* Info strip */}
         <div className="rounded-xl border border-gray-100 bg-gray-50 px-4 py-3 text-xs text-gray-500 space-y-1">
           <p>After you fill in your details, we will send a 6-digit code to your email.</p>
           <p>Enter the code to confirm and your spot will be saved.</p>
@@ -563,7 +530,6 @@ function GuestWizard({ event, tier, qty, existingRegistrationId, onOtpVerified }
     );
   }
 
-  // ── Render: Step 2 — Enter Your Code ────────────────────────────────────────
   return (
     <div className="space-y-5">
       <div className="bg-white border border-gray-200 rounded-2xl p-6 space-y-5">
@@ -667,33 +633,31 @@ export default function RegisterPage({
 
   const [event, setEvent] = useState<EventData | null>(null);
   const [pageLoading, setPageLoading] = useState(true);
-  const [initialAttendees, setInitialAttendees] = useState<
-    AttendeeFields[] | undefined
-  >(undefined);
+  const [initialAttendees, setInitialAttendees] = useState<AttendeeFields[] | undefined>(undefined);
   const [initialNotes, setInitialNotes] = useState<string | undefined>(undefined);
-
-  // 'idle' → 'checking' → 'duplicate' | 'clear'
-  const [dupCheck, setDupCheck] = useState<'idle' | 'checking' | 'duplicate' | 'clear'>('idle');
-  const dupCheckRanRef = useRef(false);
+  const [initialIsFree, setInitialIsFree] = useState<boolean | undefined>(undefined);
 
   // Holds attendee data collected by GuestWizard so RegistrationForm can pre-fill after OTP success.
-  // Using a ref avoids a render ordering issue between Zustand (setAuth) and React state updates.
   const pendingGuestData = useRef<{
     attendees: AttendeeFields[];
     notes: string;
     existingAccountDetected: boolean;
   } | null>(null);
 
+  // Duplicate-registration check — only runs for users already authenticated on page load
+  const [dupCheck, setDupCheck] = useState<'idle' | 'checking' | 'duplicate' | 'clear'>('idle');
+  const dupCheckRanRef = useRef(false);
+
+  const qty = Math.max(1, parseInt(searchParams.qty ?? '1', 10));
+  const existingRegistrationId = searchParams.registrationId;
+
   const handleOtpVerified = useCallback(
     (payload: OtpVerifiedPayload) => {
-      // Store wizard data first (ref is synchronous — available in the very next render)
       pendingGuestData.current = {
         attendees: payload.attendees,
         notes: payload.notes,
         existingAccountDetected: payload.isExistingAccount,
       };
-      // Calling setAuth sets isAuthenticated=true in Zustand, which triggers a re-render
-      // of this component and switches from GuestWizard to RegistrationForm.
       setAuth(
         {
           id: payload.user.id,
@@ -710,8 +674,7 @@ export default function RegisterPage({
     [setAuth],
   );
 
-  const qty = Math.max(1, parseInt(searchParams.qty ?? '1', 10));
-  const existingRegistrationId = searchParams.registrationId;
+  // ── Data loading ──────────────────────────────────────────────────────────
 
   const loadPage = useCallback(async () => {
     const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'https://api.axontickets.online/api/v1';
@@ -737,7 +700,11 @@ export default function RegisterPage({
           (a: { isLead: boolean }, b: { isLead: boolean }) => (b.isLead ? 1 : 0) - (a.isLead ? 1 : 0),
         );
         setInitialAttendees(
-          sorted.map((a: { firstName: string; lastName: string; email: string; phone?: string | null; company?: string | null; jobTitle?: string | null; birthday?: string | null; gender?: string | null; city?: string | null }) => ({
+          sorted.map((a: {
+            firstName: string; lastName: string; email: string; phone?: string | null;
+            company?: string | null; jobTitle?: string | null; birthday?: string | null;
+            gender?: string | null; city?: string | null;
+          }) => ({
             firstName: a.firstName,
             lastName: a.lastName,
             email: a.email,
@@ -750,6 +717,7 @@ export default function RegisterPage({
           })),
         );
         setInitialNotes(regData.notes ?? '');
+        setInitialIsFree(regData.isFree ?? false);
       }
     } catch {
       router.replace(`/events/${params.slug}`);
@@ -759,7 +727,6 @@ export default function RegisterPage({
   }, [params.slug, existingRegistrationId, router]);
 
   useEffect(() => {
-    // Wait for auth to hydrate so we know which path to render before loading
     if (!isHydrating) void loadPage();
   }, [isHydrating, loadPage]);
 
@@ -792,11 +759,15 @@ export default function RegisterPage({
 
   useEffect(() => {
     if (!event) return;
-    trackPixelCustomEvent('TicketSelection_Started', { event_id: event.id, event_name: event.title },
-      `ticket-selection:${event.id}:${searchParams.tierId ?? ''}:${searchParams.qty ?? '1'}`);
+    trackPixelCustomEvent(
+      'TicketSelection_Started',
+      { event_id: event.id, event_name: event.title },
+      `ticket-selection:${event.id}:${searchParams.tierId ?? ''}:${searchParams.qty ?? '1'}`,
+    );
   }, [event, searchParams.tierId, searchParams.qty]);
 
-  // ── Loading skeleton ────────────────────────────────────────────────────────
+  // ── Loading skeleton ───────────────────────────────────────────────────────
+
   if (pageLoading || isHydrating || !event) {
     return (
       <main className="min-h-screen bg-gray-50 py-10">
@@ -811,14 +782,45 @@ export default function RegisterPage({
 
   const tierId = searchParams.tierId ?? event.tiers[0]?.id;
   const tier = event.tiers.find((t) => t.id === tierId);
+  const subEvents: AgendaSubEvent[] = Array.isArray(event.agenda)
+    ? event.agenda
+        .filter((item) => item?.isSubEvent === true && typeof item.id === 'string' && item.id.trim() && typeof item.title === 'string' && item.title.trim())
+        .map((item) => ({
+          id: item.id!.trim(),
+          title: item.title!.trim(),
+          ...(item.time?.trim() ? { time: item.time.trim() } : {}),
+        }))
+    : [];
 
   if (!tier) {
     router.replace(`/events/${event.slug}`);
     return null;
   }
 
+  // ── Shared RegistrationForm props ─────────────────────────────────────────
+
+  const registrationFormProps = {
+    eventId: event.id,
+    eventSlug: event.slug,
+    tierId: tier.id,
+    tierName: tier.name,
+    unitPrice: event.isFree ? 0 : tier.price,
+    qty,
+    platformFee: event.isFree ? 0 : event.platformFee ?? 50,
+    paymentMethods: event.paymentMethods ?? null,
+    bankName: event.bankName ?? null,
+    bankAccountName: event.bankAccountName ?? null,
+    bankAccountNumber: event.bankAccountNumber ?? null,
+    paymentInstructions: event.paymentInstructions ?? null,
+    subEvents,
+    registrationId: existingRegistrationId,
+    initialIsFree,
+  };
+
   return (
     <main className="min-h-screen bg-gray-50 py-10">
+      <InAppBrowserBanner />
+
       <div className="max-w-2xl mx-auto px-4 sm:px-6">
         <CheckoutStepper current={1} />
 
@@ -837,14 +839,21 @@ export default function RegisterPage({
             <span className="text-gray-500"> × {qty}</span>
           </div>
           <span className="text-sm font-semibold text-primary">
-            ₱{(tier.price * qty).toLocaleString('en-PH', { minimumFractionDigits: 2 })}
+            {event.isFree || tier.price === 0 ? 'Free' : `₱${(tier.price * qty).toLocaleString('en-PH', { minimumFractionDigits: 2 })}`}
           </span>
         </div>
+        {tier.inclusions && tier.inclusions.length > 0 && (
+          <div className="mb-5 -mt-2 flex flex-wrap gap-1.5">
+            {tier.inclusions.map((item) => (
+              <span key={item.id ?? item.label} className="rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700">
+                {item.label}
+              </span>
+            ))}
+          </div>
+        )}
 
         {/* Path A: authenticated (or just verified via OTP) — RegistrationForm */}
         {isAuthenticated ? (
-          // While checking for a duplicate registration, show a neutral loading state.
-          // On duplicate, show an error banner and redirect after 3 s.
           dupCheck === 'duplicate' ? (
             <div className="rounded-2xl border border-red-200 bg-red-50 p-5 flex items-start gap-3">
               <svg className="mt-0.5 h-5 w-5 shrink-0 text-red-500" viewBox="0 0 20 20" fill="currentColor">
@@ -853,7 +862,7 @@ export default function RegisterPage({
               <div>
                 <p className="font-semibold text-red-900">You&apos;re already registered for this event</p>
                 <p className="mt-0.5 text-sm text-red-700">
-                  You already have an active registration. Redirecting you back to the event page…
+                  You have an active registration. Redirecting you back to the event page…
                 </p>
               </div>
             </div>
@@ -867,31 +876,17 @@ export default function RegisterPage({
             </div>
           ) : (
             <RegistrationForm
-              eventId={event.id}
-              eventSlug={event.slug}
-              tierId={tier.id}
-              tierName={tier.name}
-              unitPrice={tier.price}
-              qty={qty}
-              platformFee={event.platformFee ?? 50}
-              paymentMethods={event.paymentMethods ?? null}
-              bankName={event.bankName ?? null}
-              bankAccountName={event.bankAccountName ?? null}
-              bankAccountNumber={event.bankAccountNumber ?? null}
-              paymentInstructions={event.paymentInstructions ?? null}
-              registrationId={existingRegistrationId}
+              {...registrationFormProps}
               initialAttendees={pendingGuestData.current?.attendees ?? initialAttendees}
               initialNotes={pendingGuestData.current?.notes ?? initialNotes}
               existingAccountDetected={pendingGuestData.current?.existingAccountDetected ?? false}
             />
           )
         ) : (
-          /* Path B: guest wizard — collects details + OTP, then hands off to RegistrationForm */
           <GuestWizard
             event={event}
             tier={tier}
             qty={qty}
-            existingRegistrationId={existingRegistrationId}
             onOtpVerified={handleOtpVerified}
           />
         )}

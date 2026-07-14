@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useEffect, useCallback } from 'react';
+import { useState, useRef, useEffect, useCallback, type FormEvent } from 'react';
 import type QrScannerType from 'qr-scanner';
 import api from '@/lib/api';
 import Button from '@/components/Button';
@@ -17,6 +17,8 @@ interface AttendeeRow {
   registrationStatus: string;
   checkedInAt: string | null;
   hasQr: boolean;
+  subEventTitle?: string | null;
+  subEventTime?: string | null;
 }
 
 interface Event {
@@ -25,7 +27,38 @@ interface Event {
   status: string;
 }
 
-type Tab = 'camera' | 'search';
+interface AgendaSubEvent {
+  id: string;
+  title: string;
+  time?: string;
+}
+
+interface Tier {
+  id: string;
+  name: string;
+  price: number | string;
+}
+
+interface WalkInResult {
+  registration: { id: string; referenceNumber: string; status: string };
+  attendee: { id: string; firstName: string; lastName: string; email: string; tierName: string; subEventTitle?: string | null; subEventTime?: string | null };
+  attendance: { id: string; checkInDate: string; checkedInAt: string; checkInMethod: string };
+  nametag: { eventId: string; attendeeId: string };
+}
+
+interface DailyAttendanceRow {
+  id: string;
+  attendeeId: string;
+  attendeeName: string;
+  email: string;
+  tierName: string | null;
+  subEventTitle?: string | null;
+  subEventTime?: string | null;
+  checkedInAt: string;
+  checkInMethod: string;
+}
+
+type Tab = 'camera' | 'search' | 'walkin';
 
 export default function AdminCheckinPage() {
   const [tab, setTab] = useState<Tab>('camera');
@@ -34,6 +67,8 @@ export default function AdminCheckinPage() {
   const [events, setEvents] = useState<Event[]>([]);
   const [selectedEventId, setSelectedEventId] = useState('');
   const selectedEventIdRef = useRef('');
+  const [tiers, setTiers] = useState<Tier[]>([]);
+  const [subEvents, setSubEvents] = useState<AgendaSubEvent[]>([]);
 
   // Camera state
   const [cameraActive, setCameraActive] = useState(false);
@@ -61,6 +96,22 @@ export default function AdminCheckinPage() {
   const [searching, setSearching] = useState(false);
   const [checkingInId, setCheckingInId] = useState<string | null>(null);
 
+  // Walk-in
+  const [walkInForm, setWalkInForm] = useState({
+    tierId: '',
+    subEventId: '',
+    firstName: '',
+    lastName: '',
+    email: '',
+    contactNumber: '',
+    gender: '',
+    birthday: '',
+  });
+  const [registeringWalkIn, setRegisteringWalkIn] = useState(false);
+  const [lastWalkIn, setLastWalkIn] = useState<WalkInResult | null>(null);
+  const [dailyAttendance, setDailyAttendance] = useState<DailyAttendanceRow[]>([]);
+  const [attendanceTotal, setAttendanceTotal] = useState(0);
+
   // ── Load events ────────────────────────────────────────────────────────────
 
   useEffect(() => {
@@ -75,6 +126,47 @@ export default function AdminCheckinPage() {
 
   useEffect(() => {
     selectedEventIdRef.current = selectedEventId;
+  }, [selectedEventId]);
+
+  useEffect(() => {
+    if (!selectedEventId) {
+      setTiers([]);
+      setSubEvents([]);
+      setWalkInForm((form) => ({ ...form, tierId: '', subEventId: '' }));
+      setDailyAttendance([]);
+      setAttendanceTotal(0);
+      return;
+    }
+    api
+      .get<{ data: { tiers?: Tier[]; agenda?: Array<{ id?: string; title?: string; time?: string; isSubEvent?: boolean }> | null } }>(`/admin/events/${selectedEventId}`)
+      .then((r) => {
+        const nextTiers = r.data.data.tiers ?? [];
+        const nextSubEvents = Array.isArray(r.data.data.agenda)
+          ? r.data.data.agenda
+              .filter((item) => item?.isSubEvent === true && typeof item.id === 'string' && item.id.trim() && typeof item.title === 'string' && item.title.trim())
+              .map((item) => ({
+                id: item.id!.trim(),
+                title: item.title!.trim(),
+                ...(item.time?.trim() ? { time: item.time.trim() } : {}),
+              }))
+          : [];
+        setTiers(nextTiers);
+        setSubEvents(nextSubEvents);
+        setWalkInForm((form) => ({
+          ...form,
+          tierId: form.tierId && nextTiers.some((tier) => tier.id === form.tierId)
+            ? form.tierId
+            : nextTiers[0]?.id ?? '',
+          subEventId: form.subEventId && nextSubEvents.some((item) => item.id === form.subEventId)
+            ? form.subEventId
+            : '',
+        }));
+      })
+      .catch(() => {
+        setTiers([]);
+        setSubEvents([]);
+      });
+    loadDailyAttendance(selectedEventId).catch(() => {});
   }, [selectedEventId]);
 
   // ── Popup ──────────────────────────────────────────────────────────────────
@@ -314,6 +406,7 @@ export default function AdminCheckinPage() {
       });
       const r = res.data.data;
       playBeep('success');
+      loadDailyAttendance(selectedEventIdRef.current).catch(() => {});
       openPopup({
         type: 'success',
         title: r.attendeeName,
@@ -346,6 +439,7 @@ export default function AdminCheckinPage() {
       });
       const r = res.data.data;
       playBeep('success');
+      loadDailyAttendance(selectedEventId).catch(() => {});
       openPopup({
         type: 'success',
         title: r.attendeeName,
@@ -401,12 +495,107 @@ export default function AdminCheckinPage() {
     }
   }
 
+  async function loadDailyAttendance(eventId: string) {
+    if (!eventId) return;
+    const res = await api.get<{ data: { total: number; data: DailyAttendanceRow[] } }>(
+      `/admin/events/${eventId}/attendance`,
+    );
+    setAttendanceTotal(res.data.data.total);
+    setDailyAttendance(res.data.data.data.slice(0, 8));
+  }
+
+  async function printNametag(attendeeId: string) {
+    if (!selectedEventId) return;
+    const res = await api.post<Blob>(
+      `/admin/events/${selectedEventId}/attendees/nametags`,
+      { attendeeIds: [attendeeId] },
+      { responseType: 'blob' },
+    );
+    const url = URL.createObjectURL(res.data);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `Nametag-${attendeeId.slice(0, 8)}.pdf`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  }
+
+  function setWalkInField(field: keyof typeof walkInForm, value: string) {
+    setWalkInForm((form) => ({ ...form, [field]: value }));
+  }
+
+  async function handleWalkInSubmit(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    if (!selectedEventId) {
+      openPopup({
+        type: 'error',
+        title: 'No event selected',
+        body: 'Select an event before registering a walk-in.',
+        autoDismiss: true,
+        dismissMs: 3000,
+      });
+      return;
+    }
+    setRegisteringWalkIn(true);
+    try {
+      const res = await api.post<{ data: WalkInResult }>(
+        `/admin/events/${selectedEventId}/walk-ins`,
+        walkInForm,
+      );
+      const result = res.data.data;
+      setLastWalkIn(result);
+      setWalkInForm((form) => ({
+        tierId: form.tierId,
+        subEventId: form.subEventId,
+        firstName: '',
+        lastName: '',
+        email: '',
+        contactNumber: '',
+        gender: '',
+        birthday: '',
+      }));
+      playBeep('success');
+      openPopup({
+        type: 'success',
+        title: `${result.attendee.firstName} ${result.attendee.lastName}`,
+        body: `Registered and checked in. Ref #${result.registration.referenceNumber}`,
+        autoDismiss: true,
+        dismissMs: 3000,
+      });
+      await Promise.allSettled([
+        printNametag(result.attendee.id),
+        loadDailyAttendance(selectedEventId),
+        runSearch(),
+      ]);
+    } catch (err: unknown) {
+      const e = err as { response?: { status?: number; data?: { message?: unknown } } };
+      const raw = e.response?.data?.message;
+      const msg = typeof raw === 'string'
+        ? raw
+        : raw && typeof raw === 'object' && 'message' in raw
+          ? String((raw as { message?: string }).message)
+          : 'Walk-in registration failed';
+      playBeep('error');
+      openPopup({
+        type: 'error',
+        title: e.response?.status === 409 ? 'Possible duplicate' : 'Registration failed',
+        body: msg,
+        autoDismiss: true,
+        dismissMs: 4500,
+      });
+    } finally {
+      setRegisteringWalkIn(false);
+    }
+  }
+
   function handleEventChange(eventId: string) {
     teardownCamera();
     selectedEventIdRef.current = eventId;
     setSelectedEventId(eventId);
     setSearchResults([]);
     setCheckingInId(null);
+    setLastWalkIn(null);
   }
 
   // ── Render ─────────────────────────────────────────────────────────────────
@@ -437,7 +626,7 @@ export default function AdminCheckinPage() {
 
         {/* Tabs */}
         <div className="flex gap-1 bg-gray-100 p-1 rounded-xl">
-          {(['camera', 'search'] as Tab[]).map((t) => (
+          {(['camera', 'search', 'walkin'] as Tab[]).map((t) => (
             <button
               key={t}
               onClick={() => setTab(t)}
@@ -447,7 +636,7 @@ export default function AdminCheckinPage() {
                   : 'text-gray-500 hover:text-gray-700'
               }`}
             >
-              {t === 'camera' ? '📷 Camera' : '🔍 Search'}
+              {t === 'camera' ? 'Camera' : t === 'search' ? 'Search' : 'On-site'}
             </button>
           ))}
         </div>
@@ -516,6 +705,11 @@ export default function AdminCheckinPage() {
                         {a.firstName} {a.lastName}
                       </p>
                       <p className="text-xs text-gray-500 truncate">{a.email}</p>
+                      {a.subEventTitle && (
+                        <p className="text-xs text-violet-600 truncate">
+                          {a.subEventTime ? `${a.subEventTime} - ${a.subEventTitle}` : a.subEventTitle}
+                        </p>
+                      )}
                       <p className="text-xs text-gray-400">{a.tierName ?? '—'}</p>
                       <p className="text-xs text-gray-400 font-mono"># {a.referenceNumber}</p>
                     </div>
@@ -545,6 +739,215 @@ export default function AdminCheckinPage() {
             {searchResults.length === 0 && searchQ && !searching && (
               <p className="text-sm text-gray-400 text-center py-4">No results found.</p>
             )}
+          </div>
+        )}
+
+        {/* On-site tab */}
+        {tab === 'walkin' && (
+          <div className="bg-white shadow rounded-2xl p-6 space-y-6">
+            {!selectedEventId && (
+              <p className="text-sm text-amber-600 bg-amber-50 rounded-lg px-4 py-2">
+                Select an event above before registering walk-ins.
+              </p>
+            )}
+
+            {selectedEventId && (
+              <div className="rounded-xl border border-violet-100 bg-violet-50 p-4 space-y-2">
+                <p className="text-sm font-semibold text-violet-950">Public QR self-registration</p>
+                <p className="text-xs text-violet-700">
+                  Display the event QR from Event Management. New attendees submit their own details; this queue shows staff who needs a nametag.
+                </p>
+              </div>
+            )}
+
+            <form onSubmit={handleWalkInSubmit} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Ticket tier</label>
+                <select
+                  value={walkInForm.tierId}
+                  onChange={(e) => setWalkInField('tierId', e.target.value)}
+                  disabled={!selectedEventId || tiers.length === 0}
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary disabled:bg-gray-50"
+                  required
+                >
+                  <option value="">Select tier</option>
+                  {tiers.map((tier) => (
+                    <option key={tier.id} value={tier.id}>
+                      {tier.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {subEvents.length > 0 && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Sub-event</label>
+                  <select
+                    value={walkInForm.subEventId}
+                    onChange={(e) => setWalkInField('subEventId', e.target.value)}
+                    disabled={!selectedEventId}
+                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary disabled:bg-gray-50"
+                    required
+                  >
+                    <option value="">Select sub-event</option>
+                    {subEvents.map((item) => (
+                      <option key={item.id} value={item.id}>
+                        {item.time ? `${item.time} - ${item.title}` : item.title}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">First name</label>
+                  <input
+                    value={walkInForm.firstName}
+                    onChange={(e) => setWalkInField('firstName', e.target.value)}
+                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                    maxLength={100}
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Last name</label>
+                  <input
+                    value={walkInForm.lastName}
+                    onChange={(e) => setWalkInField('lastName', e.target.value)}
+                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                    maxLength={100}
+                    required
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                  <input
+                    type="email"
+                    value={walkInForm.email}
+                    onChange={(e) => setWalkInField('email', e.target.value)}
+                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Contact number</label>
+                  <input
+                    value={walkInForm.contactNumber}
+                    onChange={(e) => setWalkInField('contactNumber', e.target.value)}
+                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                    minLength={7}
+                    maxLength={20}
+                    required
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Gender</label>
+                  <select
+                    value={walkInForm.gender}
+                    onChange={(e) => setWalkInField('gender', e.target.value)}
+                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                    required
+                  >
+                    <option value="">Select gender</option>
+                    <option value="female">Female</option>
+                    <option value="male">Male</option>
+                    <option value="non_binary">Non-binary</option>
+                    <option value="prefer_not_to_say">Prefer not to say</option>
+                    <option value="self_described">Self-described</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Birthday</label>
+                  <input
+                    type="date"
+                    value={walkInForm.birthday}
+                    onChange={(e) => setWalkInField('birthday', e.target.value)}
+                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                    required
+                  />
+                </div>
+              </div>
+
+              <Button
+                type="submit"
+                loading={registeringWalkIn}
+                disabled={!selectedEventId || !walkInForm.tierId || (subEvents.length > 0 && !walkInForm.subEventId)}
+                className="w-full"
+              >
+                Register, Check In, Print Nametag
+              </Button>
+            </form>
+
+            {lastWalkIn && (
+              <div className="rounded-xl bg-green-50 border border-green-100 p-4 flex items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-green-900 truncate">
+                    {lastWalkIn.attendee.firstName} {lastWalkIn.attendee.lastName}
+                  </p>
+                  {lastWalkIn.attendee.subEventTitle && (
+                    <p className="text-xs text-green-700 truncate">
+                      {lastWalkIn.attendee.subEventTime
+                        ? `${lastWalkIn.attendee.subEventTime} - ${lastWalkIn.attendee.subEventTitle}`
+                        : lastWalkIn.attendee.subEventTitle}
+                    </p>
+                  )}
+                  <p className="text-xs text-green-700 font-mono"># {lastWalkIn.registration.referenceNumber}</p>
+                </div>
+                <Button
+                  type="button"
+                  onClick={() => printNametag(lastWalkIn.attendee.id)}
+                  className="text-xs !py-1 !px-3"
+                >
+                  Reprint
+                </Button>
+              </div>
+            )}
+
+            <div className="border-t border-gray-100 pt-4">
+              <div className="flex items-center justify-between mb-2">
+                <h2 className="text-sm font-semibold text-gray-900">Today&apos;s attendance and nametags</h2>
+                <span className="text-xs text-gray-500">{attendanceTotal} checked in</span>
+              </div>
+              {dailyAttendance.length > 0 ? (
+                <div className="divide-y divide-gray-100">
+                  {dailyAttendance.map((row) => (
+                    <div key={row.id} className="py-2 flex items-center justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium text-gray-900 truncate">{row.attendeeName}</p>
+                        <p className="text-xs text-gray-500 truncate">{row.email}</p>
+                        {row.subEventTitle && (
+                          <p className="text-xs text-violet-600 truncate">
+                            {row.subEventTime ? `${row.subEventTime} - ${row.subEventTitle}` : row.subEventTitle}
+                          </p>
+                        )}
+                      </div>
+                      <div className="text-right flex-shrink-0 space-y-1">
+                        <div>
+                          <p className="text-xs text-gray-500">{new Date(row.checkedInAt).toLocaleTimeString()}</p>
+                          <p className="text-xs text-gray-400 capitalize">{row.checkInMethod.replace('_', ' ')}</p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => printNametag(row.attendeeId)}
+                          className="text-xs font-medium text-primary hover:underline"
+                        >
+                          Print nametag
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-sm text-gray-400 py-3">No check-ins recorded today.</p>
+              )}
+            </div>
           </div>
         )}
       </main>

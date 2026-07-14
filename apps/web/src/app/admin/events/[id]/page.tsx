@@ -71,10 +71,11 @@ interface ApiEvent {
   status: string;
   imageUrl?: string | null;
   speakerName?: string | null;
-  agenda?: Array<{ time: string; title: string; description?: string }> | null;
+  agenda?: Array<{ id?: string; time: string; title: string; description?: string; isSubEvent?: boolean }> | null;
   sponsors?: Array<{ name: string; logoUrl?: string; tier?: string; websiteUrl?: string; description?: string; isVisible?: boolean }> | null;
   faqs?: Array<{ question: string; answer: string }> | null;
   allowManualPayment?: boolean;
+  onsiteRegistrationEnabled?: boolean;
   bankName?: string | null;
   bankAccountNumber?: string | null;
   bankAccountName?: string | null;
@@ -154,6 +155,7 @@ export default function AdminEventEditPage() {
   const [draft, setDraft] = useState<EventDraft>(emptyDraft());
   const [tiers, setTiers] = useState<LocalTier[]>([]);
   const [paymentMethods, setPaymentMethods] = useState<LocalPaymentMethod[]>([]);
+  const [onsiteRegistrationEnabled, setOnsiteRegistrationEnabled] = useState(false);
   const nextPMKey = useRef(1);
 
   const [status, setStatus] = useState('draft');
@@ -188,9 +190,11 @@ export default function AdminEventEditPage() {
         ? event.agenda
             .filter((a) => a && a.time && a.title)
             .map<AgendaItem>((a) => ({
+              ...(a.id ? { id: a.id } : {}),
               time: a.time,
               title: a.title,
               ...(a.description ? { description: a.description } : {}),
+              ...(a.isSubEvent ? { isSubEvent: true } : {}),
             }))
         : [],
       sponsors: Array.isArray(event.sponsors)
@@ -214,6 +218,7 @@ export default function AdminEventEditPage() {
       customSections: Array.isArray(event.customSections) ? event.customSections.map((section) => ({ title: section.title, description: section.description, imageUrl: section.imageUrl ?? '', imageAlt: section.imageAlt ?? '', isVisible: section.isVisible !== false })) : [],
     });
     setStatus(event.status ?? 'draft');
+    setOnsiteRegistrationEnabled(event.onsiteRegistrationEnabled === true);
 
     // Hydrate paymentMethods. Prefer the new array; if absent but legacy
     // single-bank / GCash fields exist, synthesize entries so existing events
@@ -475,6 +480,7 @@ export default function AdminEventEditPage() {
       speakerName: draft.speakerName.trim() || null,
       imageUrl: draft.imageUrl.trim() || null,
       allowManualPayment: resolvedPMs.length > 0,
+      onsiteRegistrationEnabled,
       paymentMethods: resolvedPMs.length > 0
         ? resolvedPMs.map((pm) => ({
             type: pm.type,
@@ -484,7 +490,15 @@ export default function AdminEventEditPage() {
             qrImageUrl: pm.qrImageUrl || undefined,
           }))
         : null,
-      agenda: draft.agenda.length > 0 ? draft.agenda : null,
+      agenda: draft.agenda.length > 0
+        ? draft.agenda.map((a) => ({
+            ...(a.id ? { id: a.id } : {}),
+            time: a.time.trim(),
+            title: a.title.trim(),
+            ...(a.description?.trim() ? { description: a.description.trim() } : {}),
+            ...(a.isSubEvent ? { isSubEvent: true } : {}),
+          }))
+        : null,
       sponsors:
         draft.sponsors.length > 0
           ? draft.sponsors.map((s) => ({
@@ -512,6 +526,15 @@ export default function AdminEventEditPage() {
     onConfirm: () => void;
   } | null;
   const [dialog, setDialog] = useState<ConfirmState>(null);
+  const onsiteUrl = event
+    ? `${typeof window !== 'undefined' ? window.location.origin : 'https://axontickets.online'}/events/${event.slug}/onsite`
+    : '';
+  const onsiteQrImageUrl = event
+    ? `${process.env.NEXT_PUBLIC_API_URL || 'https://api.axontickets.online/api/v1'}/qr/${encodeURIComponent(onsiteUrl)}`
+    : '';
+  const onsiteQrPdfUrl = event
+    ? `${process.env.NEXT_PUBLIC_API_URL || 'https://api.axontickets.online/api/v1'}/events/${event.slug}/onsite-registration/qr.pdf`
+    : '';
 
   // ─── Top banner: status + cancel + delete ─────────────────────────────────
   const topBanner = event ? (
@@ -588,7 +611,63 @@ export default function AdminEventEditPage() {
           {deleteMutation.isPending ? 'Deleting…' : 'Delete Event'}
         </button>
       </div>
-    </div>
+      </div>
+
+      <div className="rounded-2xl border border-gray-200 bg-white px-4 py-3 flex flex-col gap-3">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <p className="text-sm font-semibold text-gray-900">On-site registration QR</p>
+            <p className="text-xs text-gray-500 mt-0.5">
+              Attendees scan this QR to self-register once, then future scans only record daily attendance.
+            </p>
+          </div>
+          <label className="inline-flex items-center gap-2 text-sm font-medium text-gray-700">
+            <input
+              type="checkbox"
+              checked={onsiteRegistrationEnabled}
+              onChange={(e) => {
+                const enabled = e.target.checked;
+                setOnsiteRegistrationEnabled(enabled);
+                updateMutation.mutate({ onsiteRegistrationEnabled: enabled });
+              }}
+              className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+            />
+            Enabled
+          </label>
+        </div>
+        {onsiteRegistrationEnabled && (
+          <div className="flex flex-col gap-3 rounded-xl bg-gray-50 px-3 py-3 sm:flex-row sm:items-center">
+            <img
+              src={onsiteQrImageUrl}
+              alt="On-site registration QR code"
+              width={96}
+              height={96}
+              className="mx-auto h-28 w-28 rounded-lg border border-gray-200 bg-white p-1 sm:mx-0 sm:h-24 sm:w-24"
+            />
+            <div className="min-w-0 flex-1">
+              <p className="text-xs font-medium text-gray-700">Scan URL</p>
+              <p className="break-all text-xs text-gray-500">
+                {onsiteUrl}
+              </p>
+              <div className="mt-3 grid grid-cols-1 gap-2 sm:flex sm:flex-wrap sm:items-center sm:gap-3">
+                <Link
+                  href={`/events/${event.slug}/onsite`}
+                  target="_blank"
+                  className="min-h-10 rounded-lg border border-violet-200 px-3 py-2 text-center text-xs font-semibold text-violet-700 hover:bg-violet-50"
+                >
+                  Open mobile form →
+                </Link>
+                <a
+                  href={onsiteQrPdfUrl}
+                  className="min-h-10 rounded-lg bg-gray-900 px-3 py-2 text-center text-xs font-semibold text-white hover:bg-gray-800"
+                >
+                  Download QR
+                </a>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
 
       {/* ── Workspace readiness banner ───────────────────────────────────── */}
       {workspaceSummary ? (

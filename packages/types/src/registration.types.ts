@@ -17,6 +17,9 @@ export interface RegistrationAttendee {
   birthday: string | null;
   gender: string | null;
   city: string | null;
+  subEventId?: string | null;
+  subEventTitle?: string | null;
+  subEventTime?: string | null;
   isLead: boolean;
   hasQr: boolean;
   checkedInAt: string | null;
@@ -100,6 +103,7 @@ export interface RegistrationSummary {
 export interface CreateRegistrationDto {
   eventId: string;
   tierId: string;
+  subEventId?: string;
   attendees: AttendeeInput[];
   notes?: string;
   referralCode?: string;

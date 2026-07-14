@@ -25,7 +25,7 @@ import { JwtPayload } from '@axon-tickets/types';
 import { AdminService } from './admin.service';
 import { CreateEventDto, UpdateEventDto } from '../events/dto/event.dto';
 import { CreateTierDto, UpdateTierDto } from '../ticket-tiers/dto/tier.dto';
-import { CheckinDto, RejectRegistrationDto, BulkApproveDto, BulkRejectDto, RejectOrganizerDto, SetUserRoleDto, UpdatePlatformSettingsDto } from './dto/admin.dto';
+import { CheckinDto, RejectRegistrationDto, BulkApproveDto, BulkRejectDto, RejectOrganizerDto, SetUserRoleDto, UpdatePlatformSettingsDto, WalkInRegistrationDto } from './dto/admin.dto';
 import { RegistrationsService } from '../registrations/registrations.service';
 import { CreateReferralCodeDto, SetReferralCodeStatusDto, UpdateReferralCodeDto } from './dto/referral-code.dto';
 
@@ -289,6 +289,17 @@ export class AdminController {
     res.send(pdf);
   }
 
+  @Get('events/:eventId/attendance')
+  @ApiOperation({ summary: 'Get daily attendance records for an event' })
+  async getDailyAttendance(
+    @Param('eventId') eventId: string,
+    @CurrentUser() user: JwtPayload,
+    @Query('date') date?: string,
+  ) {
+    await this.adminService.assertEventAccess(eventId, user);
+    return this.adminService.getDailyAttendance(eventId, date);
+  }
+
   // ── Analytics ────────────────────────────────────────────────────────────
 
   @Get('analytics/events/:eventId')
@@ -503,6 +514,18 @@ export class AdminController {
   ) {
     await this.adminService.assertEventAccess(eventId, user);
     return this.adminService.checkinManual(attendeeId, eventId, user.sub);
+  }
+
+  @Post('events/:eventId/walk-ins')
+  @ApiOperation({ summary: 'Create a walk-in registration, check in today, and return nametag context' })
+  async createWalkInRegistration(
+    @Param('eventId') eventId: string,
+    @Body() dto: WalkInRegistrationDto,
+    @CurrentUser() user: JwtPayload,
+    @Req() req: Request,
+  ) {
+    await this.adminService.assertEventAccess(eventId, user);
+    return this.adminService.createWalkInRegistration(eventId, dto, user.sub, req.ip);
   }
 
   // ── User Management ──────────────────────────────────────────────────────

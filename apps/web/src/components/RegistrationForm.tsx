@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { centavosToPeso, formatPHP } from '@axon-tickets/utils';
+import { formatPHP } from '@axon-tickets/utils';
 import api from '@/lib/api';
 import { useAuthStore } from '@/store/auth.store';
 import type { CreateRegistrationDto } from '@axon-tickets/types';
@@ -51,6 +51,12 @@ interface PaymentMethod {
   instructions?: string;
 }
 
+interface AgendaSubEventOption {
+  id: string;
+  title: string;
+  time?: string;
+}
+
 interface Props {
   eventId: string;
   eventSlug: string;
@@ -65,8 +71,11 @@ interface Props {
   bankAccountName?: string | null;
   bankAccountNumber?: string | null;
   paymentInstructions?: string | null;
+  subEvents?: AgendaSubEventOption[];
   /** When set, form is in edit mode — PATCH existing registration instead of POST new. */
   registrationId?: string;
+  /** Server-returned isFree for edit mode — used to decide post-submit routing. */
+  initialIsFree?: boolean;
   /** Pre-filled attendee data for edit mode or post-OTP guest flow. */
   initialAttendees?: AttendeeFields[];
   /** Pre-filled notes for edit mode or post-OTP guest flow. */
@@ -88,7 +97,9 @@ export default function RegistrationForm({
   bankAccountName,
   bankAccountNumber,
   paymentInstructions,
+  subEvents = [],
   registrationId,
+  initialIsFree,
   initialAttendees,
   initialNotes,
   existingAccountDetected = false,
@@ -96,15 +107,21 @@ export default function RegistrationForm({
   const router = useRouter();
   const currentUser = useAuthStore((s) => s.user);
   const [attendees, setAttendees] = useState<AttendeeFields[]>(() =>
-    initialAttendees ?? Array.from({ length: qty }, emptyAttendee),
+    initialAttendees?.map((attendee) => ({ ...emptyAttendee(), ...attendee })) ?? Array.from({ length: qty }, emptyAttendee),
   );
   // Default ON unless we're in edit mode (initialAttendees already provides the data)
   const [useMyDetails, setUseMyDetails] = useState(!initialAttendees);
   const [profileData, setProfileData] = useState<ProfileData | null>(null);
   const [profileLoading, setProfileLoading] = useState(false);
   const [notes, setNotes] = useState(initialNotes ?? '');
+  const [subEventId, setSubEventId] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [referralCode, setReferralCode] = useState('');
+  const [referralDiscount, setReferralDiscount] = useState(0);
+  const [referralMessage, setReferralMessage] = useState<string | null>(null);
+  const [referralError, setReferralError] = useState<string | null>(null);
+  const [checkingReferral, setCheckingReferral] = useState(false);
   // Synchronous guard — prevents duplicate submissions during the async gap
   // between the first click and React flushing the loading state update.
   const submittingRef = useRef(false);
@@ -117,10 +134,11 @@ export default function RegistrationForm({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // unitPrice and platformFee are PHP peso amounts.
-  const subtotalPesos = centavosToPeso(unitPrice * qty);
+  const subtotalPesos = unitPrice * qty;
   const feesPesos = Number(platformFee) || 0;
-  const totalPesos = subtotalPesos + feesPesos;
+  const totalPesos = Math.max(0, subtotalPesos - referralDiscount) + feesPesos;
+  const isFreeRegistration = unitPrice === 0 && feesPesos === 0;
+  const requiresSubEvent = !registrationId && subEvents.length > 0;
 
   const updateAttendee = (index: number, field: keyof AttendeeFields, value: string) => {
     setAttendees((prev) => {
@@ -155,7 +173,7 @@ export default function RegistrationForm({
           phone: profile?.phone ?? '',
           company: profile?.company ?? '',
           jobTitle: profile?.jobTitle ?? '',
-          birthday: profile?.birthday?.slice(0, 10) ?? '',
+          birthday: profile?.birthday ? profile.birthday.slice(0, 10) : '',
           gender: profile?.gender ?? '',
           city: profile?.city ?? '',
         };
@@ -169,6 +187,34 @@ export default function RegistrationForm({
       });
     }
   };
+
+  async function applyReferralCode() {
+    if (!referralCode.trim()) {
+      setReferralDiscount(0);
+      setReferralMessage(null);
+      return;
+    }
+    setCheckingReferral(true);
+    try {
+      const response = await api.post<{ data: { discount: number; name: string } }>('/registrations/validate-referral', {
+        eventId,
+        tierId,
+        code: referralCode.trim(),
+        attendeeCount: qty,
+      });
+      const result = response.data.data;
+      setReferralDiscount(result.discount);
+      setReferralCode(referralCode.trim().toUpperCase());
+      setReferralMessage(`${result.name} applied — you save ${formatPHP(result.discount)}.`);
+    } catch (err: any) {
+      setReferralDiscount(0);
+      setReferralMessage(null);
+      const message = err?.response?.data?.message ?? 'Referral code could not be applied.';
+      setReferralError(Array.isArray(message) ? message.join(' ') : message);
+    } finally {
+      setCheckingReferral(false);
+    }
+  }
 
   const hasPaymentDetails =
     (paymentMethods && paymentMethods.length > 0) ||
@@ -186,6 +232,11 @@ export default function RegistrationForm({
     setLoading(true);
 
     try {
+      if (requiresSubEvent && !subEventId) {
+        setError('Please choose the sub-event you will attend.');
+        return;
+      }
+
       const attendeePayload = attendees.map((a) => ({
         firstName: a.firstName.trim(),
         lastName: a.lastName.trim(),
@@ -198,24 +249,50 @@ export default function RegistrationForm({
         ...(a.city.trim() && { city: a.city.trim() }),
       }));
 
+      // Sync any edited profile fields back to the user's account
+      if (useMyDetails && profileData && currentUser && !registrationId) {
+        const a = attendees[0];
+        const profilePatch: Record<string, string> = {};
+        if (a.firstName.trim() && a.firstName.trim() !== profileData.firstName) profilePatch.firstName = a.firstName.trim();
+        if (a.lastName.trim() && a.lastName.trim() !== profileData.lastName) profilePatch.lastName = a.lastName.trim();
+        if (a.phone.trim() !== (profileData.phone ?? '')) profilePatch.phone = a.phone.trim();
+        if (a.company.trim() !== (profileData.company ?? '')) profilePatch.company = a.company.trim();
+        if (a.jobTitle.trim() !== (profileData.jobTitle ?? '')) profilePatch.jobTitle = a.jobTitle.trim();
+        if (a.city.trim() && a.city.trim() !== (profileData.city ?? '')) profilePatch.city = a.city.trim();
+        if (a.birthday && a.birthday !== (profileData.birthday?.slice(0, 10) ?? '')) profilePatch.birthday = a.birthday;
+        if (a.gender && a.gender !== (profileData.gender ?? '')) profilePatch.gender = a.gender;
+        if (Object.keys(profilePatch).length > 0) {
+          try { await api.patch('/users/me', profilePatch); } catch { /* non-blocking */ }
+        }
+      }
+
       if (registrationId) {
-        // Edit mode: update existing pending_payment registration
+        // Edit mode: update existing registration attendee details
         await api.patch(`/registrations/${registrationId}/attendees`, {
           attendees: attendeePayload,
           ...(notes.trim() && { notes: notes.trim() }),
         });
-        router.push(`/events/${eventSlug}/register/payment/${registrationId}`);
+        if (initialIsFree) {
+          router.push(`/registrations/${registrationId}`);
+        } else {
+          router.push(`/events/${eventSlug}/register/payment/${registrationId}`);
+        }
       } else {
         const payload: CreateRegistrationDto = {
           eventId,
           tierId,
+          ...(subEventId && { subEventId }),
           attendees: attendeePayload,
           ...(notes.trim() && { notes: notes.trim() }),
+          ...(referralDiscount > 0 && referralCode.trim() && { referralCode: referralCode.trim() }),
         };
         const res = await api.post('/registrations', payload);
         const reg = res.data?.data ?? res.data;
-        // Send user to Step 2 (Payment & Proof Upload)
-        router.push(`/events/${eventSlug}/register/payment/${reg.id}`);
+        if (reg.isFree || reg.status === 'pending_approval') {
+          router.push(`/registrations/${reg.id}`);
+        } else {
+          router.push(`/events/${eventSlug}/register/payment/${reg.id}`);
+        }
       }
     } catch (err: unknown) {
       const msg =
@@ -237,20 +314,75 @@ export default function RegistrationForm({
           <span>
             {tierName} × {qty}
           </span>
-          <span>{formatPHP(subtotalPesos)}</span>
+          <span>{subtotalPesos === 0 ? 'Free' : formatPHP(subtotalPesos)}</span>
         </div>
-        <div className="flex justify-between text-sm text-gray-600 mt-1">
-          <span>Service fee</span>
-          <span>{formatPHP(feesPesos)}</span>
-        </div>
+        {!isFreeRegistration && (
+          <div className="flex justify-between text-sm text-gray-600 mt-1">
+            <span>Service fee</span>
+            <span>{formatPHP(feesPesos)}</span>
+          </div>
+        )}
+        {referralDiscount > 0 && (
+          <div className="flex justify-between text-sm font-medium text-emerald-700 mt-1">
+            <span>Referral discount ({referralCode})</span>
+            <span>−{formatPHP(referralDiscount)}</span>
+          </div>
+        )}
         <div className="flex justify-between font-bold text-gray-900 mt-3 pt-3 border-t border-gray-100">
           <span>Total</span>
-          <span className="text-primary">{formatPHP(totalPesos)}</span>
+          <span className="text-primary">{isFreeRegistration ? 'Free' : formatPHP(totalPesos)}</span>
         </div>
       </div>
 
+      {!registrationId && (
+        <div className="rounded-2xl border border-emerald-200 bg-emerald-50/60 p-5">
+          <label htmlFor="referral-code" className="block text-sm font-semibold text-gray-900">Have a referral code?</label>
+          <p className="mt-1 text-xs text-gray-600">Apply it before confirming to preview your final total.</p>
+          <div className="mt-3 flex gap-2">
+            <input
+              id="referral-code"
+              value={referralCode}
+              onChange={(event) => { setReferralCode(event.target.value.toUpperCase()); setReferralDiscount(0); setReferralMessage(null); setReferralError(null); setError(null); }}
+              maxLength={32}
+              autoComplete="off"
+              placeholder="Enter code"
+              className="min-w-0 flex-1 rounded-xl border border-emerald-300 bg-white px-3 py-2 text-sm font-mono uppercase tracking-wide focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-200"
+            />
+            <button type="button" onClick={applyReferralCode} disabled={checkingReferral || !referralCode.trim()} className="rounded-xl bg-emerald-700 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-800 disabled:opacity-50">
+              {checkingReferral ? 'Checking…' : 'Apply'}
+            </button>
+          </div>
+          {referralMessage && <p role="status" className="mt-2 text-xs font-medium text-emerald-700">✓ {referralMessage}</p>}
+          {referralError && <p role="alert" className="mt-2 text-xs font-medium text-red-600">✗ {referralError}</p>}
+        </div>
+      )}
+
+      {requiresSubEvent && (
+        <div className="bg-white border border-gray-200 rounded-2xl p-5">
+          <label className="block text-sm font-semibold text-gray-900 mb-2">
+            Sub-event <span className="text-red-500">*</span>
+          </label>
+          <select
+            value={subEventId}
+            onChange={(e) => {
+              setSubEventId(e.target.value);
+              setError(null);
+            }}
+            className="w-full rounded-xl border border-gray-300 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-white"
+            required
+          >
+            <option value="">Choose a sub-event</option>
+            {subEvents.map((item) => (
+              <option key={item.id} value={item.id}>
+                {item.time ? `${item.time} - ${item.title}` : item.title}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
+
       {/* Group booking — single-receipt policy notice */}
-      {qty > 1 && (
+      {qty > 1 && !isFreeRegistration && (
         <div className="flex items-start gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-4">
           <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-amber-100">
             <svg
@@ -414,15 +546,14 @@ export default function RegistrationForm({
 
           {(() => {
             // For Attendee 1 with toggle ON:
-            // — field has a value from profile → lock it (read-only, gray)
-            // — field is empty → keep editable + amber highlight so user knows it needs filling
+            // — field is empty → amber highlight so user knows it needs filling
+            // — field has a value → normal editable (changes sync back to profile on submit)
             const auto = useMyDetails && i === 0;
-            const lockedCls = 'border-gray-200 bg-gray-50 text-gray-500 cursor-not-allowed';
             const missingCls = 'border-amber-400 bg-amber-50 focus:outline-none focus:ring-2 focus:ring-amber-300 focus:border-amber-400';
             const normalCls = 'border-gray-300 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary';
 
             const cls = (val: string) =>
-              !auto ? normalCls : val.trim() ? lockedCls : missingCls;
+              !auto ? normalCls : val.trim() ? normalCls : missingCls;
 
             const MissingHint = () => (
               <p className="mt-1 text-[11px] text-amber-600 font-medium">
@@ -439,7 +570,6 @@ export default function RegistrationForm({
                       required
                       value={att.firstName}
                       onChange={(e) => updateAttendee(i, 'firstName', e.target.value)}
-                      readOnly={auto && !!att.firstName.trim()}
                       className={`w-full border rounded-lg px-3 py-2 text-sm ${cls(att.firstName)}`}
                     />
                     {auto && !att.firstName.trim() && <MissingHint />}
@@ -450,7 +580,6 @@ export default function RegistrationForm({
                       required
                       value={att.lastName}
                       onChange={(e) => updateAttendee(i, 'lastName', e.target.value)}
-                      readOnly={auto && !!att.lastName.trim()}
                       className={`w-full border rounded-lg px-3 py-2 text-sm ${cls(att.lastName)}`}
                     />
                     {auto && !att.lastName.trim() && <MissingHint />}
@@ -464,8 +593,8 @@ export default function RegistrationForm({
                     required
                     value={att.email}
                     onChange={(e) => updateAttendee(i, 'email', e.target.value)}
-                    readOnly={auto && !!att.email.trim()}
-                    className={`w-full border rounded-lg px-3 py-2 text-sm ${cls(att.email)}`}
+                    readOnly={auto}
+                    className={`w-full border rounded-lg px-3 py-2 text-sm ${auto ? 'border-gray-200 bg-gray-50 text-gray-500 cursor-not-allowed' : normalCls}`}
                   />
                   {auto && !att.email.trim() && <MissingHint />}
                 </div>
@@ -479,7 +608,6 @@ export default function RegistrationForm({
                       value={att.phone}
                       onChange={(e) => updateAttendee(i, 'phone', e.target.value)}
                       placeholder="+639171234567"
-                      readOnly={auto && !!att.phone.trim()}
                       className={`w-full border rounded-lg px-3 py-2 text-sm ${cls(att.phone)}`}
                     />
                     {auto && !att.phone.trim() && <MissingHint />}
@@ -489,7 +617,6 @@ export default function RegistrationForm({
                     <input
                       value={att.company}
                       onChange={(e) => updateAttendee(i, 'company', e.target.value)}
-                      readOnly={auto && !!att.company.trim()}
                       className={`w-full border rounded-lg px-3 py-2 text-sm ${cls(att.company)}`}
                     />
                   </div>
@@ -500,11 +627,9 @@ export default function RegistrationForm({
                   <input
                     value={att.jobTitle}
                     onChange={(e) => updateAttendee(i, 'jobTitle', e.target.value)}
-                    readOnly={auto && !!att.jobTitle.trim()}
                     className={`w-full border rounded-lg px-3 py-2 text-sm ${cls(att.jobTitle)}`}
                   />
                 </div>
-
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
                   <div>
                     <label className="block text-xs font-medium text-gray-600 mb-1">
@@ -518,11 +643,7 @@ export default function RegistrationForm({
                     </label>
                     <select value={att.gender} onChange={(e) => updateAttendee(i, 'gender', e.target.value)} className={`w-full border rounded-lg px-3 py-2 text-sm ${normalCls}`}>
                       <option value="">Select</option>
-                      <option value="female">Female</option>
-                      <option value="male">Male</option>
-                      <option value="non_binary">Non-binary</option>
-                      <option value="self_described">Self-described</option>
-                      <option value="prefer_not_to_say">Prefer not to say</option>
+                      <option value="female">Female</option><option value="male">Male</option><option value="non_binary">Non-binary</option><option value="self_described">Self-described</option><option value="prefer_not_to_say">Prefer not to say</option>
                     </select>
                   </div>
                   <div>
@@ -561,7 +682,7 @@ export default function RegistrationForm({
         disabled={loading}
         className="w-full py-3 rounded-xl bg-primary text-white font-semibold text-sm hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
       >
-        {loading ? 'Saving your spot…' : `Confirm My Registration — ${formatPHP(totalPesos)}`}
+        {loading ? 'Saving your spot…' : `Confirm My Registration — ${isFreeRegistration ? 'Free' : formatPHP(totalPesos)}`}
       </button>
     </form>
   );

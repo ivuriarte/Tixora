@@ -110,6 +110,7 @@ model User {
   fraudFlags            FraudFlag[]
   events                Event[]                   @relation("CreatedBy")
   checkIns              Ticket[]                  @relation("CheckedInBy")
+  attendanceCheckIns    AttendeeAttendance[]      @relation("AttendanceCheckedInBy")
   confirmedOrders       Order[]                   @relation("ConfirmedByAdmin")
   registrations         Registration[]
   verifiedRegistrations Registration[]            @relation("VerifiedBy")
@@ -158,6 +159,7 @@ model Event {
   // Payment configuration
   paymentMethods     Json?       @map("payment_methods") // Array of PaymentMethod objects
   allowManualPayment Boolean     @default(true) @map("allow_manual_payment")
+  onsiteRegistrationEnabled Boolean @default(false) @map("onsite_registration_enabled")
   bankName           String?     @map("bank_name")
   bankAccountNumber  String?     @map("bank_account_number")
   bankAccountName    String?     @map("bank_account_name")
@@ -174,6 +176,7 @@ model Event {
   orders        Order[]
   tickets       Ticket[]
   registrations Registration[]
+  attendanceRecords AttendeeAttendance[]
   eventViews    EventView[]
   funnelEvents  RegistrationFunnelEvent[]
   workspace     EventWorkspace?
@@ -396,6 +399,7 @@ model Registration {
   event         Event              @relation(fields: [eventId], references: [id])
   tier          TicketTier?        @relation(fields: [tierId], references: [id])
   attendees     Attendee[]
+  attendanceRecords AttendeeAttendance[]
   proofs        PaymentProof[]
   verifiedBy    User?              @relation("VerifiedBy", fields: [verifiedById], references: [id])
   auditLogs     AuditLog[]
@@ -422,6 +426,10 @@ model Attendee {
   birthday       DateTime? @db.Date
   gender         String?
   city           String?
+  subEventId     String?   @map("sub_event_id")
+  subEventTitle  String?   @map("sub_event_title")
+  subEventTime   String?   @map("sub_event_time")
+  selectedSubEvents Json?   @map("selected_sub_events")
   isLead         Boolean   @default(false) @map("is_lead")
   // Anti-scalper: tickets are bound to the attendee record above and cannot
   // be re-assigned. Reserved for a future admin-controlled transfer flow.
@@ -433,10 +441,35 @@ model Attendee {
   createdAt      DateTime  @default(now()) @map("created_at")
 
   registration Registration @relation(fields: [registrationId], references: [id], onDelete: Cascade)
+  attendanceRecords AttendeeAttendance[]
 
   @@index([registrationId])
   @@index([email])
+  @@index([subEventId])
   @@map("attendees")
+}
+
+model AttendeeAttendance {
+  id             String   @id @default(uuid())
+  attendeeId     String   @map("attendee_id")
+  registrationId String   @map("registration_id")
+  eventId        String   @map("event_id")
+  checkInDate    DateTime @map("check_in_date") @db.Date
+  checkedInAt    DateTime @default(now()) @map("checked_in_at")
+  checkedInById  String?  @map("checked_in_by_id")
+  checkInMethod  String   @map("check_in_method")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  attendee     Attendee     @relation(fields: [attendeeId], references: [id], onDelete: Cascade)
+  registration Registration @relation(fields: [registrationId], references: [id], onDelete: Cascade)
+  event        Event        @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  checkedInBy  User?        @relation("AttendanceCheckedInBy", fields: [checkedInById], references: [id])
+
+  @@unique([attendeeId, eventId, checkInDate])
+  @@index([eventId, checkInDate])
+  @@index([registrationId])
+  @@index([checkedInById])
+  @@map("attendee_attendance")
 }
 
 model ReferralCode {

@@ -156,9 +156,11 @@ export default function AdminNewEventPage() {
         const cleaned = draft.agenda
           .filter((a) => a && typeof a === 'object' && !Array.isArray(a))
           .map((a) => ({
+            ...(a.id && { id: a.id }),
             time: (a.time ?? '').trim(),
             title: (a.title ?? '').trim(),
             ...(a.description?.trim() && { description: a.description.trim() }),
+            ...(a.isSubEvent && { isSubEvent: true }),
           }))
           .filter((a) => a.title.length > 0);
         if (cleaned.length > 0) payload.agenda = cleaned;

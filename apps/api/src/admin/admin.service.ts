@@ -13,13 +13,20 @@ import { TicketTiersService } from '../ticket-tiers/ticket-tiers.service';
 import { OrdersService } from '../orders/orders.service';
 import { CreateEventDto, UpdateEventDto } from '../events/dto/event.dto';
 import { CreateTierDto, UpdateTierDto } from '../ticket-tiers/dto/tier.dto';
-import { verifyQrToken, verifyAttendeeQrToken } from '@axon-tickets/utils';
+import {
+  generateAttendeeQrToken,
+  generateReferenceNumber,
+  verifyQrToken,
+  verifyAttendeeQrToken,
+} from '@axon-tickets/utils';
 import { ConfigService } from '@nestjs/config';
 import { AuditService } from '../audit/audit.service';
 import { EmailService } from '../email/email.service';
 import { PDFDocument, PDFFont, PDFPage, StandardFonts, rgb } from 'pdf-lib';
 import { JwtPayload } from '@axon-tickets/types';
 import { CreateReferralCodeDto, UpdateReferralCodeDto } from './dto/referral-code.dto';
+import { WalkInRegistrationDto } from './dto/admin.dto';
+import { resolveAgendaSubEvent } from '../events/agenda-sub-events';
 
 interface NametagRow {
   id: string;
@@ -56,6 +63,73 @@ export class AdminService {
 
   async assertRegistrationAccess(registrationId: string, user: JwtPayload): Promise<void> {
     return this.eventAccess.assertRegistrationAccess(registrationId, user);
+  }
+
+  private checkInDateFor(date = new Date()): Date {
+    const parts = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Asia/Manila',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).formatToParts(date);
+    const year = parts.find((part) => part.type === 'year')?.value;
+    const month = parts.find((part) => part.type === 'month')?.value;
+    const day = parts.find((part) => part.type === 'day')?.value;
+    return new Date(`${year}-${month}-${day}T00:00:00.000Z`);
+  }
+
+  private parseCheckInDate(date?: string): Date {
+    if (!date) return this.checkInDateFor();
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+      throw new BadRequestException('date must use YYYY-MM-DD format');
+    }
+    const parsed = new Date(`${date}T00:00:00.000Z`);
+    if (!Number.isFinite(parsed.getTime())) {
+      throw new BadRequestException('date must be a valid calendar date');
+    }
+    return parsed;
+  }
+
+  private async createDailyAttendance(
+    tx: Prisma.TransactionClient,
+    attendee: { id: string; registrationId: string },
+    eventId: string,
+    adminId: string,
+    method: string,
+    now = new Date(),
+  ) {
+    const checkInDate = this.checkInDateFor(now);
+    try {
+      const attendance = await tx.attendeeAttendance.create({
+        data: {
+          attendeeId: attendee.id,
+          registrationId: attendee.registrationId,
+          eventId,
+          checkInDate,
+          checkedInAt: now,
+          checkedInById: adminId,
+          checkInMethod: method,
+        },
+      });
+
+      await tx.attendee.updateMany({
+        where: { id: attendee.id, checkedInAt: null },
+        data: { checkedInAt: now, checkedInById: adminId, checkInMethod: method },
+      });
+
+      return attendance;
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+        const existing = await tx.attendeeAttendance.findFirst({
+          where: { attendeeId: attendee.id, eventId, checkInDate },
+          select: { checkedInAt: true },
+        });
+        throw new ConflictException(
+          `Already checked in today at ${existing?.checkedInAt?.toISOString() ?? 'unknown time'}`,
+        );
+      }
+      throw error;
+    }
   }
 
   // ── User Management ────────────────────────────────────────────────────
@@ -362,6 +436,7 @@ export class AdminService {
         startsAt: e.startsAt.toISOString(),
         status: e.status,
         isFree: e.isFree,
+        onsiteRegistrationEnabled: e.onsiteRegistrationEnabled,
         organization: e.organization ? { id: e.organization.id, name: e.organization.name } : null,
         maxCapacity: e.maxCapacity ?? null,
         ticketsSold: tiersByEvent[index].reduce((sum, tier) => sum + tier.soldQuantity, 0),
@@ -708,20 +783,9 @@ export class AdminService {
       }
 
       const now = new Date();
-      const scanResult = await this.prisma.attendee.updateMany({
-        where: { id: attendee.id, checkedInAt: null },
-        data: { checkedInAt: now, checkedInById: adminId, checkInMethod: 'scan' },
-      });
-
-      if (scanResult.count === 0) {
-        const fresh = await this.prisma.attendee.findUnique({
-          where: { id: attendee.id },
-          select: { checkedInAt: true },
-        });
-        throw new ConflictException(
-          `Already checked in at ${fresh?.checkedInAt?.toISOString() ?? 'unknown time'}`,
-        );
-      }
+      const attendance = await this.prisma.$transaction((tx) =>
+        this.createDailyAttendance(tx, attendee, eventId, adminId, 'scan', now),
+      );
 
       await this.audit.log({
         action: 'CHECKIN_SCAN',
@@ -729,7 +793,12 @@ export class AdminService {
         entityId: attendee.id,
         registrationId: attendee.registrationId,
         performedById: adminId,
-        metadata: { eventId: attendeePayload.eventId, checkInMethod: 'scan' },
+        metadata: {
+          eventId: attendeePayload.eventId,
+          attendanceId: attendance.id,
+          checkInDate: attendance.checkInDate.toISOString().slice(0, 10),
+          checkInMethod: 'scan',
+        },
       });
 
       return {
@@ -738,6 +807,7 @@ export class AdminService {
         tierName: attendee.registration.tierName ?? null,
         eventTitle: attendee.registration.event.title,
         checkedInAt: now.toISOString(),
+        checkInDate: attendance.checkInDate.toISOString().slice(0, 10),
         checkInMethod: 'scan',
       };
     }
@@ -825,6 +895,7 @@ export class AdminService {
     const safePage = Math.max(1, page);
     const safeLimit = Math.min(limit, 50);
     const skip = (safePage - 1) * safeLimit;
+    const today = this.checkInDateFor();
 
     const where: Prisma.AttendeeWhereInput = {
       registration: { eventId },
@@ -874,6 +945,11 @@ export class AdminService {
               event: { select: { title: true } },
             },
           },
+          attendanceRecords: {
+            where: { eventId, checkInDate: today },
+            select: { checkedInAt: true, checkInMethod: true },
+            take: 1,
+          },
         },
       }),
     ]);
@@ -884,11 +960,14 @@ export class AdminService {
         firstName: a.firstName,
         lastName: a.lastName,
         email: a.email,
+        subEventTitle: a.subEventTitle ?? null,
+        subEventTime: a.subEventTime ?? null,
         tierName: a.registration.tierName ?? null,
         referenceNumber: a.registration.referenceNumber,
         eventTitle: a.registration.event.title,
         registrationStatus: a.registration.status,
-        checkedInAt: a.checkedInAt?.toISOString() ?? null,
+        checkedInAt: a.attendanceRecords[0]?.checkedInAt.toISOString() ?? null,
+        firstCheckedInAt: a.checkedInAt?.toISOString() ?? null,
         hasQr: !!a.qrToken,
       })),
       meta: { total, page: safePage, limit: safeLimit, totalPages: Math.ceil(total / safeLimit) },
@@ -927,20 +1006,9 @@ export class AdminService {
       );
     }
     const now = new Date();
-    const manualResult = await this.prisma.attendee.updateMany({
-      where: { id: attendeeId, checkedInAt: null },
-      data: { checkedInAt: now, checkedInById: adminId, checkInMethod: 'manual' },
-    });
-
-    if (manualResult.count === 0) {
-      const fresh = await this.prisma.attendee.findUnique({
-        where: { id: attendeeId },
-        select: { checkedInAt: true },
-      });
-      throw new ConflictException(
-        `Already checked in at ${fresh?.checkedInAt?.toISOString() ?? 'unknown time'}`,
-      );
-    }
+    const attendance = await this.prisma.$transaction((tx) =>
+      this.createDailyAttendance(tx, attendee, eventId, adminId, 'manual', now),
+    );
 
     await this.audit.log({
       action: 'CHECKIN_MANUAL',
@@ -948,7 +1016,11 @@ export class AdminService {
       entityId: attendeeId,
       registrationId: attendee.registrationId,
       performedById: adminId,
-      metadata: { checkInMethod: 'manual' },
+      metadata: {
+        attendanceId: attendance.id,
+        checkInDate: attendance.checkInDate.toISOString().slice(0, 10),
+        checkInMethod: 'manual',
+      },
     });
 
     return {
@@ -957,13 +1029,245 @@ export class AdminService {
       tierName: attendee.registration.tierName ?? null,
       eventTitle: attendee.registration.event.title,
       checkedInAt: now.toISOString(),
+      checkInDate: attendance.checkInDate.toISOString().slice(0, 10),
       checkInMethod: 'manual',
+    };
+  }
+
+  async createWalkInRegistration(eventId: string, dto: WalkInRegistrationDto, adminId: string, ip?: string) {
+    if (!eventId) throw new BadRequestException('Event is required');
+    const firstName = dto.firstName.trim();
+    const lastName = dto.lastName.trim();
+    const email = dto.email.trim().toLowerCase();
+    const phone = dto.contactNumber.trim();
+    const birthday = new Date(`${dto.birthday}T00:00:00.000Z`);
+    const today = new Date();
+    const earliest = new Date(Date.UTC(today.getUTCFullYear() - 120, today.getUTCMonth(), today.getUTCDate()));
+
+    if (!Number.isFinite(birthday.getTime()) || birthday > today || birthday < earliest) {
+      throw new BadRequestException('Birthday must be a valid past date within the last 120 years.');
+    }
+
+    const result = await this.prisma.$transaction(async (tx) => {
+      const [event, tier] = await Promise.all([
+        tx.event.findUnique({ where: { id: eventId }, select: { id: true, title: true, status: true, isFree: true, platformFee: true, agenda: true } }),
+        tx.ticketTier.findFirst({
+          where: { id: dto.tierId, eventId },
+          select: { id: true, name: true, price: true, currency: true, totalQuantity: true },
+        }),
+      ]);
+      if (!event) throw new NotFoundException('Event not found');
+      if (event.status === 'cancelled') throw new BadRequestException('Cancelled events cannot accept walk-ins');
+      if (!tier) throw new NotFoundException('Ticket tier not found');
+      const selectedSubEvent = resolveAgendaSubEvent(event.agenda, dto.subEventId);
+
+      const duplicate = await tx.attendee.findFirst({
+        where: {
+          registration: {
+            eventId,
+            status: { in: ['pending_payment', 'proof_submitted', 'pending_approval', 'verified'] },
+          },
+          OR: [
+            { email: { equals: email, mode: 'insensitive' } },
+            {
+              firstName: { equals: firstName, mode: 'insensitive' },
+              lastName: { equals: lastName, mode: 'insensitive' },
+              birthday,
+            },
+          ],
+        },
+        include: {
+          registration: {
+            select: { id: true, referenceNumber: true, status: true, tierName: true },
+          },
+        },
+      });
+      if (duplicate) {
+        throw new ConflictException(
+          `An attendee matching this walk-in already exists for this event (#${duplicate.registration.referenceNumber}). Use search to check them in instead.`,
+        );
+      }
+
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${eventId}), hashtext(${dto.tierId}))`;
+      const registrationUsage = await tx.registration.aggregate({
+        where: {
+          tierId: dto.tierId,
+          status: { in: ['pending_payment', 'proof_submitted', 'pending_approval', 'verified'] },
+        },
+        _sum: { attendeeCount: true },
+      });
+      const ticketUsage = await tx.ticket.count({
+        where: { ticketTierId: dto.tierId, status: { in: ['valid', 'used'] } },
+      });
+      const occupied = Number(registrationUsage._sum.attendeeCount ?? 0) + ticketUsage;
+      if (tier.totalQuantity - occupied < 1) {
+        throw new BadRequestException('No seats are available for this ticket tier.');
+      }
+      await tx.ticketTier.update({
+        where: { id: dto.tierId },
+        data: { soldQuantity: occupied + 1 },
+      });
+
+      const user = await tx.user.upsert({
+        where: { email },
+        create: {
+          email,
+          phone,
+          firstName,
+          lastName,
+          isVerified: true,
+          birthday,
+          gender: dto.gender,
+        },
+        update: {
+          phone,
+          birthday,
+          gender: dto.gender,
+        },
+        select: { id: true },
+      });
+
+      const unitPrice = event.isFree ? 0 : Number(tier.price);
+      const subtotal = unitPrice;
+      const fees = event.isFree ? 0 : Number(event.platformFee ?? 0);
+      const total = subtotal + fees;
+
+      const registration = await tx.registration.create({
+        data: {
+          referenceNumber: generateReferenceNumber(),
+          userId: user.id,
+          eventId,
+          tierId: tier.id,
+          tierName: tier.name,
+          unitPrice,
+          attendeeCount: 1,
+          subtotal,
+          fees,
+          total,
+          status: 'verified',
+          verifiedById: adminId,
+          verifiedAt: new Date(),
+          currency: tier.currency,
+          paymentMethod: 'walk_in',
+          notes: 'Staff-assisted walk-in registration',
+          attendees: {
+            create: {
+              firstName,
+              lastName,
+              email,
+              phone,
+              birthday,
+              gender: dto.gender,
+              company: dto.company?.trim() || null,
+              jobTitle: dto.jobTitle?.trim() || null,
+              subEventId: selectedSubEvent?.id ?? null,
+              subEventTitle: selectedSubEvent?.title ?? null,
+              subEventTime: selectedSubEvent?.time ?? null,
+              isLead: true,
+            },
+          },
+        },
+        include: { attendees: true },
+      });
+
+      const attendee = registration.attendees[0];
+      const qrSecret = this.config.get<string>('qr.hmacSecret') ?? '';
+      const qrToken = generateAttendeeQrToken(
+        { attendeeId: attendee.id, registrationId: registration.id, eventId },
+        qrSecret,
+      );
+      const now = new Date();
+      const updatedAttendee = await tx.attendee.update({
+        where: { id: attendee.id },
+        data: { qrToken },
+      });
+      const attendance = await this.createDailyAttendance(tx, updatedAttendee, eventId, adminId, 'walk_in', now);
+
+      return { event, tier, registration, attendee: updatedAttendee, attendance };
+    });
+
+    await this.audit.log({
+      action: 'WALK_IN_REGISTERED',
+      entityType: 'Registration',
+      entityId: result.registration.id,
+      registrationId: result.registration.id,
+      performedById: adminId,
+      ipAddress: ip,
+      metadata: {
+        eventId,
+        attendeeId: result.attendee.id,
+        attendanceId: result.attendance.id,
+        checkInDate: result.attendance.checkInDate.toISOString().slice(0, 10),
+      },
+    });
+
+    return {
+      registration: {
+        id: result.registration.id,
+        referenceNumber: result.registration.referenceNumber,
+        status: result.registration.status,
+      },
+      attendee: {
+        id: result.attendee.id,
+        firstName: result.attendee.firstName,
+        lastName: result.attendee.lastName,
+        email: result.attendee.email,
+        tierName: result.tier.name,
+        subEventTitle: result.attendee.subEventTitle,
+        subEventTime: result.attendee.subEventTime,
+      },
+      attendance: {
+        id: result.attendance.id,
+        checkInDate: result.attendance.checkInDate.toISOString().slice(0, 10),
+        checkedInAt: result.attendance.checkedInAt.toISOString(),
+        checkInMethod: result.attendance.checkInMethod,
+      },
+      nametag: {
+        eventId,
+        attendeeId: result.attendee.id,
+      },
+    };
+  }
+
+  async getDailyAttendance(eventId: string, date?: string) {
+    const checkInDate = this.parseCheckInDate(date);
+    const records = await this.prisma.attendeeAttendance.findMany({
+      where: { eventId, checkInDate },
+      orderBy: { checkedInAt: 'desc' },
+      include: {
+        attendee: { select: { id: true, firstName: true, lastName: true, email: true, phone: true, subEventTitle: true, subEventTime: true } },
+        registration: { select: { id: true, referenceNumber: true, tierName: true } },
+        checkedInBy: { select: { firstName: true, lastName: true, email: true } },
+      },
+    });
+
+    return {
+      date: checkInDate.toISOString().slice(0, 10),
+      total: records.length,
+      data: records.map((record) => ({
+        id: record.id,
+        attendeeId: record.attendeeId,
+        registrationId: record.registrationId,
+        referenceNumber: record.registration.referenceNumber,
+        attendeeName: this.compactName(record.attendee.firstName, record.attendee.lastName),
+        email: record.attendee.email,
+        phone: record.attendee.phone,
+        tierName: record.registration.tierName,
+        subEventTitle: record.attendee.subEventTitle,
+        subEventTime: record.attendee.subEventTime,
+        checkedInAt: record.checkedInAt.toISOString(),
+        checkInMethod: record.checkInMethod,
+        checkedInBy: record.checkedInBy
+          ? this.compactName(record.checkedInBy.firstName, record.checkedInBy.lastName) || record.checkedInBy.email
+          : null,
+      })),
     };
   }
 
   async getAttendees(eventId: string, page = 1, limit = 50, q?: string) {
     const skip = (page - 1) * limit;
     const term = q?.trim();
+    const today = this.checkInDateFor();
 
     // ── Path A: Registration flow (Attendee records from verified registrations) ──
     const attendeeWhere: Prisma.AttendeeWhereInput = {
@@ -1006,6 +1310,11 @@ export class AdminService {
         take: 2_000,
         include: {
           registration: { select: { tierName: true, paymentMethod: true, status: true } },
+          attendanceRecords: {
+            where: { eventId, checkInDate: today },
+            select: { checkedInAt: true },
+            take: 1,
+          },
         },
       }),
       this.prisma.ticket.findMany({
@@ -1033,8 +1342,9 @@ export class AdminService {
         tierName: a.registration.tierName ?? 'Registration',
         orderStatus: a.registration.status === 'verified' ? 'paid' : 'pending',
         paymentMethod: a.registration.paymentMethod ?? null,
-        status: a.checkedInAt ? 'used' : 'valid',
-        checkedInAt: a.checkedInAt?.toISOString() ?? null,
+        status: a.attendanceRecords[0] ? 'used' : 'valid',
+        checkedInAt: a.attendanceRecords[0]?.checkedInAt.toISOString() ?? null,
+        firstCheckedInAt: a.checkedInAt?.toISOString() ?? null,
       })),
       ...tickets.map((t) => ({
         id: t.id,
@@ -1536,7 +1846,7 @@ export class AdminService {
       },
     });
 
-    const header = 'ID,Name,Email,Phone,Company,Job Title,Birthday,Gender,City,Tier,Payment Status,Payment Method,Discount (PHP),Referral Code,Checked In,Checked In At\n';
+    const header = 'ID,Name,Email,Phone,Company,Job Title,Birthday,Gender,City,Tier,Sub Events,Payment Status,Payment Method,Discount (PHP),Referral Code,Checked In,Checked In At\n';
 
     const attendeeRows = attendees.map((a) => {
       const referralCode = (a.registration.referralCodeSnapshot as { code?: string } | null)?.code ?? '';
@@ -1551,6 +1861,7 @@ export class AdminService {
         this.escapeCsvCell(a.gender ?? ''),
         `"${this.escapeCsvCell(a.city ?? a.registration.user?.city ?? '')}"`,
         `"${this.escapeCsvCell(a.registration.tierName ?? 'Registration')}"`,
+        `"${this.escapeCsvCell(a.subEventTitle ?? '')}"`,
         a.registration.status === 'verified' ? 'paid' : 'pending',
         this.escapeCsvCell(a.registration.paymentMethod ?? ''),
         Number(a.registration.discount).toFixed(2),
@@ -1571,6 +1882,7 @@ export class AdminService {
       '',
       `"${this.escapeCsvCell(t.user.city ?? '')}"`,
       `"${this.escapeCsvCell(t.ticketTier.name)}"`,
+      '',
       t.order?.status ?? '',
       t.order?.paymentMethod ?? '',
       t.status === 'used' ? 'Yes' : 'No',
@@ -1583,7 +1895,7 @@ export class AdminService {
   async generateNametagsPdf(eventId: string, attendeeIds?: string[]): Promise<Buffer> {
     const event = await this.prisma.event.findUnique({
       where: { id: eventId },
-      select: { title: true },
+      select: { title: true, startsAt: true },
     });
     if (!event) throw new NotFoundException('Event not found');
 
@@ -1671,7 +1983,10 @@ export class AdminService {
     }
 
     try {
-      return await this.renderNametagsPdf(event.title, rows);
+      const eventDate = event.startsAt
+        ? event.startsAt.toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' })
+        : null;
+      return await this.renderNametagsPdf(event.title, eventDate, rows);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       const stack = error instanceof Error ? error.stack : undefined;
@@ -1680,199 +1995,297 @@ export class AdminService {
     }
   }
 
-  private async renderNametagsPdf(eventTitle: string, rows: NametagRow[]): Promise<Buffer> {
+  // ── PDF rendering helpers ─────────────────────────────────────────────────
+
+  private mmToPt(mm: number): number {
+    return (mm * 72) / 25.4;
+  }
+
+  private async renderNametagsPdf(
+    eventTitle: string,
+    eventDate: string | null,
+    rows: NametagRow[],
+  ): Promise<Buffer> {
     const pdf = await PDFDocument.create();
-    pdf.setTitle(`${eventTitle} Nametags`);
+    pdf.setTitle(`${eventTitle} — Nametags & Stubs`);
     pdf.setAuthor('Axon Tickets');
-    pdf.setSubject('Printable attendee nametags');
 
     const regularFont = await pdf.embedFont(StandardFonts.Helvetica);
     const boldFont = await pdf.embedFont(StandardFonts.HelveticaBold);
-    const mmToPt = (mm: number) => (mm * 72) / 25.4;
-    const pageSize: [number, number] = [595.28, 841.89]; // A4 portrait in points
-    const columns = 2;
-    const rowsPerPage = 6;
-    const tagsPerPage = columns * rowsPerPage;
-    const tagWidth = mmToPt(100);
-    const tagHeight = mmToPt(40);
-    const columnGap = mmToPt(5);
-    const rowGap = mmToPt(5);
-    const marginX = 0;
-    const marginTop = 0;
-    const printableRows = rows.length > 0 ? rows : [
-      { id: 'blank', name: '', company: '', position: '', tierName: '', inclusions: [], createdAt: new Date() },
-    ];
 
-    printableRows.forEach((row, index) => {
-      const pages = pdf.getPages();
-      const page = index % tagsPerPage === 0 ? pdf.addPage(pageSize) : pages[pages.length - 1];
-      if (!page) return;
+    const pageW = 595.28;
+    const pageH = 841.89;
+    const marginX = this.mmToPt(3.5);
+    const marginY = this.mmToPt(5);
+    const cols = 3;
+    const colGap = this.mmToPt(2);
+    const rowGap = this.mmToPt(2);
+    const stripW = (pageW - 2 * marginX - (cols - 1) * colGap) / cols;
+    const tagH = this.mmToPt(38);
+    const stubH = this.mmToPt(18);
 
-      const pageIndex = index % tagsPerPage;
-      const column = pageIndex % columns;
-      const gridRow = Math.floor(pageIndex / columns);
-      const x = marginX + column * (tagWidth + columnGap);
-      const topY = pageSize[1] - marginTop - gridRow * (tagHeight + rowGap);
-      const y = topY - tagHeight;
+    // Group by tier, preserving insertion order
+    const tierOrder: string[] = [];
+    const tierGroups = new Map<string, NametagRow[]>();
+    const printable = rows.length > 0 ? rows : [{
+      id: 'blank', name: '', company: '', position: '',
+      tierName: '', inclusions: [], createdAt: new Date(),
+    }];
 
-      this.drawNametag(page, {
-        x,
-        y,
-        width: tagWidth,
-        height: tagHeight,
-        eventTitle,
-        attendeeName: row.name,
-        company: row.company,
-        position: row.position,
-        tierName: row.tierName,
-        inclusions: row.inclusions,
-        regularFont,
-        boldFont,
-      });
-    });
+    for (const row of printable) {
+      if (!tierGroups.has(row.tierName)) {
+        tierOrder.push(row.tierName);
+        tierGroups.set(row.tierName, []);
+      }
+      tierGroups.get(row.tierName)!.push(row);
+    }
+
+    let page = pdf.addPage([pageW, pageH]);
+    let currentY = pageH - marginY;
+
+    for (const tierKey of tierOrder) {
+      const group = tierGroups.get(tierKey)!;
+      const stubCount = group[0].inclusions.length;
+      const stripH = tagH + stubCount * stubH;
+
+      for (let i = 0; i < group.length; i += cols) {
+        if (currentY - stripH < marginY) {
+          page = pdf.addPage([pageW, pageH]);
+          currentY = pageH - marginY;
+        }
+
+        const rowY = currentY - stripH;
+        const rowItems = group.slice(i, i + cols);
+
+        rowItems.forEach((row, colIdx) => {
+          const x = marginX + colIdx * (stripW + colGap);
+          this.drawStrip(page, x, rowY, stripW, tagH, stubH, row, eventTitle, eventDate, regularFont, boldFont);
+        });
+
+        currentY = rowY - rowGap;
+      }
+    }
 
     return Buffer.from(await pdf.save());
   }
 
-  private drawNametag(
+  private drawStrip(
     page: PDFPage,
-    options: {
-      x: number;
-      y: number;
-      width: number;
-      height: number;
-      eventTitle: string;
-      attendeeName: string;
-      company: string;
-      position: string;
-      tierName: string;
-      inclusions: string[];
-      regularFont: PDFFont;
-      boldFont: PDFFont;
-    },
-  ) {
-    const {
-      x,
-      y,
-      width,
-      height,
-      eventTitle,
-      attendeeName,
-      company,
-      position,
-      tierName,
-      inclusions,
-      regularFont,
-      boldFont,
-    } = options;
-    const safeMargin = (4 * 72) / 25.4;
-    const contentX = x + safeMargin;
-    const contentWidth = width - safeMargin * 2;
-    const name = attendeeName.trim().toUpperCase();
-    const detailText = [position.trim(), company.trim()].filter(Boolean).join(' - ');
-    const tierText = tierName.trim();
-    const inclusionText = inclusions.map((item) => item.trim()).filter(Boolean).join('  |  ');
-    const eventBaseline = y + height - safeMargin - 6;
-    const nameBandY = y + 52;
-    const nameBandHeight = 29;
-    const detailBaseline = y + 41;
-    const tierBaseline = y + 29;
-    const inclusionBaseline = y + 18;
-    const footerBaseline = y + safeMargin - 1;
+    x: number,
+    y: number,
+    width: number,
+    tagH: number,
+    stubH: number,
+    row: NametagRow,
+    eventTitle: string,
+    eventDate: string | null,
+    regularFont: PDFFont,
+    boldFont: PDFFont,
+  ): void {
+    const n = row.inclusions.length;
+    const totalH = tagH + n * stubH;
+    const border = rgb(0.84, 0.86, 0.88);
 
-    page.drawRectangle({
-      x,
-      y,
-      width,
-      height,
-      borderColor: rgb(0.64, 0.67, 0.72),
-      borderWidth: 0.75,
-      color: rgb(1, 1, 1),
+    // Outer strip border — left, right, top, bottom edges only
+    page.drawLine({ start: { x, y }, end: { x, y: y + totalH }, color: border, thickness: 0.5 });
+    page.drawLine({ start: { x: x + width, y }, end: { x: x + width, y: y + totalH }, color: border, thickness: 0.5 });
+    page.drawLine({ start: { x, y: y + totalH }, end: { x: x + width, y: y + totalH }, color: border, thickness: 0.5 });
+    page.drawLine({ start: { x, y }, end: { x: x + width, y }, color: border, thickness: 0.5 });
+
+    // Fill white background
+    page.drawRectangle({ x, y, width, height: totalH, color: rgb(1, 1, 1) });
+
+    // Nametag section (top of strip)
+    const nametagY = y + n * stubH;
+    this.drawNametagContent(page, x, nametagY, width, tagH, n > 0, row, eventTitle, regularFont, boldFont);
+
+    // Stub sections (below nametag, top-to-bottom)
+    for (let i = 0; i < n; i++) {
+      const stubBottomY = y + (n - 1 - i) * stubH;
+      const hasBelowSep = i < n - 1;
+      this.drawStubContent(page, x, stubBottomY, width, stubH, row.name, row.inclusions[i], eventDate, hasBelowSep, regularFont, boldFont);
+    }
+  }
+
+  private drawNametagContent(
+    page: PDFPage,
+    x: number,
+    y: number,
+    width: number,
+    height: number,
+    hasStubsBelow: boolean,
+    row: NametagRow,
+    eventTitle: string,
+    regularFont: PDFFont,
+    boldFont: PDFFont,
+  ): void {
+    const pad = this.mmToPt(2.5);
+    const contentW = width - 2 * pad;
+    const gray55 = rgb(0.55, 0.55, 0.57);
+    const gray88 = rgb(0.86, 0.87, 0.89);
+
+    // Event title — small caps, gray, centered at top
+    this.drawCenteredText(page, eventTitle.toUpperCase(), {
+      x: x + pad, y: y + height - pad - 6.5,
+      width: contentW,
+      font: boldFont, size: 5.5,
+      color: gray55,
     });
 
-    page.drawRectangle({
-      x: contentX,
-      y: y + safeMargin,
-      width: contentWidth,
-      height: height - safeMargin * 2,
-      borderColor: rgb(0.9, 0.92, 0.94),
-      borderWidth: 0.35,
-    });
+    // Separator line below event title
+    const sepY1 = y + height - pad - 9.5;
+    page.drawLine({ start: { x, y: sepY1 }, end: { x: x + width, y: sepY1 }, color: gray88, thickness: 0.35 });
 
-    this.drawCenteredText(page, eventTitle, {
-      x: contentX,
-      y: eventBaseline,
-      width: contentWidth,
-      font: boldFont,
-      size: 7.5,
-      color: rgb(0.2, 0.24, 0.3),
-    });
+    // Attendee name — large bold, centered vertically in main area
+    const name = row.name ? row.name.trim().toUpperCase() : '';
+    const footerH = 15;
+    const nameAreaBottom = y + footerH + 10;
+    const nameAreaTop = sepY1 - 2;
+    const nameSize = name ? this.fitFontSize(boldFont, name, contentW - 4, 16, 9) : 10;
+    const nameMid = nameAreaBottom + (nameAreaTop - nameAreaBottom) / 2;
+    const nameY = nameMid - nameSize * 0.38;
 
-    page.drawRectangle({
-      x: contentX,
-      y: nameBandY,
-      width: contentWidth,
-      height: nameBandHeight,
-      color: rgb(0.96, 0.97, 0.98),
-    });
-
-    page.drawLine({
-      start: { x: contentX, y: nameBandY + nameBandHeight },
-      end: { x: x + width - safeMargin, y: nameBandY + nameBandHeight },
-      color: rgb(0.07, 0.09, 0.15),
-      thickness: 1,
-    });
-    page.drawLine({
-      start: { x: contentX, y: nameBandY },
-      end: { x: x + width - safeMargin, y: nameBandY },
-      color: rgb(0.07, 0.09, 0.15),
-      thickness: 1,
-    });
-
-    const nameSize = this.fitFontSize(boldFont, name, contentWidth - 8, 20, 12);
     this.drawCenteredText(page, name, {
-      x: contentX + 4,
-      y: nameBandY + (nameBandHeight - nameSize) / 2 + 1,
-      width: contentWidth - 8,
-      font: boldFont,
-      size: nameSize,
-      color: rgb(0.01, 0.03, 0.07),
+      x: x + pad + 2, y: nameY,
+      width: contentW - 4,
+      font: boldFont, size: nameSize,
+      color: rgb(0.07, 0.07, 0.08),
     });
 
-    this.drawCenteredText(page, detailText, {
-      x: contentX,
-      y: detailBaseline,
-      width: contentWidth,
-      font: regularFont,
-      size: 7.5,
-      color: rgb(0.22, 0.26, 0.32),
+    // Position · Company — small gray, below name
+    const detail = [row.position.trim(), row.company.trim()].filter(Boolean).join(' · ');
+    this.drawCenteredText(page, detail, {
+      x: x + pad, y: nameY - nameSize * 0.38 - 8,
+      width: contentW,
+      font: regularFont, size: 6.5,
+      color: rgb(0.42, 0.43, 0.46),
     });
 
-    this.drawCenteredText(page, tierText, {
-      x: contentX,
-      y: tierBaseline,
-      width: contentWidth,
-      font: boldFont,
-      size: 6.75,
-      color: rgb(0.36, 0.22, 0.75),
+    // Footer separator
+    const footerSepY = y + footerH;
+    page.drawLine({ start: { x, y: footerSepY }, end: { x: x + width, y: footerSepY }, color: gray88, thickness: 0.35 });
+
+    // Tier pill (left footer)
+    if (row.tierName) {
+      this.drawPill(page, x + pad, y + 3.5, row.tierName, boldFont, 6, false);
+    }
+
+    // Reference number (right footer)
+    const refNum = `#AX-${row.id.replace(/-/g, '').slice(-5).toUpperCase()}`;
+    const refSize = 5.5;
+    const refW = boldFont.widthOfTextAtSize(refNum, refSize);
+    page.drawText(refNum, {
+      x: x + width - pad - refW, y: y + 5,
+      font: boldFont, size: refSize,
+      color: rgb(0.58, 0.58, 0.6),
     });
 
-    this.drawCenteredText(page, inclusionText, {
-      x: contentX,
-      y: inclusionBaseline,
-      width: contentWidth,
-      font: regularFont,
-      size: 6.25,
-      color: rgb(0.05, 0.43, 0.27),
+    // Tear line at bottom of nametag (if stubs follow)
+    if (hasStubsBelow) {
+      this.drawTearLine(page, x, y, width, regularFont);
+    }
+  }
+
+  private drawStubContent(
+    page: PDFPage,
+    x: number,
+    y: number,
+    width: number,
+    height: number,
+    attendeeName: string,
+    label: string,
+    eventDate: string | null,
+    hasSepBelow: boolean,
+    regularFont: PDFFont,
+    boldFont: PDFFont,
+  ): void {
+    const pad = this.mmToPt(2.5);
+    const contentW = width - 2 * pad;
+    const gray55 = rgb(0.55, 0.55, 0.57);
+
+    // Stub type label — tiny gray caps at top
+    page.drawText(`${label.toUpperCase()} STUB`, {
+      x: x + pad, y: y + height - pad - 5,
+      font: boldFont, size: 4.5,
+      color: gray55,
     });
 
-    this.drawCenteredText(page, 'Powered by Axon Tickets', {
-      x: contentX,
-      y: footerBaseline,
-      width: contentWidth,
-      font: boldFont,
-      size: 6,
-      color: rgb(0.42, 0.45, 0.5),
+    // Attendee name — bold, left-aligned, middle zone
+    const nameDisplay = this.truncateToWidth(attendeeName.trim(), boldFont, 8.5, contentW * 0.62);
+    const nameY = y + height * 0.48;
+    page.drawText(nameDisplay, {
+      x: x + pad, y: nameY,
+      font: boldFont, size: 8.5,
+      color: rgb(0.08, 0.08, 0.1),
+    });
+
+    // Date or detail line — small gray below name
+    const detail = eventDate ?? '';
+    if (detail) {
+      page.drawText(detail, {
+        x: x + pad, y: nameY - 10,
+        font: regularFont, size: 6,
+        color: gray55,
+      });
+    }
+
+    // Label pill — right-aligned, vertically centered
+    const pillH = 10;
+    const pillY = y + (height - pillH) / 2;
+    this.drawPill(page, x + width - pad, pillY, label.toUpperCase(), boldFont, 6, true);
+
+    // Separator below this stub (between stubs)
+    if (hasSepBelow) {
+      this.drawTearLine(page, x, y, width, regularFont);
+    }
+  }
+
+  private drawTearLine(page: PDFPage, x: number, y: number, width: number, regularFont: PDFFont): void {
+    const dashLen = 3;
+    const gapLen = 2;
+    const labelW = 16;
+    let cx = x;
+    const lineEnd = x + width - labelW - 2;
+    while (cx < lineEnd) {
+      page.drawLine({
+        start: { x: cx, y },
+        end: { x: Math.min(cx + dashLen, lineEnd), y },
+        color: rgb(0.72, 0.72, 0.74),
+        thickness: 0.45,
+      });
+      cx += dashLen + gapLen;
+    }
+    page.drawText('tear', {
+      x: x + width - labelW, y: y - 2.5,
+      font: regularFont, size: 4.5,
+      color: rgb(0.72, 0.72, 0.74),
+    });
+  }
+
+  private drawPill(
+    page: PDFPage,
+    x: number,
+    y: number,
+    text: string,
+    font: PDFFont,
+    fontSize: number,
+    rightAligned: boolean,
+  ): void {
+    const padH = 3.5;
+    const pillH = fontSize + 4;
+    const textW = font.widthOfTextAtSize(text, fontSize);
+    const pillW = textW + padH * 2;
+    const pillX = rightAligned ? x - pillW : x;
+
+    page.drawRectangle({
+      x: pillX, y,
+      width: pillW, height: pillH,
+      color: rgb(0.298, 0.11, 0.745),
+    });
+    page.drawText(text, {
+      x: pillX + padH, y: y + 2.5,
+      font, size: fontSize,
+      color: rgb(1, 1, 1),
     });
   }
 

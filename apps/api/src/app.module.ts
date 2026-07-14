@@ -29,6 +29,8 @@ import { FunnelModule } from './funnel/funnel.module';
 import { OrganizationsModule } from './organizations/organizations.module';
 import { WorkspacesModule } from './workspaces/workspaces.module';
 
+const usePrettyLogs = process.env.APP_ENV === 'development' && process.env.VERCEL !== '1';
+
 @Module({
   imports: [
     ConfigModule.forRoot({
@@ -40,11 +42,10 @@ import { WorkspacesModule } from './workspaces/workspaces.module';
 
     LoggerModule.forRoot({
       pinoHttp: {
-        level: process.env.NODE_ENV === 'production' ? 'info' : 'debug',
-        transport:
-          process.env.NODE_ENV !== 'production'
-            ? { target: 'pino-pretty', options: { colorize: true } }
-            : undefined,
+        level: process.env.APP_ENV === 'production' ? 'info' : 'debug',
+        transport: usePrettyLogs
+          ? { target: 'pino-pretty', options: { colorize: true } }
+          : undefined,
         redact: ['req.headers.authorization', 'req.headers.cookie'],
         customProps: () => ({ service: 'axon-tickets-api' }),
       },

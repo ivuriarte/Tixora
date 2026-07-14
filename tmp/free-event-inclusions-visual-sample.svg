@@ -1,0 +1,106 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1400" height="980" viewBox="0 0 1400 980">
+  <defs>
+    <style>
+      .bg{fill:#f3f4f6}.card{fill:#fff;stroke:#e5e7eb;stroke-width:1.5}.muted{fill:#6b7280}.text{fill:#111827;font-family:Inter,Arial,sans-serif}.title{font-size:28px;font-weight:800}.h{font-size:18px;font-weight:700}.s{font-size:14px}.xs{font-size:12px}.pill{rx:16;ry:16}.violet{fill:#6d28d9}.violetText{fill:#6d28d9}.greenBg{fill:#ecfdf5;stroke:#a7f3d0}.greenText{fill:#047857}.amberBg{fill:#fffbeb;stroke:#fde68a}.line{stroke:#e5e7eb;stroke-width:1}.field{fill:#fff;stroke:#d1d5db;stroke-width:1.2;rx:10}.disabled{fill:#f3f4f6;stroke:#e5e7eb}.shadow{filter:url(#shadow)}
+    </style>
+    <filter id="shadow" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="8" stdDeviation="12" flood-color="#111827" flood-opacity=".08"/>
+    </filter>
+  </defs>
+  <rect class="bg" width="1400" height="980"/>
+  <text class="text xs violetText" x="70" y="58" font-weight="800" letter-spacing="1.5">VISUAL SAMPLE</text>
+  <text class="text title" x="70" y="94">Free event + tier inclusions</text>
+  <text class="text s muted" x="70" y="122">Representative look of the implemented organizer and attendee changes.</text>
+
+  <rect class="card shadow" x="70" y="160" width="760" height="730" rx="22"/>
+  <text class="text h" x="105" y="205">Admin: Capacity &amp; Tiers</text>
+  <text class="text xs muted" x="105" y="228">Free event mode forces tier prices and service fee to zero.</text>
+  <rect class="greenBg" x="655" y="188" width="125" height="30" rx="15"/>
+  <text class="text xs greenText" x="676" y="208" font-weight="800">Free enabled</text>
+
+  <rect class="greenBg" x="105" y="250" width="690" height="70" rx="14"/>
+  <rect x="125" y="276" width="18" height="18" rx="4" fill="#059669"/>
+  <path d="M129 285l4 4 8-9" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+  <text class="text s greenText" x="158" y="279" font-weight="800">Free event</text>
+  <text class="text xs greenText" x="158" y="302">Ticket tiers are tagged Free, tier prices are set to ₱0, and no platform fee is added during registration.</text>
+
+  <rect x="105" y="345" width="690" height="260" rx="16" fill="#f5f3ff" stroke="#c4b5fd"/>
+  <text class="text s" x="130" y="378" font-weight="700">Edit Tier</text>
+  <text class="text xs muted" x="130" y="410">Name</text>
+  <rect class="field" x="130" y="420" width="300" height="42"/>
+  <text class="text s" x="148" y="447">VIP</text>
+  <text class="text xs muted" x="465" y="410">Price (₱)</text>
+  <rect class="field disabled" x="465" y="420" width="300" height="42"/>
+  <text class="text s muted" x="483" y="447">0</text>
+  <text class="text xs greenText" x="465" y="482">Free event: no ticket amount is collected.</text>
+  <text class="text xs muted" x="130" y="510">Total Quantity</text>
+  <rect class="field" x="130" y="520" width="300" height="42"/>
+  <text class="text s" x="148" y="547">50</text>
+  <text class="text xs muted" x="465" y="510">Max Per Order</text>
+  <rect class="field" x="465" y="520" width="300" height="42"/>
+  <text class="text s" x="483" y="547">2</text>
+
+  <text class="text xs muted" x="130" y="592">Inclusions</text>
+  <rect class="greenBg" x="215" y="574" width="95" height="28" rx="14"/>
+  <text class="text xs greenText" x="230" y="593" font-weight="700">Meal stub ×</text>
+  <rect class="greenBg" x="320" y="574" width="105" height="28" rx="14"/>
+  <text class="text xs greenText" x="335" y="593" font-weight="700">Coffee stub ×</text>
+
+  <rect x="105" y="630" width="690" height="58" rx="14" fill="#f9fafb" stroke="#e5e7eb"/>
+  <text class="text xs muted" x="130" y="655">Tier total: </text>
+  <text class="text xs" x="194" y="655" font-weight="800">500</text>
+  <text class="text xs muted" x="228" y="655"> / 500</text>
+  <text class="text xs greenText" x="670" y="655" font-weight="800">Matches capacity</text>
+  <rect x="130" y="668" width="640" height="9" rx="4.5" fill="#fff" stroke="#e5e7eb"/>
+  <rect x="130" y="668" width="640" height="9" rx="4.5" fill="#22c55e"/>
+
+  <rect x="105" y="715" width="690" height="62" rx="14" fill="#fff" stroke="#f3f4f6"/>
+  <text class="text s" x="130" y="742" font-weight="700">VIP</text>
+  <text class="text xs muted" x="130" y="763">Free · 50 total · max 2/order · 2 inclusions</text>
+  <rect fill="#dcfce7" x="710" y="733" width="60" height="24" rx="12"/>
+  <text class="text xs" x="724" y="749" fill="#15803d">visible</text>
+  <rect x="105" y="790" width="690" height="62" rx="14" fill="#fff" stroke="#f3f4f6"/>
+  <text class="text s" x="130" y="817" font-weight="700">General Admission</text>
+  <text class="text xs muted" x="130" y="838">Free · 450 total · max 4/order · 1 inclusion</text>
+  <rect fill="#dcfce7" x="710" y="808" width="60" height="24" rx="12"/>
+  <text class="text xs" x="724" y="824" fill="#15803d">visible</text>
+
+  <rect class="card shadow" x="870" y="160" width="460" height="455" rx="22"/>
+  <text class="text h" x="905" y="205">Attendee: Get Tickets</text>
+  <rect x="905" y="235" width="390" height="120" rx="16" fill="#f5f3ff" stroke="#7c3aed" stroke-width="2"/>
+  <text class="text s" x="930" y="266" font-weight="800">VIP</text>
+  <text class="text s violetText" x="1235" y="266" font-weight="800">Free</text>
+  <text class="text xs muted" x="930" y="290">50 slots left</text>
+  <rect class="greenBg" x="930" y="307" width="84" height="25" rx="12.5"/>
+  <text class="text xs greenText" x="944" y="324" font-weight="700">Meal stub</text>
+  <rect class="greenBg" x="1024" y="307" width="92" height="25" rx="12.5"/>
+  <text class="text xs greenText" x="1038" y="324" font-weight="700">Coffee stub</text>
+
+  <rect x="905" y="370" width="390" height="105" rx="16" fill="#fff" stroke="#e5e7eb"/>
+  <text class="text s" x="930" y="401" font-weight="800">General Admission</text>
+  <text class="text s violetText" x="1235" y="401" font-weight="800">Free</text>
+  <text class="text xs muted" x="930" y="425">450 slots left</text>
+  <rect class="greenBg" x="930" y="442" width="86" height="25" rx="12.5"/>
+  <text class="text xs greenText" x="944" y="459" font-weight="700">Certificate</text>
+
+  <rect x="905" y="500" width="390" height="72" rx="16" fill="#f9fafb" stroke="#e5e7eb"/>
+  <text class="text s muted" x="930" y="528">VIP</text>
+  <text class="text s" x="1245" y="528">Free</text>
+  <line class="line" x1="930" y1="544" x2="1270" y2="544"/>
+  <text class="text s" x="930" y="562" font-weight="800">Total</text>
+  <text class="text s violetText" x="1235" y="562" font-weight="800">Free</text>
+
+  <rect class="violet" x="905" y="585" width="390" height="46" rx="14"/>
+  <text x="1073" y="614" fill="#fff" font-family="Inter,Arial,sans-serif" font-size="14" font-weight="800">Register</text>
+
+  <rect class="card shadow" x="870" y="655" width="460" height="235" rx="22"/>
+  <text class="text h" x="905" y="700">Registration: Order Summary</text>
+  <rect x="905" y="725" width="390" height="95" rx="16" fill="#fff" stroke="#e5e7eb"/>
+  <text class="text s muted" x="930" y="760">VIP × 1</text>
+  <text class="text s" x="1245" y="760">Free</text>
+  <line class="line" x1="930" y1="782" x2="1270" y2="782"/>
+  <text class="text s" x="930" y="805" font-weight="800">Total</text>
+  <text class="text s violetText" x="1235" y="805" font-weight="800">Free</text>
+  <rect class="greenBg" x="905" y="838" width="390" height="35" rx="12"/>
+  <text class="text xs greenText" x="925" y="860">No service fee is shown or collected for free events.</text>
+</svg>

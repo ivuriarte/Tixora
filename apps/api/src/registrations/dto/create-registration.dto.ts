@@ -68,6 +68,11 @@ export class CreateRegistrationDto {
   @IsUUID()
   tierId!: string;
 
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  subEventId?: string;
+
   @IsArray()
   @ValidateNested({ each: true })
   @ArrayMinSize(1)

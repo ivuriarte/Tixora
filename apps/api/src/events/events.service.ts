@@ -1,10 +1,14 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { Prisma } from '@prisma/client';
+import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
+import * as QRCode from 'qrcode';
 import { PrismaService } from '../prisma/prisma.service';
 import { RedisService } from '../redis/redis.service';
 import { WorkspacesService } from '../workspaces/workspaces.service';
-import { CreateEventDto, UpdateEventDto } from './dto/event.dto';
-import { uniqueSlug } from '@axon-tickets/utils';
+import { CreateEventDto, OnsiteProfileSuggestionDto, OnsiteRegistrationDto, UpdateEventDto } from './dto/event.dto';
+import { resolveAgendaSubEvent } from './agenda-sub-events';
+import { generateAttendeeQrToken, generateReferenceNumber, uniqueSlug } from '@axon-tickets/utils';
 
 const TIER_INVENTORY_PREFIX = 'ticket_tier:';
 const INVENTORY_SUFFIX = ':available';
@@ -17,13 +21,161 @@ type TierInventory = {
   soldQuantity?: number;
 };
 
+type SelectedSubEvent = {
+  id: string;
+  title: string;
+  time?: string;
+};
+
 @Injectable()
 export class EventsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly redis: RedisService,
     private readonly workspaces: WorkspacesService,
+    private readonly config: ConfigService = { get: () => undefined } as unknown as ConfigService,
   ) {}
+
+  private checkInDateFor(date = new Date()): Date {
+    const parts = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Asia/Manila',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).formatToParts(date);
+    const year = parts.find((part) => part.type === 'year')?.value;
+    const month = parts.find((part) => part.type === 'month')?.value;
+    const day = parts.find((part) => part.type === 'day')?.value;
+    return new Date(`${year}-${month}-${day}T00:00:00.000Z`);
+  }
+
+  private validateBirthday(birthdayValue: string): Date {
+    const birthday = new Date(`${birthdayValue}T00:00:00.000Z`);
+    const today = new Date();
+    const earliest = new Date(Date.UTC(today.getUTCFullYear() - 120, today.getUTCMonth(), today.getUTCDate()));
+    if (!Number.isFinite(birthday.getTime()) || birthday > today || birthday < earliest) {
+      throw new BadRequestException('Birthday must be a valid past date within the last 120 years.');
+    }
+    return birthday;
+  }
+
+  private readableStatus(status: string) {
+    return status.replace(/_/g, ' ');
+  }
+
+  private onsiteUrl(slug: string) {
+    const webUrl = this.config.get<string>('webUrl') || 'https://axontickets.online';
+    return `${webUrl.replace(/\/$/, '')}/events/${slug}/onsite`;
+  }
+
+  private selectedSubEventsFromAgenda(agenda: Prisma.JsonValue, ids?: string[], fallbackId?: string): SelectedSubEvent[] {
+    const requestedIds = [...new Set([...(ids ?? []), fallbackId].filter((id): id is string => Boolean(id?.trim())).map((id) => id.trim()))];
+    if (requestedIds.length === 0) return [];
+
+    const resolved = requestedIds.map((id) => resolveAgendaSubEvent(agenda, id));
+    const missing = requestedIds.filter((_, index) => !resolved[index]);
+    if (missing.length > 0) {
+      throw new BadRequestException('One or more selected sub-events are no longer available. Please refresh the form and choose again.');
+    }
+
+    return resolved
+      .filter((item): item is NonNullable<typeof item> => Boolean(item))
+      .map((item) => ({
+        id: item.id,
+        title: item.title,
+        ...(item.time ? { time: item.time } : {}),
+      }));
+  }
+
+  private agendaHasSubEvents(agenda: Prisma.JsonValue) {
+    return Array.isArray(agenda) && agenda.some((item) => {
+      if (!item || typeof item !== 'object' || Array.isArray(item)) return false;
+      const candidate = item as Record<string, unknown>;
+      return candidate.isSubEvent === true && typeof candidate.id === 'string' && typeof candidate.title === 'string';
+    });
+  }
+
+  private summarizeSubEvents(items: SelectedSubEvent[]) {
+    if (items.length === 0) return null;
+    if (items.length === 1) return items[0].time ? `${items[0].time} - ${items[0].title}` : items[0].title;
+    return `${items.length} sub-events selected`;
+  }
+
+  private async profileSuggestionForName(firstName: string, lastName: string) {
+    const attendee = await this.prisma.attendee.findFirst({
+      where: {
+        firstName: { equals: firstName, mode: 'insensitive' },
+        lastName: { equals: lastName, mode: 'insensitive' },
+        registration: {
+          status: 'verified',
+          paymentMethod: { in: ['onsite_qr', 'walk_in'] },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+      select: {
+        firstName: true,
+        lastName: true,
+        email: true,
+        phone: true,
+        gender: true,
+        birthday: true,
+        company: true,
+        jobTitle: true,
+      },
+    });
+
+    if (!attendee) return null;
+    return {
+      firstName: attendee.firstName,
+      lastName: attendee.lastName,
+      email: attendee.email,
+      contactNumber: attendee.phone ?? '',
+      gender: attendee.gender ?? '',
+      birthday: attendee.birthday?.toISOString().slice(0, 10) ?? '',
+      company: attendee.company ?? '',
+      jobTitle: attendee.jobTitle ?? '',
+      maskedEmail: attendee.email.replace(/^(.).+(@.+)$/, '$1***$2'),
+    };
+  }
+
+  private async createDailyAttendance(
+    tx: Prisma.TransactionClient,
+    attendee: { id: string; registrationId: string },
+    eventId: string,
+    method: string,
+    now = new Date(),
+  ) {
+    const checkInDate = this.checkInDateFor(now);
+    try {
+      const attendance = await tx.attendeeAttendance.create({
+        data: {
+          attendeeId: attendee.id,
+          registrationId: attendee.registrationId,
+          eventId,
+          checkInDate,
+          checkedInAt: now,
+          checkInMethod: method,
+        },
+      });
+      await tx.attendee.updateMany({
+        where: { id: attendee.id, checkedInAt: null },
+        data: { checkedInAt: now, checkInMethod: method },
+      });
+      return attendance;
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+        const existing = await tx.attendeeAttendance.findFirst({
+          where: { attendeeId: attendee.id, eventId, checkInDate },
+          select: { checkedInAt: true },
+        });
+        throw new ConflictException({
+          message: 'Already checked in today.',
+          checkedInAt: existing?.checkedInAt?.toISOString() ?? null,
+        });
+      }
+      throw error;
+    }
+  }
 
   /**
    * Auto-set expired on_sale/sold_out events to completed. Called on listing.
@@ -169,6 +321,7 @@ export class EventsService {
       faqs: event.faqs ?? null,
       customSections: event.customSections ?? null,
       allowManualPayment: event.allowManualPayment,
+      onsiteRegistrationEnabled: event.onsiteRegistrationEnabled,
       bankName: event.bankName ?? null,
       bankAccountNumber: event.bankAccountNumber ?? null,
       bankAccountName: event.bankAccountName ?? null,
@@ -183,6 +336,348 @@ export class EventsService {
       organizerName: event.organization?.name ?? null,
       createdAt: event.createdAt.toISOString(),
     };
+  }
+
+  async handleOnsiteRegistrationScan(slug: string, dto: OnsiteRegistrationDto) {
+    const event = await this.prisma.event.findUnique({
+      where: { slug },
+      include: {
+        tiers: {
+          where: { isVisible: true },
+          orderBy: { sortOrder: 'asc' },
+        },
+      },
+    });
+    if (!event) throw new NotFoundException('Event not found');
+    if (!event.onsiteRegistrationEnabled) {
+      throw new BadRequestException('On-site registration is not enabled for this event.');
+    }
+    if (event.status !== 'on_sale') {
+      throw new BadRequestException(`Registration is not open yet. This event is currently ${this.readableStatus(event.status)}.`);
+    }
+
+    const now = new Date();
+    const result = await this.prisma.$transaction(async (tx) => {
+      if (dto.attendeeId?.trim()) {
+        const attendee = await tx.attendee.findFirst({
+          where: {
+            id: dto.attendeeId.trim(),
+            registration: { eventId: event.id, status: 'verified' },
+          },
+          include: {
+            registration: { select: { id: true, referenceNumber: true, tierName: true } },
+          },
+        });
+        if (!attendee) throw new NotFoundException('Attendee not found for this event.');
+        const attendance = await this.createDailyAttendance(tx, attendee, event.id, 'onsite_qr', now);
+        return { attendee, registration: attendee.registration, attendance, created: false };
+      }
+
+      const email = dto.email?.trim().toLowerCase();
+      const firstName = dto.firstName?.trim();
+      const lastName = dto.lastName?.trim();
+      const phone = dto.contactNumber?.trim();
+      const gender = dto.gender?.trim();
+      if (!email || !firstName || !lastName || !phone || !gender || !dto.birthday) {
+        throw new BadRequestException('Required attendee details are missing.');
+      }
+      const birthday = this.validateBirthday(dto.birthday);
+      const selectedSubEvents = this.selectedSubEventsFromAgenda(event.agenda, dto.subEventIds, dto.subEventId);
+      if (this.agendaHasSubEvents(event.agenda) && selectedSubEvents.length === 0) {
+        throw new BadRequestException('Please choose at least one sub-event to attend.');
+      }
+      const primarySubEvent = selectedSubEvents[0] ?? null;
+
+      const existing = await tx.attendee.findFirst({
+        where: {
+          registration: {
+            eventId: event.id,
+            status: { in: ['pending_payment', 'proof_submitted', 'pending_approval', 'verified'] },
+          },
+          OR: [
+            { email: { equals: email, mode: 'insensitive' } },
+            {
+              firstName: { equals: firstName, mode: 'insensitive' },
+              lastName: { equals: lastName, mode: 'insensitive' },
+              birthday,
+            },
+          ],
+        },
+        include: {
+          registration: { select: { id: true, referenceNumber: true, tierName: true, status: true } },
+        },
+      });
+
+      if (existing) {
+        if (existing.registration.status !== 'verified') {
+          throw new BadRequestException(
+            `This attendee already has a registration with status ${existing.registration.status}. Please ask staff for assistance.`,
+          );
+        }
+        const attendance = await this.createDailyAttendance(tx, existing, event.id, 'onsite_qr', now);
+        return { attendee: existing, registration: existing.registration, attendance, created: false };
+      }
+
+      const tier = event.tiers.find((item) => item.id === dto.tierId) ?? event.tiers[0];
+      if (!tier) throw new BadRequestException('No visible ticket tier is available for on-site registration.');
+
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${event.id}), hashtext(${tier.id}))`;
+      const registrationUsage = await tx.registration.aggregate({
+        where: {
+          tierId: tier.id,
+          status: { in: ['pending_payment', 'proof_submitted', 'pending_approval', 'verified'] },
+        },
+        _sum: { attendeeCount: true },
+      });
+      const ticketUsage = await tx.ticket.count({
+        where: { ticketTierId: tier.id, status: { in: ['valid', 'used'] } },
+      });
+      const occupied = Number(registrationUsage._sum.attendeeCount ?? 0) + ticketUsage;
+      if (tier.totalQuantity - occupied < 1) {
+        throw new BadRequestException('No seats are available for this ticket tier.');
+      }
+
+      const user = await tx.user.upsert({
+        where: { email },
+        create: {
+          email,
+          phone,
+          firstName,
+          lastName,
+          isVerified: true,
+          birthday,
+          gender,
+          company: dto.company?.trim() || null,
+          jobTitle: dto.jobTitle?.trim() || null,
+        },
+        update: {
+          phone,
+          birthday,
+          gender,
+          ...(dto.company !== undefined ? { company: dto.company.trim() || null } : {}),
+          ...(dto.jobTitle !== undefined ? { jobTitle: dto.jobTitle.trim() || null } : {}),
+        },
+        select: { id: true },
+      });
+
+      const unitPrice = event.isFree ? 0 : Number(tier.price);
+      const fees = event.isFree ? 0 : Number(event.platformFee ?? 0);
+      const registration = await tx.registration.create({
+        data: {
+          referenceNumber: generateReferenceNumber(),
+          userId: user.id,
+          eventId: event.id,
+          tierId: tier.id,
+          tierName: tier.name,
+          unitPrice,
+          attendeeCount: 1,
+          subtotal: unitPrice,
+          fees,
+          total: unitPrice + fees,
+          status: 'verified',
+          verifiedAt: now,
+          currency: tier.currency,
+          paymentMethod: 'onsite_qr',
+          notes: 'QR-initiated on-site registration',
+          attendees: {
+            create: {
+              firstName,
+              lastName,
+              email,
+              phone,
+              birthday,
+              gender,
+              company: dto.company?.trim() || null,
+              jobTitle: dto.jobTitle?.trim() || null,
+              subEventId: primarySubEvent?.id ?? null,
+              subEventTitle: this.summarizeSubEvents(selectedSubEvents),
+              subEventTime: selectedSubEvents.length === 1 ? primarySubEvent?.time ?? null : null,
+              selectedSubEvents: selectedSubEvents.length > 0 ? (selectedSubEvents as unknown as Prisma.InputJsonValue) : Prisma.JsonNull,
+              isLead: true,
+            } as any,
+          },
+        },
+        include: { attendees: true },
+      });
+
+      await tx.ticketTier.update({
+        where: { id: tier.id },
+        data: { soldQuantity: occupied + 1 },
+      });
+
+      const attendee = registration.attendees[0];
+      const qrSecret = this.config.get<string>('qr.hmacSecret') ?? '';
+      const qrToken = generateAttendeeQrToken(
+        { attendeeId: attendee.id, registrationId: registration.id, eventId: event.id },
+        qrSecret,
+      );
+      const updatedAttendee = await tx.attendee.update({
+        where: { id: attendee.id },
+        data: { qrToken },
+      });
+      const attendance = await this.createDailyAttendance(tx, updatedAttendee, event.id, 'onsite_qr', now);
+      return {
+        attendee: updatedAttendee,
+        registration: {
+          id: registration.id,
+          referenceNumber: registration.referenceNumber,
+          tierName: registration.tierName,
+        },
+        attendance,
+        created: true,
+      };
+    });
+
+    return {
+      created: result.created,
+      attendee: {
+        id: result.attendee.id,
+        firstName: result.attendee.firstName,
+        lastName: result.attendee.lastName,
+        email: result.attendee.email,
+      },
+      registration: {
+        id: result.registration.id,
+        referenceNumber: result.registration.referenceNumber,
+        tierName: result.registration.tierName,
+      },
+      attendance: {
+        id: result.attendance.id,
+        checkInDate: result.attendance.checkInDate.toISOString().slice(0, 10),
+        checkedInAt: result.attendance.checkedInAt.toISOString(),
+      },
+    };
+  }
+
+  async findOnsiteProfileSuggestion(slug: string, dto: OnsiteProfileSuggestionDto) {
+    const event = await this.prisma.event.findUnique({
+      where: { slug },
+      select: { id: true, status: true, onsiteRegistrationEnabled: true },
+    });
+    if (!event) throw new NotFoundException('Event not found');
+    if (!event.onsiteRegistrationEnabled) {
+      throw new BadRequestException('On-site registration is not enabled for this event.');
+    }
+    if (event.status !== 'on_sale') {
+      throw new BadRequestException(`Registration is not open yet. This event is currently ${this.readableStatus(event.status)}.`);
+    }
+
+    const firstName = dto.firstName.trim();
+    const lastName = dto.lastName.trim();
+    if (firstName.length < 2 || lastName.length < 2) {
+      return { match: null };
+    }
+
+    return { match: await this.profileSuggestionForName(firstName, lastName) };
+  }
+
+  async generateOnsiteQrPdf(slug: string) {
+    const event = await this.prisma.event.findUnique({
+      where: { slug },
+      select: { title: true, slug: true, venue: true, startsAt: true, onsiteRegistrationEnabled: true },
+    });
+    if (!event) throw new NotFoundException('Event not found');
+    if (!event.onsiteRegistrationEnabled) {
+      throw new BadRequestException('Enable on-site registration before downloading the QR PDF.');
+    }
+
+    const scanUrl = this.onsiteUrl(event.slug);
+    const qrPng = await QRCode.toBuffer(scanUrl, { type: 'png', width: 900, margin: 2, errorCorrectionLevel: 'H' });
+    const pdf = await PDFDocument.create();
+    const page = pdf.addPage([595.28, 841.89]);
+    const font = await pdf.embedFont(StandardFonts.Helvetica);
+    const bold = await pdf.embedFont(StandardFonts.HelveticaBold);
+    const qrImage = await pdf.embedPng(qrPng);
+    const { width, height } = page.getSize();
+    const orange = rgb(0.92, 0.42, 0);
+    const navy = rgb(0.06, 0.1, 0.2);
+    const muted = rgb(0.39, 0.45, 0.55);
+
+    page.drawRectangle({ x: 0, y: height - 20, width, height: 20, color: orange });
+    page.drawText('ON-SITE REGISTRATION', {
+      x: 64,
+      y: height - 86,
+      size: 13,
+      font: bold,
+      color: orange,
+    });
+
+    const titleSize = 28;
+    const titleLines = this.wrapPdfText(event.title, bold, titleSize, width - 128);
+    titleLines.slice(0, 3).forEach((line, index) => {
+      page.drawText(line, {
+        x: 64,
+        y: height - 128 - index * 34,
+        size: titleSize,
+        font: bold,
+        color: navy,
+      });
+    });
+
+    page.drawText(`${event.startsAt.toLocaleDateString('en-PH', { dateStyle: 'medium', timeZone: 'Asia/Manila' })} - ${event.venue}`, {
+      x: 64,
+      y: height - 230,
+      size: 14,
+      font,
+      color: muted,
+    });
+
+    const qrSize = 360;
+    const qrX = (width - qrSize) / 2;
+    const qrY = 236;
+    page.drawRectangle({
+      x: qrX - 18,
+      y: qrY - 18,
+      width: qrSize + 36,
+      height: qrSize + 36,
+      borderColor: rgb(0.88, 0.9, 0.94),
+      borderWidth: 2,
+      color: rgb(1, 1, 1),
+    });
+    page.drawImage(qrImage, { x: qrX, y: qrY, width: qrSize, height: qrSize });
+
+    const instruction = 'Scan to register and check in';
+    page.drawText(instruction, {
+      x: (width - bold.widthOfTextAtSize(instruction, 18)) / 2,
+      y: 170,
+      size: 18,
+      font: bold,
+      color: navy,
+    });
+
+    const urlLines = this.wrapPdfText(scanUrl, font, 10, width - 128);
+    urlLines.slice(0, 2).forEach((line, index) => {
+      page.drawText(line, {
+        x: (width - font.widthOfTextAtSize(line, 10)) / 2,
+        y: 140 - index * 14,
+        size: 10,
+        font,
+        color: muted,
+      });
+    });
+
+    const buffer = Buffer.from(await pdf.save());
+    return {
+      buffer,
+      filename: `${event.slug}-onsite-registration-qr.pdf`,
+    };
+  }
+
+  private wrapPdfText(text: string, font: { widthOfTextAtSize(value: string, size: number): number }, size: number, maxWidth: number) {
+    const words = text.split(/\s+/);
+    const lines: string[] = [];
+    let current = '';
+    for (const word of words) {
+      const next = current ? `${current} ${word}` : word;
+      if (font.widthOfTextAtSize(next, size) <= maxWidth) {
+        current = next;
+      } else {
+        if (current) lines.push(current);
+        current = word;
+      }
+    }
+    if (current) lines.push(current);
+    return lines;
   }
 
   async create(dto: CreateEventDto, createdById: string, organizationId?: string) {
@@ -216,6 +711,7 @@ export class EventsService {
         platformFee,
         ...(dto.imageUrl && { imageUrl: dto.imageUrl }),
         ...(dto.allowManualPayment !== undefined && { allowManualPayment: dto.allowManualPayment }),
+        ...(dto.onsiteRegistrationEnabled !== undefined && { onsiteRegistrationEnabled: dto.onsiteRegistrationEnabled }),
         ...(dto.bankName !== undefined && { bankName: dto.bankName }),
         ...(dto.bankAccountNumber !== undefined && { bankAccountNumber: dto.bankAccountNumber }),
         ...(dto.bankAccountName !== undefined && { bankAccountName: dto.bankAccountName }),
@@ -263,6 +759,7 @@ export class EventsService {
           : {}),
         ...(dto.imageUrl !== undefined && { imageUrl: dto.imageUrl }),
         ...(dto.allowManualPayment !== undefined && { allowManualPayment: dto.allowManualPayment }),
+        ...(dto.onsiteRegistrationEnabled !== undefined && { onsiteRegistrationEnabled: dto.onsiteRegistrationEnabled }),
         ...(dto.bankName !== undefined && { bankName: dto.bankName }),
         ...(dto.bankAccountNumber !== undefined && { bankAccountNumber: dto.bankAccountNumber }),
         ...(dto.bankAccountName !== undefined && { bankAccountName: dto.bankAccountName }),

@@ -42,7 +42,7 @@ async function bootstrap() {
   if (sentryDsn) {
     Sentry.init({
       dsn: sentryDsn,
-      environment: process.env.APP_ENV ?? process.env.NODE_ENV ?? 'development',
+      environment: process.env.APP_ENV ?? 'development',
       tracesSampleRate: process.env.APP_ENV === 'production' ? 0.1 : 1.0,
     });
   }

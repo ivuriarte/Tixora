@@ -171,6 +171,8 @@ function OrgDrawer({
     queryKey: ['admin-organizer', orgId],
     queryFn: () =>
       api.get<{ data: OrgDetail }>(`/admin/organizers/${orgId}`).then((r) => r.data.data),
+    refetchOnMount: 'always',
+    refetchOnWindowFocus: 'always',
   });
 
   const invalidate = () => {
