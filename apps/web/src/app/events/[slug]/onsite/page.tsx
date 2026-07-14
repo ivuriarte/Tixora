@@ -78,8 +78,21 @@ function statusLabel(status?: string) {
   return (status || '').replace(/_/g, ' ');
 }
 
-export default function OnsiteRegistrationPage({ params }: { params: { slug: string } }) {
-  const storageKey = useMemo(() => `axon-onsite-attendee:${params.slug}`, [params.slug]);
+function firstSearchParam(value?: string | string[]) {
+  return Array.isArray(value) ? value[0] ?? '' : value ?? '';
+}
+
+export default function OnsiteRegistrationPage({
+  params,
+  searchParams,
+}: {
+  params: { slug: string };
+  searchParams?: { eventId?: string | string[] };
+}) {
+  const eventId = firstSearchParam(searchParams?.eventId).trim();
+  const eventIdentity = eventId || params.slug;
+  const eventQuery = eventId ? `?eventId=${encodeURIComponent(eventId)}` : '';
+  const storageKey = useMemo(() => `axon-onsite-attendee:${eventIdentity}`, [eventIdentity]);
   const [event, setEvent] = useState<EventData | null>(null);
   const [form, setForm] = useState(blankForm);
   const [loading, setLoading] = useState(true);
@@ -95,7 +108,7 @@ export default function OnsiteRegistrationPage({ params }: { params: { slug: str
   useEffect(() => {
     let cancelled = false;
     axios
-      .get<{ data: EventData }>(`${API_URL}/events/${params.slug}`)
+      .get<{ data: EventData }>(`${API_URL}/events/${params.slug}${eventQuery}`)
       .then((res) => {
         if (cancelled) return;
         const nextEvent = res.data.data;
@@ -119,7 +132,7 @@ export default function OnsiteRegistrationPage({ params }: { params: { slug: str
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [params.slug, storageKey]);
+  }, [params.slug, eventQuery, storageKey]);
 
   function field(name: keyof typeof form, value: string) {
     setForm((current) => ({ ...current, [name]: value }));
@@ -156,7 +169,7 @@ export default function OnsiteRegistrationPage({ params }: { params: { slug: str
     try {
       const res = await axios.post<{ data: OnsiteResult }>(
         `${API_URL}/events/${params.slug}/onsite-registration`,
-        { attendeeId },
+        { attendeeId, eventId: eventId || undefined },
       );
       setResult(res.data.data);
     } catch (err) {
@@ -175,6 +188,7 @@ export default function OnsiteRegistrationPage({ params }: { params: { slug: str
         `${API_URL}/events/${params.slug}/onsite-registration`,
         {
           ...form,
+          eventId: eventId || undefined,
           subEventIds: form.subEventIds,
           email: form.email.trim().toLowerCase(),
           firstName: form.firstName.trim(),
@@ -210,7 +224,7 @@ export default function OnsiteRegistrationPage({ params }: { params: { slug: str
       axios
         .post<{ data: { match: ProfileSuggestion | null } }>(
           `${API_URL}/events/${params.slug}/onsite-registration/suggestions`,
-          { firstName, lastName },
+          { firstName, lastName, eventId: eventId || undefined },
         )
         .then((res) => {
           if (!cancelled) setSuggestion(res.data.data.match);
@@ -227,7 +241,7 @@ export default function OnsiteRegistrationPage({ params }: { params: { slug: str
       cancelled = true;
       window.clearTimeout(timer);
     };
-  }, [form.firstName, form.lastName, params.slug, registrationOpen, result]);
+  }, [eventId, form.firstName, form.lastName, params.slug, registrationOpen, result]);
 
   if (loading) {
     return (

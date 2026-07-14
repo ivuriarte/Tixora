@@ -63,10 +63,23 @@ export class EventsService {
     return status.replace(/_/g, ' ');
   }
 
+  private canonicalWebUrl() {
+    const configured = this.config.get<string>('webUrl') || '';
+    const appEnv = this.config.get<string>('appEnv') || 'production';
+    if (configured.includes('tixora-online-ticket-app.vercel.app')) {
+      return appEnv === 'uat' ? 'https://uat.axontickets.online' : 'https://axontickets.online';
+    }
+    return (configured || (appEnv === 'uat' ? 'https://uat.axontickets.online' : 'https://axontickets.online')).replace(/\/$/, '');
+  }
+
   private onsiteUrl(slug: string, eventId?: string) {
-    const webUrl = this.config.get<string>('webUrl') || 'https://axontickets.online';
-    const onsiteUrl = `${webUrl.replace(/\/$/, '')}/events/${slug}/onsite`;
+    const onsiteUrl = `${this.canonicalWebUrl()}/events/${slug}/onsite`;
     return eventId ? `${onsiteUrl}?eventId=${encodeURIComponent(eventId)}` : onsiteUrl;
+  }
+
+  private eventWhereForQr(slug: string, eventId?: string): Prisma.EventWhereUniqueInput {
+    const id = eventId?.trim();
+    return id ? { id } : { slug };
   }
 
   private selectedSubEventsFromAgenda(agenda: Prisma.JsonValue, ids?: string[], fallbackId?: string): SelectedSubEvent[] {
@@ -262,9 +275,9 @@ export class EventsService {
     };
   }
 
-  async findBySlug(slug: string) {
+  async findBySlug(slug: string, eventId?: string) {
     const event = await this.prisma.event.findUnique({
-      where: { slug },
+      where: this.eventWhereForQr(slug, eventId),
       include: {
         tiers: {
           where: { isVisible: true },
@@ -341,7 +354,7 @@ export class EventsService {
 
   async handleOnsiteRegistrationScan(slug: string, dto: OnsiteRegistrationDto) {
     const event = await this.prisma.event.findUnique({
-      where: { slug },
+      where: this.eventWhereForQr(slug, dto.eventId),
       include: {
         tiers: {
           where: { isVisible: true },
@@ -552,7 +565,7 @@ export class EventsService {
 
   async findOnsiteProfileSuggestion(slug: string, dto: OnsiteProfileSuggestionDto) {
     const event = await this.prisma.event.findUnique({
-      where: { slug },
+      where: this.eventWhereForQr(slug, dto.eventId),
       select: { id: true, status: true, onsiteRegistrationEnabled: true },
     });
     if (!event) throw new NotFoundException('Event not found');
@@ -572,9 +585,9 @@ export class EventsService {
     return { match: await this.profileSuggestionForName(firstName, lastName) };
   }
 
-  async generateOnsiteQrPdf(slug: string) {
+  async generateOnsiteQrPdf(slug: string, eventId?: string) {
     const event = await this.prisma.event.findUnique({
-      where: { slug },
+      where: this.eventWhereForQr(slug, eventId),
       select: { id: true, title: true, slug: true, venue: true, startsAt: true, onsiteRegistrationEnabled: true },
     });
     if (!event) throw new NotFoundException('Event not found');

@@ -34,8 +34,9 @@ export class EventsController {
   @Public()
   @Get(':slug')
   @ApiOperation({ summary: 'Get event details by slug' })
-  findOne(@Param('slug') slug: string) {
-    return this.eventsService.findBySlug(slug);
+  @ApiQuery({ name: 'eventId', required: false })
+  findOne(@Param('slug') slug: string, @Query('eventId') eventId?: string) {
+    return this.eventsService.findBySlug(slug, eventId);
   }
 
   @Public()
@@ -55,8 +56,9 @@ export class EventsController {
   @Public()
   @Get(':slug/onsite-registration/qr.pdf')
   @ApiOperation({ summary: 'Download a printable on-site registration QR PDF' })
-  async onsiteQrPdf(@Param('slug') slug: string, @Res() res: Response) {
-    const pdf = await this.eventsService.generateOnsiteQrPdf(slug);
+  @ApiQuery({ name: 'eventId', required: false })
+  async onsiteQrPdf(@Param('slug') slug: string, @Query('eventId') eventId: string | undefined, @Res() res: Response) {
+    const pdf = await this.eventsService.generateOnsiteQrPdf(slug, eventId);
     res.set({
       'Content-Type': 'application/pdf',
       'Content-Disposition': `attachment; filename="${pdf.filename}"`,
