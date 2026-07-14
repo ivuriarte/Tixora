@@ -216,9 +216,9 @@ export class RegistrationsService {
                 phone: a.phone,
                 company: a.company,
                 jobTitle: a.jobTitle,
-                birthday: new Date(`${a.birthday}T00:00:00.000Z`),
-                gender: a.gender,
-                city: a.city.trim(),
+                birthday: a.birthday ? new Date(`${a.birthday}T00:00:00.000Z`) : null,
+                gender: a.gender || null,
+                city: a.city?.trim() || null,
                 isLead: i === 0,
               })),
             },
@@ -235,14 +235,17 @@ export class RegistrationsService {
             },
           });
         }
-        await tx.user.update({
-          where: { id: userId },
-          data: {
-            birthday: new Date(`${dto.attendees[0].birthday}T00:00:00.000Z`),
-            gender: dto.attendees[0].gender,
-            city: dto.attendees[0].city.trim(),
-          },
-        });
+        const leadAttendee = dto.attendees[0];
+        const profileDemographics: { birthday?: Date; gender?: string; city?: string } = {};
+        if (leadAttendee.birthday) profileDemographics.birthday = new Date(`${leadAttendee.birthday}T00:00:00.000Z`);
+        if (leadAttendee.gender) profileDemographics.gender = leadAttendee.gender;
+        if (leadAttendee.city?.trim()) profileDemographics.city = leadAttendee.city.trim();
+        if (Object.keys(profileDemographics).length > 0) {
+          await tx.user.update({
+            where: { id: userId },
+            data: profileDemographics,
+          });
+        }
         return created;
       },
       { isolationLevel: 'ReadCommitted' },
@@ -366,15 +369,16 @@ export class RegistrationsService {
     return { discount: Math.max(0, Math.min(subtotal, Math.round(raw * 100) / 100)) };
   }
 
-  private validateAttendeeDemographics(attendees: Array<{ birthday: string; city: string }>) {
+  private validateAttendeeDemographics(attendees: Array<{ birthday?: string; city?: string }>) {
     const today = new Date();
     const earliest = new Date(Date.UTC(today.getUTCFullYear() - 120, today.getUTCMonth(), today.getUTCDate()));
     for (const attendee of attendees) {
+      if (!attendee.birthday && !attendee.city?.trim()) continue;
+      if (!attendee.birthday) continue;
       const birthday = new Date(`${attendee.birthday}T00:00:00.000Z`);
       if (!Number.isFinite(birthday.getTime()) || birthday > today || birthday < earliest) {
         throw new BadRequestException('Birthday must be a valid past date within the last 120 years.');
       }
-      if (!attendee.city.trim()) throw new BadRequestException('City is required for every attendee.');
     }
   }
 
@@ -589,9 +593,9 @@ export class RegistrationsService {
             phone: dto.attendees[i].phone ?? null,
             company: dto.attendees[i].company ?? null,
             jobTitle: dto.attendees[i].jobTitle ?? null,
-            birthday: new Date(`${dto.attendees[i].birthday}T00:00:00.000Z`),
-            gender: dto.attendees[i].gender,
-            city: dto.attendees[i].city.trim(),
+            birthday: dto.attendees[i].birthday ? new Date(`${dto.attendees[i].birthday}T00:00:00.000Z`) : null,
+            gender: dto.attendees[i].gender || null,
+            city: dto.attendees[i].city?.trim() || null,
           },
         }),
       ),

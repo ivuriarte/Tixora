@@ -1583,7 +1583,7 @@ export class AdminService {
   async generateNametagsPdf(eventId: string, attendeeIds?: string[]): Promise<Buffer> {
     const event = await this.prisma.event.findUnique({
       where: { id: eventId },
-      select: { title: true },
+      select: { title: true, startsAt: true },
     });
     if (!event) throw new NotFoundException('Event not found');
 
@@ -1671,7 +1671,10 @@ export class AdminService {
     }
 
     try {
-      return await this.renderNametagsPdf(event.title, rows);
+      const eventDate = event.startsAt
+        ? event.startsAt.toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' })
+        : null;
+      return await this.renderNametagsPdf(event.title, eventDate, rows);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       const stack = error instanceof Error ? error.stack : undefined;
@@ -1680,199 +1683,297 @@ export class AdminService {
     }
   }
 
-  private async renderNametagsPdf(eventTitle: string, rows: NametagRow[]): Promise<Buffer> {
+  // ── PDF rendering helpers ─────────────────────────────────────────────────
+
+  private mmToPt(mm: number): number {
+    return (mm * 72) / 25.4;
+  }
+
+  private async renderNametagsPdf(
+    eventTitle: string,
+    eventDate: string | null,
+    rows: NametagRow[],
+  ): Promise<Buffer> {
     const pdf = await PDFDocument.create();
-    pdf.setTitle(`${eventTitle} Nametags`);
+    pdf.setTitle(`${eventTitle} — Nametags & Stubs`);
     pdf.setAuthor('Axon Tickets');
-    pdf.setSubject('Printable attendee nametags');
 
     const regularFont = await pdf.embedFont(StandardFonts.Helvetica);
     const boldFont = await pdf.embedFont(StandardFonts.HelveticaBold);
-    const mmToPt = (mm: number) => (mm * 72) / 25.4;
-    const pageSize: [number, number] = [595.28, 841.89]; // A4 portrait in points
-    const columns = 2;
-    const rowsPerPage = 6;
-    const tagsPerPage = columns * rowsPerPage;
-    const tagWidth = mmToPt(100);
-    const tagHeight = mmToPt(40);
-    const columnGap = mmToPt(5);
-    const rowGap = mmToPt(5);
-    const marginX = 0;
-    const marginTop = 0;
-    const printableRows = rows.length > 0 ? rows : [
-      { id: 'blank', name: '', company: '', position: '', tierName: '', inclusions: [], createdAt: new Date() },
-    ];
 
-    printableRows.forEach((row, index) => {
-      const pages = pdf.getPages();
-      const page = index % tagsPerPage === 0 ? pdf.addPage(pageSize) : pages[pages.length - 1];
-      if (!page) return;
+    const pageW = 595.28;
+    const pageH = 841.89;
+    const marginX = this.mmToPt(3.5);
+    const marginY = this.mmToPt(5);
+    const cols = 3;
+    const colGap = this.mmToPt(2);
+    const rowGap = this.mmToPt(2);
+    const stripW = (pageW - 2 * marginX - (cols - 1) * colGap) / cols;
+    const tagH = this.mmToPt(38);
+    const stubH = this.mmToPt(18);
 
-      const pageIndex = index % tagsPerPage;
-      const column = pageIndex % columns;
-      const gridRow = Math.floor(pageIndex / columns);
-      const x = marginX + column * (tagWidth + columnGap);
-      const topY = pageSize[1] - marginTop - gridRow * (tagHeight + rowGap);
-      const y = topY - tagHeight;
+    // Group by tier, preserving insertion order
+    const tierOrder: string[] = [];
+    const tierGroups = new Map<string, NametagRow[]>();
+    const printable = rows.length > 0 ? rows : [{
+      id: 'blank', name: '', company: '', position: '',
+      tierName: '', inclusions: [], createdAt: new Date(),
+    }];
 
-      this.drawNametag(page, {
-        x,
-        y,
-        width: tagWidth,
-        height: tagHeight,
-        eventTitle,
-        attendeeName: row.name,
-        company: row.company,
-        position: row.position,
-        tierName: row.tierName,
-        inclusions: row.inclusions,
-        regularFont,
-        boldFont,
-      });
-    });
+    for (const row of printable) {
+      if (!tierGroups.has(row.tierName)) {
+        tierOrder.push(row.tierName);
+        tierGroups.set(row.tierName, []);
+      }
+      tierGroups.get(row.tierName)!.push(row);
+    }
+
+    let page = pdf.addPage([pageW, pageH]);
+    let currentY = pageH - marginY;
+
+    for (const tierKey of tierOrder) {
+      const group = tierGroups.get(tierKey)!;
+      const stubCount = group[0].inclusions.length;
+      const stripH = tagH + stubCount * stubH;
+
+      for (let i = 0; i < group.length; i += cols) {
+        if (currentY - stripH < marginY) {
+          page = pdf.addPage([pageW, pageH]);
+          currentY = pageH - marginY;
+        }
+
+        const rowY = currentY - stripH;
+        const rowItems = group.slice(i, i + cols);
+
+        rowItems.forEach((row, colIdx) => {
+          const x = marginX + colIdx * (stripW + colGap);
+          this.drawStrip(page, x, rowY, stripW, tagH, stubH, row, eventTitle, eventDate, regularFont, boldFont);
+        });
+
+        currentY = rowY - rowGap;
+      }
+    }
 
     return Buffer.from(await pdf.save());
   }
 
-  private drawNametag(
+  private drawStrip(
     page: PDFPage,
-    options: {
-      x: number;
-      y: number;
-      width: number;
-      height: number;
-      eventTitle: string;
-      attendeeName: string;
-      company: string;
-      position: string;
-      tierName: string;
-      inclusions: string[];
-      regularFont: PDFFont;
-      boldFont: PDFFont;
-    },
-  ) {
-    const {
-      x,
-      y,
-      width,
-      height,
-      eventTitle,
-      attendeeName,
-      company,
-      position,
-      tierName,
-      inclusions,
-      regularFont,
-      boldFont,
-    } = options;
-    const safeMargin = (4 * 72) / 25.4;
-    const contentX = x + safeMargin;
-    const contentWidth = width - safeMargin * 2;
-    const name = attendeeName.trim().toUpperCase();
-    const detailText = [position.trim(), company.trim()].filter(Boolean).join(' - ');
-    const tierText = tierName.trim();
-    const inclusionText = inclusions.map((item) => item.trim()).filter(Boolean).join('  |  ');
-    const eventBaseline = y + height - safeMargin - 6;
-    const nameBandY = y + 52;
-    const nameBandHeight = 29;
-    const detailBaseline = y + 41;
-    const tierBaseline = y + 29;
-    const inclusionBaseline = y + 18;
-    const footerBaseline = y + safeMargin - 1;
+    x: number,
+    y: number,
+    width: number,
+    tagH: number,
+    stubH: number,
+    row: NametagRow,
+    eventTitle: string,
+    eventDate: string | null,
+    regularFont: PDFFont,
+    boldFont: PDFFont,
+  ): void {
+    const n = row.inclusions.length;
+    const totalH = tagH + n * stubH;
+    const border = rgb(0.84, 0.86, 0.88);
 
-    page.drawRectangle({
-      x,
-      y,
-      width,
-      height,
-      borderColor: rgb(0.64, 0.67, 0.72),
-      borderWidth: 0.75,
-      color: rgb(1, 1, 1),
+    // Outer strip border — left, right, top, bottom edges only
+    page.drawLine({ start: { x, y }, end: { x, y: y + totalH }, color: border, thickness: 0.5 });
+    page.drawLine({ start: { x: x + width, y }, end: { x: x + width, y: y + totalH }, color: border, thickness: 0.5 });
+    page.drawLine({ start: { x, y: y + totalH }, end: { x: x + width, y: y + totalH }, color: border, thickness: 0.5 });
+    page.drawLine({ start: { x, y }, end: { x: x + width, y }, color: border, thickness: 0.5 });
+
+    // Fill white background
+    page.drawRectangle({ x, y, width, height: totalH, color: rgb(1, 1, 1) });
+
+    // Nametag section (top of strip)
+    const nametagY = y + n * stubH;
+    this.drawNametagContent(page, x, nametagY, width, tagH, n > 0, row, eventTitle, regularFont, boldFont);
+
+    // Stub sections (below nametag, top-to-bottom)
+    for (let i = 0; i < n; i++) {
+      const stubBottomY = y + (n - 1 - i) * stubH;
+      const hasBelowSep = i < n - 1;
+      this.drawStubContent(page, x, stubBottomY, width, stubH, row.name, row.inclusions[i], eventDate, hasBelowSep, regularFont, boldFont);
+    }
+  }
+
+  private drawNametagContent(
+    page: PDFPage,
+    x: number,
+    y: number,
+    width: number,
+    height: number,
+    hasStubsBelow: boolean,
+    row: NametagRow,
+    eventTitle: string,
+    regularFont: PDFFont,
+    boldFont: PDFFont,
+  ): void {
+    const pad = this.mmToPt(2.5);
+    const contentW = width - 2 * pad;
+    const gray55 = rgb(0.55, 0.55, 0.57);
+    const gray88 = rgb(0.86, 0.87, 0.89);
+
+    // Event title — small caps, gray, centered at top
+    this.drawCenteredText(page, eventTitle.toUpperCase(), {
+      x: x + pad, y: y + height - pad - 6.5,
+      width: contentW,
+      font: boldFont, size: 5.5,
+      color: gray55,
     });
 
-    page.drawRectangle({
-      x: contentX,
-      y: y + safeMargin,
-      width: contentWidth,
-      height: height - safeMargin * 2,
-      borderColor: rgb(0.9, 0.92, 0.94),
-      borderWidth: 0.35,
-    });
+    // Separator line below event title
+    const sepY1 = y + height - pad - 9.5;
+    page.drawLine({ start: { x, y: sepY1 }, end: { x: x + width, y: sepY1 }, color: gray88, thickness: 0.35 });
 
-    this.drawCenteredText(page, eventTitle, {
-      x: contentX,
-      y: eventBaseline,
-      width: contentWidth,
-      font: boldFont,
-      size: 7.5,
-      color: rgb(0.2, 0.24, 0.3),
-    });
+    // Attendee name — large bold, centered vertically in main area
+    const name = row.name ? row.name.trim().toUpperCase() : '';
+    const footerH = 15;
+    const nameAreaBottom = y + footerH + 10;
+    const nameAreaTop = sepY1 - 2;
+    const nameSize = name ? this.fitFontSize(boldFont, name, contentW - 4, 16, 9) : 10;
+    const nameMid = nameAreaBottom + (nameAreaTop - nameAreaBottom) / 2;
+    const nameY = nameMid - nameSize * 0.38;
 
-    page.drawRectangle({
-      x: contentX,
-      y: nameBandY,
-      width: contentWidth,
-      height: nameBandHeight,
-      color: rgb(0.96, 0.97, 0.98),
-    });
-
-    page.drawLine({
-      start: { x: contentX, y: nameBandY + nameBandHeight },
-      end: { x: x + width - safeMargin, y: nameBandY + nameBandHeight },
-      color: rgb(0.07, 0.09, 0.15),
-      thickness: 1,
-    });
-    page.drawLine({
-      start: { x: contentX, y: nameBandY },
-      end: { x: x + width - safeMargin, y: nameBandY },
-      color: rgb(0.07, 0.09, 0.15),
-      thickness: 1,
-    });
-
-    const nameSize = this.fitFontSize(boldFont, name, contentWidth - 8, 20, 12);
     this.drawCenteredText(page, name, {
-      x: contentX + 4,
-      y: nameBandY + (nameBandHeight - nameSize) / 2 + 1,
-      width: contentWidth - 8,
-      font: boldFont,
-      size: nameSize,
-      color: rgb(0.01, 0.03, 0.07),
+      x: x + pad + 2, y: nameY,
+      width: contentW - 4,
+      font: boldFont, size: nameSize,
+      color: rgb(0.07, 0.07, 0.08),
     });
 
-    this.drawCenteredText(page, detailText, {
-      x: contentX,
-      y: detailBaseline,
-      width: contentWidth,
-      font: regularFont,
-      size: 7.5,
-      color: rgb(0.22, 0.26, 0.32),
+    // Position · Company — small gray, below name
+    const detail = [row.position.trim(), row.company.trim()].filter(Boolean).join(' · ');
+    this.drawCenteredText(page, detail, {
+      x: x + pad, y: nameY - nameSize * 0.38 - 8,
+      width: contentW,
+      font: regularFont, size: 6.5,
+      color: rgb(0.42, 0.43, 0.46),
     });
 
-    this.drawCenteredText(page, tierText, {
-      x: contentX,
-      y: tierBaseline,
-      width: contentWidth,
-      font: boldFont,
-      size: 6.75,
-      color: rgb(0.36, 0.22, 0.75),
+    // Footer separator
+    const footerSepY = y + footerH;
+    page.drawLine({ start: { x, y: footerSepY }, end: { x: x + width, y: footerSepY }, color: gray88, thickness: 0.35 });
+
+    // Tier pill (left footer)
+    if (row.tierName) {
+      this.drawPill(page, x + pad, y + 3.5, row.tierName, boldFont, 6, false);
+    }
+
+    // Reference number (right footer)
+    const refNum = `#AX-${row.id.replace(/-/g, '').slice(-5).toUpperCase()}`;
+    const refSize = 5.5;
+    const refW = boldFont.widthOfTextAtSize(refNum, refSize);
+    page.drawText(refNum, {
+      x: x + width - pad - refW, y: y + 5,
+      font: boldFont, size: refSize,
+      color: rgb(0.58, 0.58, 0.6),
     });
 
-    this.drawCenteredText(page, inclusionText, {
-      x: contentX,
-      y: inclusionBaseline,
-      width: contentWidth,
-      font: regularFont,
-      size: 6.25,
-      color: rgb(0.05, 0.43, 0.27),
+    // Tear line at bottom of nametag (if stubs follow)
+    if (hasStubsBelow) {
+      this.drawTearLine(page, x, y, width, regularFont);
+    }
+  }
+
+  private drawStubContent(
+    page: PDFPage,
+    x: number,
+    y: number,
+    width: number,
+    height: number,
+    attendeeName: string,
+    label: string,
+    eventDate: string | null,
+    hasSepBelow: boolean,
+    regularFont: PDFFont,
+    boldFont: PDFFont,
+  ): void {
+    const pad = this.mmToPt(2.5);
+    const contentW = width - 2 * pad;
+    const gray55 = rgb(0.55, 0.55, 0.57);
+
+    // Stub type label — tiny gray caps at top
+    page.drawText(`${label.toUpperCase()} STUB`, {
+      x: x + pad, y: y + height - pad - 5,
+      font: boldFont, size: 4.5,
+      color: gray55,
     });
 
-    this.drawCenteredText(page, 'Powered by Axon Tickets', {
-      x: contentX,
-      y: footerBaseline,
-      width: contentWidth,
-      font: boldFont,
-      size: 6,
-      color: rgb(0.42, 0.45, 0.5),
+    // Attendee name — bold, left-aligned, middle zone
+    const nameDisplay = this.truncateToWidth(attendeeName.trim(), boldFont, 8.5, contentW * 0.62);
+    const nameY = y + height * 0.48;
+    page.drawText(nameDisplay, {
+      x: x + pad, y: nameY,
+      font: boldFont, size: 8.5,
+      color: rgb(0.08, 0.08, 0.1),
+    });
+
+    // Date or detail line — small gray below name
+    const detail = eventDate ?? '';
+    if (detail) {
+      page.drawText(detail, {
+        x: x + pad, y: nameY - 10,
+        font: regularFont, size: 6,
+        color: gray55,
+      });
+    }
+
+    // Label pill — right-aligned, vertically centered
+    const pillH = 10;
+    const pillY = y + (height - pillH) / 2;
+    this.drawPill(page, x + width - pad, pillY, label.toUpperCase(), boldFont, 6, true);
+
+    // Separator below this stub (between stubs)
+    if (hasSepBelow) {
+      this.drawTearLine(page, x, y, width, regularFont);
+    }
+  }
+
+  private drawTearLine(page: PDFPage, x: number, y: number, width: number, regularFont: PDFFont): void {
+    const dashLen = 3;
+    const gapLen = 2;
+    const labelW = 16;
+    let cx = x;
+    const lineEnd = x + width - labelW - 2;
+    while (cx < lineEnd) {
+      page.drawLine({
+        start: { x: cx, y },
+        end: { x: Math.min(cx + dashLen, lineEnd), y },
+        color: rgb(0.72, 0.72, 0.74),
+        thickness: 0.45,
+      });
+      cx += dashLen + gapLen;
+    }
+    page.drawText('tear', {
+      x: x + width - labelW, y: y - 2.5,
+      font: regularFont, size: 4.5,
+      color: rgb(0.72, 0.72, 0.74),
+    });
+  }
+
+  private drawPill(
+    page: PDFPage,
+    x: number,
+    y: number,
+    text: string,
+    font: PDFFont,
+    fontSize: number,
+    rightAligned: boolean,
+  ): void {
+    const padH = 3.5;
+    const pillH = fontSize + 4;
+    const textW = font.widthOfTextAtSize(text, fontSize);
+    const pillW = textW + padH * 2;
+    const pillX = rightAligned ? x - pillW : x;
+
+    page.drawRectangle({
+      x: pillX, y,
+      width: pillW, height: pillH,
+      color: rgb(0.298, 0.11, 0.745),
+    });
+    page.drawText(text, {
+      x: pillX + padH, y: y + 2.5,
+      font, size: fontSize,
+      color: rgb(1, 1, 1),
     });
   }
 

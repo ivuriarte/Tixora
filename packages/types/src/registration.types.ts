@@ -109,7 +109,7 @@ export interface AttendeeInput {
   phone?: string;
   company?: string;
   jobTitle?: string;
-  birthday: string;
-  gender: 'female' | 'male' | 'non_binary' | 'prefer_not_to_say' | 'self_described';
-  city: string;
+  birthday?: string;
+  gender?: 'female' | 'male' | 'non_binary' | 'prefer_not_to_say' | 'self_described';
+  city?: string;
 }

@@ -252,9 +252,9 @@ export default function RegistrationForm({
         ...(a.phone.trim() && { phone: a.phone.trim() }),
         ...(a.company.trim() && { company: a.company.trim() }),
         ...(a.jobTitle.trim() && { jobTitle: a.jobTitle.trim() }),
-        birthday: a.birthday,
-        gender: a.gender as 'female' | 'male' | 'non_binary' | 'prefer_not_to_say' | 'self_described',
-        city: a.city.trim(),
+        ...(a.birthday && { birthday: a.birthday }),
+        ...(a.gender && { gender: a.gender as 'female' | 'male' | 'non_binary' | 'prefer_not_to_say' | 'self_described' }),
+        ...(a.city.trim() && { city: a.city.trim() }),
       }));
 
       // Sync any edited profile fields back to the user's account
@@ -464,7 +464,7 @@ export default function RegistrationForm({
           <div>
             <p className="text-sm font-medium text-gray-900">Use my account details for Attendee 1</p>
             <p className="text-xs text-gray-500 mt-0.5">
-              Pre-filled from your account ({currentUser.email}). Fields highlighted in amber are missing — please fill them in.
+              Pre-filled from your account ({currentUser.email}). Required fields highlighted in amber need your attention.
             </p>
           </div>
           <button
@@ -615,22 +615,25 @@ export default function RegistrationForm({
                 </div>
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
                   <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1">Birthday *</label>
-                    <input type="date" required max={new Date().toISOString().slice(0, 10)} value={att.birthday} onChange={(e) => updateAttendee(i, 'birthday', e.target.value)} className={`w-full border rounded-lg px-3 py-2 text-sm ${cls(att.birthday)}`} />
-                    {auto && !att.birthday && <MissingHint />}
+                    <label className="block text-xs font-medium text-gray-600 mb-1">
+                      Birthday <span className="text-gray-400 font-normal">(optional)</span>
+                    </label>
+                    <input type="date" max={new Date().toISOString().slice(0, 10)} value={att.birthday} onChange={(e) => updateAttendee(i, 'birthday', e.target.value)} className={`w-full border rounded-lg px-3 py-2 text-sm ${normalCls}`} />
                   </div>
                   <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1">Gender *</label>
-                    <select required value={att.gender} onChange={(e) => updateAttendee(i, 'gender', e.target.value)} className={`w-full border rounded-lg px-3 py-2 text-sm ${cls(att.gender)}`}>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">
+                      Gender <span className="text-gray-400 font-normal">(optional)</span>
+                    </label>
+                    <select value={att.gender} onChange={(e) => updateAttendee(i, 'gender', e.target.value)} className={`w-full border rounded-lg px-3 py-2 text-sm ${normalCls}`}>
                       <option value="">Select</option>
                       <option value="female">Female</option><option value="male">Male</option><option value="non_binary">Non-binary</option><option value="self_described">Self-described</option><option value="prefer_not_to_say">Prefer not to say</option>
                     </select>
-                    {auto && !att.gender && <MissingHint />}
                   </div>
                   <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1">City *</label>
-                    <input required value={att.city} onChange={(e) => updateAttendee(i, 'city', e.target.value)} placeholder="Davao City" className={`w-full border rounded-lg px-3 py-2 text-sm ${cls(att.city)}`} />
-                    {auto && !att.city.trim() && <MissingHint />}
+                    <label className="block text-xs font-medium text-gray-600 mb-1">
+                      City <span className="text-gray-400 font-normal">(optional)</span>
+                    </label>
+                    <input value={att.city} onChange={(e) => updateAttendee(i, 'city', e.target.value)} placeholder="Davao City" className={`w-full border rounded-lg px-3 py-2 text-sm ${normalCls}`} />
                   </div>
                 </div>
               </>

@@ -6,6 +6,7 @@ import {
   IsArray,
   IsDateString,
   IsIn,
+  ValidateIf,
   ValidateNested,
   ArrayMinSize,
   ArrayMaxSize,
@@ -45,17 +46,19 @@ export class AttendeeDto {
   @MaxLength(150)
   jobTitle?: string;
 
+  @ValidateIf((_, value) => value !== undefined && value !== null && value !== '')
   @IsDateString()
-  birthday!: string;
+  birthday?: string;
 
-  @IsString()
+  @ValidateIf((_, value) => value !== undefined && value !== null && value !== '')
   @IsIn(['female', 'male', 'non_binary', 'prefer_not_to_say', 'self_described'])
-  gender!: string;
+  gender?: string;
 
+  @ValidateIf((_, value) => value !== undefined && value !== null && value !== '')
   @IsString()
   @MinLength(2)
   @MaxLength(100)
-  city!: string;
+  city?: string;
 }
 
 export class CreateRegistrationDto {
