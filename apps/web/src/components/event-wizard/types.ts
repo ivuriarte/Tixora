@@ -66,7 +66,7 @@ export interface EventDraftCapacity {
   maxCapacity: string;
   /** Free events collect no ticket amount and no platform fee. */
   isFree: boolean;
-  /** Per-event service fee in pesos (string for form input). Default '50'. */
+  /** Flat processing fee per transaction in pesos (string for form input). Default '50'. */
   platformFee: string;
 }
 

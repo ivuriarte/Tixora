@@ -21,7 +21,7 @@ Anti-Fraud and Misrepresentation Protocols: In the event that an active or sched
 
 2. TRANSACTION FEES & FEE ARCHITECTURE
 
-User-Absorbed Platform Fee: The Platform levies a proprietary service charge of Fifty Pesos (PHP 50.00) per ticket transaction. The Organizer explicitly agrees that this fee is passed on directly to the ticket buyer at the point of checkout.
+User-Absorbed Platform Fee: The Platform levies a proprietary service charge of Fifty Pesos (PHP 50.00) per registration transaction, regardless of attendee quantity. The Organizer explicitly agrees that this fee is passed on directly to the ticket buyer at the point of checkout.
 
 User-Absorbed Gateway Fees: All third-party credit card, debit card, and e-wallet (e.g., Maya, GCash, GrabPay) merchant processing transaction percentages are passed on directly to the ticket buyer as a convenience fee during checkout. Axon Tickets will not charge the Organizer for standard gateway fees.
 

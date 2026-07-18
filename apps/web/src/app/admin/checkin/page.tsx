@@ -29,6 +29,53 @@ interface Event {
 
 type Tab = 'camera' | 'search';
 
+interface CheckinErrorResponse {
+  code?: string;
+  message?: string;
+  checkedInAt?: string | null;
+}
+
+function friendlyCheckinError(error: unknown): PopupConfig {
+  const response = (error as { response?: { status?: number; data?: CheckinErrorResponse } })?.response;
+  const status = response?.status;
+  const data = response?.data;
+  const message = typeof data?.message === 'string' ? data.message : '';
+  const lowerMessage = message.toLowerCase();
+
+  if (data?.code === 'ALREADY_CHECKED_IN' || status === 409 || lowerMessage.includes('already checked in')) {
+    const checkedInAt = data?.checkedInAt ? new Date(data.checkedInAt) : null;
+    const readableTime = checkedInAt && Number.isFinite(checkedInAt.getTime())
+      ? checkedInAt.toLocaleString('en-PH', {
+          timeZone: 'Asia/Manila', month: 'short', day: 'numeric', year: 'numeric',
+          hour: 'numeric', minute: '2-digit',
+        })
+      : null;
+    return {
+      type: 'warning',
+      title: 'Ticket already used',
+      body: readableTime
+        ? `This ticket was checked in on ${readableTime}. Please do not check it in again. If this seems wrong, ask a supervisor for help.`
+        : 'This ticket has already been checked in. Please do not check it in again. If this seems wrong, ask a supervisor for help.',
+      autoDismiss: false,
+      dismissLabel: 'Got it',
+    };
+  }
+
+  if (lowerMessage.startsWith('this qr is for')) {
+    return { type: 'warning', title: 'Ticket is for another event', body: `${message} Select the correct event, then scan the ticket again.`, autoDismiss: false, dismissLabel: 'Got it' };
+  }
+  if (lowerMessage.includes('not verified')) {
+    return { type: 'warning', title: 'Ticket is not ready', body: 'This registration has not been verified yet. Ask a supervisor for help before allowing entry.', autoDismiss: false, dismissLabel: 'Got it' };
+  }
+  if (status === 404) {
+    return { type: 'error', title: 'Ticket not found', body: 'This ticket could not be found. Check that the correct event is selected, then try scanning again.', autoDismiss: true, dismissMs: 5000 };
+  }
+  if (status && status >= 500) {
+    return { type: 'error', title: 'Could not check ticket', body: 'Something went wrong while checking this ticket. Please try again. If it keeps happening, ask a supervisor for help.', autoDismiss: false, dismissLabel: 'Close' };
+  }
+  return { type: 'error', title: 'QR code not accepted', body: 'This code is not a valid ticket for the selected event. Check the event and try scanning again.', autoDismiss: true, dismissMs: 5000 };
+}
+
 export default function AdminCheckinPage() {
   const [tab, setTab] = useState<Tab>('camera');
 
@@ -324,17 +371,8 @@ export default function AdminCheckinPage() {
         result: r,
       });
     } catch (err: unknown) {
-      const e = err as { response?: { status?: number; data?: { message?: string } } };
-      const status = e?.response?.status;
-      const msg = e?.response?.data?.message ?? 'Invalid ticket';
       playBeep('error');
-      openPopup({
-        type: 'error',
-        title: status === 409 ? 'Already checked in' : 'Invalid ticket',
-        body: msg,
-        autoDismiss: true,
-        dismissMs: 3500,
-      });
+      openPopup(friendlyCheckinError(err));
     }
   }
 
@@ -357,17 +395,8 @@ export default function AdminCheckinPage() {
       });
       if (searchQ || selectedEventId) await runSearch();
     } catch (err: unknown) {
-      const e = err as { response?: { status?: number; data?: { message?: string } } };
-      const status = e?.response?.status;
-      const msg = e?.response?.data?.message ?? 'Check-in failed';
       playBeep('error');
-      openPopup({
-        type: 'error',
-        title: status === 409 ? 'Already checked in' : 'Check-in failed',
-        body: msg,
-        autoDismiss: true,
-        dismissMs: 3500,
-      });
+      openPopup(friendlyCheckinError(err));
     } finally {
       setCheckingInId(null);
     }

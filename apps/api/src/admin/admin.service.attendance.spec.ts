@@ -1,5 +1,4 @@
 import { ConflictException } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
 import { AdminService } from './admin.service';
 
 describe('AdminService daily attendance', () => {
@@ -20,6 +19,7 @@ describe('AdminService daily attendance', () => {
     const service = makeService();
     const tx = {
       attendeeAttendance: {
+        findFirst: jest.fn().mockResolvedValue(null),
         create: jest.fn().mockImplementation(({ data }) => Promise.resolve({ id: 'att_day_1', ...data })),
       },
       attendee: {
@@ -57,19 +57,50 @@ describe('AdminService daily attendance', () => {
 
   it('reports a same-day duplicate as a conflict', async () => {
     const service = makeService();
-    const duplicate = new Prisma.PrismaClientKnownRequestError('Unique constraint failed', {
-      code: 'P2002',
-      clientVersion: 'test',
-      meta: { target: ['attendee_id', 'event_id', 'check_in_date'] },
-    });
+    const checkedInAt = new Date('2026-07-14T01:00:00.000Z');
     const tx = {
       attendeeAttendance: {
-        create: jest.fn().mockRejectedValue(duplicate),
-        findFirst: jest.fn().mockResolvedValue({ checkedInAt: new Date('2026-07-14T01:00:00.000Z') }),
+        create: jest.fn(),
+        findFirst: jest.fn().mockResolvedValue({ checkedInAt }),
       },
       attendee: {
         updateMany: jest.fn(),
       },
+    };
+
+    let caught: unknown;
+    try {
+      await service.createDailyAttendance(
+        tx,
+        { id: 'att_1', registrationId: 'reg_1' },
+        'evt_1',
+        'admin_1',
+        'manual',
+        new Date('2026-07-14T02:00:00.000Z'),
+      );
+    } catch (error) {
+      caught = error;
+    }
+
+    expect(caught).toBeInstanceOf(ConflictException);
+    expect((caught as ConflictException).getResponse()).toEqual({
+      code: 'ALREADY_CHECKED_IN',
+      message: 'This ticket has already been checked in.',
+      checkedInAt: checkedInAt.toISOString(),
+    });
+    expect(tx.attendeeAttendance.create).not.toHaveBeenCalled();
+    expect(tx.attendee.updateMany).not.toHaveBeenCalled();
+  });
+
+  it('reports a bundled P2002 race as a conflict without querying the aborted transaction again', async () => {
+    const service = makeService();
+    const bundledPrismaError = { code: 'P2002', message: 'Unique constraint failed' };
+    const tx = {
+      attendeeAttendance: {
+        findFirst: jest.fn().mockResolvedValue(null),
+        create: jest.fn().mockRejectedValue(bundledPrismaError),
+      },
+      attendee: { updateMany: jest.fn() },
     };
 
     await expect(
@@ -78,10 +109,12 @@ describe('AdminService daily attendance', () => {
         { id: 'att_1', registrationId: 'reg_1' },
         'evt_1',
         'admin_1',
-        'manual',
+        'scan',
         new Date('2026-07-14T02:00:00.000Z'),
       ),
     ).rejects.toBeInstanceOf(ConflictException);
+
+    expect(tx.attendeeAttendance.findFirst).toHaveBeenCalledTimes(1);
     expect(tx.attendee.updateMany).not.toHaveBeenCalled();
   });
 });

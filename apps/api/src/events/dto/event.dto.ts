@@ -272,7 +272,7 @@ export class CreateEventDto {
   @Type(() => CustomSectionDto)
   customSections?: CustomSectionDto[];
 
-  @ApiProperty({ required: false, default: 50, description: 'Platform fee per ticket in PHP' })
+  @ApiProperty({ required: false, default: 50, description: 'Flat platform fee per registration transaction in PHP' })
   @IsOptional()
   @IsNumber()
   @Min(0)

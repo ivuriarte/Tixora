@@ -40,6 +40,18 @@ interface NametagRow {
   createdAt: Date;
 }
 
+function isPrismaErrorCode(error: unknown, code: string): boolean {
+  return typeof error === 'object' && error !== null && 'code' in error && error.code === code;
+}
+
+function alreadyCheckedInException(checkedInAt: Date | null): ConflictException {
+  return new ConflictException({
+    code: 'ALREADY_CHECKED_IN',
+    message: 'This ticket has already been checked in.',
+    checkedInAt: checkedInAt?.toISOString() ?? null,
+  });
+}
+
 @Injectable()
 export class AdminService {
   private readonly logger = new Logger(AdminService.name);
@@ -101,6 +113,12 @@ export class AdminService {
     now = new Date(),
   ) {
     const checkInDate = this.checkInDateFor(now);
+    const existing = await tx.attendeeAttendance.findFirst({
+      where: { attendeeId: attendee.id, eventId, checkInDate },
+      select: { checkedInAt: true },
+    });
+    if (existing) throw alreadyCheckedInException(existing.checkedInAt);
+
     try {
       const attendance = await tx.attendeeAttendance.create({
         data: {
@@ -121,15 +139,10 @@ export class AdminService {
 
       return attendance;
     } catch (error) {
-      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
-        const existing = await tx.attendeeAttendance.findFirst({
-          where: { attendeeId: attendee.id, eventId, checkInDate },
-          select: { checkedInAt: true },
-        });
-        throw new ConflictException(
-          `Already checked in today at ${existing?.checkedInAt?.toISOString() ?? 'unknown time'}`,
-        );
-      }
+      // Do not query again after a unique-constraint failure: PostgreSQL has
+      // already aborted this transaction. The pre-check above supplies the
+      // timestamp for normal repeat scans; this branch safely handles races.
+      if (isPrismaErrorCode(error, 'P2002')) throw alreadyCheckedInException(null);
       throw error;
     }
   }
@@ -294,7 +307,7 @@ export class AdminService {
       });
       return created;
     } catch (error) {
-      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+      if (isPrismaErrorCode(error, 'P2002')) {
         throw new ConflictException('That referral code already exists for this event.');
       }
       throw error;
@@ -846,9 +859,7 @@ export class AdminService {
 
     if (ticket.status !== 'valid') {
       if (ticket.status === 'used') {
-        throw new ConflictException(
-          `Already checked in at ${ticket.checkedInAt?.toISOString()}`,
-        );
+        throw alreadyCheckedInException(ticket.checkedInAt);
       }
       throw new BadRequestException(`Ticket is ${ticket.status}`);
     }
@@ -865,9 +876,7 @@ export class AdminService {
         select: { status: true, checkedInAt: true },
       });
       if (fresh?.status === 'used') {
-        throw new ConflictException(
-          `Already checked in at ${fresh.checkedInAt?.toISOString() ?? 'unknown time'}`,
-        );
+        throw alreadyCheckedInException(fresh.checkedInAt);
       }
       throw new BadRequestException(`Ticket is ${fresh?.status ?? 'unavailable'}`);
     }

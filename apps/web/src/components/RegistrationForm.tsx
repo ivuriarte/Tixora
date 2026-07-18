@@ -64,7 +64,7 @@ interface Props {
   tierName: string;
   unitPrice: number;
   qty: number;
-  /** Per-event flat service fee in pesos (defaults to 50). */
+  /** Flat processing fee per registration transaction in pesos (defaults to 50). */
   platformFee?: number;
   paymentMethods?: PaymentMethod[] | null;
   bankName?: string | null;
