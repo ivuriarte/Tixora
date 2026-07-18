@@ -251,10 +251,12 @@ export default function AdminNewEventPage() {
       toast.success('Event created! You can now add ticket tiers and publish it for sale.');
       router.push('/admin');
     } catch (err: unknown) {
-      const message =
-        (err as { response?: { data?: { message?: string } } })?.response?.data?.message ??
-        'Failed to create event';
-      toast.error(message);
+      const rawMessage =
+        (err as { response?: { data?: { message?: unknown } } })?.response?.data?.message;
+      const message = Array.isArray(rawMessage)
+        ? rawMessage.filter((item): item is string => typeof item === 'string').join('\n')
+        : typeof rawMessage === 'string' ? rawMessage : 'Failed to create event';
+      toast.error(message, { style: { whiteSpace: 'pre-line' } });
     } finally {
       setLoading(false);
     }

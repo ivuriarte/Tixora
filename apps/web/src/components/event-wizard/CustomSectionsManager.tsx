@@ -11,9 +11,10 @@ export default function CustomSectionsManager({ sections, onChange }: { sections
   const [draft, setDraft] = useState<CustomSectionItem>(emptySection());
   const [editing, setEditing] = useState<number | null>(null);
   const [adding, setAdding] = useState(false);
+  const imageAltIsInvalid = Boolean(draft.imageUrl.trim() && draft.imageAlt.trim().length < 3);
 
   function save() {
-    if (!draft.title.trim() || !draft.description.trim() || (draft.imageUrl && !draft.imageAlt.trim())) return;
+    if (!draft.title.trim() || !draft.description.trim() || imageAltIsInvalid) return;
     const cleaned = { ...draft, title: draft.title.trim(), description: draft.description.trim(), imageAlt: draft.imageAlt.trim() };
     onChange(editing === null ? [...sections, cleaned] : sections.map((section, index) => index === editing ? cleaned : section));
     setDraft(emptySection()); setEditing(null); setAdding(false);
@@ -29,10 +30,14 @@ export default function CustomSectionsManager({ sections, onChange }: { sections
     {(adding || editing !== null) && <div className="space-y-3 rounded-xl border border-primary/30 bg-primary/5 p-4">
       <input aria-label="Detail block title" value={draft.title} onChange={(e) => setDraft({ ...draft, title: e.target.value })} maxLength={120} placeholder="Title, e.g. Race Kit Collection" className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm" />
       <textarea aria-label="Detail block description" value={draft.description} onChange={(e) => setDraft({ ...draft, description: e.target.value })} maxLength={5000} rows={4} placeholder="Describe this part of the event" className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm" />
-      <ImageUploader value={draft.imageUrl} onChange={(imageUrl) => setDraft({ ...draft, imageUrl })} endpoint="/upload/event-cover" accept="image/jpeg,image/png,image/webp" maxSizeMB={5} hint="Optional image · JPG, PNG, or WebP · up to 5 MB" previewAspect="aspect-video" />
-      {draft.imageUrl && <input aria-label="Image description" value={draft.imageAlt} onChange={(e) => setDraft({ ...draft, imageAlt: e.target.value })} maxLength={200} placeholder="Image description for accessibility" className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm" />}
+      <ImageUploader value={draft.imageUrl} onChange={(imageUrl) => setDraft({ ...draft, imageUrl, ...(!imageUrl && { imageAlt: '' }) })} endpoint="/upload/event-cover" accept="image/jpeg,image/png,image/webp" maxSizeMB={5} hint="Optional image · JPG, PNG, or WebP · up to 5 MB" previewAspect="aspect-video" />
+      {draft.imageUrl && <label className="block space-y-1">
+        <span className="text-xs font-semibold text-gray-600">Image description <span className="text-red-500">*</span> <span className="font-normal text-gray-400">(required for accessibility)</span></span>
+        <input aria-label="Image description" value={draft.imageAlt} onChange={(e) => setDraft({ ...draft, imageAlt: e.target.value })} minLength={3} maxLength={200} placeholder="Describe what is shown in the image" className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm" required />
+        {imageAltIsInvalid && <p className="text-xs text-red-600">Enter at least 3 characters.</p>}
+      </label>}
       <label className="flex items-center gap-2 text-sm text-gray-700"><input type="checkbox" checked={draft.isVisible} onChange={(e) => setDraft({ ...draft, isVisible: e.target.checked })} />Visible on public event page</label>
-      <div className="flex gap-2"><button type="button" disabled={!draft.title.trim() || !draft.description.trim() || Boolean(draft.imageUrl && !draft.imageAlt.trim())} onClick={save} className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white disabled:opacity-40">{editing === null ? 'Add block' : 'Save block'}</button><button type="button" onClick={() => { setDraft(emptySection()); setAdding(false); setEditing(null); }} className="rounded-lg border border-gray-300 px-4 py-2 text-sm">Cancel</button></div>
+      <div className="flex gap-2"><button type="button" disabled={!draft.title.trim() || !draft.description.trim() || imageAltIsInvalid} onClick={save} className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white disabled:opacity-40">{editing === null ? 'Add block' : 'Save block'}</button><button type="button" onClick={() => { setDraft(emptySection()); setAdding(false); setEditing(null); }} className="rounded-lg border border-gray-300 px-4 py-2 text-sm">Cancel</button></div>
     </div>}
   </div>;
 }
