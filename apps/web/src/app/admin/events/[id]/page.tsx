@@ -512,7 +512,16 @@ export default function AdminEventEditPage() {
           : null,
       faqs: draft.faqs.length > 0 ? draft.faqs : null,
       tagline: draft.tagline.trim() || null,
-      customSections: draft.customSections.length > 0 ? draft.customSections : null,
+      customSections:
+        draft.customSections.length > 0
+          ? draft.customSections.map((section) => ({
+              title: section.title.trim(),
+              description: section.description.trim(),
+              ...(section.imageUrl?.trim() && { imageUrl: section.imageUrl.trim() }),
+              ...(section.imageUrl?.trim() && section.imageAlt?.trim() && { imageAlt: section.imageAlt.trim() }),
+              isVisible: section.isVisible,
+            }))
+          : null,
     };
     await updateMutation.mutateAsync(payload);
   }

@@ -104,6 +104,7 @@ export class CustomSectionDto {
   description!: string;
 
   @IsOptional()
+  @ValidateIf((_section: CustomSectionDto, value: unknown) => value !== '')
   @Matches(/^https:\/\//i, { message: 'Image URL must use HTTPS' })
   @MaxLength(500)
   imageUrl?: string;

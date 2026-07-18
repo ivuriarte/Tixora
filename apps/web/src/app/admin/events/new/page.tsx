@@ -179,7 +179,15 @@ export default function AdminNewEventPage() {
           .filter((s) => s.name.length > 0);
         if (cleaned.length > 0) payload.sponsors = cleaned;
       }
-      if (draft.customSections.length > 0) payload.customSections = draft.customSections;
+      if (draft.customSections.length > 0) {
+        payload.customSections = draft.customSections.map((section) => ({
+          title: section.title.trim(),
+          description: section.description.trim(),
+          ...(section.imageUrl?.trim() && { imageUrl: section.imageUrl.trim() }),
+          ...(section.imageUrl?.trim() && section.imageAlt?.trim() && { imageAlt: section.imageAlt.trim() }),
+          isVisible: section.isVisible,
+        }));
+      }
       if (draft.faqs.length > 0) {
         const cleaned = draft.faqs
           .filter((f) => f && typeof f === 'object' && !Array.isArray(f))
