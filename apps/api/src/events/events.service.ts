@@ -154,7 +154,7 @@ export class EventsService {
       city: attendee.city ?? '',
       company: attendee.company ?? '',
       jobTitle: attendee.jobTitle ?? '',
-      maskedEmail: attendee.email.replace(/^(.).+(@.+)$/, '$1***$2'),
+      maskedEmail: (attendee.email ?? '').replace(/^(.).+(@.+)$/, '$1***$2'),
     };
   }
 
