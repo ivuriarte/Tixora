@@ -588,8 +588,8 @@ export class AdminService {
       id: r.id,
       source: 'registration',
       reference: r.referenceNumber,
-      userEmail: r.user.email,
-      userName: `${r.user.firstName} ${r.user.lastName}`,
+      userEmail: r.user?.email ?? '',
+      userName: r.user ? `${r.user.firstName} ${r.user.lastName}` : 'Walk-in attendee',
       eventTitle: r.event.title,
       eventSlug: r.event.slug,
       // Normalise to a UI-friendly status so the frontend badge logic is consistent.
@@ -1853,7 +1853,7 @@ export class AdminService {
       return [
         a.id,
         `"${this.escapeCsvCell(`${a.firstName} ${a.lastName}`)}"`,
-        this.escapeCsvCell(a.email),
+        this.escapeCsvCell(a.email ?? ''),
         this.escapeCsvCell(a.phone ?? ''),
         `"${this.escapeCsvCell(a.company ?? '')}"`,
         `"${this.escapeCsvCell(a.jobTitle ?? '')}"`,

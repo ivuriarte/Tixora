@@ -148,7 +148,7 @@ export class EventsService {
       birthday: attendee.birthday?.toISOString().slice(0, 10) ?? '',
       company: attendee.company ?? '',
       jobTitle: attendee.jobTitle ?? '',
-      maskedEmail: attendee.email.replace(/^(.).+(@.+)$/, '$1***$2'),
+      maskedEmail: (attendee.email ?? '').replace(/^(.).+(@.+)$/, '$1***$2'),
     };
   }
 

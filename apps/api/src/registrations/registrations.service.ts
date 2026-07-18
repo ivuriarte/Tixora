@@ -263,7 +263,7 @@ export class RegistrationsService {
       try {
         if (isFreeEvent) {
           await this.emailService.sendFreeRegistrationConfirmation(
-            lead.email,
+            lead.email ?? '',
             lead.firstName,
             referenceNumber,
             event.title,
@@ -271,7 +271,7 @@ export class RegistrationsService {
           );
         } else if (event.bankName && event.bankAccountNumber && event.bankAccountName) {
           await this.emailService.sendRegistrationConfirmation(
-            lead.email,
+            lead.email ?? '',
             lead.firstName,
             referenceNumber,
             event.title,
@@ -657,7 +657,7 @@ export class RegistrationsService {
         this.config.get<string>('webUrl') ?? 'https://axontickets.online';
       try {
         await this.emailService.sendCancellationEmail(
-          lead.email,
+          lead.email ?? '',
           lead.firstName,
           reg.referenceNumber,
           reg.event.title,
@@ -708,8 +708,8 @@ export class RegistrationsService {
         currency: r.currency,
         leadName: r.attendees[0]
           ? `${r.attendees[0].firstName} ${r.attendees[0].lastName}`
-          : `${r.user.firstName} ${r.user.lastName}`,
-        leadEmail: r.attendees[0]?.email ?? r.user.email,
+          : r.user ? `${r.user.firstName} ${r.user.lastName}` : 'Walk-in attendee',
+        leadEmail: r.attendees[0]?.email ?? r.user?.email ?? null,
         hasProof: r.proofs.length > 0,
         proofStatus: r.proofs[0]?.status ?? null,
         createdAt: r.createdAt.toISOString(),
@@ -904,7 +904,7 @@ export class RegistrationsService {
         'https://axontickets.online';
       try {
         await this.emailService.sendRejectionEmail(
-          lead.email,
+          lead.email ?? '',
           lead.firstName,
           reg.referenceNumber,
           reg.event.title,
@@ -1068,8 +1068,8 @@ export class RegistrationsService {
         eventSlug: r.event.slug,
         leadName: r.attendees[0]
           ? `${r.attendees[0].firstName} ${r.attendees[0].lastName}`
-          : `${r.user.firstName} ${r.user.lastName}`,
-        leadEmail: r.attendees[0]?.email ?? r.user.email,
+          : r.user ? `${r.user.firstName} ${r.user.lastName}` : 'Walk-in attendee',
+        leadEmail: r.attendees[0]?.email ?? r.user?.email ?? null,
         hasProof: r.proofs.length > 0,
         proofStatus: r.proofs[0]?.status ?? null,
         createdAt: r.createdAt.toISOString(),
@@ -1166,12 +1166,12 @@ export class RegistrationsService {
           hasQrToken: !!qrToken,
         });
         return this.emailService.sendQrCodeEmail(
-          a.email,
+          a.email ?? '',
           a.firstName,
           reg.event.title,
           eventDate,
           reg.event.venue,
-          [{ firstName: a.firstName, lastName: a.lastName, email: a.email, qrToken }],
+          [{ firstName: a.firstName, lastName: a.lastName, email: a.email ?? '', qrToken }],
           receipt,
         );
       }),
