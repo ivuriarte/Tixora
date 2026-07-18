@@ -104,6 +104,7 @@ export interface CreateRegistrationDto {
   eventId: string;
   tierId: string;
   subEventId?: string;
+  subEventIds?: string[];
   attendees: AttendeeInput[];
   notes?: string;
   referralCode?: string;

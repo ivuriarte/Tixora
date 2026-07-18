@@ -46,19 +46,19 @@ export default function Button({
   );
 
   const base =
-    'inline-flex items-center justify-center font-semibold rounded-xl transition-all duration-200 ease-out active:scale-[0.98] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 disabled:opacity-50 disabled:cursor-not-allowed disabled:active:scale-100';
+    'inline-flex min-h-[44px] items-center justify-center rounded-[40px] font-bold uppercase tracking-[0.06em] transition-colors duration-200 disabled:cursor-not-allowed disabled:opacity-50';
 
   const variants = {
     primary: 'bg-primary text-white hover:bg-primary-hover focus-visible:outline-primary',
-    secondary: 'bg-gray-900 text-white hover:bg-gray-700',
-    outline: 'border border-gray-300 text-gray-700 hover:border-gray-400 bg-white',
+    secondary: 'bg-[#1a0533] text-white hover:bg-[#4c1d95]',
+    outline: 'border border-[#d3c8e8] text-[#4f416c] hover:border-primary hover:text-primary bg-white',
     danger: 'bg-red-600 text-white hover:bg-red-700',
   };
 
   const sizes = {
-    sm: 'px-3 py-1.5 text-sm',
-    md: 'px-5 py-2.5 text-sm',
-    lg: 'px-7 py-3 text-base',
+    sm: 'px-4 text-xs',
+    md: 'px-5 text-sm',
+    lg: 'min-h-[48px] px-7 text-sm',
   };
 
   const isBusy = loading || (clickedRef.current && !disabled);

@@ -14,6 +14,9 @@ const TIER_INVENTORY_PREFIX = 'ticket_tier:';
 const INVENTORY_SUFFIX = ':available';
 const ACTIVE_REGISTRATION_STATUSES = ['pending_payment', 'proof_submitted', 'pending_approval', 'verified'] as const;
 const VALID_TICKET_STATUSES = ['valid', 'used'] as const;
+const ONSITE_DUPLICATE_REGISTRATION_MESSAGE =
+  'You have already successfully registered for this event. You cannot register twice for the same event.';
+const CUSTOMER_EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 type TierInventory = {
   id: string;
@@ -120,6 +123,7 @@ export class EventsService {
       where: {
         firstName: { equals: firstName, mode: 'insensitive' },
         lastName: { equals: lastName, mode: 'insensitive' },
+        email: { not: null },
         registration: {
           status: 'verified',
           paymentMethod: { in: ['onsite_qr', 'walk_in'] },
@@ -133,12 +137,13 @@ export class EventsService {
         phone: true,
         gender: true,
         birthday: true,
+        city: true,
         company: true,
         jobTitle: true,
       },
     });
 
-    if (!attendee) return null;
+    if (!attendee?.email) return null;
     return {
       firstName: attendee.firstName,
       lastName: attendee.lastName,
@@ -146,6 +151,7 @@ export class EventsService {
       contactNumber: attendee.phone ?? '',
       gender: attendee.gender ?? '',
       birthday: attendee.birthday?.toISOString().slice(0, 10) ?? '',
+      city: attendee.city ?? '',
       company: attendee.company ?? '',
       jobTitle: attendee.jobTitle ?? '',
       maskedEmail: attendee.email.replace(/^(.).+(@.+)$/, '$1***$2'),
@@ -212,13 +218,38 @@ export class EventsService {
     });
   }
 
-  async findAll(page = 1, limit = 20) {
+  async getPublicStats() {
+    const [eventsHosted, ticketCheckIns, attendeeCheckIns, verifiedOrganizers] = await Promise.all([
+      this.prisma.event.count({ where: { status: { in: ['on_sale', 'sold_out', 'completed'] as any[] } } }),
+      this.prisma.ticket.count({ where: { checkedInAt: { not: null } } }),
+      this.prisma.attendee.count({ where: { checkedInAt: { not: null } } }),
+      this.prisma.organization.count({ where: { approvalStatus: 'approved' } }),
+    ]);
+
+    return {
+      eventsHosted,
+      attendeesCheckedIn: ticketCheckIns + attendeeCheckIns,
+      verifiedOrganizers,
+    };
+  }
+
+  async findAll(page = 1, limit = 20, query?: string) {
     await this.autoCompleteExpiredEvents();
     const safePage = Math.max(1, page);
     const safeLimit = Math.min(Math.max(1, limit), 100);
     const skip = (safePage - 1) * safeLimit;
+    const q = query?.trim().slice(0, 120);
     const where: Prisma.EventWhereInput = {
       status: 'on_sale' as any,
+      ...(q
+        ? {
+            OR: [
+              { title: { contains: q, mode: 'insensitive' } },
+              { venue: { contains: q, mode: 'insensitive' } },
+              { city: { contains: q, mode: 'insensitive' } },
+            ],
+          }
+        : {}),
     };
 
     const [total, events] = await Promise.all([
@@ -387,13 +418,21 @@ export class EventsService {
         return { attendee, registration: attendee.registration, attendance, created: false };
       }
 
-      const email = dto.email?.trim().toLowerCase();
+      const emailNotApplicable = dto.emailNotApplicable === true;
+      const email = emailNotApplicable ? null : dto.email?.trim().toLowerCase();
       const firstName = dto.firstName?.trim();
       const lastName = dto.lastName?.trim();
       const phone = dto.contactNumber?.trim();
       const gender = dto.gender?.trim();
-      if (!email || !firstName || !lastName || !phone || !gender || !dto.birthday) {
+      const city = dto.city?.trim();
+      if ((!emailNotApplicable && !email) || !firstName || !lastName || !phone || !gender || !dto.birthday || !city) {
         throw new BadRequestException('Required attendee details are missing.');
+      }
+      if (emailNotApplicable && dto.email?.trim()) {
+        throw new BadRequestException('Clear the email field when Email is marked Not applicable.');
+      }
+      if (email && !CUSTOMER_EMAIL_PATTERN.test(email)) {
+        throw new BadRequestException('Please enter a valid email address.');
       }
       const birthday = this.validateBirthday(dto.birthday);
       const selectedSubEvents = this.selectedSubEventsFromAgenda(event.agenda, dto.subEventIds, dto.subEventId);
@@ -402,20 +441,22 @@ export class EventsService {
       }
       const primarySubEvent = selectedSubEvents[0] ?? null;
 
+      const duplicateClauses: Prisma.AttendeeWhereInput[] = [
+        ...(email ? [{ email: { equals: email, mode: Prisma.QueryMode.insensitive } }] : []),
+        {
+          firstName: { equals: firstName, mode: 'insensitive' },
+          lastName: { equals: lastName, mode: 'insensitive' },
+          birthday,
+        },
+      ];
+
       const existing = await tx.attendee.findFirst({
         where: {
           registration: {
             eventId: event.id,
             status: { in: ['pending_payment', 'proof_submitted', 'pending_approval', 'verified'] },
           },
-          OR: [
-            { email: { equals: email, mode: 'insensitive' } },
-            {
-              firstName: { equals: firstName, mode: 'insensitive' },
-              lastName: { equals: lastName, mode: 'insensitive' },
-              birthday,
-            },
-          ],
+          OR: duplicateClauses,
         },
         include: {
           registration: { select: { id: true, referenceNumber: true, tierName: true, status: true } },
@@ -423,13 +464,11 @@ export class EventsService {
       });
 
       if (existing) {
-        if (existing.registration.status !== 'verified') {
-          throw new BadRequestException(
-            `This attendee already has a registration with status ${existing.registration.status}. Please ask staff for assistance.`,
-          );
-        }
-        const attendance = await this.createDailyAttendance(tx, existing, event.id, 'onsite_qr', now);
-        return { attendee: existing, registration: existing.registration, attendance, created: false };
+        throw new BadRequestException(
+          existing.registration.status === 'verified'
+            ? ONSITE_DUPLICATE_REGISTRATION_MESSAGE
+            : `This attendee already has a registration with status ${existing.registration.status}. Please ask staff for assistance.`,
+        );
       }
 
       const tier = event.tiers.find((item) => item.id === dto.tierId) ?? event.tiers[0];
@@ -451,35 +490,39 @@ export class EventsService {
         throw new BadRequestException('No seats are available for this ticket tier.');
       }
 
-      const user = await tx.user.upsert({
-        where: { email },
-        create: {
-          email,
-          phone,
-          firstName,
-          lastName,
-          isVerified: true,
-          birthday,
-          gender,
-          company: dto.company?.trim() || null,
-          jobTitle: dto.jobTitle?.trim() || null,
-        },
-        update: {
-          phone,
-          birthday,
-          gender,
-          ...(dto.company !== undefined ? { company: dto.company.trim() || null } : {}),
-          ...(dto.jobTitle !== undefined ? { jobTitle: dto.jobTitle.trim() || null } : {}),
-        },
-        select: { id: true },
-      });
+      const user = email
+        ? await tx.user.upsert({
+            where: { email },
+            create: {
+              email,
+              phone,
+              firstName,
+              lastName,
+              isVerified: true,
+              birthday,
+              gender,
+              city,
+              company: dto.company?.trim() || null,
+              jobTitle: dto.jobTitle?.trim() || null,
+            },
+            update: {
+              phone,
+              birthday,
+              gender,
+              city,
+              ...(dto.company !== undefined ? { company: dto.company.trim() || null } : {}),
+              ...(dto.jobTitle !== undefined ? { jobTitle: dto.jobTitle.trim() || null } : {}),
+            },
+            select: { id: true },
+          })
+        : null;
 
       const unitPrice = event.isFree ? 0 : Number(tier.price);
       const fees = event.isFree ? 0 : Number(event.platformFee ?? 0);
       const registration = await tx.registration.create({
         data: {
           referenceNumber: generateReferenceNumber(),
-          userId: user.id,
+          userId: user?.id ?? null,
           eventId: event.id,
           tierId: tier.id,
           tierName: tier.name,
@@ -501,6 +544,7 @@ export class EventsService {
               phone,
               birthday,
               gender,
+              city,
               company: dto.company?.trim() || null,
               jobTitle: dto.jobTitle?.trim() || null,
               subEventId: primarySubEvent?.id ?? null,
@@ -667,17 +711,6 @@ export class EventsService {
       color: navy,
     });
 
-    const urlLines = this.wrapPdfText(scanUrl, font, 10, width - 128);
-    urlLines.slice(0, 2).forEach((line, index) => {
-      page.drawText(line, {
-        x: (width - font.widthOfTextAtSize(line, 10)) / 2,
-        y: instructionY - 30 - index * 14,
-        size: 10,
-        font,
-        color: muted,
-      });
-    });
-
     const buffer = Buffer.from(await pdf.save());
     return {
       buffer,
@@ -752,7 +785,10 @@ export class EventsService {
   }
 
   async update(id: string, dto: UpdateEventDto) {
-    await this.findById(id);
+    const existing = await this.findById(id);
+    if (dto.status === 'on_sale' && !(dto.imageUrl?.trim() || existing.imageUrl)) {
+      throw new BadRequestException('Upload an event cover image before publishing.');
+    }
     return this.prisma.event.update({
       where: { id },
       data: {

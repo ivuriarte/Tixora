@@ -6,7 +6,7 @@ import toast from 'react-hot-toast';
 import api from '@/lib/api';
 import { useAuthStore } from '@/store/auth.store';
 import { useCartStore } from '@/store/cart.store';
-import { formatPHP, centavosToPeso } from '@axon-tickets/utils';
+import { formatPHP } from '@axon-tickets/utils';
 import Button from '@/components/Button';
 
 interface Tier {
@@ -117,7 +117,7 @@ export default function TierSelector({ eventId, eventSlug, tiers, disabled }: Pr
                   {tier.availableQuantity > 0 ? `${tier.availableQuantity} left` : 'Sold out'}
                 </p>
               </div>
-              <span className="font-semibold shrink-0">{tier.price === 0 ? 'Free' : formatPHP(centavosToPeso(tier.price))}</span>
+              <span className="font-semibold shrink-0">{tier.price === 0 ? 'Free' : formatPHP(tier.price)}</span>
             </div>
             {tier.inclusions && tier.inclusions.length > 0 && (
               <div className="mt-2 flex flex-wrap gap-1.5">
@@ -151,7 +151,7 @@ export default function TierSelector({ eventId, eventSlug, tiers, disabled }: Pr
         <div className="flex items-center justify-between text-sm">
           <span className="text-gray-500">Total</span>
           <span className="font-bold text-gray-900 text-base">
-            {selectedTier.price === 0 ? 'Free' : formatPHP(centavosToPeso(selectedTier.price * quantity))}
+            {selectedTier.price === 0 ? 'Free' : formatPHP(selectedTier.price * quantity)}
           </span>
         </div>
       )}

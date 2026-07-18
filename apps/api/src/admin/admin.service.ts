@@ -14,8 +14,6 @@ import { OrdersService } from '../orders/orders.service';
 import { CreateEventDto, UpdateEventDto } from '../events/dto/event.dto';
 import { CreateTierDto, UpdateTierDto } from '../ticket-tiers/dto/tier.dto';
 import {
-  generateAttendeeQrToken,
-  generateReferenceNumber,
   verifyQrToken,
   verifyAttendeeQrToken,
 } from '@axon-tickets/utils';
@@ -25,8 +23,12 @@ import { EmailService } from '../email/email.service';
 import { PDFDocument, PDFFont, PDFPage, StandardFonts, rgb } from 'pdf-lib';
 import { JwtPayload } from '@axon-tickets/types';
 import { CreateReferralCodeDto, UpdateReferralCodeDto } from './dto/referral-code.dto';
-import { WalkInRegistrationDto } from './dto/admin.dto';
-import { resolveAgendaSubEvent } from '../events/agenda-sub-events';
+
+type SelectedSubEventSnapshot = {
+  id?: unknown;
+  title?: unknown;
+  time?: unknown;
+};
 
 interface NametagRow {
   id: string;
@@ -507,7 +509,7 @@ export class AdminService {
     // Registration statuses that map to the UI status values
     const regStatusMap: Record<string, string[]> = {
       paid: ['verified'],
-      pending: ['pending_payment', 'pending_review'],
+      pending: ['pending_payment', 'pending_approval'],
       failed: ['rejected'],
       cancelled: ['cancelled'],
     };
@@ -539,6 +541,7 @@ export class AdminService {
       include: {
         user: { select: { email: true, firstName: true, lastName: true } },
         event: { select: { title: true, slug: true } },
+        attendees: { where: { isLead: true }, take: 1, select: { firstName: true, lastName: true, email: true } },
       },
     });
     type RegRow = Awaited<typeof regQuery>[number];
@@ -588,13 +591,17 @@ export class AdminService {
       id: r.id,
       source: 'registration',
       reference: r.referenceNumber,
-      userEmail: r.user.email,
-      userName: `${r.user.firstName} ${r.user.lastName}`,
+      userEmail: r.attendees[0]?.email ?? r.user?.email ?? '',
+      userName: r.attendees[0]
+        ? `${r.attendees[0].firstName} ${r.attendees[0].lastName}`
+        : r.user
+          ? `${r.user.firstName} ${r.user.lastName}`
+          : 'Walk-in attendee',
       eventTitle: r.event.title,
       eventSlug: r.event.slug,
       // Normalise to a UI-friendly status so the frontend badge logic is consistent.
       status: r.status === 'verified' ? 'paid'
-            : ['pending_payment', 'pending_review'].includes(r.status) ? 'pending'
+            : ['pending_payment', 'pending_approval'].includes(r.status) ? 'pending'
             : r.status === 'rejected' ? 'failed'
             : r.status,
       total: Number(r.total),
@@ -1034,201 +1041,6 @@ export class AdminService {
     };
   }
 
-  async createWalkInRegistration(eventId: string, dto: WalkInRegistrationDto, adminId: string, ip?: string) {
-    if (!eventId) throw new BadRequestException('Event is required');
-    const firstName = dto.firstName.trim();
-    const lastName = dto.lastName.trim();
-    const email = dto.email.trim().toLowerCase();
-    const phone = dto.contactNumber.trim();
-    const birthday = new Date(`${dto.birthday}T00:00:00.000Z`);
-    const today = new Date();
-    const earliest = new Date(Date.UTC(today.getUTCFullYear() - 120, today.getUTCMonth(), today.getUTCDate()));
-
-    if (!Number.isFinite(birthday.getTime()) || birthday > today || birthday < earliest) {
-      throw new BadRequestException('Birthday must be a valid past date within the last 120 years.');
-    }
-
-    const result = await this.prisma.$transaction(async (tx) => {
-      const [event, tier] = await Promise.all([
-        tx.event.findUnique({ where: { id: eventId }, select: { id: true, title: true, status: true, isFree: true, platformFee: true, agenda: true } }),
-        tx.ticketTier.findFirst({
-          where: { id: dto.tierId, eventId },
-          select: { id: true, name: true, price: true, currency: true, totalQuantity: true },
-        }),
-      ]);
-      if (!event) throw new NotFoundException('Event not found');
-      if (event.status === 'cancelled') throw new BadRequestException('Cancelled events cannot accept walk-ins');
-      if (!tier) throw new NotFoundException('Ticket tier not found');
-      const selectedSubEvent = resolveAgendaSubEvent(event.agenda, dto.subEventId);
-
-      const duplicate = await tx.attendee.findFirst({
-        where: {
-          registration: {
-            eventId,
-            status: { in: ['pending_payment', 'proof_submitted', 'pending_approval', 'verified'] },
-          },
-          OR: [
-            { email: { equals: email, mode: 'insensitive' } },
-            {
-              firstName: { equals: firstName, mode: 'insensitive' },
-              lastName: { equals: lastName, mode: 'insensitive' },
-              birthday,
-            },
-          ],
-        },
-        include: {
-          registration: {
-            select: { id: true, referenceNumber: true, status: true, tierName: true },
-          },
-        },
-      });
-      if (duplicate) {
-        throw new ConflictException(
-          `An attendee matching this walk-in already exists for this event (#${duplicate.registration.referenceNumber}). Use search to check them in instead.`,
-        );
-      }
-
-      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${eventId}), hashtext(${dto.tierId}))`;
-      const registrationUsage = await tx.registration.aggregate({
-        where: {
-          tierId: dto.tierId,
-          status: { in: ['pending_payment', 'proof_submitted', 'pending_approval', 'verified'] },
-        },
-        _sum: { attendeeCount: true },
-      });
-      const ticketUsage = await tx.ticket.count({
-        where: { ticketTierId: dto.tierId, status: { in: ['valid', 'used'] } },
-      });
-      const occupied = Number(registrationUsage._sum.attendeeCount ?? 0) + ticketUsage;
-      if (tier.totalQuantity - occupied < 1) {
-        throw new BadRequestException('No seats are available for this ticket tier.');
-      }
-      await tx.ticketTier.update({
-        where: { id: dto.tierId },
-        data: { soldQuantity: occupied + 1 },
-      });
-
-      const user = await tx.user.upsert({
-        where: { email },
-        create: {
-          email,
-          phone,
-          firstName,
-          lastName,
-          isVerified: true,
-          birthday,
-          gender: dto.gender,
-        },
-        update: {
-          phone,
-          birthday,
-          gender: dto.gender,
-        },
-        select: { id: true },
-      });
-
-      const unitPrice = event.isFree ? 0 : Number(tier.price);
-      const subtotal = unitPrice;
-      const fees = event.isFree ? 0 : Number(event.platformFee ?? 0);
-      const total = subtotal + fees;
-
-      const registration = await tx.registration.create({
-        data: {
-          referenceNumber: generateReferenceNumber(),
-          userId: user.id,
-          eventId,
-          tierId: tier.id,
-          tierName: tier.name,
-          unitPrice,
-          attendeeCount: 1,
-          subtotal,
-          fees,
-          total,
-          status: 'verified',
-          verifiedById: adminId,
-          verifiedAt: new Date(),
-          currency: tier.currency,
-          paymentMethod: 'walk_in',
-          notes: 'Staff-assisted walk-in registration',
-          attendees: {
-            create: {
-              firstName,
-              lastName,
-              email,
-              phone,
-              birthday,
-              gender: dto.gender,
-              company: dto.company?.trim() || null,
-              jobTitle: dto.jobTitle?.trim() || null,
-              subEventId: selectedSubEvent?.id ?? null,
-              subEventTitle: selectedSubEvent?.title ?? null,
-              subEventTime: selectedSubEvent?.time ?? null,
-              isLead: true,
-            },
-          },
-        },
-        include: { attendees: true },
-      });
-
-      const attendee = registration.attendees[0];
-      const qrSecret = this.config.get<string>('qr.hmacSecret') ?? '';
-      const qrToken = generateAttendeeQrToken(
-        { attendeeId: attendee.id, registrationId: registration.id, eventId },
-        qrSecret,
-      );
-      const now = new Date();
-      const updatedAttendee = await tx.attendee.update({
-        where: { id: attendee.id },
-        data: { qrToken },
-      });
-      const attendance = await this.createDailyAttendance(tx, updatedAttendee, eventId, adminId, 'walk_in', now);
-
-      return { event, tier, registration, attendee: updatedAttendee, attendance };
-    });
-
-    await this.audit.log({
-      action: 'WALK_IN_REGISTERED',
-      entityType: 'Registration',
-      entityId: result.registration.id,
-      registrationId: result.registration.id,
-      performedById: adminId,
-      ipAddress: ip,
-      metadata: {
-        eventId,
-        attendeeId: result.attendee.id,
-        attendanceId: result.attendance.id,
-        checkInDate: result.attendance.checkInDate.toISOString().slice(0, 10),
-      },
-    });
-
-    return {
-      registration: {
-        id: result.registration.id,
-        referenceNumber: result.registration.referenceNumber,
-        status: result.registration.status,
-      },
-      attendee: {
-        id: result.attendee.id,
-        firstName: result.attendee.firstName,
-        lastName: result.attendee.lastName,
-        email: result.attendee.email,
-        tierName: result.tier.name,
-        subEventTitle: result.attendee.subEventTitle,
-        subEventTime: result.attendee.subEventTime,
-      },
-      attendance: {
-        id: result.attendance.id,
-        checkInDate: result.attendance.checkInDate.toISOString().slice(0, 10),
-        checkedInAt: result.attendance.checkedInAt.toISOString(),
-        checkInMethod: result.attendance.checkInMethod,
-      },
-      nametag: {
-        eventId,
-        attendeeId: result.attendee.id,
-      },
-    };
-  }
-
   async getDailyAttendance(eventId: string, date?: string) {
     const checkInDate = this.parseCheckInDate(date);
     const records = await this.prisma.attendeeAttendance.findMany({
@@ -1274,12 +1086,13 @@ export class AdminService {
       registration: { eventId, status: 'verified' },
       ...(term
         ? {
-            OR: [
-              { firstName: { contains: term, mode: 'insensitive' } },
-              { lastName: { contains: term, mode: 'insensitive' } },
-              { email: { contains: term, mode: 'insensitive' } },
-              { company: { contains: term, mode: 'insensitive' } },
-            ],
+          OR: [
+            { firstName: { contains: term, mode: 'insensitive' } },
+            { lastName: { contains: term, mode: 'insensitive' } },
+            { email: { contains: term, mode: 'insensitive' } },
+            { subEventTitle: { contains: term, mode: 'insensitive' } },
+            { company: { contains: term, mode: 'insensitive' } },
+          ],
           }
         : {}),
     };
@@ -1337,8 +1150,9 @@ export class AdminService {
         userName: `${a.firstName} ${a.lastName}`,
         userCompany: a.company ?? null,
         userJobTitle: a.jobTitle ?? null,
-        userCity: null as string | null,
+        userCity: a.city ?? null,
         userPhone: a.phone ?? null,
+        subEvents: this.formatSelectedSubEvents(a.selectedSubEvents, a.subEventTitle, a.subEventTime),
         tierName: a.registration.tierName ?? 'Registration',
         orderStatus: a.registration.status === 'verified' ? 'paid' : 'pending',
         paymentMethod: a.registration.paymentMethod ?? null,
@@ -1354,6 +1168,7 @@ export class AdminService {
         userJobTitle: t.user.jobTitle ?? null,
         userCity: t.user.city ?? null,
         userPhone: t.user.phone ?? null,
+        subEvents: null,
         tierName: t.ticketTier.name,
         orderStatus: t.order?.status ?? null,
         paymentMethod: t.order?.paymentMethod ?? null,
@@ -1755,7 +1570,11 @@ export class AdminService {
         include: {
           user: { select: { email: true, firstName: true, lastName: true, company: true, jobTitle: true, city: true } },
           event: { select: { title: true } },
-          attendees: { select: { id: true } },
+          attendees: {
+            where: { isLead: true },
+            take: 1,
+            select: { firstName: true, lastName: true, email: true },
+          },
         },
       }),
     ]);
@@ -1786,25 +1605,33 @@ export class AdminService {
       ].join(',');
     });
 
-    const regRows = registrations.map((r: any) => [
-      'Manual (GCash/Bank)',
-      this.escapeCsvCell(r.referenceNumber),
-      `"${this.escapeCsvCell(r.event.title)}"`,
-      `"${this.escapeCsvCell(`${r.user.firstName} ${r.user.lastName}`)}"`,
-      this.escapeCsvCell(r.user.email),
-      `"${this.escapeCsvCell(r.user.company ?? '')}"`,
-      `"${this.escapeCsvCell(r.user.jobTitle ?? '')}"`,
-      `"${this.escapeCsvCell(r.user.city ?? '')}"`,
-      'paid',
-      `"${this.escapeCsvCell(r.tierName ?? 'Registration')}"`,
-      r.attendeeCount,
-      Number(r.subtotal).toFixed(2),
-      Number(r.discount).toFixed(2),
-      this.escapeCsvCell((r.referralCodeSnapshot as any)?.code ?? ''),
-      Number(r.total).toFixed(2),
-      r.paymentMethod ?? '',
-      r.createdAt.toISOString(),
-    ].join(','));
+    const regRows = registrations.map((r: any) => {
+      const lead = r.attendees[0];
+      const buyerName = lead
+        ? `${lead.firstName} ${lead.lastName}`
+        : r.user
+          ? `${r.user.firstName ?? ''} ${r.user.lastName ?? ''}`.trim()
+          : 'Walk-in attendee';
+      return [
+        'Manual (GCash/Bank)',
+        this.escapeCsvCell(r.referenceNumber),
+        `"${this.escapeCsvCell(r.event.title)}"`,
+        `"${this.escapeCsvCell(buyerName)}"`,
+        this.escapeCsvCell(lead?.email ?? r.user?.email ?? ''),
+        `"${this.escapeCsvCell(r.user?.company ?? '')}"`,
+        `"${this.escapeCsvCell(r.user?.jobTitle ?? '')}"`,
+        `"${this.escapeCsvCell(r.user?.city ?? '')}"`,
+        'paid',
+        `"${this.escapeCsvCell(r.tierName ?? 'Registration')}"`,
+        r.attendeeCount,
+        Number(r.subtotal).toFixed(2),
+        Number(r.discount).toFixed(2),
+        this.escapeCsvCell((r.referralCodeSnapshot as any)?.code ?? ''),
+        Number(r.total).toFixed(2),
+        r.paymentMethod ?? '',
+        r.createdAt.toISOString(),
+      ].join(',');
+    });
 
     // Merge and sort by date desc
     type CsvRow = { createdAt: Date; row: string };
@@ -1853,7 +1680,7 @@ export class AdminService {
       return [
         a.id,
         `"${this.escapeCsvCell(`${a.firstName} ${a.lastName}`)}"`,
-        this.escapeCsvCell(a.email),
+        this.escapeCsvCell(a.email ?? ''),
         this.escapeCsvCell(a.phone ?? ''),
         `"${this.escapeCsvCell(a.company ?? '')}"`,
         `"${this.escapeCsvCell(a.jobTitle ?? '')}"`,
@@ -1861,7 +1688,7 @@ export class AdminService {
         this.escapeCsvCell(a.gender ?? ''),
         `"${this.escapeCsvCell(a.city ?? a.registration.user?.city ?? '')}"`,
         `"${this.escapeCsvCell(a.registration.tierName ?? 'Registration')}"`,
-        `"${this.escapeCsvCell(a.subEventTitle ?? '')}"`,
+        `"${this.escapeCsvCell(this.formatSelectedSubEvents(a.selectedSubEvents, a.subEventTitle, a.subEventTime) ?? '')}"`,
         a.registration.status === 'verified' ? 'paid' : 'pending',
         this.escapeCsvCell(a.registration.paymentMethod ?? ''),
         Number(a.registration.discount).toFixed(2),
@@ -2084,13 +1911,6 @@ export class AdminService {
   ): void {
     const n = row.inclusions.length;
     const totalH = tagH + n * stubH;
-    const border = rgb(0.84, 0.86, 0.88);
-
-    // Outer strip border — left, right, top, bottom edges only
-    page.drawLine({ start: { x, y }, end: { x, y: y + totalH }, color: border, thickness: 0.5 });
-    page.drawLine({ start: { x: x + width, y }, end: { x: x + width, y: y + totalH }, color: border, thickness: 0.5 });
-    page.drawLine({ start: { x, y: y + totalH }, end: { x: x + width, y: y + totalH }, color: border, thickness: 0.5 });
-    page.drawLine({ start: { x, y }, end: { x: x + width, y }, color: border, thickness: 0.5 });
 
     // Fill white background
     page.drawRectangle({ x, y, width, height: totalH, color: rgb(1, 1, 1) });
@@ -2105,6 +1925,8 @@ export class AdminService {
       const hasBelowSep = i < n - 1;
       this.drawStubContent(page, x, stubBottomY, width, stubH, row.name, row.inclusions[i], eventDate, hasBelowSep, regularFont, boldFont);
     }
+
+    this.drawCutOutline(page, x, y, width, totalH);
   }
 
   private drawNametagContent(
@@ -2121,45 +1943,87 @@ export class AdminService {
   ): void {
     const pad = this.mmToPt(2.5);
     const contentW = width - 2 * pad;
-    const gray55 = rgb(0.55, 0.55, 0.57);
+    const darkGray = rgb(0.28, 0.29, 0.31);
     const gray88 = rgb(0.86, 0.87, 0.89);
 
-    // Event title — small caps, gray, centered at top
-    this.drawCenteredText(page, eventTitle.toUpperCase(), {
-      x: x + pad, y: y + height - pad - 6.5,
-      width: contentW,
-      font: boldFont, size: 5.5,
-      color: gray55,
+    // Event title - larger and wrapped so it remains readable without truncation.
+    const eventText = eventTitle.trim().toUpperCase();
+    const eventSize = 7;
+    const eventLines = boldFont.widthOfTextAtSize(eventText, eventSize) <= contentW
+      ? [eventText]
+      : this.findBalancedTwoLineSplit(eventText, boldFont, eventSize, contentW)
+        ?? [this.truncateToWidth(eventText, boldFont, eventSize, contentW)];
+    const eventLineHeight = 8;
+    const eventTop = y + height - pad;
+    eventLines.forEach((line, index) => {
+      this.drawCenteredText(page, line, {
+        x: x + pad,
+        y: eventTop - eventSize - index * eventLineHeight,
+        width: contentW,
+        font: boldFont,
+        size: eventSize,
+        color: darkGray,
+      });
     });
 
     // Separator line below event title
-    const sepY1 = y + height - pad - 9.5;
+    const sepY1 = eventTop - eventLines.length * eventLineHeight - 2;
     page.drawLine({ start: { x, y: sepY1 }, end: { x: x + width, y: sepY1 }, color: gray88, thickness: 0.35 });
 
-    // Attendee name — large bold, centered vertically in main area
+    // Attendee name - use up to 22 pt, then wrap long names instead of making them tiny.
     const name = row.name ? row.name.trim().toUpperCase() : '';
-    const footerH = 15;
-    const nameAreaBottom = y + footerH + 10;
-    const nameAreaTop = sepY1 - 2;
-    const nameSize = name ? this.fitFontSize(boldFont, name, contentW - 4, 16, 9) : 10;
-    const nameMid = nameAreaBottom + (nameAreaTop - nameAreaBottom) / 2;
-    const nameY = nameMid - nameSize * 0.38;
-
-    this.drawCenteredText(page, name, {
-      x: x + pad + 2, y: nameY,
-      width: contentW - 4,
-      font: boldFont, size: nameSize,
-      color: rgb(0.07, 0.07, 0.08),
-    });
-
-    // Position · Company — small gray, below name
+    const nameMaxWidth = contentW - 4;
+    const footerH = 17;
     const detail = [row.position.trim(), row.company.trim()].filter(Boolean).join(' · ');
-    this.drawCenteredText(page, detail, {
-      x: x + pad, y: nameY - nameSize * 0.38 - 8,
-      width: contentW,
-      font: regularFont, size: 6.5,
-      color: rgb(0.42, 0.43, 0.46),
+    const detailSize = detail ? this.fitFontSize(regularFont, detail, contentW, 9, 7) : 9;
+    const detailY = y + footerH + 7;
+    const nameAreaBottom = detail ? detailY + detailSize + 4 : y + footerH + 5;
+    const nameAreaTop = sepY1 - 4;
+
+    let nameLines = name ? [name] : [''];
+    let nameSize = 22;
+    if (name) {
+      nameSize = this.fitFontSize(boldFont, name, nameMaxWidth, 22, 18);
+      if (boldFont.widthOfTextAtSize(name, nameSize) > nameMaxWidth) {
+        for (let size = 20; size >= 14; size -= 1) {
+          const split = this.findBalancedTwoLineSplit(name, boldFont, size, nameMaxWidth);
+          if (split) {
+            nameLines = split;
+            nameSize = size;
+            break;
+          }
+        }
+      }
+      if (nameLines.length === 1 && boldFont.widthOfTextAtSize(name, nameSize) > nameMaxWidth) {
+        nameSize = this.fitFontSize(boldFont, name, nameMaxWidth, 18, 11);
+      }
+    }
+
+    const nameMid = nameAreaBottom + (nameAreaTop - nameAreaBottom) / 2;
+    const nameLineHeight = nameSize * 1.04;
+    nameLines.forEach((line, index) => {
+      const lineOffset = ((nameLines.length - 1) / 2 - index) * nameLineHeight;
+      this.drawCenteredText(page, line, {
+        x: x + pad + 2,
+        y: nameMid - nameSize * 0.35 + lineOffset,
+        width: nameMaxWidth,
+        font: boldFont,
+        size: nameSize,
+        color: rgb(0.03, 0.03, 0.04),
+      });
     });
+
+    // Position and company - larger and darker for print visibility.
+    if (detail) {
+      this.drawCenteredText(page, detail, {
+        x: x + pad,
+        y: detailY,
+        width: contentW,
+        font: regularFont,
+        size: detailSize,
+        color: rgb(0.24, 0.25, 0.27),
+      });
+    }
 
     // Footer separator
     const footerSepY = y + footerH;
@@ -2167,22 +2031,22 @@ export class AdminService {
 
     // Tier pill (left footer)
     if (row.tierName) {
-      this.drawPill(page, x + pad, y + 3.5, row.tierName, boldFont, 6, false);
+      this.drawPill(page, x + pad, y + 3.5, row.tierName, boldFont, 7, false);
     }
 
     // Reference number (right footer)
     const refNum = `#AX-${row.id.replace(/-/g, '').slice(-5).toUpperCase()}`;
-    const refSize = 5.5;
+    const refSize = 7;
     const refW = boldFont.widthOfTextAtSize(refNum, refSize);
     page.drawText(refNum, {
       x: x + width - pad - refW, y: y + 5,
       font: boldFont, size: refSize,
-      color: rgb(0.58, 0.58, 0.6),
+      color: rgb(0.32, 0.33, 0.35),
     });
 
     // Tear line at bottom of nametag (if stubs follow)
     if (hasStubsBelow) {
-      this.drawTearLine(page, x, y, width, regularFont);
+      this.drawTearLine(page, x, y, width, boldFont);
     }
   }
 
@@ -2236,30 +2100,71 @@ export class AdminService {
 
     // Separator below this stub (between stubs)
     if (hasSepBelow) {
-      this.drawTearLine(page, x, y, width, regularFont);
+      this.drawTearLine(page, x, y, width, boldFont);
     }
   }
 
-  private drawTearLine(page: PDFPage, x: number, y: number, width: number, regularFont: PDFFont): void {
-    const dashLen = 3;
-    const gapLen = 2;
-    const labelW = 16;
+  private drawTearLine(page: PDFPage, x: number, y: number, width: number, boldFont: PDFFont): void {
+    const dashLen = 3.2;
+    const gapLen = 2.2;
+    const labelW = 20;
     let cx = x;
     const lineEnd = x + width - labelW - 2;
     while (cx < lineEnd) {
       page.drawLine({
         start: { x: cx, y },
         end: { x: Math.min(cx + dashLen, lineEnd), y },
-        color: rgb(0.72, 0.72, 0.74),
-        thickness: 0.45,
+        color: rgb(0, 0, 0),
+        thickness: 0.95,
       });
       cx += dashLen + gapLen;
     }
-    page.drawText('tear', {
-      x: x + width - labelW, y: y - 2.5,
-      font: regularFont, size: 4.5,
-      color: rgb(0.72, 0.72, 0.74),
+    page.drawText('CUT', {
+      x: x + width - labelW, y: y - 3,
+      font: boldFont, size: 5.5,
+      color: rgb(0, 0, 0),
     });
+  }
+
+  private drawCutOutline(page: PDFPage, x: number, y: number, width: number, height: number): void {
+    const color = rgb(0, 0, 0);
+    const thickness = 1.2;
+    const dashLen = 3;
+    const gapLen = 2;
+
+    this.drawDottedLine(page, x, y, x + width, y, color, thickness, dashLen, gapLen);
+    this.drawDottedLine(page, x, y + height, x + width, y + height, color, thickness, dashLen, gapLen);
+    this.drawDottedLine(page, x, y, x, y + height, color, thickness, dashLen, gapLen);
+    this.drawDottedLine(page, x + width, y, x + width, y + height, color, thickness, dashLen, gapLen);
+  }
+
+  private drawDottedLine(
+    page: PDFPage,
+    x1: number,
+    y1: number,
+    x2: number,
+    y2: number,
+    color: ReturnType<typeof rgb>,
+    thickness: number,
+    dashLen: number,
+    gapLen: number,
+  ): void {
+    const dx = x2 - x1;
+    const dy = y2 - y1;
+    const length = Math.hypot(dx, dy);
+    if (length <= 0) return;
+
+    const ux = dx / length;
+    const uy = dy / length;
+    for (let pos = 0; pos < length; pos += dashLen + gapLen) {
+      const end = Math.min(pos + dashLen, length);
+      page.drawLine({
+        start: { x: x1 + ux * pos, y: y1 + uy * pos },
+        end: { x: x1 + ux * end, y: y1 + uy * end },
+        color,
+        thickness,
+      });
+    }
   }
 
   private drawPill(
@@ -2302,6 +2207,31 @@ export class AdminService {
     return minSize;
   }
 
+  private findBalancedTwoLineSplit(
+    text: string,
+    font: PDFFont,
+    size: number,
+    maxWidth: number,
+  ): [string, string] | null {
+    const words = text.trim().split(/\s+/).filter(Boolean);
+    if (words.length < 2) return null;
+
+    let best: { lines: [string, string]; score: number } | null = null;
+    for (let index = 1; index < words.length; index += 1) {
+      const lines: [string, string] = [
+        words.slice(0, index).join(' '),
+        words.slice(index).join(' '),
+      ];
+      const widths = lines.map((line) => font.widthOfTextAtSize(line, size));
+      if (widths.some((lineWidth) => lineWidth > maxWidth)) continue;
+
+      const score = Math.abs(widths[0] - widths[1]);
+      if (!best || score < best.score) best = { lines, score };
+    }
+
+    return best?.lines ?? null;
+  }
+
   private drawCenteredText(
     page: PDFPage,
     text: string,
@@ -2336,6 +2266,22 @@ export class AdminService {
 
   private compactName(firstName: string | null, lastName: string | null) {
     return [firstName, lastName].map((part) => part?.trim()).filter(Boolean).join(' ');
+  }
+
+  private formatSelectedSubEvents(selectedSubEvents: unknown, fallbackTitle?: string | null, fallbackTime?: string | null) {
+    if (Array.isArray(selectedSubEvents) && selectedSubEvents.length > 0) {
+      const labels = selectedSubEvents
+        .map((item: SelectedSubEventSnapshot) => {
+          const title = typeof item?.title === 'string' ? item.title.trim() : '';
+          if (!title) return '';
+          const time = typeof item?.time === 'string' ? item.time.trim() : '';
+          return time ? `${time} - ${title}` : title;
+        })
+        .filter(Boolean);
+      if (labels.length > 0) return labels.join(' | ');
+    }
+    if (!fallbackTitle) return null;
+    return fallbackTime ? `${fallbackTime} - ${fallbackTitle}` : fallbackTitle;
   }
 
   /**
@@ -2588,6 +2534,74 @@ export class AdminService {
       createdAt: org.createdAt.toISOString(),
       updatedAt: org.updatedAt.toISOString(),
     };
+  }
+
+  async addOrganizerMember(id: string, adminId: string, email: string, role: 'admin' | 'member' = 'admin') {
+    const normalizedEmail = email.trim().toLowerCase();
+    const org = await this.prisma.organization.findUnique({
+      where: { id },
+      select: { id: true, name: true },
+    });
+    if (!org) throw new NotFoundException('Organization not found');
+
+    const user = await this.prisma.user.upsert({
+      where: { email: normalizedEmail },
+      update: {},
+      create: { email: normalizedEmail, isVerified: false },
+      select: { id: true, email: true, firstName: true, lastName: true },
+    });
+
+    const member = await this.prisma.organizationMember.upsert({
+      where: { userId_organizationId: { userId: user.id, organizationId: id } },
+      update: { role },
+      create: { userId: user.id, organizationId: id, role },
+      include: { user: { select: { id: true, email: true, firstName: true, lastName: true } } },
+    });
+
+    await this.audit.log({
+      action: 'ORGANIZER_MEMBER_ADDED',
+      entityType: 'Organization',
+      entityId: id,
+      performedById: adminId,
+      metadata: { organizationName: org.name, memberEmail: normalizedEmail, role },
+    });
+
+    return {
+      id: member.id,
+      role: member.role,
+      user: {
+        id: member.user.id,
+        email: member.user.email,
+        name: `${member.user.firstName ?? ''} ${member.user.lastName ?? ''}`.trim(),
+      },
+      joinedAt: member.createdAt.toISOString(),
+    };
+  }
+
+  async removeOrganizerMember(id: string, memberId: string, adminId: string) {
+    const member = await this.prisma.organizationMember.findFirst({
+      where: { id: memberId, organizationId: id },
+      include: {
+        organization: { select: { id: true, name: true } },
+        user: { select: { email: true } },
+      },
+    });
+    if (!member) throw new NotFoundException('Organization member not found');
+    if (member.role === 'owner') {
+      throw new BadRequestException('Owner membership cannot be removed from this panel');
+    }
+
+    await this.prisma.organizationMember.delete({ where: { id: memberId } });
+
+    await this.audit.log({
+      action: 'ORGANIZER_MEMBER_REMOVED',
+      entityType: 'Organization',
+      entityId: id,
+      performedById: adminId,
+      metadata: { organizationName: member.organization.name, memberEmail: member.user.email, role: member.role },
+    });
+
+    return { deleted: true };
   }
 
   async approveOrganizer(id: string, adminId: string) {

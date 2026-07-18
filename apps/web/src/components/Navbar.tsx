@@ -16,6 +16,7 @@ export default function Navbar() {
   const [pendingCount, setPendingCount] = useState<number>(0);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isLoginOpen, setIsLoginOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
   const loginRef = useRef<HTMLDivElement>(null);
   const isStaff = Boolean(user?.isAdmin || user?.loginPortal === 'organizer');
   const dashboardLabel = user?.isAdmin ? 'Admin Dashboard' : 'Organizer Dashboard';
@@ -71,10 +72,17 @@ export default function Navbar() {
     toast.success('You have been signed out.');
   }
 
+  function handleSearch(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const query = searchQuery.trim();
+    router.push(query ? `/?q=${encodeURIComponent(query)}#upcoming-events` : '/#upcoming-events');
+    setIsMenuOpen(false);
+  }
+
   return (
-    <nav className="sticky top-0 z-50 bg-white border-b border-gray-200 shadow-sm">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-        <Link href="/" className="flex items-center shrink-0">
+    <nav className="sticky top-0 z-50 border-b border-[#e4dcf4] bg-white/95 backdrop-blur" aria-label="Primary navigation">
+      <div className="mx-auto flex min-h-[72px] max-w-7xl items-center gap-5 px-4 sm:px-6 lg:px-8">
+        <Link href="/" className="flex shrink-0 flex-col justify-center rounded-sm">
           <Image
             src="/axon-logo.svg"
             alt="Axon Tickets"
@@ -83,13 +91,31 @@ export default function Navbar() {
             priority
             unoptimized
           />
+          <span className="mt-0.5 text-[9px] font-bold uppercase tracking-[0.14em] text-[#756a92]">
+            Philippine Event Ticketing
+          </span>
         </Link>
 
+        <form role="search" onSubmit={handleSearch} className="hidden min-w-0 max-w-md flex-1 md:block">
+          <label htmlFor="global-event-search" className="sr-only">Search events</label>
+          <div className="flex min-h-[44px] items-center gap-2 rounded-[40px] border border-[#d8cdee] bg-[#f5f0ff] px-4 transition-colors focus-within:border-primary focus-within:bg-white">
+            <svg className="h-4 w-4 shrink-0 text-[#756a92]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+            <input
+              id="global-event-search"
+              type="search"
+              value={searchQuery}
+              onChange={(event) => setSearchQuery(event.target.value)}
+              placeholder="Search by event, venue or city"
+              className="min-w-0 flex-1 bg-transparent text-sm text-[#1a0533] placeholder:text-[#756a92] focus:outline-none"
+            />
+          </div>
+        </form>
+
         {/* ── Desktop nav (hidden on mobile) ── */}
-        <div className="hidden sm:flex items-center gap-4">
+        <div className="ml-auto hidden items-center gap-4 sm:flex">
           {!isStaff && (
             <Link href="/" className="text-sm font-medium text-gray-700 hover:text-primary">
-              Home
+              Browse Events
             </Link>
           )}
           {isHydrating ? (
@@ -141,8 +167,8 @@ export default function Navbar() {
             </>
           ) : (
             <>
-              <Link href="/organizers" className="text-sm font-medium text-gray-500 hover:text-primary">
-                For organizers
+              <Link href="/become-organizer" className="text-sm font-bold text-[#6b5b8a] hover:text-primary">
+                Become Organizer
               </Link>
               <div className="w-px h-4 bg-gray-200" />
               {/* Log in dropdown */}
@@ -187,7 +213,7 @@ export default function Navbar() {
               </div>
               <Link
                 href="/auth/register"
-                className="text-sm font-semibold bg-primary text-white px-4 py-2 rounded-lg hover:bg-primary-hover transition-colors"
+                className="axon-pill bg-primary text-xs text-white hover:bg-primary-hover"
               >
                 Sign up
               </Link>
@@ -197,7 +223,7 @@ export default function Navbar() {
 
         {/* ── Hamburger button (mobile only) ── */}
         <button
-          className="sm:hidden flex items-center justify-center w-8 h-8 text-gray-700 rounded-md hover:bg-gray-100 transition-colors"
+          className="ml-auto flex h-11 w-11 items-center justify-center rounded-full text-[#1a0533] transition-colors hover:bg-[#ede9fe] sm:hidden"
           onClick={() => setIsMenuOpen((prev) => !prev)}
           aria-label={isMenuOpen ? 'Close menu' : 'Open menu'}
           aria-expanded={isMenuOpen}
@@ -216,21 +242,29 @@ export default function Navbar() {
 
       {/* ── Mobile dropdown menu ── */}
       {isMenuOpen && (
-        <div className="sm:hidden bg-white border-t border-gray-100 px-4 py-3 space-y-1">
+        <div className="bg-[#1a0533] px-4 py-4 text-white sm:hidden">
+          <form role="search" onSubmit={handleSearch} className="mb-3">
+            <label htmlFor="mobile-event-search" className="sr-only">Search events</label>
+            <div className="flex min-h-[44px] items-center gap-2 rounded-[40px] border border-white/20 bg-white/10 px-4">
+              <svg className="h-4 w-4 text-[#a78bfa]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+              <input id="mobile-event-search" type="search" value={searchQuery} onChange={(event) => setSearchQuery(event.target.value)} placeholder="Search events" className="min-w-0 flex-1 bg-transparent text-sm text-white placeholder:text-[#a78bfa] focus:outline-none" />
+            </div>
+          </form>
+          <div className="space-y-1">
           {isHydrating ? (
             <div className="space-y-2 px-3 py-2">
-              <div className="h-4 w-32 bg-gray-100 rounded animate-pulse" />
-              <div className="h-4 w-24 bg-gray-100 rounded animate-pulse" />
+              <div className="h-4 w-32 rounded bg-white/15 animate-pulse" />
+              <div className="h-4 w-24 rounded bg-white/15 animate-pulse" />
             </div>
           ) : isAuthenticated ? (
             <>
               {!isStaff && (
-                <Link href="/" className="block px-3 py-2 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors">
-                  Home
+                <Link href="/" className="flex min-h-[56px] items-center border-b border-white/10 px-4 text-sm font-bold text-white">
+                  Browse Events
                 </Link>
               )}
               {isStaff && (
-                <Link href="/admin" className="flex items-center justify-between px-3 py-2 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors">
+                <Link href="/admin" className="flex min-h-[56px] items-center justify-between border-b border-white/10 px-4 text-sm font-bold text-white transition-colors hover:bg-white/10">
                   <span>{dashboardLabel}</span>
                   {user?.isAdmin && pendingCount > 0 && (
                     <span className="inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full text-[11px] font-semibold bg-red-50 text-red-700 ring-1 ring-inset ring-red-200">
@@ -240,50 +274,49 @@ export default function Navbar() {
                 </Link>
               )}
               {isStaff ? (
-                <Link href="/admin/event-previews" className="block px-3 py-2 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors">
+                <Link href="/admin/event-previews" className="flex min-h-[56px] items-center border-b border-white/10 px-4 text-sm font-bold text-white transition-colors hover:bg-white/10">
                   Event Previews
                 </Link>
               ) : (
-                <Link href="/account/tickets" className="block px-3 py-2 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors">
+                <Link href="/account/tickets" className="flex min-h-[56px] items-center border-b border-white/10 px-4 text-sm font-bold text-white transition-colors hover:bg-white/10">
                   My Events
                 </Link>
               )}
-              <Link href={isStaff ? '/admin/profile' : '/profile'} className="block px-3 py-2 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors">
+              <Link href={isStaff ? '/admin/profile' : '/profile'} className="flex min-h-[56px] items-center border-b border-white/10 px-4 text-sm font-bold text-white transition-colors hover:bg-white/10">
                 My Profile
               </Link>
               <button
                 onClick={handleLogout}
-                className="w-full text-left px-3 py-2 rounded-lg text-sm font-medium text-gray-500 hover:bg-gray-50 hover:text-gray-900 transition-colors"
+                className="min-h-[56px] w-full border-b border-white/10 px-4 text-left text-sm font-bold text-[#c4b5fd] transition-colors hover:bg-white/10 hover:text-white"
               >
                 Log out
               </button>
             </>
           ) : (
             <>
-              <Link href="/" className="block px-3 py-2 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors">
-                Home
+              <Link href="/" className="flex min-h-[56px] items-center border-b border-white/10 px-4 text-sm font-bold text-white">
+                Browse Events
               </Link>
-              <Link href="/organizers" className="block px-3 py-2 rounded-lg text-sm font-medium text-gray-500 hover:bg-gray-50 transition-colors">
-                For organizers
+              <Link href="/become-organizer" className="flex min-h-[56px] items-center border-b border-white/10 px-4 text-sm font-bold text-white">
+                Become Organizer
               </Link>
-              <div className="my-1 border-t border-gray-100" />
-              <p className="px-3 pt-1 pb-0.5 text-[11px] font-medium text-gray-400 uppercase tracking-wide">Log in as</p>
-              <Link href="/auth/login" className="block px-3 py-2 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors">
+              <p className="px-4 pb-1 pt-5 text-[11px] font-bold uppercase tracking-[0.18em] text-[#a78bfa]">Log in as</p>
+              <Link href="/auth/login" className="flex min-h-[56px] items-center border-b border-white/10 px-4 text-sm font-bold text-white transition-colors hover:bg-white/10">
                 Customer
               </Link>
-              <Link href="/auth/organizer?redirect=/become-organizer" className="flex items-center justify-between px-3 py-2 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors">
+              <Link href="/auth/organizer?redirect=/become-organizer" className="flex min-h-[56px] items-center justify-between border-b border-white/10 px-4 text-sm font-bold text-white transition-colors hover:bg-white/10">
                 <span>Organizer</span>
-                <span className="text-[10px] font-medium bg-primary/10 text-primary px-1.5 py-0.5 rounded-full">Organizer</span>
+                <span className="rounded-full bg-white/10 px-2 py-1 text-[10px] font-bold text-[#c4b5fd]">Organizer</span>
               </Link>
-              <div className="my-1 border-t border-gray-100" />
               <Link
                 href="/auth/register"
-                className="block mt-1 px-3 py-2 rounded-lg text-sm font-semibold bg-primary text-white text-center hover:bg-primary-hover transition-colors"
+                className="axon-pill mt-3 w-full bg-primary text-xs text-white hover:bg-primary-hover"
               >
                 Sign up
               </Link>
             </>
           )}
+          </div>
         </div>
       )}
     </nav>

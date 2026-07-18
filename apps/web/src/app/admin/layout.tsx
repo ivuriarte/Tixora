@@ -6,6 +6,7 @@ import Image from 'next/image';
 import { useAuthStore } from '@/store/auth.store';
 import { getRefreshToken } from '@/lib/auth';
 import AdminSidebar from '@/components/admin/AdminSidebar';
+import { SkeletonBlock } from '@/components/Skeleton';
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const { user, isAuthenticated, isHydrating } = useAuthStore();
@@ -29,20 +30,28 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
   if (isHydrating || !isAuthenticated || !hasAdminShellAccess) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+      <div className="min-h-screen bg-[#f5f0ff] p-4 sm:p-8" aria-label="Loading workspace" role="status">
+        <div className="mx-auto max-w-7xl space-y-6">
+          <SkeletonBlock className="h-16 w-full" />
+          <div className="grid gap-4 sm:grid-cols-3">
+            <SkeletonBlock className="h-28" />
+            <SkeletonBlock className="h-28" />
+            <SkeletonBlock className="h-28" />
+          </div>
+          <SkeletonBlock className="h-80 w-full" />
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="flex min-h-screen bg-gray-50">
+    <div className="flex min-h-screen bg-[#f5f0ff]">
       {/* Mobile top bar */}
-      <div className="md:hidden fixed top-0 left-0 right-0 z-40 h-14 flex items-center gap-3 px-4 bg-white border-b border-gray-200">
+      <div className="fixed left-0 right-0 top-0 z-40 flex h-14 items-center gap-3 border-b border-[#e4dcf4] bg-white px-4 md:hidden">
         <button
           onClick={() => setSidebarOpen(true)}
           aria-label="Open navigation"
-          className="p-1.5 rounded-lg text-gray-600 hover:bg-gray-100 transition-colors"
+          className="flex min-h-[44px] min-w-[44px] items-center justify-center rounded-lg text-[#6b5b8a] transition-colors hover:bg-[#ede9fe] hover:text-primary"
         >
           <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" aria-hidden>
             <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
@@ -54,7 +63,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       <AdminSidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
       {/* Main content — offset by mobile top bar height */}
-      <div className="flex-1 min-w-0 pt-14 md:pt-0">
+      <div className="min-w-0 flex-1 pt-14 md:pt-0">
         {children}
       </div>
     </div>

@@ -21,6 +21,7 @@ import ConferenceStep from '@/components/event-wizard/steps/ConferenceStep';
 import PaymentStep from '@/components/event-wizard/steps/PaymentStep';
 import ReviewStep from '@/components/event-wizard/steps/ReviewStep';
 import ReferralCodesPanel from '@/components/event-wizard/ReferralCodesPanel';
+import { ErrorState, ScreenSkeleton } from '@/components/ScreenState';
 import {
   emptyDraft,
   combineDatetime,
@@ -146,7 +147,7 @@ export default function AdminEventEditPage() {
   const { user } = useAuthStore();
   const isAdmin = Boolean(user?.isAdmin);
 
-  const { data: event, isLoading } = useQuery<ApiEvent>({
+  const { data: event, isLoading, isError, refetch } = useQuery<ApiEvent>({
     queryKey: ['admin-event', id],
     queryFn: () => api.get<{ data: ApiEvent }>(`/admin/events/${id}`).then((r) => r.data.data),
     enabled: !!id,
@@ -512,7 +513,16 @@ export default function AdminEventEditPage() {
           : null,
       faqs: draft.faqs.length > 0 ? draft.faqs : null,
       tagline: draft.tagline.trim() || null,
-      customSections: draft.customSections.length > 0 ? draft.customSections : null,
+      customSections:
+        draft.customSections.length > 0
+          ? draft.customSections.map((section) => ({
+              title: section.title.trim(),
+              description: section.description.trim(),
+              ...(section.imageUrl?.trim() && { imageUrl: section.imageUrl.trim() }),
+              ...(section.imageUrl?.trim() && section.imageAlt?.trim() && { imageAlt: section.imageAlt.trim() }),
+              isVisible: section.isVisible,
+            }))
+          : null,
     };
     await updateMutation.mutateAsync(payload);
   }
@@ -708,10 +718,22 @@ export default function AdminEventEditPage() {
   // ─── Inline Edit-mode Payment step removed: the wizard now uses the
   // multi-method PaymentStep directly (see render switch below).
 
-  if (isLoading || !event) {
+  if (isLoading) {
     return (
       <main className="max-w-3xl mx-auto px-4 py-10">
-        <p className="text-gray-400">Loading…</p>
+        <ScreenSkeleton rows={6} />
+      </main>
+    );
+  }
+
+  if (!event) {
+    return (
+      <main className="max-w-3xl mx-auto px-4 py-10">
+        <ErrorState
+          title={isError ? 'Unable to load event' : 'Event not found'}
+          message={isError ? 'The event editor could not load. Check your connection and try again.' : 'This event may have been removed or the link is incorrect.'}
+          action={isError ? <button type="button" onClick={() => refetch()} className="axon-pill bg-primary text-xs text-white">Try again</button> : <Link href="/admin/events" className="axon-pill bg-primary text-xs text-white">Back to events</Link>}
+        />
       </main>
     );
   }

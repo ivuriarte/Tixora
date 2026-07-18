@@ -7,6 +7,8 @@ import Navbar from '@/components/Navbar';
 import { QRCodeSVG } from 'qrcode.react';
 import { formatManila } from '@axon-tickets/utils';
 import Link from 'next/link';
+import Footer from '@/components/marketing/Footer';
+import { ErrorState } from '@/components/ScreenState';
 
 interface TicketDetail {
   id: string;
@@ -22,7 +24,7 @@ interface TicketDetail {
 export default function TicketDetailPage() {
   const { id } = useParams<{ id: string }>();
 
-  const { data: ticket, isLoading } = useQuery({
+  const { data: ticket, isLoading, isError, refetch } = useQuery({
     queryKey: ['ticket', id],
     queryFn: () =>
       api.get<{ data: TicketDetail }>(`/tickets/${id}`).then((r) => r.data.data),
@@ -31,43 +33,46 @@ export default function TicketDetailPage() {
   return (
     <>
       <Navbar />
-      <main className="max-w-md mx-auto px-4 py-10">
-        <Link href="/account/tickets" className="text-sm text-primary hover:underline mb-4 inline-block">
+      <main className="mx-auto max-w-md px-4 py-10 md:py-14">
+        <Link href="/account/tickets" className="mb-4 inline-flex min-h-[44px] items-center text-sm font-bold text-primary hover:underline">
           ← Back to tickets
         </Link>
 
-        {isLoading && <p className="text-gray-400">Loading…</p>}
+        {isLoading && <div className="h-[560px] animate-pulse rounded-lg bg-[#ece4fb]" aria-label="Loading ticket" />}
+
+        {isError && (
+          <ErrorState message="We couldn’t load this ticket. Check your connection and try again." action={<button type="button" onClick={() => refetch()} className="axon-pill bg-primary text-xs text-white">Try again</button>} />
+        )}
 
         {ticket && (
-          <div className="bg-white shadow rounded-2xl overflow-hidden">
+          <div className="overflow-hidden rounded-lg border border-[#e4dcf4] bg-white">
             {/* Header */}
-            <div className="bg-primary p-6 text-white">
-              <h1 className="text-xl font-bold leading-tight">{ticket.eventTitle}</h1>
-              <p className="text-primary-100 text-sm mt-1">
+            <div className="bg-[#1a0533] p-6 text-white">
+              <h1 className="axon-display text-3xl leading-tight">{ticket.eventTitle}</h1>
+              <p className="mt-4 text-sm text-[#c4b5fd]">
                 {formatManila(new Date(ticket.eventStartsAt))}
               </p>
-              <p className="text-primary-100 text-sm">{ticket.eventVenue}</p>
+              <p className="text-sm text-[#c4b5fd]">{ticket.eventVenue}</p>
             </div>
 
             {/* QR Code */}
             <div className="flex flex-col items-center py-8 px-4 gap-4">
               {ticket.status === 'valid' ? (
                 <>
+                  <span className="rounded-full bg-green-100 px-3 py-1 text-xs font-bold uppercase tracking-wide text-green-800">Valid ticket</span>
                   <QRCodeSVG
                     value={ticket.qrToken}
                     size={220}
                     level="H"
                     includeMargin
                   />
-                  <p className="text-xs text-gray-400 text-center">
-                    Show this QR code at the venue entrance
+                  <p className="max-w-xs text-center text-xs text-[#756a92]">
+                    Keep this QR private. Show it only to authorized event staff at the entrance.
                   </p>
                 </>
               ) : (
                 <div className="py-8 text-center space-y-2">
-                  <p className="text-2xl">
-                    {ticket.status === 'used' ? '✅' : '❌'}
-                  </p>
+                  <div className={`mx-auto flex h-12 w-12 items-center justify-center rounded-full ${ticket.status === 'used' ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}`} aria-hidden="true">{ticket.status === 'used' ? '✓' : '×'}</div>
                   <p className="font-semibold text-gray-700">
                     {ticket.status === 'used' ? 'Ticket Used' : 'Ticket Invalid'}
                   </p>
@@ -94,6 +99,7 @@ export default function TicketDetailPage() {
           </div>
         )}
       </main>
+      <Footer />
     </>
   );
 }

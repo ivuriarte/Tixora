@@ -7,6 +7,10 @@ import RegistrationGuard from '@/components/RegistrationGuard';
 import VenueMap from '@/components/VenueMap';
 import DescriptionSection from '@/components/DescriptionSection';
 import EventFunnelTracker from '@/components/EventFunnelTracker';
+import EventCoverFallback from '@/components/EventCoverFallback';
+import StickyEventCta from '@/components/StickyEventCta';
+import ShareEventButton from '@/components/ShareEventButton';
+import Footer from '@/components/marketing/Footer';
 
 interface Tier {
   id: string;
@@ -198,6 +202,9 @@ export default async function EventPage({ params, searchParams }: { params: { sl
   // JSON-LD must be emitted as raw JSON. Escaping '<' prevents organizer-controlled
   // text from closing the script element and creating an HTML injection sink.
   const serializedJsonLd = JSON.stringify(jsonLd).replace(/</g, '\\u003c');
+  const availablePrices = event.tiers.filter((tier) => tier.availableQuantity > 0).map((tier) => event.isFree ? 0 : tier.price);
+  const lowestPrice = availablePrices.length > 0 ? Math.min(...availablePrices) : null;
+  const fromPrice = lowestPrice === 0 ? 'Free' : lowestPrice != null ? `from ₱${lowestPrice.toLocaleString('en-PH')}` : 'View options';
 
   const agenda = sanitizeList<AgendaItem>(event.agenda, ['title']);
   const tierOrder = ['Platinum', 'Gold', 'Silver', 'Bronze', 'Partner', 'Media Partner', 'Community Partner'];
@@ -215,9 +222,40 @@ export default async function EventPage({ params, searchParams }: { params: { sl
   return (
     <>
       <Navbar />
-      <main className="page-container py-10">
+      <main className="pb-24 md:pb-0">
         <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: serializedJsonLd }} />
         <EventFunnelTracker eventId={event.id} eventSlug={event.slug} eventTitle={event.title} />
+        <section className="bg-[#1a0533] text-white">
+          <div className="page-container grid gap-8 py-10 lg:grid-cols-[1.1fr_.9fr] lg:items-center lg:py-14">
+            <div>
+              <div className="mb-5 flex flex-wrap items-center gap-2">
+                <span className="rounded-full border border-primary-900 px-3 py-1 text-[10px] font-bold uppercase tracking-[0.1em] text-[#a78bfa]">
+                  {isCancelled ? 'Cancelled' : isSoldOut ? 'Sold Out' : 'Open'}
+                </span>
+                {!isCancelled && !isSoldOut && event.tiers.some((tier) => tier.availableQuantity > 0) && (
+                  <span className="text-xs font-semibold text-[#a78bfa]">{event.tiers.reduce((sum, tier) => sum + Math.max(0, tier.availableQuantity), 0).toLocaleString('en-PH')} seats left</span>
+                )}
+              </div>
+              <h1 className="axon-display max-w-4xl text-5xl text-white sm:text-6xl lg:text-7xl">{event.title}</h1>
+              {event.speakerName && <p className="axon-label mt-4 text-sm text-[#a78bfa]">Featuring {event.speakerName}</p>}
+              <div className="mt-7 space-y-2 text-sm font-medium text-[#c4b5fd]">
+                <p>{formatManila(new Date(event.startsAt))}{event.endsAt ? ` – ${formatManila(new Date(event.endsAt))}` : ''}</p>
+                <p>{event.venue}, {event.city}</p>
+              </div>
+              <div className="mt-8 flex flex-wrap gap-3">
+                <a href="#ticket-panel" className="axon-pill bg-primary text-xs text-white hover:bg-primary-hover">Get Tickets</a>
+                <ShareEventButton title={event.title} text={`Join me at ${event.title}.`} className="axon-pill gap-2 border border-white/25 text-xs text-white hover:bg-white/10" />
+              </div>
+            </div>
+            <div className="overflow-hidden rounded-lg border border-white/10 bg-[#2d0f5e]">
+              <div className="relative aspect-[16/10]">
+                {event.imageUrl ? <Image src={event.imageUrl} alt={`${event.title} event cover`} fill priority className="object-cover" sizes="(max-width: 1024px) 100vw, 45vw" /> : <EventCoverFallback title={event.title} startsAt={event.startsAt} />}
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <div className="page-container py-10">
         {isPreview && (
           <div className="mb-6 flex items-center justify-between bg-amber-50 border border-amber-200 rounded-xl px-4 py-3">
             <div className="flex items-center gap-2 text-amber-800">
@@ -233,29 +271,6 @@ export default async function EventPage({ params, searchParams }: { params: { sl
         <div className="lg:grid lg:grid-cols-3 lg:gap-10">
           {/* Left: Details */}
           <div className="lg:col-span-2 space-y-8">
-            {event.imageUrl && (
-              <div className="relative rounded-2xl overflow-hidden h-64 sm:h-80">
-                <Image src={event.imageUrl} alt={event.title} fill className="object-cover" sizes="800px" />
-              </div>
-            )}
-
-            <div>
-              {isCancelled && (
-                <span className="inline-block mb-3 bg-red-100 text-red-700 text-sm font-semibold px-3 py-1 rounded-full">
-                  Event Cancelled
-                </span>
-              )}
-              {isSoldOut && !isCancelled && (
-                <span className="inline-block mb-3 bg-violet-100 text-violet-700 text-sm font-semibold px-3 py-1 rounded-full">
-                  Sold Out
-                </span>
-              )}
-              <h1 className="text-3xl font-bold text-gray-900">{event.title}</h1>
-              {event.speakerName && (
-                <p className="mt-2 text-lg text-purple-700 font-medium">{event.speakerName}</p>
-              )}
-            </div>
-
             {event.description && <DescriptionSection description={event.description} />}
 
             {/* Location map */}
@@ -426,6 +441,7 @@ export default async function EventPage({ params, searchParams }: { params: { sl
                 )}
               </div>
             </div>
+            <div id="ticket-panel" className="scroll-mt-28">
             <RegistrationGuard
               eventId={event.id}
               eventTitle={event.title}
@@ -438,9 +454,13 @@ export default async function EventPage({ params, searchParams }: { params: { sl
               paymentMethods={event.paymentMethods ?? null}
               disabled={isPreview || isSoldOut || isCancelled}
             />
+            </div>
           </div>
         </div>
+        </div>
       </main>
+      {!isPreview && !isSoldOut && !isCancelled && <StickyEventCta fromPrice={fromPrice} />}
+      <Footer />
     </>
   );
 }

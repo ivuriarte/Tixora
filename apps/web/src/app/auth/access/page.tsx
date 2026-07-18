@@ -343,20 +343,20 @@ function AccessForm() {
   }
 
   const inputClass =
-    'w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-white';
+    'min-h-[44px] w-full rounded-lg border border-[#d8cdee] bg-white px-3 py-2.5 text-sm text-[#1a0533]';
 
   return (
-    <div className="min-h-screen flex items-center justify-center px-4 py-12 bg-gray-50">
+    <div className="flex min-h-screen items-center justify-center bg-[#f5f0ff] px-4 py-12">
       <InAppBrowserBanner />
       <div className="w-full max-w-sm">
         {/* Header */}
         <div className="text-center mb-8">
-          <Link href="/" className="text-2xl font-bold text-primary">
+          <Link href="/" className="axon-label text-sm text-primary">
             Axon Tickets
           </Link>
           {step === 'email' && (
             <>
-              <h1 className="mt-4 text-2xl font-bold text-gray-900">Sign in or create account</h1>
+              <h1 className="axon-display mt-5 text-4xl text-[#1a0533]">Enter Email</h1>
               <p className="mt-1 text-sm text-gray-500">
                 Enter your email — new or returning, it works the same way.
               </p>
@@ -364,7 +364,7 @@ function AccessForm() {
           )}
           {step === 'code' && (
             <>
-              <h1 className="mt-4 text-2xl font-bold text-gray-900">Check your email</h1>
+              <h1 className="axon-display mt-5 text-4xl text-[#1a0533]">Check Email</h1>
               <p className="mt-1 text-sm text-gray-500">
                 We sent a 6-digit code to{' '}
                 <span className="font-medium text-gray-700">{email}</span>
@@ -373,7 +373,7 @@ function AccessForm() {
           )}
           {step === 'profile' && (
             <>
-              <h1 className="mt-4 text-2xl font-bold text-gray-900">Almost done!</h1>
+              <h1 className="axon-display mt-5 text-4xl text-[#1a0533]">Almost Done</h1>
               <p className="mt-1 text-sm text-gray-500">
                 Tell us your name and number. You only need to do this once.
               </p>
@@ -385,7 +385,7 @@ function AccessForm() {
         {step === 'email' && (
           <form
             onSubmit={handleRequestAccess}
-            className="bg-white shadow rounded-2xl p-8 space-y-5"
+            className="space-y-5 rounded-lg border border-[#e4dcf4] bg-white p-8"
           >
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -406,7 +406,7 @@ function AccessForm() {
             <button
               type="submit"
               disabled={loading || !email}
-              className="w-full py-2.5 rounded-xl bg-primary text-white text-sm font-semibold hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              className="axon-pill w-full gap-2 bg-primary text-xs text-white hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-50"
             >
               {loading ? (
                 <svg className="animate-spin w-4 h-4" viewBox="0 0 24 24" fill="none">
@@ -459,7 +459,7 @@ function AccessForm() {
 
         {/* ── Step 2: OTP Code ── */}
         {step === 'code' && (
-          <div className="bg-white shadow rounded-2xl p-8 space-y-6">
+          <div className="space-y-6 rounded-lg border border-[#e4dcf4] bg-white p-8">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-3 text-center">
                 Enter the 6-digit code
@@ -526,7 +526,7 @@ function AccessForm() {
         {step === 'profile' && (
           <form
             onSubmit={handleCompleteProfile}
-            className="bg-white shadow rounded-2xl p-8 space-y-5"
+            className="space-y-5 rounded-lg border border-[#e4dcf4] bg-white p-8"
           >
             <div className="grid grid-cols-2 gap-3">
               <div>
@@ -630,7 +630,7 @@ function AccessForm() {
             <button
               type="submit"
               disabled={loading || !profile.firstName.trim() || !profile.lastName.trim() || profile.phoneDigits.length < 10 || !termsAccepted || !privacyAccepted}
-              className="w-full py-2.5 rounded-xl bg-primary text-white text-sm font-semibold hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              className="axon-pill w-full gap-2 bg-primary text-xs text-white hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-50"
             >
               {loading ? (
                 <svg className="animate-spin w-4 h-4" viewBox="0 0 24 24" fill="none">

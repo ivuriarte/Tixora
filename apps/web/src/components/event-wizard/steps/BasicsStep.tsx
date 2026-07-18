@@ -42,7 +42,7 @@ export default function BasicsStep({ draft, update }: BasicsStepProps) {
 
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-1">
-          Cover Image <span className="text-gray-400 font-normal text-xs">(optional)</span>
+          Cover Image{REQ}
         </label>
         <ImageUploader
           value={draft.imageUrl}
@@ -50,7 +50,7 @@ export default function BasicsStep({ draft, update }: BasicsStepProps) {
           endpoint="/upload/event-cover"
           accept="image/jpeg,image/png,image/webp"
           maxSizeMB={5}
-          hint="Recommended 1200×630"
+          hint="Required · JPG, PNG, or WebP · recommended 1200×630"
           previewAspect="aspect-[1200/630]"
         />
       </div>

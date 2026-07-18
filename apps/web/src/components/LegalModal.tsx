@@ -25,7 +25,7 @@ export default function LegalModal({ open, onClose, title, content }: LegalModal
           enter="ease-out duration-200" enterFrom="opacity-0" enterTo="opacity-100"
           leave="ease-in duration-150" leaveFrom="opacity-100" leaveTo="opacity-0"
         >
-          <DialogBackdrop className="fixed inset-0 bg-black/50 backdrop-blur-sm" />
+          <DialogBackdrop className="fixed inset-0 bg-[#1a0533]/60 backdrop-blur-sm" />
         </Transition.Child>
 
         <div className="fixed inset-0 flex items-end sm:items-center justify-center p-0 sm:p-4">
@@ -38,10 +38,10 @@ export default function LegalModal({ open, onClose, title, content }: LegalModal
             leaveFrom="opacity-100 translate-y-0 sm:scale-100"
             leaveTo="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
           >
-            <DialogPanel className="relative w-full sm:max-w-2xl bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl flex flex-col max-h-[92dvh] sm:max-h-[85vh]">
+            <DialogPanel className="relative flex max-h-[92dvh] w-full flex-col rounded-t-lg border border-[#e4dcf4] bg-white shadow-2xl sm:max-h-[85vh] sm:max-w-2xl sm:rounded-lg">
               {/* Header */}
               <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 shrink-0">
-                <Dialog.Title className="text-sm font-semibold text-gray-900 pr-4 leading-snug">
+                <Dialog.Title className="axon-section-title pr-4 text-sm leading-snug">
                   {title}
                 </Dialog.Title>
                 <button
@@ -49,7 +49,7 @@ export default function LegalModal({ open, onClose, title, content }: LegalModal
                   type="button"
                   onClick={onClose}
                   aria-label="Close"
-                  className="shrink-0 p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors focus:outline-none focus:ring-2 focus:ring-primary"
+                  className="flex min-h-[44px] min-w-[44px] shrink-0 items-center justify-center rounded-lg text-[#756a92] transition-colors hover:bg-[#ede9fe] hover:text-primary"
                 >
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" aria-hidden="true">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
@@ -65,11 +65,11 @@ export default function LegalModal({ open, onClose, title, content }: LegalModal
               </div>
 
               {/* Footer */}
-              <div className="shrink-0 px-5 py-4 border-t border-gray-100 bg-gray-50 rounded-b-2xl">
+              <div className="shrink-0 rounded-b-lg border-t border-[#e4dcf4] bg-[#f5f0ff] px-5 py-4">
                 <button
                   type="button"
                   onClick={onClose}
-                  className="w-full py-2.5 rounded-xl bg-primary text-white text-sm font-semibold hover:bg-primary/90 transition-colors focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2"
+                  className="axon-pill w-full bg-primary text-sm text-white hover:bg-primary-hover"
                 >
                   Close
                 </button>

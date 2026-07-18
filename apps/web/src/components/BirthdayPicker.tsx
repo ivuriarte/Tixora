@@ -58,10 +58,10 @@ export default function BirthdayPicker({ value, onChange }: BirthdayPickerProps)
   }
 
   const sel =
-    'flex-1 border border-gray-300 rounded-lg px-2 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-primary';
+    'min-w-0 w-full border border-gray-300 rounded-lg px-2 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-primary';
 
   return (
-    <div className="flex gap-2">
+    <div className="grid grid-cols-[minmax(0,1fr)_4.5rem_5.5rem] gap-2">
       <select value={month} onChange={(e) => handleMonthChange(e.target.value)} className={sel}>
         <option value="">Month</option>
         {MONTHS.map((m) => (
@@ -73,7 +73,7 @@ export default function BirthdayPicker({ value, onChange }: BirthdayPickerProps)
       <select
         value={day}
         onChange={(e) => setDay(e.target.value)}
-        className="w-20 border border-gray-300 rounded-lg px-2 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-primary"
+        className="w-full border border-gray-300 rounded-lg px-2 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-primary"
       >
         <option value="">Day</option>
         {days.map((d) => (
@@ -85,7 +85,7 @@ export default function BirthdayPicker({ value, onChange }: BirthdayPickerProps)
       <select
         value={year}
         onChange={(e) => setYear(e.target.value)}
-        className="w-24 border border-gray-300 rounded-lg px-2 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-primary"
+        className="w-full border border-gray-300 rounded-lg px-2 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-primary"
       >
         <option value="">Year</option>
         {years.map((y) => (

@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '@/lib/api';
 import toast from 'react-hot-toast';
+import { EmptyState, ScreenSkeleton } from '@/components/ScreenState';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -737,7 +738,7 @@ export default function EventWorkspacePage() {
   if (summaryLoading) {
     return (
       <main className="max-w-4xl mx-auto px-6 py-10">
-        <p className="text-sm text-gray-400">Loading workspace…</p>
+        <ScreenSkeleton rows={6} />
       </main>
     );
   }
@@ -778,7 +779,7 @@ export default function EventWorkspacePage() {
         {/* Header */}
         <div className="flex items-start justify-between gap-4">
           <div>
-            <h1 className="text-xl font-semibold text-gray-900">Event Workspace</h1>
+            <h1 className="axon-page-title text-3xl sm:text-4xl">Event Workspace</h1>
             <p className="text-sm text-gray-400">
               {summary.event.title} &middot; {new Date(summary.event.startsAt).toLocaleDateString('en-PH', { dateStyle: 'long' })}
             </p>
@@ -996,16 +997,15 @@ export default function EventWorkspacePage() {
               </div>
             )}
             {itemsLoading ? (
-              <p className="text-sm text-gray-400 py-6 text-center">Loading…</p>
+              <ScreenSkeleton rows={4} compact />
             ) : !itemsData || itemsData.categories.length === 0 ? (
-              <div className="py-8 text-center">
-                <p className="text-sm text-gray-400 mb-3">No items yet.</p>
-                {canEdit && (
+              <div className="py-4">
+                <EmptyState title="No workspace items yet" message="Choose a readiness template or add the first item for this event." action={canEdit ? (
                   <button onClick={() => setShowTemplate(true)}
-                    className="text-sm text-violet-600 hover:text-violet-800 font-medium">
-                    Choose a template to get started →
+                    className="axon-pill bg-primary text-xs text-white hover:bg-primary-hover">
+                    Choose a template
                   </button>
-                )}
+                ) : undefined} />
               </div>
             ) : (
               itemsData.categories.map(({ category, items }) => (

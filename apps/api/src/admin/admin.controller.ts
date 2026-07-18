@@ -25,7 +25,7 @@ import { JwtPayload } from '@axon-tickets/types';
 import { AdminService } from './admin.service';
 import { CreateEventDto, UpdateEventDto } from '../events/dto/event.dto';
 import { CreateTierDto, UpdateTierDto } from '../ticket-tiers/dto/tier.dto';
-import { CheckinDto, RejectRegistrationDto, BulkApproveDto, BulkRejectDto, RejectOrganizerDto, SetUserRoleDto, UpdatePlatformSettingsDto, WalkInRegistrationDto } from './dto/admin.dto';
+import { AddOrganizerMemberDto, CheckinDto, RejectRegistrationDto, BulkApproveDto, BulkRejectDto, RejectOrganizerDto, SetUserRoleDto, UpdatePlatformSettingsDto } from './dto/admin.dto';
 import { RegistrationsService } from '../registrations/registrations.service';
 import { CreateReferralCodeDto, SetReferralCodeStatusDto, UpdateReferralCodeDto } from './dto/referral-code.dto';
 
@@ -516,18 +516,6 @@ export class AdminController {
     return this.adminService.checkinManual(attendeeId, eventId, user.sub);
   }
 
-  @Post('events/:eventId/walk-ins')
-  @ApiOperation({ summary: 'Create a walk-in registration, check in today, and return nametag context' })
-  async createWalkInRegistration(
-    @Param('eventId') eventId: string,
-    @Body() dto: WalkInRegistrationDto,
-    @CurrentUser() user: JwtPayload,
-    @Req() req: Request,
-  ) {
-    await this.adminService.assertEventAccess(eventId, user);
-    return this.adminService.createWalkInRegistration(eventId, dto, user.sub, req.ip);
-  }
-
   // ── User Management ──────────────────────────────────────────────────────
 
   @Get('users')
@@ -588,6 +576,28 @@ export class AdminController {
   getOrganizer(@Param('id') id: string, @CurrentUser() user: JwtPayload) {
     this.requirePlatformAdmin(user);
     return this.adminService.getOrganizer(id);
+  }
+
+  @Post('organizers/:id/members')
+  @ApiOperation({ summary: 'Grant organizer account access to another email' })
+  addOrganizerMember(
+    @Param('id') id: string,
+    @Body() dto: AddOrganizerMemberDto,
+    @CurrentUser() user: JwtPayload,
+  ) {
+    this.requirePlatformAdmin(user);
+    return this.adminService.addOrganizerMember(id, user.sub, dto.email, dto.role ?? 'admin');
+  }
+
+  @Delete('organizers/:id/members/:memberId')
+  @ApiOperation({ summary: 'Remove organizer account access for a member' })
+  removeOrganizerMember(
+    @Param('id') id: string,
+    @Param('memberId') memberId: string,
+    @CurrentUser() user: JwtPayload,
+  ) {
+    this.requirePlatformAdmin(user);
+    return this.adminService.removeOrganizerMember(id, memberId, user.sub);
   }
 
   @Patch('organizers/:id/approve')

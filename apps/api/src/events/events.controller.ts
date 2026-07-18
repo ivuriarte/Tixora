@@ -20,14 +20,23 @@ export class EventsController {
   }
 
   @Public()
+  @Get('public-stats')
+  @ApiOperation({ summary: 'Get public-safe platform activity totals' })
+  publicStats() {
+    return this.eventsService.getPublicStats();
+  }
+
+  @Public()
   @Get()
   @ApiOperation({ summary: 'List published events' })
   @ApiQuery({ name: 'page', required: false })
   @ApiQuery({ name: 'limit', required: false })
-  findAll(@Query('page') page?: string, @Query('limit') limit?: string) {
+  @ApiQuery({ name: 'q', required: false, description: 'Search event title, venue, or city' })
+  findAll(@Query('page') page?: string, @Query('limit') limit?: string, @Query('q') q?: string) {
     return this.eventsService.findAll(
       page ? parseInt(page, 10) : 1,
       limit ? Math.min(parseInt(limit, 10), 50) : 20,
+      q,
     );
   }
 

@@ -4,9 +4,11 @@ import { useEffect, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import api from '@/lib/api';
 import Navbar from '@/components/Navbar';
+import Footer from '@/components/marketing/Footer';
+import { ErrorState as QueryErrorState } from '@/components/ScreenState';
 import Link from 'next/link';
 import Image from 'next/image';
-import { formatManila, centavosToPeso, formatPHP } from '@axon-tickets/utils';
+import { formatManila, formatPHP } from '@axon-tickets/utils';
 import type { RegistrationSummary, RegistrationStatus } from '@axon-tickets/types';
 
 interface Ticket {
@@ -53,7 +55,7 @@ function DatePill({ iso }: { iso: string }) {
   const month = d.toLocaleString('en-US', { month: 'short', timeZone: 'Asia/Manila' }).toUpperCase();
   const day = d.toLocaleString('en-US', { day: 'numeric', timeZone: 'Asia/Manila' });
   return (
-    <div className="flex flex-col items-center justify-center w-14 h-16 rounded-xl bg-gradient-to-br from-primary/10 to-primary/5 ring-1 ring-primary/15 shrink-0">
+    <div className="flex h-16 w-14 shrink-0 flex-col items-center justify-center rounded-lg bg-[#ede9fe] ring-1 ring-primary/15">
       <span className="text-[10px] font-semibold tracking-wider text-primary">{month}</span>
       <span className="text-xl font-bold text-gray-900 leading-none">{day}</span>
     </div>
@@ -70,7 +72,7 @@ function EventThumb({ url, title }: { url?: string | null; title: string }) {
   }
   const initial = title.charAt(0).toUpperCase();
   return (
-    <div className="w-20 h-20 rounded-xl shrink-0 bg-gradient-to-br from-primary via-primary to-violet-700 hidden sm:flex items-center justify-center text-white font-bold text-2xl ring-1 ring-primary/30 shadow-sm">
+    <div className="hidden h-20 w-20 shrink-0 items-center justify-center rounded-lg bg-primary text-2xl font-bold text-white ring-1 ring-primary/30 sm:flex">
       {initial}
     </div>
   );
@@ -137,12 +139,12 @@ export default function MyEventsPage() {
     if (params.get('tab') === 'registrations') setTab('registrations');
   }, []);
 
-  const { data: tickets, isLoading: ticketsLoading } = useQuery({
+  const { data: tickets, isLoading: ticketsLoading, isError: ticketsError, refetch: refetchTickets } = useQuery({
     queryKey: ['my-tickets'],
     queryFn: () => api.get<{ data: { data: Ticket[] } }>('/tickets').then((r) => r.data.data.data),
   });
 
-  const { data: registrations, isLoading: regsLoading } = useQuery({
+  const { data: registrations, isLoading: regsLoading, isError: regsError, refetch: refetchRegistrations } = useQuery({
     queryKey: ['my-registrations'],
     queryFn: () =>
       api.get('/registrations/my').then((r) => {
@@ -170,23 +172,23 @@ export default function MyEventsPage() {
   return (
     <>
       <Navbar />
-      <main className="min-h-screen bg-gradient-to-b from-gray-50 to-white">
+      <main className="min-h-screen bg-[#f5f0ff]">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 py-10 sm:py-12">
           {/* Header */}
           <header className="mb-8">
-            <h1 className="text-3xl sm:text-4xl font-bold text-gray-900 tracking-tight">My Events</h1>
-            <p className="text-sm text-gray-500 mt-1.5">Your tickets and registration history, all in one place.</p>
+            <h1 className="axon-display text-4xl text-[#1a0533] sm:text-5xl">My Events</h1>
+            <p className="mt-2 text-sm text-[#6b5b8a]">Your tickets and registration history, all in one place.</p>
           </header>
 
           {/* Segmented control */}
-          <div role="tablist" aria-label="My events tabs" className="inline-flex p-1 bg-gray-100 rounded-2xl mb-7">
+          <div role="tablist" aria-label="My events tabs" className="mb-7 inline-flex rounded-[40px] border border-[#e4dcf4] bg-white p-1">
             <button
               role="tab"
               aria-selected={tab === 'tickets'}
               onClick={() => setTab('tickets')}
-              className={`inline-flex items-center gap-2 px-4 sm:px-5 py-2 rounded-xl text-sm font-semibold transition-all ${
+              className={`inline-flex min-h-[44px] items-center gap-2 rounded-[40px] px-4 text-sm font-semibold transition-colors sm:px-5 ${
                 tab === 'tickets'
-                  ? 'bg-white text-gray-900 shadow-sm ring-1 ring-gray-200'
+                  ? 'bg-[#1a0533] text-white'
                   : 'text-gray-500 hover:text-gray-800'
               }`}
             >
@@ -204,9 +206,9 @@ export default function MyEventsPage() {
               role="tab"
               aria-selected={tab === 'registrations'}
               onClick={() => setTab('registrations')}
-              className={`inline-flex items-center gap-2 px-4 sm:px-5 py-2 rounded-xl text-sm font-semibold transition-all ${
+              className={`inline-flex min-h-[44px] items-center gap-2 rounded-[40px] px-4 text-sm font-semibold transition-colors sm:px-5 ${
                 tab === 'registrations'
-                  ? 'bg-white text-gray-900 shadow-sm ring-1 ring-gray-200'
+                  ? 'bg-[#1a0533] text-white'
                   : 'text-gray-500 hover:text-gray-800'
               }`}
             >
@@ -231,7 +233,11 @@ export default function MyEventsPage() {
                 </div>
               )}
 
-              {!ticketsLoading && ticketCount === 0 && (
+              {ticketsError && (
+                <QueryErrorState message="Your tickets could not be loaded. Check your connection and try again." action={<button type="button" onClick={() => refetchTickets()} className="axon-pill bg-primary text-xs text-white">Try again</button>} />
+              )}
+
+              {!ticketsLoading && !ticketsError && ticketCount === 0 && (
                 <EmptyState
                   icon={<svg className="w-7 h-7" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M3 9a2 2 0 012-2h14a2 2 0 012 2v1.5a2 2 0 100 4V16a2 2 0 01-2 2H5a2 2 0 01-2-2v-1.5a2 2 0 100-4V9z"/></svg>}
                   title="No tickets yet"
@@ -275,7 +281,11 @@ export default function MyEventsPage() {
                 </div>
               )}
 
-              {!regsLoading && regCount === 0 && (
+              {regsError && (
+                <QueryErrorState message="Your registrations could not be loaded. Check your connection and try again." action={<button type="button" onClick={() => refetchRegistrations()} className="axon-pill bg-primary text-xs text-white">Try again</button>} />
+              )}
+
+              {!regsLoading && !regsError && regCount === 0 && (
                 <EmptyState
                   icon={<svg className="w-7 h-7" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/></svg>}
                   title="No registrations yet"
@@ -293,6 +303,7 @@ export default function MyEventsPage() {
           )}
         </div>
       </main>
+      <Footer />
     </>
   );
 }
@@ -309,7 +320,7 @@ function TicketCard({ ticket, muted = false }: { ticket: Ticket; muted?: boolean
   return (
     <Link
       href={href}
-      className={`group flex items-center gap-4 bg-white rounded-2xl p-4 ring-1 ring-gray-200 hover:ring-primary/40 hover:shadow-lg hover:-translate-y-0.5 transition-all ${muted ? 'opacity-75' : ''}`}
+      className={`group flex items-center gap-4 rounded-lg border border-[#e4dcf4] bg-white p-4 transition-colors hover:border-primary ${muted ? 'opacity-75' : ''}`}
     >
       <DatePill iso={ticket.eventStartsAt} />
       <EventThumb url={ticket.eventImageUrl} title={ticket.eventTitle} />
@@ -339,7 +350,7 @@ function RegistrationCard({ reg }: { reg: RegistrationSummary }) {
   return (
     <Link
       href={`/registrations/${reg.id}`}
-      className="group block bg-white rounded-2xl p-5 ring-1 ring-gray-200 hover:ring-primary/40 hover:shadow-lg hover:-translate-y-0.5 transition-all"
+      className="group block rounded-lg border border-[#e4dcf4] bg-white p-5 transition-colors hover:border-primary"
     >
       <div className="flex items-start gap-4">
         <DatePill iso={reg.eventStartsAt} />
@@ -358,7 +369,7 @@ function RegistrationCard({ reg }: { reg: RegistrationSummary }) {
         </div>
         <div className="text-right shrink-0 flex flex-col items-end gap-2">
           <StatusChip dot={style.dot} chip={style.chip}>{REG_STATUS_LABELS[reg.status]}</StatusChip>
-          <p className="text-base font-bold text-gray-900">{formatPHP(centavosToPeso(reg.total))}</p>
+          <p className="text-base font-bold text-gray-900">{formatPHP(reg.total)}</p>
         </div>
       </div>
       <div className="mt-4 pt-3 border-t border-gray-100 flex items-center justify-between">

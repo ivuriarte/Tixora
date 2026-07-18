@@ -97,14 +97,14 @@ export default function WizardShell({
     <div className="min-h-screen bg-gray-50">
       <main className="max-w-7xl mx-auto px-4 py-6 lg:py-10">
         {/* Header */}
-        <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
-          <h1 className="text-2xl font-bold text-gray-900">{title}</h1>
+        <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
+          <h1 className="axon-page-title text-3xl sm:text-4xl">{title}</h1>
           <div className="flex items-center gap-3">
             {statusIndicator}
             <button
               type="button"
               onClick={() => setShowPreviewMobile((v) => !v)}
-              className="lg:hidden text-xs font-medium text-primary border border-primary/30 rounded-lg px-3 py-1.5"
+              className="min-h-[44px] rounded-[40px] border border-primary/30 px-4 text-xs font-bold uppercase tracking-wide text-primary lg:hidden"
             >
               {showPreviewMobile ? 'Hide preview' : 'Show preview'}
             </button>
@@ -114,7 +114,7 @@ export default function WizardShell({
         {topBanner}
 
         {/* Stepper */}
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-4 sm:p-6 mb-4">
+        <div className="mb-4 rounded-lg border border-[#e4dcf4] bg-white p-4 sm:p-6">
           <Stepper currentStep={step} completedSteps={completed} onJump={handleJump} />
         </div>
 
@@ -128,14 +128,14 @@ export default function WizardShell({
         {/* Two-column layout */}
         <div className="grid grid-cols-1 lg:grid-cols-[1fr_360px] gap-6 items-start">
           {/* Form column */}
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6 sm:p-8 min-h-[300px]">
+          <div className="min-h-[300px] rounded-lg border border-[#e4dcf4] bg-white p-6 sm:p-8">
             {/* Step header */}
             <div className="mb-6 pb-4 border-b border-gray-100">
               <p className="text-xs font-medium text-primary uppercase tracking-wider">
                 Step {currentIdx + 1} of {STEPS.length}
                 {currentStep.optional && <span className="ml-2 text-gray-400 normal-case">(optional)</span>}
               </p>
-              <h2 className="text-xl font-semibold text-gray-900 mt-1">{currentStep.label}</h2>
+              <h2 className="axon-section-title mt-2 text-lg">{currentStep.label}</h2>
             </div>
 
             {/* Animated step content */}
@@ -158,7 +158,7 @@ export default function WizardShell({
               <button
                 type="button"
                 onClick={onCancel}
-                className="text-sm text-gray-500 hover:text-gray-700 px-3 py-2"
+                className="min-h-[44px] px-3 text-sm font-medium text-[#756a92] hover:text-primary"
               >
                 Cancel
               </button>
@@ -167,7 +167,7 @@ export default function WizardShell({
                   <button
                     type="button"
                     onClick={handleBack}
-                    className="border border-gray-300 text-gray-700 px-4 py-2 rounded-xl text-sm font-medium hover:bg-gray-50"
+                    className="axon-pill border border-[#d3c8e8] text-xs text-[#4f416c] hover:border-primary hover:text-primary"
                   >
                     ← Back
                   </button>
@@ -179,7 +179,7 @@ export default function WizardShell({
                     disabled={!canAdvance}
                     title={!canAdvance && validationError ? validationError : undefined}
                     aria-disabled={!canAdvance}
-                    className="bg-primary text-white font-semibold px-5 py-2 rounded-xl text-sm hover:bg-primary-hover disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-primary transition-colors"
+                    className="axon-pill bg-primary text-xs text-white hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-40"
                   >
                     Next →
                   </button>
@@ -188,7 +188,7 @@ export default function WizardShell({
                     type="button"
                     onClick={handleSubmit}
                     disabled={submitting}
-                    className="bg-primary text-white font-semibold px-5 py-2 rounded-xl text-sm hover:bg-primary-hover disabled:opacity-50 transition-colors"
+                    className="axon-pill bg-primary text-xs text-white hover:bg-primary-hover disabled:opacity-50"
                   >
                     {submitting ? 'Working…' : submitLabel}
                   </button>

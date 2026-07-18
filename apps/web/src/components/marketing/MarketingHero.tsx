@@ -17,9 +17,9 @@ interface MarketingHeroProps {
 }
 
 const primaryClasses =
-  'inline-flex items-center justify-center gap-2 w-full sm:w-auto bg-primary text-white font-semibold px-8 py-3.5 rounded-xl text-base hover:bg-primary-hover transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2';
+  'axon-pill w-full gap-2 bg-primary text-sm text-white hover:bg-primary-hover sm:w-auto';
 const secondaryClasses =
-  'inline-flex items-center justify-center gap-2 w-full sm:w-auto border border-gray-300 text-gray-800 font-semibold px-8 py-3.5 rounded-xl text-base hover:border-primary hover:text-primary transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2';
+  'axon-pill w-full gap-2 border border-[#a78bfa] text-sm text-white hover:bg-white/10 sm:w-auto';
 
 function CtaLink({ cta, variant }: { cta: HeroCta; variant: 'primary' | 'secondary' }) {
   const className = variant === 'primary' ? primaryClasses : secondaryClasses;
@@ -43,24 +43,24 @@ function CtaLink({ cta, variant }: { cta: HeroCta; variant: 'primary' | 'seconda
 
 export default function MarketingHero({ eyebrow, title, subtitle, primaryCta, secondaryCta, note }: MarketingHeroProps) {
   return (
-    <section className="bg-gradient-to-b from-primary-50 to-gray-50 border-b border-gray-100">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 md:py-24 text-center">
+    <section className="border-b border-[#3b0764] bg-[#1a0533] text-white">
+      <div className="page-container py-16 text-center md:py-24">
         {eyebrow && (
-          <span className="inline-block bg-primary/10 text-primary text-xs font-semibold px-3 py-1 rounded-full mb-5 tracking-wide uppercase">
+          <span className="mb-5 inline-flex min-h-[32px] items-center rounded-full bg-white/10 px-4 text-xs font-bold uppercase tracking-[0.14em] text-[#a78bfa]">
             {eyebrow}
           </span>
         )}
-        <h1 className="text-3xl sm:text-4xl md:text-5xl font-extrabold text-gray-900 leading-tight max-w-3xl mx-auto mb-5">
+        <h1 className="axon-display mx-auto mb-5 max-w-4xl text-4xl sm:text-6xl md:text-7xl">
           {title}
         </h1>
-        <p className="text-gray-600 text-base sm:text-lg leading-relaxed max-w-2xl mx-auto mb-8">
+        <p className="mx-auto mb-8 max-w-2xl text-base leading-relaxed text-[#c4b5fd] sm:text-lg">
           {subtitle}
         </p>
         <div className="flex flex-col sm:flex-row items-center justify-center gap-3 sm:gap-4">
           <CtaLink cta={primaryCta} variant="primary" />
           {secondaryCta && <CtaLink cta={secondaryCta} variant="secondary" />}
         </div>
-        {note && <p className="text-sm text-gray-500 mt-4">{note}</p>}
+        {note && <p className="mt-4 text-sm text-[#a78bfa]">{note}</p>}
       </div>
     </section>
   );

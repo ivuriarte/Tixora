@@ -83,7 +83,7 @@ function VerifyForm() {
       );
       const { user, accessToken, refreshToken } = res.data.data;
       setAuth(user, accessToken, refreshToken);
-      toast.success('Email verified! Welcome to Axon Tickets 🎉');
+      toast.success('Email verified. Welcome to Axon Tickets!');
       router.push('/');
     } catch (err: any) {
       const msg = friendlyOtpError(err);
@@ -117,18 +117,18 @@ function VerifyForm() {
   if (!userId) return null;
 
   return (
-    <div className="min-h-screen flex items-center justify-center px-4 py-12 bg-gray-50">
+    <div className="axon-auth-page">
       <div className="w-full max-w-sm">
         <div className="text-center mb-8">
-          <Link href="/" className="text-2xl font-bold text-primary">Axon Tickets</Link>
-          <h1 className="mt-4 text-2xl font-bold text-gray-900">Check your email</h1>
-          <p className="mt-1 text-sm text-gray-500">
+          <Link href="/" className="axon-label inline-flex min-h-[44px] items-center text-sm text-primary">Axon Tickets</Link>
+          <h1 className="axon-display mt-4 text-4xl">Check your email</h1>
+          <p className="mt-2 text-sm text-[#6b5b8a]">
             We sent a 6-digit code to{' '}
             <strong className="text-gray-700 break-all">{email || 'your email'}</strong>
           </p>
         </div>
 
-        <form onSubmit={handleVerify} className="bg-white shadow-sm rounded-2xl p-8 space-y-6 border border-gray-100">
+        <form onSubmit={handleVerify} className="axon-auth-card space-y-6">
           {/* OTP inputs */}
           <div className="flex gap-2 justify-center">
             {otp.map((digit, i) => (
@@ -171,7 +171,7 @@ function VerifyForm() {
               type="button"
               onClick={handleResend}
               disabled={resending || cooldown > 0}
-              className="text-sm font-medium text-primary hover:underline disabled:opacity-50 disabled:cursor-not-allowed"
+              className="min-h-[44px] px-3 text-sm font-bold text-primary hover:underline disabled:cursor-not-allowed disabled:opacity-50"
             >
               {cooldown > 0
                 ? `Resend in ${cooldown}s`
@@ -200,4 +200,3 @@ export default function VerifyPage() {
     </Suspense>
   );
 }
-

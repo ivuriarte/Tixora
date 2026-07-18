@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import axios from 'axios';
+import { ScreenSkeleton } from '@/components/ScreenState';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.axontickets.online/api/v1';
 
@@ -32,7 +33,7 @@ interface EventData {
 
 interface OnsiteResult {
   created: boolean;
-  attendee: { id: string; firstName: string; lastName: string; email: string };
+  attendee: { id: string; firstName: string; lastName: string; email: string | null };
   registration: { referenceNumber: string; tierName: string | null };
   attendance: { checkInDate: string; checkedInAt: string };
 }
@@ -43,9 +44,11 @@ const blankForm = {
   firstName: '',
   lastName: '',
   email: '',
+  emailNotApplicable: false,
   contactNumber: '',
   gender: '',
   birthday: '',
+  city: '',
   company: '',
   jobTitle: '',
 };
@@ -57,6 +60,7 @@ interface ProfileSuggestion {
   contactNumber: string;
   gender: string;
   birthday: string;
+  city: string;
   company: string;
   jobTitle: string;
   maskedEmail: string;
@@ -90,14 +94,11 @@ export default function OnsiteRegistrationPage({
   searchParams?: { eventId?: string | string[] };
 }) {
   const eventId = firstSearchParam(searchParams?.eventId).trim();
-  const eventIdentity = eventId || params.slug;
   const eventQuery = eventId ? `?eventId=${encodeURIComponent(eventId)}` : '';
-  const storageKey = useMemo(() => `axon-onsite-attendee:${eventIdentity}`, [eventIdentity]);
   const [event, setEvent] = useState<EventData | null>(null);
   const [form, setForm] = useState(blankForm);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
-  const [autoChecking, setAutoChecking] = useState(false);
   const [result, setResult] = useState<OnsiteResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [suggestion, setSuggestion] = useState<ProfileSuggestion | null>(null);
@@ -119,10 +120,6 @@ export default function OnsiteRegistrationPage({
           tierId: current.tierId || nextEvent.tiers.find((tier) => !tier.isSoldOut)?.id || nextEvent.tiers[0]?.id || '',
           subEventIds: current.subEventIds.length > 0 ? current.subEventIds : nextSubEvents.map((item) => item.id),
         }));
-        const attendeeId = window.localStorage.getItem(storageKey);
-        if (attendeeId && nextEvent.onsiteRegistrationEnabled && nextEvent.status === 'on_sale') {
-          void checkInExisting(attendeeId);
-        }
       })
       .catch(() => setError('Could not load this event. Please ask staff for assistance.'))
       .finally(() => {
@@ -132,7 +129,7 @@ export default function OnsiteRegistrationPage({
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [params.slug, eventQuery, storageKey]);
+  }, [params.slug, eventQuery]);
 
   function field(name: keyof typeof form, value: string) {
     setForm((current) => ({ ...current, [name]: value }));
@@ -156,27 +153,14 @@ export default function OnsiteRegistrationPage({
   }
 
   function messageFromError(err: unknown) {
-    const e = err as { response?: { status?: number; data?: { message?: unknown } } };
+    const e = err as { response?: { status?: number; data?: { message?: unknown; errors?: unknown } } };
+    const errors = e.response?.data?.errors;
+    if (Array.isArray(errors) && errors.length > 0) return errors.join(' ');
     const raw = e.response?.data?.message;
     if (typeof raw === 'string') return raw;
+    if (Array.isArray(raw) && raw.length > 0) return raw.join(' ');
     if (raw && typeof raw === 'object' && 'message' in raw) return String((raw as { message?: string }).message);
     return e.response?.status === 409 ? 'You are already checked in for today.' : 'Submission failed. Please try again.';
-  }
-
-  async function checkInExisting(attendeeId: string) {
-    setAutoChecking(true);
-    setError(null);
-    try {
-      const res = await axios.post<{ data: OnsiteResult }>(
-        `${API_URL}/events/${params.slug}/onsite-registration`,
-        { attendeeId, eventId: eventId || undefined },
-      );
-      setResult(res.data.data);
-    } catch (err) {
-      setError(messageFromError(err));
-    } finally {
-      setAutoChecking(false);
-    }
   }
 
   async function handleSubmit(e: FormEvent<HTMLFormElement>) {
@@ -190,16 +174,17 @@ export default function OnsiteRegistrationPage({
           ...form,
           eventId: eventId || undefined,
           subEventIds: form.subEventIds,
-          email: form.email.trim().toLowerCase(),
+          emailNotApplicable: form.emailNotApplicable,
+          email: form.emailNotApplicable ? undefined : form.email.trim().toLowerCase(),
           firstName: form.firstName.trim(),
           lastName: form.lastName.trim(),
           contactNumber: form.contactNumber.trim(),
+          city: form.city.trim(),
           company: form.company.trim() || undefined,
           jobTitle: form.jobTitle.trim() || undefined,
         },
       );
       const payload = res.data.data;
-      window.localStorage.setItem(storageKey, payload.attendee.id);
       setResult(payload);
       setForm((current) => ({ ...blankForm, tierId: current.tierId, subEventIds: subEvents.map((item) => item.id) }));
     } catch (err) {
@@ -210,7 +195,10 @@ export default function OnsiteRegistrationPage({
   }
 
   useEffect(() => {
-    if (!registrationOpen || result) return;
+    if (!registrationOpen || result || form.emailNotApplicable) {
+      if (form.emailNotApplicable) setSuggestion(null);
+      return;
+    }
     const firstName = form.firstName.trim();
     const lastName = form.lastName.trim();
     if (firstName.length < 2 || lastName.length < 2) {
@@ -241,12 +229,12 @@ export default function OnsiteRegistrationPage({
       cancelled = true;
       window.clearTimeout(timer);
     };
-  }, [eventId, form.firstName, form.lastName, params.slug, registrationOpen, result]);
+  }, [eventId, form.emailNotApplicable, form.firstName, form.lastName, params.slug, registrationOpen, result]);
 
   if (loading) {
     return (
-      <main className="min-h-screen bg-gray-50 px-4 py-8 flex items-center justify-center">
-        <p className="text-sm text-gray-500">Loading on-site registration…</p>
+      <main className="min-h-screen bg-[#f5f0ff] px-4 py-8">
+        <div className="mx-auto max-w-md"><ScreenSkeleton rows={5} /></div>
       </main>
     );
   }
@@ -254,11 +242,11 @@ export default function OnsiteRegistrationPage({
   return (
     <main className="min-h-screen bg-gray-50 px-3 py-5 sm:px-4 sm:py-6">
       <div className="mx-auto max-w-md space-y-5">
-        <header className="space-y-1">
-          <p className="text-xs font-semibold uppercase tracking-wide text-primary">On-site Registration</p>
-          <h1 className="text-2xl font-bold leading-tight text-gray-900">{event?.title ?? 'Event'}</h1>
+        <header className="rounded-lg bg-[#1a0533] p-5 text-white">
+          <p className="axon-label text-xs text-[#a78bfa]">On-site Registration</p>
+          <h1 className="axon-display mt-2 text-3xl leading-tight">{event?.title ?? 'Event'}</h1>
           {event && (
-            <p className="text-sm text-gray-500">
+            <p className="mt-2 text-sm text-[#c4b5fd]">
               {new Date(event.startsAt).toLocaleDateString('en-PH', { dateStyle: 'medium' })} · {event.venue}
             </p>
           )}
@@ -285,7 +273,7 @@ export default function OnsiteRegistrationPage({
               <h2 className="mt-1 text-xl font-bold text-gray-900">
                 {result.attendee.firstName} {result.attendee.lastName}
               </h2>
-              <p className="text-sm text-gray-500">{result.attendee.email}</p>
+              <p className="text-sm text-gray-500">{result.attendee.email ?? 'No email provided'}</p>
             </div>
             <div className="rounded-xl bg-green-50 px-4 py-3 text-sm text-green-800">
               Checked in for {result.attendance.checkInDate} at{' '}
@@ -297,8 +285,8 @@ export default function OnsiteRegistrationPage({
           </section>
         ) : (
           <form onSubmit={handleSubmit} className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm space-y-4 sm:p-5">
-            <div className="rounded-xl border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-900">
-              This form registers your event attendance and creates your Axon Tickets account, so future event days can be faster.
+            <div className="rounded-xl border border-blue-100 bg-blue-50 px-4 py-3 text-sm leading-relaxed text-blue-900">
+              <span className="font-semibold">Please share your email if you have one.</span> We use it only to create your Axon Tickets account, send event confirmations, and make future event-day check-ins faster. If you genuinely do not have an email address, choose <span className="font-semibold">Email not applicable</span> below and staff can still record your attendance.
             </div>
             {event.tiers.length > 1 && (
               <div>
@@ -322,7 +310,35 @@ export default function OnsiteRegistrationPage({
               <Field label="First name" value={form.firstName} onChange={(v) => field('firstName', v)} autoComplete="given-name" />
               <Field label="Last name" value={form.lastName} onChange={(v) => field('lastName', v)} autoComplete="family-name" />
             </div>
-            <Field label="Email" type="email" value={form.email} onChange={(v) => field('email', v)} autoComplete="email" />
+            <div className="rounded-xl border border-gray-200 p-4">
+              <Field
+                label="Email"
+                type="email"
+                value={form.email}
+                onChange={(v) => field('email', v)}
+                autoComplete="email"
+                disabled={form.emailNotApplicable}
+                required={!form.emailNotApplicable}
+              />
+              <label className="mt-3 flex items-start gap-3 rounded-lg bg-amber-50 px-3 py-3 text-sm text-amber-900">
+                <input
+                  type="checkbox"
+                  checked={form.emailNotApplicable}
+                  onChange={(e) => {
+                    const checked = e.target.checked;
+                    setForm((current) => ({ ...current, emailNotApplicable: checked, email: checked ? '' : current.email }));
+                    setSuggestion(null);
+                  }}
+                  className="mt-0.5 h-4 w-4 shrink-0 rounded border-amber-300 text-primary focus:ring-primary"
+                />
+                <span>
+                  <span className="font-semibold">Email not applicable</span>
+                  <span className="mt-1 block text-xs leading-relaxed text-amber-800">
+                    Use this only when the attendee genuinely has no email address. Without an email, we cannot create an Axon Tickets account or send digital confirmations for them.
+                  </span>
+                </span>
+              </label>
+            </div>
             {checkingSuggestion && (
               <p className="text-xs text-gray-500">Checking saved attendee details…</p>
             )}
@@ -338,9 +354,11 @@ export default function OnsiteRegistrationPage({
                       firstName: suggestion.firstName,
                       lastName: suggestion.lastName,
                       email: suggestion.email,
+                      emailNotApplicable: false,
                       contactNumber: suggestion.contactNumber,
                       gender: suggestion.gender,
                       birthday: suggestion.birthday,
+                      city: suggestion.city,
                       company: suggestion.company,
                       jobTitle: suggestion.jobTitle,
                     }));
@@ -372,6 +390,7 @@ export default function OnsiteRegistrationPage({
               </div>
               <Field label="Birthday" type="date" value={form.birthday} onChange={(v) => field('birthday', v)} />
             </div>
+            <Field label="City" value={form.city} onChange={(v) => field('city', v)} autoComplete="address-level2" />
             <div className="grid gap-3 sm:grid-cols-2">
               <Field label="Company" value={form.company} onChange={(v) => field('company', v)} required={false} />
               <Field label="Title" value={form.jobTitle} onChange={(v) => field('jobTitle', v)} required={false} />
@@ -409,6 +428,11 @@ export default function OnsiteRegistrationPage({
                     </label>
                   ))}
                 </div>
+                {form.subEventIds.length === 0 && (
+                  <p className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-800">
+                    Please select at least one sub-event to enable submission.
+                  </p>
+                )}
               </div>
             )}
 
@@ -416,10 +440,10 @@ export default function OnsiteRegistrationPage({
 
             <button
               type="submit"
-              disabled={submitting || autoChecking || !form.tierId || (subEvents.length > 0 && form.subEventIds.length === 0)}
+              disabled={submitting || !form.tierId || (subEvents.length > 0 && form.subEventIds.length === 0)}
               className="min-h-12 w-full rounded-xl bg-primary px-4 py-3 text-base font-semibold text-white hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50 sm:text-sm"
             >
-              {submitting ? 'Submitting…' : autoChecking ? 'Checking in…' : 'Submit and Check In'}
+              {submitting ? 'Submitting…' : 'Submit and Check In'}
             </button>
           </form>
         )}
@@ -428,7 +452,6 @@ export default function OnsiteRegistrationPage({
           <button
             type="button"
             onClick={() => {
-              window.localStorage.removeItem(storageKey);
               setError(null);
             }}
             className="w-full text-center text-xs text-gray-500 hover:text-gray-700"
@@ -448,6 +471,7 @@ function Field({
   type = 'text',
   required = true,
   autoComplete,
+  disabled = false,
 }: {
   label: string;
   value: string;
@@ -455,6 +479,7 @@ function Field({
   type?: string;
   required?: boolean;
   autoComplete?: string;
+  disabled?: boolean;
 }) {
   return (
     <div>
@@ -467,7 +492,8 @@ function Field({
         onChange={(e) => onChange(e.target.value)}
         autoComplete={autoComplete}
         required={required}
-        className="w-full rounded-xl border border-gray-300 px-3 py-3 text-base focus:outline-none focus:ring-2 focus:ring-primary sm:py-2.5 sm:text-sm"
+        disabled={disabled}
+        className="w-full rounded-xl border border-gray-300 px-3 py-3 text-base focus:outline-none focus:ring-2 focus:ring-primary disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-400 sm:py-2.5 sm:text-sm"
       />
     </div>
   );

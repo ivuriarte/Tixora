@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import axios from 'axios';
 import toast from 'react-hot-toast';
+import { SkeletonBlock } from '@/components/Skeleton';
 import api from '@/lib/api';
 import { setLoginPortal } from '@/lib/auth';
 import { useAuthStore } from '@/store/auth.store';
@@ -232,43 +233,43 @@ function OrganizerSignInForm() {
 
   if (isHydrating) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="w-7 h-7 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+      <div className="axon-auth-page" aria-label="Loading organizer sign-in" role="status">
+        <SkeletonBlock className="h-[440px] w-full max-w-sm" />
       </div>
     );
   }
 
-  const inputCls = 'w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-white disabled:bg-gray-50 disabled:text-gray-400';
+  const inputCls = 'axon-input w-full text-sm disabled:bg-[#f5f0ff] disabled:text-[#8d82a8]';
 
   return (
-    <div className="min-h-screen flex items-center justify-center px-4 py-12 bg-gray-50">
+    <div className="axon-auth-page">
       <div className="w-full max-w-sm">
 
         <div className="text-center mb-8">
-          <Link href="/" className="text-2xl font-bold text-primary">Axon Tickets</Link>
+          <Link href="/" className="axon-label inline-flex min-h-[44px] items-center text-sm text-primary">Axon Tickets</Link>
           {step === 'email' && (
             <>
-              <h1 className="mt-4 text-2xl font-bold text-gray-900">Organizer sign-in</h1>
-              <p className="mt-1 text-sm text-gray-500">Sign in to your organizer account</p>
+              <h1 className="axon-display mt-4 text-4xl">Organizer sign-in</h1>
+              <p className="mt-2 text-sm text-[#6b5b8a]">Sign in to your organizer account</p>
             </>
           )}
           {step === 'otp' && (
             <>
-              <h1 className="mt-4 text-2xl font-bold text-gray-900">Check your email</h1>
-              <p className="mt-1 text-sm text-gray-500">
+              <h1 className="axon-display mt-4 text-4xl">Check your email</h1>
+              <p className="mt-2 text-sm text-[#6b5b8a]">
                 We sent a 6-digit code to <span className="font-medium text-gray-700">{email}</span>
               </p>
             </>
           )}
           {step === 'profile' && (
             <>
-              <h1 className="mt-4 text-2xl font-bold text-gray-900">Almost done</h1>
-              <p className="mt-1 text-sm text-gray-500">Tell us your name to complete your account.</p>
+              <h1 className="axon-display mt-4 text-4xl">Almost done</h1>
+              <p className="mt-2 text-sm text-[#6b5b8a]">Tell us your name to complete your account.</p>
             </>
           )}
         </div>
 
-        <div className="bg-white shadow rounded-2xl p-8">
+        <div className="axon-auth-card">
 
           {/* Error banner */}
           {error && (
@@ -303,7 +304,7 @@ function OrganizerSignInForm() {
               <button
                 type="submit"
                 disabled={loading || !email.trim()}
-                className="w-full rounded-xl bg-primary text-white px-4 py-2.5 text-sm font-semibold hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
+                className="axon-pill w-full gap-2 bg-primary text-sm text-white hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {loading ? (
                   <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" aria-hidden="true" />
@@ -355,7 +356,7 @@ function OrganizerSignInForm() {
                     Resend in <span className="font-medium tabular-nums">{secondsLeft}s</span>
                   </p>
                 ) : (
-                  <button type="button" onClick={handleResend} disabled={loading} className="text-xs text-primary font-medium hover:underline disabled:opacity-50">
+                  <button type="button" onClick={handleResend} disabled={loading} className="min-h-[44px] px-3 text-xs font-bold text-primary hover:underline disabled:opacity-50">
                     Did not get the code? Resend
                   </button>
                 )}
@@ -363,7 +364,7 @@ function OrganizerSignInForm() {
                   <button
                     type="button"
                     onClick={() => { setStep('email'); setOtp(''); setError(''); }}
-                    className="text-xs text-gray-400 hover:text-gray-600"
+                    className="min-h-[44px] px-3 text-xs text-[#756a92] hover:text-primary"
                   >
                     Use a different email
                   </button>
@@ -428,7 +429,7 @@ function OrganizerSignInForm() {
               <button
                 type="submit"
                 disabled={loading || !profile.firstName.trim() || !profile.lastName.trim() || profile.phoneDigits.length < 10}
-                className="w-full rounded-xl bg-primary text-white px-4 py-2.5 text-sm font-semibold hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
+                className="axon-pill w-full gap-2 bg-primary text-sm text-white hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {loading ? (
                   <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" aria-hidden="true" />

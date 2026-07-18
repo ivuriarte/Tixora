@@ -14,7 +14,7 @@ interface SkeletonProps {
 export function SkeletonBlock({ className }: SkeletonProps) {
   return (
     <div
-      className={cn('animate-pulse rounded-xl bg-gray-100', className)}
+      className={cn('animate-pulse rounded-lg bg-[#ece4fb]', className)}
       aria-hidden="true"
     />
   );
@@ -38,7 +38,7 @@ export function SkeletonNavbar() {
 /** Matches an EventCard grid item. */
 export function SkeletonEventCard() {
   return (
-    <div className="rounded-2xl overflow-hidden bg-white shadow" aria-hidden="true">
+    <div className="overflow-hidden rounded-lg border border-[#e4dcf4] bg-white" aria-hidden="true">
       <SkeletonBlock className="h-44 w-full rounded-none" />
       <div className="p-4 space-y-2">
         <SkeletonLine className="w-2/3" />
@@ -54,7 +54,7 @@ export function SkeletonEventCard() {
 export function SkeletonRegistrationPanel() {
   return (
     <div
-      className="sticky top-6 bg-white border border-gray-200 rounded-2xl shadow-sm p-6 space-y-4"
+      className="sticky top-6 space-y-4 rounded-lg border border-[#e4dcf4] bg-white p-6"
       aria-hidden="true"
     >
       <SkeletonLine className="w-1/3 h-5" />
@@ -71,7 +71,7 @@ export function SkeletonRegistrationPanel() {
 export function SkeletonEventDetail() {
   return (
     <div className="space-y-6" aria-hidden="true">
-      <SkeletonBlock className="h-64 sm:h-80 w-full rounded-2xl" />
+      <SkeletonBlock className="h-64 sm:h-80 w-full rounded-lg" />
       <div className="space-y-3">
         <SkeletonLine className="w-2/3 h-8" />
         <SkeletonLine className="w-1/3 h-5" />
@@ -81,7 +81,7 @@ export function SkeletonEventDetail() {
         <SkeletonLine />
         <SkeletonLine className="w-4/5" />
       </div>
-      <SkeletonBlock className="h-48 w-full rounded-2xl" />
+      <SkeletonBlock className="h-48 w-full rounded-lg" />
     </div>
   );
 }
@@ -110,7 +110,7 @@ export function SkeletonAdminTable({ rows = 8 }: { rows?: number }) {
         <SkeletonBlock className="h-9 w-36" />
       </div>
       {/* Table */}
-      <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
+      <div className="overflow-hidden rounded-lg border border-[#e4dcf4] bg-white">
         <table className="w-full">
           <thead>
             <tr className="border-b border-gray-100">
@@ -136,10 +136,10 @@ export function SkeletonAdminTable({ rows = 8 }: { rows?: number }) {
 export function SkeletonRegistrationForm() {
   return (
     <div className="space-y-6" aria-hidden="true">
-      <SkeletonBlock className="h-24 w-full rounded-2xl" />
-      <SkeletonBlock className="h-48 w-full rounded-2xl" />
-      <SkeletonBlock className="h-48 w-full rounded-2xl" />
-      <SkeletonBlock className="h-12 w-full rounded-xl" />
+      <SkeletonBlock className="h-24 w-full rounded-lg" />
+      <SkeletonBlock className="h-48 w-full rounded-lg" />
+      <SkeletonBlock className="h-48 w-full rounded-lg" />
+      <SkeletonBlock className="h-12 w-full rounded-[40px]" />
     </div>
   );
 }

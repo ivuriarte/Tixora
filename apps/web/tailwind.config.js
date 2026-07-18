@@ -4,6 +4,22 @@ module.exports = {
   theme: {
     extend: {
       colors: {
+        // The legacy UI uses Tailwind's gray utilities extensively. Mapping the
+        // scale to Axon's purple-neutral system keeps every existing workflow
+        // on the ratified palette while screens migrate to semantic tokens.
+        gray: {
+          50: '#faf8ff',
+          100: '#f5f0ff',
+          200: '#e4dcf4',
+          300: '#d3c8e8',
+          400: '#8d82a8',
+          500: '#756a92',
+          600: '#6b5b8a',
+          700: '#4f416c',
+          800: '#2f1d49',
+          900: '#1a0533',
+          950: '#10011f',
+        },
         primary: {
           DEFAULT: '#7C3AED',
           hover: '#6D28D9',
@@ -42,12 +58,18 @@ module.exports = {
           DEFAULT: '#dc2626',
           light: '#fee2e2',
         },
-        surface: '#f7f9fc',
-        border: '#dde3ec',
-        muted: '#64748b',
+        surface: '#f5f0ff',
+        border: '#e4dcf4',
+        muted: '#756a92',
+        ink: '#1a0533',
+        'body-purple': '#6b5b8a',
       },
       fontFamily: {
         sans: ['Inter', 'ui-sans-serif', 'system-ui'],
+      },
+      borderRadius: {
+        xl: '0.5rem',
+        '2xl': '0.5rem',
       },
       keyframes: {
         'fade-in': {

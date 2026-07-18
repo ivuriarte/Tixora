@@ -4,22 +4,22 @@ import { solutionCategories } from '@/lib/solutions';
 export default function EventCategoryCards() {
   return (
     <section className="bg-gray-50">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-14 md:py-20">
+      <div className="page-container py-14 md:py-20">
         <div className="max-w-2xl mb-10">
-          <h2 className="text-2xl md:text-3xl font-bold text-gray-900">Built for every kind of event</h2>
-          <p className="text-gray-500 mt-2">See how organizers use Axon Tickets for events like yours.</p>
+          <h2 className="axon-display text-3xl md:text-5xl">Built for every kind of event</h2>
+          <p className="mt-3 text-[#6b5b8a]">See how organizers use Axon Tickets for events like yours.</p>
         </div>
         <div className="grid grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5">
           {solutionCategories.map((category) => (
             <Link
               key={category.slug}
               href={`/solutions/${category.slug}`}
-              className="group bg-white rounded-2xl border border-gray-200 p-5 sm:p-6 hover:border-primary transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+              className="group min-h-[132px] rounded-lg border border-[#e4dcf4] bg-white p-5 transition-colors hover:border-primary sm:p-6"
             >
-              <h3 className="text-sm sm:text-base font-semibold text-gray-900 group-hover:text-primary transition-colors mb-1">
+              <h3 className="axon-label mb-2 text-xs text-[#1a0533] transition-colors group-hover:text-primary sm:text-sm">
                 {category.name}
               </h3>
-              <p className="text-xs sm:text-sm text-gray-500 leading-relaxed">{category.cardLine}</p>
+              <p className="text-xs leading-relaxed text-[#6b5b8a] sm:text-sm">{category.cardLine}</p>
             </Link>
           ))}
         </div>

@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Navbar from '@/components/Navbar';
+import Footer from '@/components/marketing/Footer';
 import api from '@/lib/api';
 import { useAuthStore } from '@/store/auth.store';
 import toast from 'react-hot-toast';
@@ -273,11 +274,11 @@ export default function ProfilePage() {
   return (
     <>
       {!isAdminShell && <Navbar />}
-      <main className="max-w-2xl mx-auto px-4 py-10">
-        <h1 className="text-2xl font-bold text-gray-900 mb-6">{accountLabel} Profile</h1>
+      <main className="mx-auto max-w-2xl px-4 py-10">
+        <h1 className="axon-display mb-7 text-4xl text-[#1a0533]">{accountLabel} Profile</h1>
 
         {/* Avatar + email header */}
-        <div className="flex items-center gap-4 bg-white border border-gray-100 rounded-2xl shadow-sm px-6 py-5 mb-6">
+        <div className="mb-6 flex items-center gap-4 rounded-lg border border-[#e4dcf4] bg-white px-6 py-5">
           <div className="w-14 h-14 rounded-full bg-primary text-white flex items-center justify-center text-xl font-bold shrink-0">
             {initials}
           </div>
@@ -301,7 +302,7 @@ export default function ProfilePage() {
         </div>
 
         {organization && isOrganizerPortal && (
-          <form onSubmit={handleOrgSave} className="bg-white border border-gray-100 rounded-2xl shadow-sm px-6 py-5 mb-6 space-y-4">
+          <form onSubmit={handleOrgSave} className="mb-6 space-y-4 rounded-lg border border-[#e4dcf4] bg-white px-6 py-5">
             <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-widest">Organizer Account</h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
               <div>
@@ -376,7 +377,7 @@ export default function ProfilePage() {
         {!isOrganizerPortal && (
         <form onSubmit={handleSave} className="space-y-6">
           {/* Basic Info */}
-          <div className="bg-white border border-gray-100 rounded-2xl shadow-sm p-6 space-y-4">
+          <div className="space-y-4 rounded-lg border border-[#e4dcf4] bg-white p-6">
             <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-widest">Basic Info</h2>
 
             <div className="grid grid-cols-2 gap-4">
@@ -455,22 +456,19 @@ export default function ProfilePage() {
               <div><label className="block text-sm font-medium text-gray-700 mb-1">Birthday <span className="text-gray-400 font-normal">(optional)</span></label><input name="birthday" type="date" max={new Date().toISOString().slice(0, 10)} value={form.birthday} onChange={update} className={inputClass} /></div>
               <div><label className="block text-sm font-medium text-gray-700 mb-1">Gender <span className="text-gray-400 font-normal">(optional)</span></label><select name="gender" value={form.gender} onChange={(e) => setForm((f) => ({ ...f, gender: e.target.value }))} className={inputClass}><option value="">Select</option><option value="female">Female</option><option value="male">Male</option><option value="non_binary">Non-binary</option><option value="self_described">Self-described</option><option value="prefer_not_to_say">Prefer not to say</option></select></div>
             </div>
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <div><label className="block text-sm font-medium text-gray-700 mb-1">Birthday <span className="text-gray-400 font-normal">(optional)</span></label><input name="birthday" type="date" max={new Date().toISOString().slice(0, 10)} value={form.birthday} onChange={update} className={inputClass} /></div>
-              <div><label className="block text-sm font-medium text-gray-700 mb-1">Gender <span className="text-gray-400 font-normal">(optional)</span></label><select name="gender" value={form.gender} onChange={(e) => setForm((f) => ({ ...f, gender: e.target.value }))} className={inputClass}><option value="">Select</option><option value="female">Female</option><option value="male">Male</option><option value="non_binary">Non-binary</option><option value="self_described">Self-described</option><option value="prefer_not_to_say">Prefer not to say</option></select></div>
-            </div>
           </div>
 
           <button
             type="submit"
             disabled={saving}
-            className="w-full bg-primary text-white font-semibold py-2.5 rounded-xl hover:bg-primary/90 transition-colors disabled:opacity-60"
+            className="axon-pill w-full bg-primary text-xs text-white hover:bg-primary-hover disabled:opacity-60"
           >
             {saving ? 'Saving…' : 'Save changes'}
           </button>
         </form>
         )}
       </main>
+      {!isAdminShell && <Footer />}
     </>
   );
 }

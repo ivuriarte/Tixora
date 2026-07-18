@@ -11,6 +11,7 @@ import InAppBrowserBanner from '@/components/InAppBrowserBanner';
 import { trackPixelCustomEvent } from '@/lib/metaPixel';
 import { trackInternalFunnelEvent, getOrCreateFunnelSessionId } from '@/lib/funnel';
 import toast from 'react-hot-toast';
+import { formatPHP } from '@axon-tickets/utils';
 
 const RESEND_COOLDOWN = 60;
 
@@ -828,18 +829,18 @@ export default function RegisterPage({
           <a href={`/events/${event.slug}`} className="text-sm text-gray-500 hover:text-gray-700">
             ← Back to event
           </a>
-          <h1 className="mt-2 text-2xl font-bold text-gray-900">{event.title}</h1>
+          <h1 className="axon-display mt-3 text-4xl">{event.title}</h1>
           <p className="text-sm text-gray-500 mt-1">{event.venue}</p>
         </div>
 
         {/* Order summary strip */}
-        <div className="bg-white border border-gray-200 rounded-2xl p-4 mb-5 flex items-center justify-between">
+        <div className="mb-5 flex items-center justify-between rounded-lg border border-[#e4dcf4] bg-white p-4">
           <div className="text-sm">
             <span className="font-medium text-gray-900">{tier.name}</span>
             <span className="text-gray-500"> × {qty}</span>
           </div>
           <span className="text-sm font-semibold text-primary">
-            {event.isFree || tier.price === 0 ? 'Free' : `₱${(tier.price * qty).toLocaleString('en-PH', { minimumFractionDigits: 2 })}`}
+            {event.isFree || tier.price === 0 ? 'Free' : formatPHP(tier.price * qty)}
           </span>
         </div>
         {tier.inclusions && tier.inclusions.length > 0 && (

@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import api from '@/lib/api';
 import Link from 'next/link';
-import { formatShortDate } from '@axon-tickets/utils';
+import { formatPHP, formatShortDate } from '@axon-tickets/utils';
 
 interface Transaction {
   id: string;
@@ -115,7 +115,7 @@ export default function AdminOrdersPage() {
         {/* Header */}
         <div className="flex items-center justify-between mb-8">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">Transactions</h1>
+            <h1 className="axon-page-title text-3xl sm:text-4xl">Transactions</h1>
             <p className="text-sm text-gray-500 mt-1">
               All paid transactions — online and manual (GCash / bank transfer).
             </p>
@@ -227,7 +227,7 @@ export default function AdminOrdersPage() {
                         </span>
                       </td>
                       <td className="px-4 py-3 font-medium text-gray-800">
-                        ₱{tx.total.toLocaleString('en-PH', { minimumFractionDigits: 2 })}
+                        {formatPHP(tx.total)}
                       </td>
                       <td className="px-4 py-3 text-gray-500 text-xs">
                         {formatShortDate(new Date(tx.createdAt))}

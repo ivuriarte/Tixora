@@ -7,14 +7,14 @@ import UatBanner from '@/components/UatBanner';
 import './globals.css';
 import Providers from './providers';
 
-const inter = Inter({ subsets: ['latin'], display: 'swap', weight: ['400', '500', '600', '700'] });
+const inter = Inter({ subsets: ['latin'], display: 'swap', weight: ['400', '500', '600', '700', '900'] });
 const isUat = process.env.NEXT_PUBLIC_APP_ENV === 'uat';
 const siteUrl = isUat ? 'https://uat.axontickets.online' : 'https://axontickets.online';
 
 export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
-  themeColor: '#4C1D95',
+  themeColor: '#1a0533',
 };
 
 export const metadata: Metadata = {

@@ -104,6 +104,7 @@ export class CustomSectionDto {
   description!: string;
 
   @IsOptional()
+  @ValidateIf((_section: CustomSectionDto, value: unknown) => value !== '')
   @Matches(/^https:\/\//i, { message: 'Image URL must use HTTPS' })
   @MaxLength(500)
   imageUrl?: string;
@@ -526,6 +527,10 @@ export class OnsiteRegistrationDto {
   attendeeId?: string;
 
   @IsOptional()
+  @IsBoolean()
+  emailNotApplicable?: boolean;
+
+  @IsOptional()
   @IsString()
   @MaxLength(100)
   tierId?: string;
@@ -553,7 +558,7 @@ export class OnsiteRegistrationDto {
   @MaxLength(100)
   lastName?: string;
 
-  @ValidateIf((dto: OnsiteRegistrationDto) => !dto.attendeeId)
+  @ValidateIf((dto: OnsiteRegistrationDto) => !dto.attendeeId && !dto.emailNotApplicable)
   @Matches(/^[^\s@]+@[^\s@]+\.[^\s@]+$/)
   email?: string;
 
@@ -570,6 +575,12 @@ export class OnsiteRegistrationDto {
   @ValidateIf((dto: OnsiteRegistrationDto) => !dto.attendeeId)
   @IsDateString()
   birthday?: string;
+
+  @ValidateIf((dto: OnsiteRegistrationDto) => !dto.attendeeId)
+  @IsString()
+  @MinLength(2)
+  @MaxLength(100)
+  city?: string;
 
   @IsOptional()
   @IsString()

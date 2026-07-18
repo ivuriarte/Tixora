@@ -5,13 +5,13 @@ const FACEBOOK_URL = 'https://www.facebook.com/axonentertainment.ph';
 
 export default function Footer() {
   return (
-    <footer className="bg-gray-900 text-gray-300">
+    <footer className="border-t border-[#3b0764] bg-[#1a0533] text-[#c4b5fd]">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 md:py-16">
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-10">
           <div>
             <p className="text-white text-lg font-bold mb-3">Axon Tickets</p>
             <p className="text-sm text-gray-400 leading-relaxed max-w-xs">
-              Ticketing and registration for events in the Philippines.
+              Philippine event ticketing built for attendees and organizers.
             </p>
           </div>
           <nav aria-label="Discover">
@@ -49,6 +49,7 @@ export default function Footer() {
           <nav aria-label="Contact">
             <p className="text-sm font-semibold text-white uppercase tracking-wide mb-4">Contact</p>
             <ul className="space-y-2.5">
+              <li><a href="mailto:support@axontickets.online" className="text-sm text-[#c4b5fd] hover:text-white">support@axontickets.online</a></li>
               <li>
                 <a
                   href={FACEBOOK_URL}
@@ -67,7 +68,13 @@ export default function Footer() {
           </nav>
         </div>
         <div className="border-t border-gray-800 mt-10 pt-6">
-          <p className="text-xs text-gray-500">© 2026 Axon Tickets. All rights reserved.</p>
+          <div className="flex flex-col gap-3 text-xs text-[#a78bfa] sm:flex-row sm:items-center sm:justify-between">
+            <p>© 2026 Axon Tickets. All rights reserved.</p>
+            <div className="flex gap-5">
+              <Link href="/legal/terms" className="hover:text-white">Terms &amp; Conditions</Link>
+              <Link href="/legal/privacy" className="hover:text-white">Privacy Policy</Link>
+            </div>
+          </div>
         </div>
       </div>
     </footer>

@@ -114,7 +114,7 @@ export default function RegistrationForm({
   const [profileData, setProfileData] = useState<ProfileData | null>(null);
   const [profileLoading, setProfileLoading] = useState(false);
   const [notes, setNotes] = useState(initialNotes ?? '');
-  const [subEventId, setSubEventId] = useState('');
+  const [selectedSubEventIds, setSelectedSubEventIds] = useState<string[]>(() => subEvents.map((item) => item.id));
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [referralCode, setReferralCode] = useState('');
@@ -125,6 +125,7 @@ export default function RegistrationForm({
   // Synchronous guard — prevents duplicate submissions during the async gap
   // between the first click and React flushing the loading state update.
   const submittingRef = useRef(false);
+  const subEventsInitializedRef = useRef(subEvents.length > 0);
 
   // Auto-fetch profile on mount when the toggle is ON (new registrations only)
   useEffect(() => {
@@ -139,6 +140,21 @@ export default function RegistrationForm({
   const totalPesos = Math.max(0, subtotalPesos - referralDiscount) + feesPesos;
   const isFreeRegistration = unitPrice === 0 && feesPesos === 0;
   const requiresSubEvent = !registrationId && subEvents.length > 0;
+  const allSubEventsSelected = subEvents.length > 0 && selectedSubEventIds.length === subEvents.length;
+
+  useEffect(() => {
+    if (registrationId || subEvents.length === 0) return;
+    setSelectedSubEventIds((current) => {
+      const availableIds = subEvents.map((item) => item.id);
+      if (!subEventsInitializedRef.current) {
+        subEventsInitializedRef.current = true;
+        return availableIds;
+      }
+      const next = current.filter((id) => availableIds.includes(id));
+      if (next.length === current.length && next.every((id, index) => id === current[index])) return current;
+      return next;
+    });
+  }, [registrationId, subEvents]);
 
   const updateAttendee = (index: number, field: keyof AttendeeFields, value: string) => {
     setAttendees((prev) => {
@@ -232,8 +248,8 @@ export default function RegistrationForm({
     setLoading(true);
 
     try {
-      if (requiresSubEvent && !subEventId) {
-        setError('Please choose the sub-event you will attend.');
+      if (requiresSubEvent && selectedSubEventIds.length === 0) {
+        setError('Please choose at least one sub-event to attend.');
         return;
       }
 
@@ -281,7 +297,7 @@ export default function RegistrationForm({
         const payload: CreateRegistrationDto = {
           eventId,
           tierId,
-          ...(subEventId && { subEventId }),
+          ...(selectedSubEventIds.length > 0 && { subEventIds: selectedSubEventIds }),
           attendees: attendeePayload,
           ...(notes.trim() && { notes: notes.trim() }),
           ...(referralDiscount > 0 && referralCode.trim() && { referralCode: referralCode.trim() }),
@@ -354,30 +370,6 @@ export default function RegistrationForm({
           </div>
           {referralMessage && <p role="status" className="mt-2 text-xs font-medium text-emerald-700">✓ {referralMessage}</p>}
           {referralError && <p role="alert" className="mt-2 text-xs font-medium text-red-600">✗ {referralError}</p>}
-        </div>
-      )}
-
-      {requiresSubEvent && (
-        <div className="bg-white border border-gray-200 rounded-2xl p-5">
-          <label className="block text-sm font-semibold text-gray-900 mb-2">
-            Sub-event <span className="text-red-500">*</span>
-          </label>
-          <select
-            value={subEventId}
-            onChange={(e) => {
-              setSubEventId(e.target.value);
-              setError(null);
-            }}
-            className="w-full rounded-xl border border-gray-300 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-white"
-            required
-          >
-            <option value="">Choose a sub-event</option>
-            {subEvents.map((item) => (
-              <option key={item.id} value={item.id}>
-                {item.time ? `${item.time} - ${item.title}` : item.title}
-              </option>
-            ))}
-          </select>
         </div>
       )}
 
@@ -658,6 +650,58 @@ export default function RegistrationForm({
           })()}
         </div>
       ))}
+
+      {requiresSubEvent && (
+        <div className="bg-white border border-gray-200 rounded-2xl p-5">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <p className="block text-sm font-semibold text-gray-900">
+                Sub-events <span className="text-red-500">*</span>
+              </p>
+              <p className="mt-0.5 text-xs text-gray-500">Select every sub-event this attendee will join.</p>
+            </div>
+            <label className="inline-flex items-center gap-2 text-xs font-medium text-gray-600">
+              <input
+                type="checkbox"
+                checked={allSubEventsSelected}
+                onChange={(e) => {
+                  setSelectedSubEventIds(e.target.checked ? subEvents.map((item) => item.id) : []);
+                  setError(null);
+                }}
+                className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+              />
+              Select all
+            </label>
+          </div>
+          <div className="mt-4 grid gap-2">
+            {subEvents.map((item) => {
+              const checked = selectedSubEventIds.includes(item.id);
+              return (
+                <label
+                  key={item.id}
+                  className={`flex items-center gap-3 rounded-xl border px-3 py-2.5 text-sm transition-colors ${
+                    checked ? 'border-primary bg-primary/5 text-gray-900' : 'border-gray-200 text-gray-600 hover:border-gray-300'
+                  }`}
+                >
+                  <input
+                    type="checkbox"
+                    checked={checked}
+                    onChange={(e) => {
+                      setSelectedSubEventIds((current) => {
+                        if (e.target.checked) return [...new Set([...current, item.id])];
+                        return current.filter((id) => id !== item.id);
+                      });
+                      setError(null);
+                    }}
+                    className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+                  />
+                  <span>{item.time ? `${item.time} - ${item.title}` : item.title}</span>
+                </label>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Notes */}
       <div className="bg-white border border-gray-200 rounded-2xl p-5">

@@ -41,7 +41,7 @@ export default function EventPreview({ draft, tiers }: EventPreviewProps) {
   return (
     <aside
       aria-label="Live event preview"
-      className="bg-gradient-to-br from-gray-50 to-white rounded-2xl border border-gray-200 overflow-hidden shadow-sm"
+      className="overflow-hidden rounded-lg border border-[#e4dcf4] bg-[#f5f0ff]"
     >
       <div className="px-4 py-3 border-b border-gray-200 bg-white flex items-center justify-between">
         <div className="flex items-center gap-2">
@@ -64,10 +64,8 @@ export default function EventPreview({ draft, tiers }: EventPreviewProps) {
               onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
             />
           ) : (
-            <div className="w-full h-32 bg-gradient-to-br from-primary/20 via-violet-100 to-purple-100 flex items-center justify-center">
-              <svg className="w-10 h-10 text-primary/40" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-              </svg>
+            <div className="flex h-32 w-full items-center justify-center bg-[#ede9fe] px-5 text-center">
+              <p className="axon-label text-xs text-primary">Event cover required</p>
             </div>
           )}
           <div className="p-3 space-y-2">
@@ -115,7 +113,7 @@ export default function EventPreview({ draft, tiers }: EventPreviewProps) {
           <div>
             <p className="text-[10px] uppercase tracking-wider text-gray-400 mb-1">Location</p>
             {draft.address && <p className="text-xs text-gray-700">{draft.address}</p>}
-            {draft.landmark && <p className="text-xs text-gray-500 italic">📍 {draft.landmark}</p>}
+            {draft.landmark && <p className="text-xs italic text-gray-500">Landmark: {draft.landmark}</p>}
             {(draft.latitude || draft.longitude) && (
               <p className="text-xs text-gray-500 font-mono mt-1">
                 {draft.latitude && `Lat: ${draft.latitude}`}
@@ -234,7 +232,7 @@ export default function EventPreview({ draft, tiers }: EventPreviewProps) {
         {!draft.title && !draft.description && tiers.length === 0 && (
           <div className="text-center py-6 text-gray-400 text-xs">
             <p>Start filling out the form —</p>
-            <p>your event will appear here in real-time. ✨</p>
+            <p>your event will appear here in real time.</p>
           </div>
         )}
       </div>

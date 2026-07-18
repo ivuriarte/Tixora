@@ -6,6 +6,7 @@ import Link from 'next/link';
 import api from '@/lib/api';
 import { formatShortDate } from '@axon-tickets/utils';
 import { useAuthStore } from '@/store/auth.store';
+import { EmptyState, ScreenSkeleton } from '@/components/ScreenState';
 
 interface EventRow {
   id: string;
@@ -26,7 +27,7 @@ interface OrganizerOption {
 
 const STATUS_STYLE: Record<string, string> = {
   on_sale: 'bg-green-100 text-green-700',
-  sold_out: 'bg-violet-100 text-violet-700',
+  sold_out: 'bg-primary text-white',
   cancelled: 'bg-red-100 text-red-600',
   completed: 'bg-blue-100 text-blue-700',
   draft: 'bg-gray-100 text-gray-500',
@@ -70,7 +71,7 @@ export default function EventHistoryPage() {
     <main className="max-w-6xl mx-auto px-4 py-10">
         <div className="flex items-start justify-between mb-6">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">Event History</h1>
+            <h1 className="axon-page-title text-3xl sm:text-4xl">Event History</h1>
             <p className="text-sm text-gray-500 mt-1">
               A log of every event with quick access to analytics, attendees, and details.
             </p>
@@ -118,12 +119,10 @@ export default function EventHistoryPage() {
           )}
         </div>
 
-        {isLoading && <p className="text-gray-400">Loading…</p>}
+        {isLoading && <ScreenSkeleton rows={5} compact />}
 
         {!isLoading && filtered.length === 0 && (
-          <div className="bg-white rounded-2xl p-10 text-center text-gray-400 shadow">
-            No events match these filters.
-          </div>
+          <EmptyState title="No events match" message="Adjust the status or organizer filter to see more events." />
         )}
 
         <div className="space-y-3">

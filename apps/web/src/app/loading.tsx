@@ -11,7 +11,7 @@ export default function Loading() {
       <SkeletonNavbar />
       {/* Hero skeleton */}
       <div
-        className="bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 h-72 sm:h-80 animate-pulse"
+        className="h-72 animate-pulse bg-[#1a0533] sm:h-80"
         aria-hidden="true"
       />
       {/* Event grid skeleton */}

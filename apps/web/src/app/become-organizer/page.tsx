@@ -9,6 +9,8 @@ import { useAuthStore } from '@/store/auth.store';
 import toast from 'react-hot-toast';
 import LegalModal from '@/components/LegalModal';
 import { ORGANIZER_TERMS } from '@/lib/legal';
+import Navbar from '@/components/Navbar';
+import Footer from '@/components/marketing/Footer';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -74,7 +76,7 @@ function PendingCard({ org }: { org: OrgData }) {
           <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
         </svg>
       </div>
-      <h2 className="text-2xl font-bold text-gray-900 mb-2">Application under review</h2>
+      <h2 className="axon-display mb-3 text-3xl text-[#1a0533]">Application Under Review</h2>
       <p className="text-gray-500 mb-1">
         <span className="font-medium text-gray-700">{org.name}</span>
       </p>
@@ -82,7 +84,7 @@ function PendingCard({ org }: { org: OrgData }) {
         Submitted {new Date(org.createdAt).toLocaleDateString('en-PH', { dateStyle: 'long' })}
       </p>
 
-      <div className="bg-amber-50 border border-amber-100 rounded-2xl px-6 py-5 text-left space-y-3 mb-8">
+      <div className="mb-8 space-y-3 rounded-lg border border-amber-100 bg-amber-50 px-6 py-5 text-left">
         <p className="text-sm font-semibold text-amber-800">What happens next?</p>
         <ul className="space-y-2 text-sm text-amber-700">
           {[
@@ -122,7 +124,7 @@ function ApprovedCard({ org }: { org: OrgData }) {
           <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
         </svg>
       </div>
-      <h2 className="text-2xl font-bold text-gray-900 mb-2">You&apos;re an approved organizer</h2>
+      <h2 className="axon-display mb-3 text-3xl text-[#1a0533]">You&apos;re an Approved Organizer</h2>
       <p className="text-gray-500 mb-1">
         <span className="font-medium text-gray-700">{org.name}</span>
       </p>
@@ -131,7 +133,7 @@ function ApprovedCard({ org }: { org: OrgData }) {
           Approved {new Date(org.approvedAt).toLocaleDateString('en-PH', { dateStyle: 'long' })}
         </p>
       )}
-      <div className="bg-violet-50 border border-violet-100 rounded-2xl px-6 py-4 text-left mb-6">
+      <div className="mb-6 rounded-lg border border-violet-100 bg-violet-50 px-6 py-4 text-left">
         <p className="text-sm font-semibold text-violet-800 mb-1">What&apos;s next?</p>
         <p className="text-sm text-violet-700">
           Your organizer dashboard is ready. You can create and manage your own events, review registrations, run check-in, and monitor your event data.
@@ -139,7 +141,7 @@ function ApprovedCard({ org }: { org: OrgData }) {
       </div>
       <Link
         href="/admin"
-        className="inline-flex items-center justify-center bg-violet-600 hover:bg-violet-700 text-white font-semibold px-6 py-3 rounded-xl transition-colors"
+        className="axon-pill bg-primary text-xs text-white hover:bg-primary-hover"
       >
         Open organizer dashboard
       </Link>
@@ -155,7 +157,7 @@ function RejectedCard({ org, onReapply }: { org: OrgData; onReapply: () => void 
           <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
         </svg>
       </div>
-      <h2 className="text-2xl font-bold text-gray-900 mb-2">Application not approved</h2>
+      <h2 className="axon-display mb-3 text-3xl text-[#1a0533]">Application Not Approved</h2>
       <p className="text-gray-500 mb-1">
         <span className="font-medium text-gray-700">{org.name}</span>
       </p>
@@ -175,7 +177,7 @@ function RejectedCard({ org, onReapply }: { org: OrgData; onReapply: () => void 
       </p>
       <button
         onClick={onReapply}
-        className="inline-flex items-center gap-2 bg-violet-600 hover:bg-violet-700 text-white font-semibold px-6 py-3 rounded-xl transition-colors"
+        className="axon-pill gap-2 bg-primary text-xs text-white hover:bg-primary-hover"
       >
         Apply again
       </button>
@@ -191,7 +193,7 @@ function SuspendedCard({ org }: { org: OrgData }) {
           <path strokeLinecap="round" strokeLinejoin="round" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
         </svg>
       </div>
-      <h2 className="text-2xl font-bold text-gray-900 mb-2">Account suspended</h2>
+      <h2 className="axon-display mb-3 text-3xl text-[#1a0533]">Account Suspended</h2>
       <p className="text-gray-500 mb-1">
         <span className="font-medium text-gray-700">{org.name}</span>
       </p>
@@ -200,7 +202,7 @@ function SuspendedCard({ org }: { org: OrgData }) {
       </p>
       <a
         href="mailto:support@axontickets.online"
-        className="inline-flex items-center gap-2 border border-gray-300 text-gray-700 hover:bg-gray-50 font-semibold px-6 py-3 rounded-xl transition-colors"
+        className="axon-pill gap-2 border border-[#d8cdee] text-xs text-[#1a0533] hover:border-primary"
       >
         Contact support
       </a>
@@ -252,28 +254,30 @@ function UnauthenticatedLanding({ onApply }: { onApply: () => void }) {
 
   return (
     <div>
-      <div className="text-center mb-14">
-        <span className="inline-block bg-violet-50 text-violet-700 text-xs font-semibold px-3 py-1 rounded-full mb-4 tracking-wide uppercase">
+      <div className="mb-12 text-center">
+        <span className="axon-label mb-5 inline-block rounded-full border border-primary-200 px-3 py-1 text-xs text-primary">
           Organizer Program
         </span>
-        <h1 className="text-4xl sm:text-5xl font-extrabold text-gray-900 mb-4 leading-tight">
+        <h1 className="axon-display mb-5 text-5xl text-[#1a0533] sm:text-6xl">
           Run seamless events,
           <br />
-          <span className="text-violet-600">start to finish</span>
+          <span className="text-primary">start to finish</span>
         </h1>
-        <p className="text-lg text-gray-500 max-w-xl mx-auto mb-8">
-          Axon Tickets gives organizers a dedicated workspace per event — tasks, team, vendors, readiness, and ticketing all in one platform. More than ticketing. A reason to stay.
+        <p className="mx-auto mb-8 max-w-2xl text-lg leading-8 text-[#6b5b8a]">
+          Axon Tickets gives Filipino organizers a dedicated workspace per event — with GCash payment collection, QR check-in, and attendee management built in.
         </p>
         <div className="flex flex-col items-center gap-3">
           <button
             onClick={onApply}
-            className="inline-flex items-center justify-center gap-2 bg-violet-600 hover:bg-violet-700 text-white font-semibold px-8 py-3.5 rounded-xl transition-colors text-base"
+            className="axon-pill gap-2 bg-primary text-xs text-white hover:bg-primary-hover"
           >
             Apply as an organizer
             <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" aria-hidden="true">
               <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
             </svg>
           </button>
+          <p className="text-sm font-bold text-[#1a0533]">Free for organizers. Free events have no platform fee.</p>
+          <p className="max-w-lg text-xs leading-5 text-[#756a92]">Paid tickets include the event’s disclosed service fee, shown to attendees before they confirm.</p>
           <p className="text-sm text-gray-400">
             Already have an account?{' '}
             <Link href="/auth/organizer?redirect=/become-organizer" className="text-violet-600 hover:text-violet-700 font-medium">
@@ -283,11 +287,34 @@ function UnauthenticatedLanding({ onApply }: { onApply: () => void }) {
         </div>
       </div>
 
+      <div className="mx-auto mb-10 max-w-4xl overflow-hidden rounded-lg border border-[#e4dcf4] bg-[#f5f0ff]">
+        <div className="flex items-center gap-2 border-b border-[#e4dcf4] bg-white px-4 py-3">
+          <span className="h-2.5 w-2.5 rounded-full bg-primary" /><span className="h-2.5 w-2.5 rounded-full bg-[#c4b5fd]" /><span className="h-2.5 w-2.5 rounded-full bg-[#ede9fe]" />
+          <span className="axon-label ml-2 text-[9px] text-[#756a92]">Event Workspace</span>
+        </div>
+        <div className="grid gap-4 p-5 sm:grid-cols-[1.4fr_.6fr] sm:p-7">
+          <div className="rounded-lg border border-[#e4dcf4] bg-white p-5 text-left">
+            <p className="axon-label text-[10px] text-primary">Readiness Center</p>
+            <p className="mt-2 text-xl font-black text-[#1a0533]">Everything event day needs, in one place.</p>
+            <div className="mt-5 grid grid-cols-3 gap-2">
+              {['Tasks', 'Team', 'Vendors'].map((label, index) => <div key={label} className="rounded-lg bg-[#f5f0ff] p-3"><p className="font-mono text-xl font-black text-primary">{[12, 4, 7][index]}</p><p className="mt-1 text-[10px] font-bold uppercase tracking-wide text-[#756a92]">{label}</p></div>)}
+            </div>
+          </div>
+          <div className="rounded-lg bg-[#1a0533] p-5 text-left text-white">
+            <p className="axon-label text-[10px] text-[#a78bfa]">Live Operations</p>
+            <p className="mt-4 text-3xl font-black">84%</p>
+            <p className="mt-1 text-xs text-[#c4b5fd]">Event readiness</p>
+            <div className="mt-5 h-2 overflow-hidden rounded-full bg-white/10"><div className="h-full w-[84%] rounded-full bg-primary" /></div>
+          </div>
+        </div>
+        <p className="px-5 pb-5 text-center text-xs text-[#756a92]">A product preview of the live Event Workspace experience. Account data is never exposed on this public page.</p>
+      </div>
+
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 max-w-2xl mx-auto">
         {benefits.map((b) => (
           <div
             key={b.title}
-            className="flex items-start gap-4 bg-white rounded-2xl border border-gray-100 shadow-sm px-5 py-5"
+            className="flex items-start gap-4 rounded-lg border border-[#e4dcf4] bg-white px-5 py-5"
           >
             <div className="flex-shrink-0 w-10 h-10 rounded-xl bg-violet-50 text-violet-600 flex items-center justify-center">
               {b.icon}
@@ -580,7 +607,7 @@ function RegistrationForm({ onSuccess, initialOrg }: { onSuccess: (org: OrgData)
               <path strokeLinecap="round" strokeLinejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75" />
             </svg>
           </div>
-          <h1 className="text-2xl font-bold text-gray-900 mb-1">Verify your email</h1>
+        <h1 className="axon-display mb-2 text-4xl">Verify your email</h1>
           <p className="text-sm text-gray-500">
             We sent a 6-digit code to <span className="font-medium text-gray-700">{authUser?.email}</span>. Enter it to resubmit your organizer application.
           </p>
@@ -617,7 +644,7 @@ function RegistrationForm({ onSuccess, initialOrg }: { onSuccess: (org: OrgData)
             <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
           </svg>
         </div>
-        <h1 className="text-2xl font-bold text-gray-900 mb-1">Organizer application</h1>
+        <h1 className="axon-display mb-2 text-4xl">Organizer application</h1>
         <p className="text-sm text-gray-500">
           Complete your KYC details so our team can verify your identity and organization. All information is kept confidential.
         </p>
@@ -1192,7 +1219,7 @@ function GuestApplicationFlow({ onSuccess }: { onSuccess: (org: OrgData) => void
               <path strokeLinecap="round" strokeLinejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75" />
             </svg>
           </div>
-          <h1 className="text-2xl font-bold text-gray-900 mb-1">Verify your email</h1>
+          <h1 className="axon-display mb-2 text-4xl">Verify your email</h1>
           <p className="text-sm text-gray-500">
             We sent a 6-digit code to <span className="font-medium text-gray-700">{form.email}</span>.
             Enter it below to complete your application.
@@ -1263,7 +1290,7 @@ function GuestApplicationFlow({ onSuccess }: { onSuccess: (org: OrgData) => void
             <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
           </svg>
         </div>
-        <h1 className="text-2xl font-bold text-gray-900 mb-1">Organizer application</h1>
+        <h1 className="axon-display mb-2 text-4xl">Organizer application</h1>
         <p className="text-sm text-gray-500">
           Complete your KYC details so our team can verify your identity and organization.
         </p>
@@ -1568,17 +1595,11 @@ export default function BecomeOrganizerPage() {
     switch (pageState.kind) {
       case 'loading':
         return (
-          <div className="flex items-center justify-center py-24">
-            <svg
-              className="w-8 h-8 animate-spin text-violet-400"
-              fill="none"
-              viewBox="0 0 24 24"
-              role="status"
-              aria-label="Loading"
-            >
-              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-            </svg>
+          <div className="mx-auto max-w-3xl space-y-5 py-20" aria-label="Loading organizer experience">
+            <div className="mx-auto h-4 w-32 animate-pulse rounded bg-[#ece4fb]" />
+            <div className="mx-auto h-14 w-3/4 animate-pulse rounded bg-[#ece4fb]" />
+            <div className="mx-auto h-5 w-1/2 animate-pulse rounded bg-[#ece4fb]" />
+            <div className="mt-10 h-64 animate-pulse rounded-lg bg-[#ece4fb]" />
           </div>
         );
       case 'unauthenticated':
@@ -1599,8 +1620,10 @@ export default function BecomeOrganizerPage() {
   }
 
   return (
-    <main className="min-h-screen bg-gray-50 px-4 py-12 sm:py-16">
-      {renderContent()}
-    </main>
+    <>
+      <Navbar />
+      <main className="min-h-screen bg-[#f5f0ff] px-4 py-12 sm:py-16">{renderContent()}</main>
+      <Footer />
+    </>
   );
 }

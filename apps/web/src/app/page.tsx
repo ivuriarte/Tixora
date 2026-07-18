@@ -5,7 +5,6 @@ import EventCard from '@/components/EventCard';
 import AdminRedirect from '@/components/AdminRedirect';
 import FeaturedHeroCarousel from '@/components/FeaturedHeroCarousel';
 import OrganizerCtaSection from '@/components/OrganizerCtaSection';
-import MarketingHero from '@/components/marketing/MarketingHero';
 import HowItWorksSection from '@/components/marketing/HowItWorksSection';
 import TrustSection from '@/components/marketing/TrustSection';
 import EventCategoryCards from '@/components/marketing/EventCategoryCards';
@@ -38,13 +37,33 @@ interface EventSummary {
 
 
 // Returns null on fetch failure so the UI can distinguish "error" from "no events yet"
-async function getEvents(page = 1): Promise<{ data: EventSummary[]; meta: { total: number; totalPages: number } } | null> {
+async function getEvents(page = 1, query = ''): Promise<{ data: EventSummary[]; meta: { total: number; totalPages: number } } | null> {
   const baseUrl = (process.env.NEXT_PUBLIC_API_URL || 'https://api.axontickets.online/api/v1');
   try {
-    const res = await fetch(`${baseUrl}/events?page=${page}&limit=12`, { cache: 'no-store', signal: AbortSignal.timeout(8000) });
+    const params = new URLSearchParams({ page: String(page), limit: '12' });
+    if (query) params.set('q', query);
+    const res = await fetch(`${baseUrl}/events?${params.toString()}`, { cache: 'no-store', signal: AbortSignal.timeout(8000) });
     if (!res.ok) return null;
     const json = await res.json();
     // TransformInterceptor wraps: { success, data: { data: [...], meta } }
+    return json.data ?? json;
+  } catch {
+    return null;
+  }
+}
+
+interface PublicStats {
+  eventsHosted: number;
+  attendeesCheckedIn: number;
+  verifiedOrganizers: number;
+}
+
+async function getPublicStats(): Promise<PublicStats | null> {
+  const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'https://api.axontickets.online/api/v1';
+  try {
+    const res = await fetch(`${baseUrl}/events/public-stats`, { cache: 'no-store', signal: AbortSignal.timeout(5000) });
+    if (!res.ok) return null;
+    const json = await res.json();
     return json.data ?? json;
   } catch {
     return null;
@@ -99,7 +118,7 @@ async function getFeaturedEvents(): Promise<FeaturedApiEvent[]> {
   }
 }
 
-export default async function HomePage({ searchParams }: { searchParams: { page?: string } }) {
+export default async function HomePage({ searchParams }: { searchParams: { page?: string; q?: string } }) {
   const featuredSlug = process.env.NEXT_PUBLIC_FEATURED_EVENT_SLUG;
   const enableMarketplace = process.env.NEXT_PUBLIC_ENABLE_MARKETPLACE !== 'false';
 
@@ -127,16 +146,15 @@ export default async function HomePage({ searchParams }: { searchParams: { page?
           <Navbar />
           <main>
             {/* Hero */}
-            <section className="relative bg-gradient-to-br from-purple-900 via-purple-800 to-indigo-900 text-white overflow-hidden">
-              <div className="absolute inset-0 opacity-10 bg-[url('data:image/svg+xml,%3Csvg width=60 height=60 viewBox=0 0 60 60 xmlns=http://www.w3.org/2000/svg%3E%3Cg fill=none fill-rule=evenodd%3E%3Cg fill=%23fff fill-opacity=1%3E%3Cpath d=M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z/%3E%3C/g%3E%3C/g%3E%3C/svg%3E')]" />
-              <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20 md:py-28">
+            <section className="overflow-hidden bg-[#1a0533] text-white">
+              <div className="page-container py-20 md:py-28">
                 <div className="max-w-2xl">
                   {featured.speakerName && (
                     <p className="text-purple-300 font-semibold uppercase tracking-widest text-sm mb-4">
                       Featuring {featured.speakerName}
                     </p>
                   )}
-                  <h1 className="text-4xl md:text-6xl font-extrabold leading-tight mb-6">
+                  <h1 className="axon-display mb-6 text-5xl md:text-7xl">
                     {featured.title}
                   </h1>
                   {featured.description && (
@@ -158,20 +176,20 @@ export default async function HomePage({ searchParams }: { searchParams: { page?
                     <div className="flex flex-wrap gap-4">
                       <Link
                         href={`/events/${featured.slug}`}
-                        className="inline-flex items-center gap-2 bg-white text-purple-900 font-bold px-8 py-4 rounded-xl text-lg hover:bg-purple-50 transition-colors shadow-lg"
+                        className="axon-pill gap-2 bg-white text-sm text-[#1a0533] hover:bg-[#ede9fe]"
                       >
                         {isSoldOut ? 'View Event' : 'Register Now'}
                         <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" /></svg>
                       </Link>
                       {isSoldOut && (
-                        <span className="inline-flex items-center bg-primary text-white font-bold px-6 py-4 rounded-xl text-lg">
+                        <span className="axon-pill bg-primary text-sm text-white">
                           Sold Out
                         </span>
                       )}
                     </div>
                   )}
                   {isCancelled && (
-                    <span className="inline-flex items-center bg-red-500 text-white font-bold px-6 py-4 rounded-xl text-lg">
+                    <span className="axon-pill bg-red-600 text-sm text-white">
                       Event Cancelled
                     </span>
                   )}
@@ -232,27 +250,37 @@ export default async function HomePage({ searchParams }: { searchParams: { page?
 
   // Marketplace mode: brand hero + featured carousel + event grid + marketing sections
   const page = parseInt(searchParams.page ?? '1', 10) || 1;
-  const featuredEvents = await getFeaturedEvents();
+  const query = searchParams.q?.trim().slice(0, 120) ?? '';
+  const [featuredEvents, publicStats] = await Promise.all([getFeaturedEvents(), getPublicStats()]);
 
   return (
     <>
       <AdminRedirect />
       <Navbar />
-      <main className="bg-gray-50 min-h-screen">
-        <MarketingHero
-          title="The modern ticketing and registration platform for events in the Philippines."
-          subtitle="Create event pages, take registrations, and check people in with QR codes — whether you're running the event or attending it."
-          primaryCta={{ label: 'Create Your Event', href: '/become-organizer', dataTrack: 'homepage-create-event' }}
-          secondaryCta={{ label: 'Find Events', href: '#upcoming-events', dataTrack: 'homepage-find-events' }}
-          note="New organizers are approved in 1–2 business days."
-        />
-
+      <main className="min-h-screen bg-white">
         <FeaturedHeroCarousel events={featuredEvents} />
+
+        {publicStats && (
+          <section aria-label="Axon Tickets activity" className="border-b border-[#e4dcf4] bg-white">
+            <div className="mx-auto grid max-w-7xl grid-cols-1 divide-y divide-[#e4dcf4] px-4 sm:grid-cols-3 sm:divide-x sm:divide-y-0 sm:px-6 lg:px-8">
+              {[
+                [publicStats.eventsHosted, 'Events Hosted'],
+                [publicStats.attendeesCheckedIn, 'Attendees Checked In'],
+                [publicStats.verifiedOrganizers, 'KYC-Verified Organizers'],
+              ].map(([value, label]) => (
+                <div key={label} className="px-5 py-6 text-center">
+                  <p className="font-mono text-3xl font-black tabular-nums text-primary">{Number(value).toLocaleString('en-PH')}</p>
+                  <p className="axon-label mt-1 text-[10px] text-[#756a92]">{label}</p>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
 
         {/* Upcoming events */}
         <section id="upcoming-events" className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 md:py-16 scroll-mt-20">
           <Suspense fallback={<EventsGridSkeleton />}>
-            <EventsGrid page={page} enableMarketplace={enableMarketplace} />
+            <EventsGrid page={page} query={query} enableMarketplace={enableMarketplace} />
           </Suspense>
         </section>
 
@@ -291,15 +319,16 @@ const homeFeatures = [
   { title: 'Attendee records & reports', description: 'A complete record of who registered and who showed up.', iconPath: iconPaths.reports },
 ];
 
-async function EventsGrid({ page, enableMarketplace }: { page: number; enableMarketplace: boolean }) {
-  const result = enableMarketplace ? await getEvents(page) : { data: [], meta: { total: 0, totalPages: 0 } };
+async function EventsGrid({ page, query, enableMarketplace }: { page: number; query: string; enableMarketplace: boolean }) {
+  const result = enableMarketplace ? await getEvents(page, query) : { data: [], meta: { total: 0, totalPages: 0 } };
 
   if (!result) {
     return (
       <>
-        <EventsGridHeader />
-        <div className="text-center py-20 text-gray-500 bg-white rounded-2xl border border-dashed border-gray-200">
-          Couldn&apos;t load events right now. Please refresh to try again.
+        <EventsGridHeader query={query} />
+        <div className="axon-card px-6 py-20 text-center text-[#6b5b8a]">
+          <p className="axon-display text-2xl text-[#1a0533]">Couldn&apos;t load events</p>
+          <p className="mt-3">Check your connection and refresh to try again.</p>
         </div>
       </>
     );
@@ -309,13 +338,14 @@ async function EventsGrid({ page, enableMarketplace }: { page: number; enableMar
 
   return (
     <>
-      <EventsGridHeader total={meta.total} />
+      <EventsGridHeader total={meta.total} query={query} />
 
       {events.length === 0 ? (
-        <div className="text-center py-20 bg-white rounded-2xl border border-dashed border-gray-200">
-          <p className="text-gray-500 mb-2">No upcoming events yet — check back soon.</p>
-          <Link href="/organizers" className="text-primary text-sm font-medium hover:underline">
-            Planning an event? See how Axon Tickets works for organizers
+        <div className="axon-card px-6 py-20 text-center">
+          <p className="axon-display text-2xl text-[#1a0533]">{query ? 'No matching events' : 'No events yet'}</p>
+          <p className="mx-auto mt-3 max-w-md text-sm text-[#6b5b8a]">{query ? `We couldn't find an event, venue or city matching “${query}”.` : 'New events are added every week. Check back soon — or host your own.'}</p>
+          <Link href={query ? '/' : '/become-organizer'} className="axon-pill mt-6 bg-primary text-xs text-white hover:bg-primary-hover">
+            {query ? 'Clear Search' : 'Apply as Organizer'}
           </Link>
         </div>
       ) : (
@@ -329,7 +359,7 @@ async function EventsGrid({ page, enableMarketplace }: { page: number; enableMar
       {meta.totalPages > 1 && (
         <div className="flex justify-center gap-3 mt-10">
           {page > 1 && (
-            <Link href={`/?page=${page - 1}`} className="px-4 py-2 rounded-lg border border-gray-300 text-sm hover:border-gray-400 transition-colors">
+            <Link href={`/?page=${page - 1}${query ? `&q=${encodeURIComponent(query)}` : ''}#upcoming-events`} className="axon-pill border border-[#d8cdee] text-xs text-[#1a0533] hover:border-primary">
               ← Previous
             </Link>
           )}
@@ -337,7 +367,7 @@ async function EventsGrid({ page, enableMarketplace }: { page: number; enableMar
             Page {page} of {meta.totalPages}
           </span>
           {page < meta.totalPages && (
-            <Link href={`/?page=${page + 1}`} className="px-4 py-2 rounded-lg border border-gray-300 text-sm hover:border-gray-400 transition-colors">
+            <Link href={`/?page=${page + 1}${query ? `&q=${encodeURIComponent(query)}` : ''}#upcoming-events`} className="axon-pill border border-[#d8cdee] text-xs text-[#1a0533] hover:border-primary">
               Next →
             </Link>
           )}
@@ -347,12 +377,12 @@ async function EventsGrid({ page, enableMarketplace }: { page: number; enableMar
   );
 }
 
-function EventsGridHeader({ total }: { total?: number }) {
+function EventsGridHeader({ total, query = '' }: { total?: number; query?: string }) {
   return (
     <div className="flex items-end justify-between mb-6">
       <div>
-        <h2 className="text-2xl md:text-3xl font-bold text-gray-900">Upcoming Events</h2>
-        <p className="text-gray-500 mt-1 text-sm">Find and book tickets to the best events in the Philippines</p>
+        <h2 className="axon-display text-3xl text-[#1a0533] md:text-4xl">{query ? 'Search Results' : 'Upcoming Events'}</h2>
+        <p className="mt-2 text-sm text-[#6b5b8a]">{query ? `Events matching “${query}”` : 'Find and book tickets to the best events in the Philippines'}</p>
       </div>
       {total != null && total > 0 && (
         <p className="text-xs text-gray-400 hidden sm:block">
@@ -369,8 +399,8 @@ function EventsGridSkeleton() {
       <EventsGridHeader />
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
         {Array.from({ length: 8 }).map((_, i) => (
-          <div key={i} className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
-            <div className="h-44 bg-gray-100 animate-pulse" />
+          <div key={i} className="axon-card overflow-hidden">
+            <div className="h-44 animate-pulse bg-[#ece4fb]" />
             <div className="p-4 space-y-2">
               <div className="h-3 w-24 bg-gray-100 rounded animate-pulse" />
               <div className="h-4 w-40 bg-gray-100 rounded animate-pulse" />

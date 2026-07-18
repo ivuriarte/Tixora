@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import Image from 'next/image';
-import { formatManila, formatShortDate } from '@axon-tickets/utils';
+import { formatShortDate } from '@axon-tickets/utils';
+import EventCoverFallback from '@/components/EventCoverFallback';
 
 interface Props {
   event: {
@@ -20,37 +21,35 @@ interface Props {
 
 export default function EventCard({ event }: Props) {
   return (
-    <Link href={`/events/${event.slug}`} className="group block rounded-2xl overflow-hidden bg-white shadow hover:shadow-md transition-shadow">
-      <div className="relative h-44 bg-gray-200">
+    <Link href={`/events/${event.slug}`} className="group axon-card block overflow-hidden transition-colors hover:border-primary">
+      <div className="relative aspect-square bg-[#ede9fe]">
         {event.imageUrl ? (
           <Image
             src={event.imageUrl}
             alt={event.title}
             fill
-            className="object-cover group-hover:scale-105 transition-transform duration-300"
-            sizes="(max-width: 640px) 100vw, 400px"
+            className="object-cover"
+            sizes="(max-width: 640px) 50vw, (max-width: 1280px) 33vw, 25vw"
           />
         ) : (
-          <div className="h-full flex items-center justify-center bg-gradient-to-br from-primary-100 to-primary-50 text-primary text-4xl font-bold select-none">
-            {event.title[0]}
-          </div>
+          <EventCoverFallback title={event.title} startsAt={event.startsAt} className="select-none" />
         )}
 
         {event.status === 'sold_out' && (
-          <span className="absolute top-2 right-2 bg-red-600 text-white text-xs font-bold px-2 py-0.5 rounded">
+          <span className="absolute right-3 top-3 rounded-full bg-primary px-3 py-1 text-[10px] font-bold uppercase tracking-[0.08em] text-white">
             SOLD OUT
           </span>
         )}
       </div>
 
       <div className="p-4">
-        <p className="text-xs text-gray-500 mb-1 uppercase tracking-wide">
+        <p className="mb-2 text-[10px] font-bold uppercase tracking-[0.08em] text-[#756a92]">
           {formatShortDate(new Date(event.startsAt))} · {event.city}
         </p>
-        <h3 className="font-semibold text-gray-900 line-clamp-2 group-hover:text-primary transition-colors">
+        <h3 className="line-clamp-2 font-bold text-[#1a0533] transition-colors group-hover:text-primary">
           {event.title}
         </h3>
-        <p className="text-sm text-gray-500 mt-1 line-clamp-1">{event.venue}</p>
+        <p className="mt-1 line-clamp-1 text-sm text-[#6b5b8a]">{event.venue}</p>
         {event.isFree || event.lowestPrice === 0 ? (
           <p className="mt-2 text-sm font-semibold text-primary">Free</p>
         ) : event.lowestPrice != null ? (

@@ -373,7 +373,7 @@ model FraudFlag {
 model Registration {
   id                   String             @id @default(uuid())
   referenceNumber      String             @unique @map("reference_number")
-  userId               String             @map("user_id")
+  userId               String?            @map("user_id")
   eventId              String             @map("event_id")
   tierId               String?            @map("tier_id")
   tierName             String?            @map("tier_name")
@@ -395,7 +395,7 @@ model Registration {
   createdAt            DateTime           @default(now()) @map("created_at")
   updatedAt            DateTime           @updatedAt @map("updated_at")
 
-  user          User               @relation(fields: [userId], references: [id])
+  user          User?              @relation(fields: [userId], references: [id])
   event         Event              @relation(fields: [eventId], references: [id])
   tier          TicketTier?        @relation(fields: [tierId], references: [id])
   attendees     Attendee[]
@@ -419,7 +419,7 @@ model Attendee {
   registrationId String    @map("registration_id")
   firstName      String    @map("first_name")
   lastName       String    @map("last_name")
-  email          String
+  email          String?
   phone          String?
   company        String?
   jobTitle       String?   @map("job_title")

@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import Image from 'next/image';
 import toast from 'react-hot-toast';
 import api from '@/lib/api';
-import { formatManila, centavosToPeso, formatPHP } from '@axon-tickets/utils';
+import { formatManila, formatPHP } from '@axon-tickets/utils';
 
 interface ProofRow {
   id: string;
@@ -30,12 +30,12 @@ interface AdminReg {
   rejectionReason: string | null;
   createdAt: string;
   event: { title: string; slug: string; startsAt: string; venue: string };
-  user: { email: string; firstName: string; lastName: string };
+  user: { email: string; firstName: string | null; lastName: string | null } | null;
   attendees: Array<{
     id: string;
     firstName: string;
     lastName: string;
-    email: string;
+    email: string | null;
     isLead: boolean;
   }>;
   proofs: ProofRow[];
@@ -245,6 +245,12 @@ export default function VerificationDrawer({
   const proofImageOk = isSafeImageUrl(latestProof?.imageUrl);
   const canReview = reg?.status === 'proof_submitted' || reg?.status === 'pending_approval';
   const lead = reg?.attendees?.find((a) => a.isLead) ?? reg?.attendees?.[0];
+  const buyerName = lead
+    ? `${lead.firstName} ${lead.lastName}`
+    : reg?.user
+      ? [reg.user.firstName, reg.user.lastName].filter(Boolean).join(' ') || 'Unnamed buyer'
+      : 'Walk-in attendee';
+  const buyerEmail = lead?.email ?? reg?.user?.email ?? '';
 
   return (
     <div
@@ -360,10 +366,8 @@ export default function VerificationDrawer({
                 </div>
                 <div>
                   <p className="text-xs text-gray-500 font-medium">Buyer</p>
-                  <p className="font-medium text-gray-900">
-                    {lead ? `${lead.firstName} ${lead.lastName}` : `${reg.user.firstName} ${reg.user.lastName}`}
-                  </p>
-                  <p className="text-xs text-gray-500 mt-0.5">{lead?.email ?? reg.user.email}</p>
+                  <p className="font-medium text-gray-900">{buyerName}</p>
+                  <p className="text-xs text-gray-500 mt-0.5">{buyerEmail}</p>
                 </div>
                 <div>
                   <p className="text-xs text-gray-500 font-medium">Tier / Qty</p>
@@ -374,15 +378,15 @@ export default function VerificationDrawer({
                 <div>
                   <p className="text-xs text-gray-500 font-medium">Amount Due</p>
                   <p className="font-bold text-primary text-lg leading-tight">
-                    {formatPHP(centavosToPeso(Number(reg.total)))}
+                    {formatPHP(Number(reg.total))}
                   </p>
                   <p className="text-[11px] text-gray-500">
-                    Subtotal {formatPHP(centavosToPeso(Number(reg.subtotal)))} ·
-                    Fee {formatPHP(centavosToPeso(Number(reg.fees)))}
+                    Subtotal {formatPHP(Number(reg.subtotal))} ·
+                    Fee {formatPHP(Number(reg.fees))}
                   </p>
                   {Number(reg.discount) > 0 && (
                     <p className="text-[11px] font-medium text-emerald-600 mt-0.5">
-                      Referral discount ({reg.referralCodeSnapshot?.code ?? 'code'}) −{formatPHP(centavosToPeso(Number(reg.discount)))}
+                      Referral discount ({reg.referralCodeSnapshot?.code ?? 'code'}) −{formatPHP(Number(reg.discount))}
                     </p>
                   )}
                 </div>

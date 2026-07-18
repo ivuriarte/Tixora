@@ -56,15 +56,15 @@ export default function SolutionCategoryPage({ params }: { params: { category: s
         />
         <TrustSection heading="What you get" features={category.benefits} background="white" />
         <section className="bg-gray-50">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-14 md:py-20">
-            <h2 className="text-2xl md:text-3xl font-bold text-gray-900 mb-8">How it works for organizers</h2>
+          <div className="page-container py-14 md:py-20">
+            <h2 className="axon-display mb-8 text-3xl md:text-5xl">How it works for organizers</h2>
             <ol className="space-y-4 max-w-2xl">
               {organizerSteps.map((step, i) => (
                 <li key={step} className="flex items-start gap-3">
-                  <span className="flex items-center justify-center w-7 h-7 rounded-full bg-primary/10 text-primary text-sm font-bold shrink-0" aria-hidden="true">
+                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#ede9fe] text-sm font-bold text-primary" aria-hidden="true">
                     {i + 1}
                   </span>
-                  <span className="text-gray-700 pt-0.5">{step}</span>
+                  <span className="pt-0.5 text-[#4f416c]">{step}</span>
                 </li>
               ))}
             </ol>

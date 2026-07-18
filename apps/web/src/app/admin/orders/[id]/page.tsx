@@ -5,7 +5,8 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '@/lib/api';
 import Link from 'next/link';
 import toast from 'react-hot-toast';
-import { formatShortDate } from '@axon-tickets/utils';
+import { formatPHP, formatShortDate } from '@axon-tickets/utils';
+import { ErrorState, ScreenSkeleton } from '@/components/ScreenState';
 
 interface OrderDetail {
   id: string;
@@ -56,7 +57,7 @@ export default function AdminOrderDetailPage() {
   const { id } = useParams<{ id: string }>();
   const queryClient = useQueryClient();
 
-  const { data: order, isLoading } = useQuery<OrderDetail>({
+  const { data: order, isLoading, isError, refetch } = useQuery<OrderDetail>({
     queryKey: ['admin-order', id],
     queryFn: () =>
       api.get<{ data: OrderDetail }>(`/admin/orders/${id}`).then((r) => r.data.data),
@@ -78,13 +79,12 @@ export default function AdminOrderDetailPage() {
     onError: (err: any) => toast.error(err?.response?.data?.message ?? 'Failed to confirm payment'),
   });
 
-  const fmt = (pesos: number) =>
-    `₱${pesos.toLocaleString('en-PH', { minimumFractionDigits: 2 })}`;
+  const fmt = (pesos: number) => formatPHP(pesos);
 
   if (isLoading) {
     return (
       <main className="max-w-3xl mx-auto px-4 py-10">
-        <p className="text-gray-400">Loading…</p>
+        <ScreenSkeleton rows={5} />
       </main>
     );
   }
@@ -92,10 +92,11 @@ export default function AdminOrderDetailPage() {
   if (!order) {
     return (
       <main className="max-w-3xl mx-auto px-4 py-10">
-        <p className="text-red-500">Order not found.</p>
-        <Link href="/admin/orders" className="text-primary hover:underline text-sm mt-2 block">
-          ← Back to Orders
-        </Link>
+        <ErrorState
+          title={isError ? 'Unable to load order' : 'Order not found'}
+          message={isError ? 'The order could not be loaded. Check your connection and try again.' : 'This order may have been removed or the link is incorrect.'}
+          action={isError ? <button type="button" onClick={() => refetch()} className="axon-pill bg-primary text-xs text-white">Try again</button> : <Link href="/admin/orders" className="axon-pill bg-primary text-xs text-white">Back to orders</Link>}
+        />
       </main>
     );
   }
@@ -108,7 +109,7 @@ export default function AdminOrderDetailPage() {
             <Link href="/admin/orders" className="text-gray-400 hover:text-gray-600 text-sm block mb-1">
               ← Orders
             </Link>
-            <h1 className="text-2xl font-bold text-gray-900">Order Detail</h1>
+            <h1 className="axon-page-title text-3xl sm:text-4xl">Order Detail</h1>
             <p className="font-mono text-xs text-gray-400 mt-0.5">{order.id}</p>
           </div>
           {order.status === 'paid' && (

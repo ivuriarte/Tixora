@@ -7,9 +7,10 @@ import api from '@/lib/api';
 import CheckoutStepper from '@/components/CheckoutStepper';
 import PaymentProofDropzone from '@/components/PaymentProofDropzone';
 import type { Registration } from '@axon-tickets/types';
-import { centavosToPeso, formatPHP } from '@axon-tickets/utils';
+import { formatPHP } from '@axon-tickets/utils';
 import { trackPixelCustomEvent, trackPixelEvent } from '@/lib/metaPixel';
 import { trackInternalFunnelEvent } from '@/lib/funnel';
+import { ErrorState, ScreenSkeleton } from '@/components/ScreenState';
 
 export default function PaymentStepPage() {
   const router = useRouter();
@@ -43,7 +44,7 @@ export default function PaymentStepPage() {
     if (!reg) return;
     const trackedEventId = (reg as Registration & { eventId?: string }).eventId;
 
-    const totalPesos = centavosToPeso(reg.total);
+    const totalPesos = reg.total;
     trackPixelEvent(
       'InitiateCheckout',
       {
@@ -73,7 +74,7 @@ export default function PaymentStepPage() {
   const handleUploaded = () => {
     if (reg) {
       const trackedEventId = (reg as Registration & { eventId?: string }).eventId;
-      const totalPesos = centavosToPeso(reg.total);
+      const totalPesos = reg.total;
       trackPixelEvent('AddPaymentInfo', {
         content_name: reg.event.title,
         currency: reg.currency || 'PHP',
@@ -103,12 +104,7 @@ export default function PaymentStepPage() {
     return (
       <main className="min-h-screen bg-gray-50 py-10">
         <div className="max-w-2xl mx-auto px-4 sm:px-6 space-y-4">
-          {[1, 2, 3].map((i) => (
-            <div
-              key={i}
-              className="h-32 bg-white rounded-2xl border border-gray-200 animate-pulse"
-            />
-          ))}
+          <ScreenSkeleton rows={5} />
         </div>
       </main>
     );
@@ -117,15 +113,7 @@ export default function PaymentStepPage() {
   if (error || !reg) {
     return (
       <main className="min-h-screen bg-gray-50 py-10 flex items-center justify-center">
-        <div className="text-center">
-          <p className="text-gray-500">{error ?? 'Registration not found.'}</p>
-          <button
-            onClick={() => router.push(`/events/${slug}`)}
-            className="mt-4 text-primary text-sm hover:underline"
-          >
-            Back to event
-          </button>
-        </div>
+        <div className="w-full max-w-lg px-4"><ErrorState title="Payment screen unavailable" message={error ?? 'This registration may have been removed or the link is incorrect.'} action={<button onClick={() => router.push(`/events/${slug}`)} className="axon-pill bg-primary text-xs text-white">Back to event</button>} /></div>
       </main>
     );
   }
@@ -182,7 +170,7 @@ export default function PaymentStepPage() {
 
         {/* Header */}
         <div className="mb-6">
-          <h1 className="text-2xl font-bold text-gray-900">Complete Your Payment</h1>
+          <h1 className="axon-display text-4xl">Complete Your Payment</h1>
           <p className="text-sm text-gray-500 mt-1">
             Reference{' '}
             <span className="font-mono text-primary font-semibold">{reg.referenceNumber}</span>{' '}
@@ -191,17 +179,17 @@ export default function PaymentStepPage() {
         </div>
 
         {/* Amount due */}
-        <div className="rounded-2xl border border-primary/20 bg-gradient-to-br from-primary/10 to-primary/5 p-5 mb-5">
+        <div className="mb-5 rounded-lg border border-primary/20 bg-[#ede9fe] p-5">
           <p className="text-xs uppercase tracking-wide text-primary/80 font-semibold">
             Amount Due
           </p>
           <div className="mt-1 flex items-end gap-3">
             <p className="text-3xl font-bold text-gray-900">
-              {formatPHP(centavosToPeso(reg.total))}
+              {formatPHP(reg.total)}
             </p>
             <button
-              onClick={() => copy('amount', centavosToPeso(reg.total).toFixed(2))}
-              className="mb-1 text-xs font-medium text-primary hover:underline"
+              onClick={() => copy('amount', String(reg.total))}
+              className="mb-1 min-h-[44px] px-3 text-xs font-bold text-primary hover:underline"
             >
               {copied === 'amount' ? 'Copied!' : 'Copy'}
             </button>
@@ -338,7 +326,7 @@ export default function PaymentStepPage() {
                 <p className="mt-1 text-xs text-amber-800 leading-relaxed">
                   This registration covers{' '}
                   <span className="font-semibold">{reg.attendeeCount} attendees</span>. Transfer the
-                  full <span className="font-semibold">{formatPHP(centavosToPeso(reg.total))}</span>{' '}
+                  full <span className="font-semibold">{formatPHP(reg.total)}</span>{' '}
                   in a single payment and upload <span className="font-semibold">one receipt</span> below.
                 </p>
                 <ul className="mt-2 space-y-0.5 text-xs text-amber-700">
@@ -384,7 +372,7 @@ export default function PaymentStepPage() {
         <div className="flex items-center justify-between text-xs text-gray-500">
           <button
             onClick={() => router.push(`/registrations/${registrationId}`)}
-            className="hover:text-gray-700"
+            className="min-h-[44px] font-medium hover:text-primary"
           >
             I will pay later
           </button>

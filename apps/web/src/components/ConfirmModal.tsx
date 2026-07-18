@@ -60,7 +60,7 @@ export default function ConfirmModal({
             leaveFrom="opacity-100 translate-y-0 sm:scale-100"
             leaveTo="opacity-0 translate-y-2 sm:scale-95"
           >
-            <Dialog.Panel className="relative bg-white rounded-2xl shadow-2xl max-w-sm w-full mx-4 p-6">
+            <Dialog.Panel className="relative mx-4 w-full max-w-sm rounded-lg border border-[#e4dcf4] bg-white p-6 shadow-2xl">
               <div
                 className={`mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full ${
                   isDanger ? 'bg-red-100' : 'bg-amber-100'
@@ -77,10 +77,10 @@ export default function ConfirmModal({
                 )}
               </div>
 
-              <Dialog.Title as="h2" className="text-center text-lg font-bold text-gray-900 mb-2">
+              <Dialog.Title as="h2" className="axon-section-title mb-2 text-center text-lg">
                 {title}
               </Dialog.Title>
-              <p className="text-center text-sm text-gray-500 leading-relaxed mb-6">
+              <p className="mb-6 text-center text-sm leading-relaxed text-[#6b5b8a]">
                 {message}
               </p>
 
@@ -88,7 +88,7 @@ export default function ConfirmModal({
                 <button
                   onClick={onConfirm}
                   disabled={loading}
-                  className={`w-full inline-flex items-center justify-center rounded-xl py-2.5 text-sm font-semibold text-white transition-all duration-200 active:scale-[0.98] disabled:opacity-60 disabled:cursor-not-allowed ${
+                  className={`inline-flex min-h-[44px] w-full items-center justify-center rounded-[40px] px-5 text-sm font-bold uppercase tracking-[0.06em] text-white transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${
                     isDanger ? 'bg-red-600 hover:bg-red-700' : 'bg-amber-500 hover:bg-amber-600'
                   }`}
                 >
@@ -103,7 +103,7 @@ export default function ConfirmModal({
                 <button
                   onClick={onCancel}
                   disabled={loading}
-                  className="w-full rounded-xl border border-gray-200 py-2.5 text-sm font-semibold text-gray-700 hover:bg-gray-50 transition-all duration-200 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="min-h-[44px] w-full rounded-[40px] border border-[#d3c8e8] px-5 text-sm font-bold uppercase tracking-[0.06em] text-[#4f416c] transition-colors hover:border-primary hover:text-primary disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {cancelLabel}
                 </button>

@@ -48,7 +48,7 @@ export default function PlatformSettingsPage() {
   return (
     <div className="max-w-2xl mx-auto px-6 py-10">
       <div className="mb-8">
-        <h1 className="text-2xl font-bold text-gray-900">Platform Settings</h1>
+        <h1 className="axon-page-title text-3xl sm:text-4xl">Platform Settings</h1>
         <p className="text-sm text-gray-500 mt-1">
           These settings apply platform-wide. Per-event overrides can be set on the Admin Controls section of each event&apos;s edit page.
         </p>

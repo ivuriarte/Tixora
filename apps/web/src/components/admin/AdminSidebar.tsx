@@ -270,7 +270,7 @@ export default function AdminSidebar({ isOpen, onClose }: { isOpen: boolean; onC
         </div>
         {/* Close button — mobile only */}
         <button
-          className="md:hidden p-1.5 rounded-lg text-gray-400 hover:bg-gray-100 transition-colors"
+          className="flex min-h-[44px] min-w-[44px] items-center justify-center rounded-lg text-[#756a92] transition-colors hover:bg-[#ede9fe] hover:text-primary md:hidden"
           onClick={onClose}
           aria-label="Close navigation"
         >
@@ -296,10 +296,10 @@ export default function AdminSidebar({ isOpen, onClose }: { isOpen: boolean; onC
                     key={item.href}
                     href={item.href}
                     onClick={onClose}
-                    className={`flex items-center gap-2.5 px-2 py-2 rounded-lg text-sm font-medium transition-colors ${
+                    className={`flex min-h-[44px] items-center gap-2.5 rounded-lg px-3 text-sm font-medium transition-colors ${
                       active
-                        ? 'bg-violet-50 text-primary'
-                        : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                        ? 'bg-[#ede9fe] font-bold text-primary'
+                        : 'text-[#6b5b8a] hover:bg-[#f5f0ff] hover:text-[#1a0533]'
                     }`}
                   >
                     <span className={active ? 'text-primary' : 'text-gray-400'}>
@@ -308,7 +308,7 @@ export default function AdminSidebar({ isOpen, onClose }: { isOpen: boolean; onC
                     <span className="flex-1 truncate">{item.label}</span>
                     {badge > 0 && (
                       <span
-                        className="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-semibold bg-red-100 text-red-700"
+                        className="inline-flex min-h-[22px] min-w-[22px] items-center justify-center rounded-full bg-amber-100 px-1 text-[10px] font-bold text-amber-800"
                         title={`${badge} pending verification${badge === 1 ? '' : 's'}`}
                       >
                         {badge > 99 ? '99+' : badge}
@@ -326,7 +326,7 @@ export default function AdminSidebar({ isOpen, onClose }: { isOpen: boolean; onC
       <div className="flex-shrink-0 border-t border-gray-100 px-3 py-3 space-y-0.5">
         <Link
           href="/admin/profile"
-          className="flex items-center gap-2.5 px-2 py-2 rounded-lg text-sm text-gray-600 hover:bg-gray-50 hover:text-gray-900 transition-colors"
+          className="flex min-h-[44px] items-center gap-2.5 rounded-lg px-3 text-sm text-[#6b5b8a] transition-colors hover:bg-[#f5f0ff] hover:text-[#1a0533]"
         >
           <svg className="w-5 h-5 flex-shrink-0 text-gray-400" fill="none" stroke="currentColor" strokeWidth={1.75} viewBox="0 0 24 24" aria-hidden>
             <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
@@ -335,7 +335,7 @@ export default function AdminSidebar({ isOpen, onClose }: { isOpen: boolean; onC
         </Link>
         <button
           onClick={handleLogout}
-          className="w-full flex items-center gap-2.5 px-2 py-2 rounded-lg text-sm text-gray-600 hover:bg-gray-50 hover:text-gray-900 transition-colors"
+          className="flex min-h-[44px] w-full items-center gap-2.5 rounded-lg px-3 text-sm text-[#6b5b8a] transition-colors hover:bg-[#f5f0ff] hover:text-[#1a0533]"
         >
           <svg className="w-5 h-5 flex-shrink-0 text-gray-400" fill="none" stroke="currentColor" strokeWidth={1.75} viewBox="0 0 24 24" aria-hidden>
             <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15M12 9l-3 3m0 0l3 3m-3-3h12.75" />

@@ -9,21 +9,21 @@ export default function RegisterPage() {
   const [legalModal, setLegalModal] = useState<'terms' | 'privacy' | null>(null);
 
   return (
-    <div className="min-h-screen flex items-center justify-center px-4 py-12 bg-gray-50">
+    <div className="axon-auth-page">
       <div className="w-full max-w-sm">
         <div className="text-center mb-8">
-          <Link href="/" className="text-2xl font-bold text-primary">
+          <Link href="/" className="axon-label inline-flex min-h-[44px] items-center text-sm text-primary">
             Axon Tickets
           </Link>
-          <h1 className="mt-4 text-2xl font-bold text-gray-900">Create your account</h1>
-          <p className="mt-1 text-sm text-gray-500">Register to attend upcoming events</p>
+          <h1 className="axon-display mt-4 text-4xl">Create your account</h1>
+          <p className="mt-2 text-sm text-[#6b5b8a]">Register to attend upcoming events</p>
         </div>
 
-        <div className="bg-white shadow rounded-2xl p-8 space-y-4">
+        <div className="axon-auth-card space-y-4">
           {/* Email (OTP) — primary */}
           <Link
             href="/auth/access"
-            className="flex items-center justify-center gap-3 w-full rounded-xl bg-primary text-white px-4 py-2.5 text-sm font-semibold hover:bg-primary/90 transition-colors"
+            className="axon-pill w-full gap-3 bg-primary text-sm text-white hover:bg-primary-hover"
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" aria-hidden="true">
               <path strokeLinecap="round" strokeLinejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75" />

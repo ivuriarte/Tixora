@@ -55,7 +55,7 @@ function CompleteProfileForm() {
   if (isHydrating) return null;
 
   return (
-    <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4 py-12">
+    <div className="axon-auth-page">
       <div className="w-full max-w-sm">
         <div className="text-center mb-8">
           <div className="w-14 h-14 rounded-2xl bg-primary/10 flex items-center justify-center mx-auto mb-4">
@@ -63,13 +63,13 @@ function CompleteProfileForm() {
               <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
             </svg>
           </div>
-          <h1 className="text-xl font-bold text-gray-900">Profile details</h1>
-          <p className="text-sm text-gray-500 mt-1">
+          <h1 className="axon-display text-4xl">Profile details</h1>
+          <p className="mt-2 text-sm text-[#6b5b8a]">
             Add optional details now, or skip and continue to your event.
           </p>
         </div>
 
-        <form onSubmit={handleSubmit} className="bg-white shadow rounded-2xl p-6 space-y-5">
+        <form onSubmit={handleSubmit} className="axon-auth-card space-y-5">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Birthday <span className="text-gray-400 font-normal">(optional)</span>
@@ -114,7 +114,7 @@ function CompleteProfileForm() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full py-3 rounded-xl bg-primary text-white font-semibold text-sm hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
+            className="axon-pill w-full gap-2 bg-primary text-sm text-white hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-50"
           >
             {loading ? (
               <svg className="animate-spin w-4 h-4" viewBox="0 0 24 24" fill="none">
@@ -130,7 +130,7 @@ function CompleteProfileForm() {
         <button
           type="button"
           onClick={handleSkip}
-          className="mt-4 w-full text-center text-sm text-gray-400 hover:text-gray-600 transition-colors"
+          className="mt-4 min-h-[44px] w-full text-center text-sm font-medium text-[#756a92] transition-colors hover:text-primary"
         >
           Skip for now — I&apos;ll complete this later
         </button>

@@ -8,7 +8,8 @@ const VerificationDrawer = dynamic(
   () => import('@/components/admin/VerificationDrawer'),
   { ssr: false, loading: () => <div className="animate-pulse h-full bg-gray-50" aria-hidden="true" /> },
 );
-import { formatManila } from '@axon-tickets/utils';
+import { formatManila, formatPHP } from '@axon-tickets/utils';
+import { EmptyState, ScreenSkeleton } from '@/components/ScreenState';
 
 interface VerificationRow {
   id: string;
@@ -258,7 +259,7 @@ export default function VerificationsQueuePage() {
       <main className="max-w-7xl mx-auto px-4 py-10 space-y-6">
         <div className="flex items-start justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">Transaction Verification Queue</h1>
+            <h1 className="axon-page-title text-3xl sm:text-4xl">Transaction Verification Queue</h1>
             <p className="text-sm text-gray-500 mt-1">
               Select an event to review registrations awaiting approval.{' '}
               {meta.total > 0 && <span className="font-medium">{meta.total} total</span>}
@@ -375,9 +376,9 @@ export default function VerificationsQueuePage() {
               Select an event above to load its transaction verification queue.
             </p>
           ) : loading ? (
-            <p className="text-sm text-gray-400 p-6">Loading…</p>
+            <ScreenSkeleton rows={6} compact />
           ) : rows.length === 0 ? (
-            <p className="text-sm text-gray-500 p-6">No registrations match these filters.</p>
+            <EmptyState title="No matching transactions" message="Adjust the event, status, or date filters to see other transactions." />
           ) : (
             <table className="w-full text-sm min-w-[800px]">
               <thead className="bg-gray-50 text-xs uppercase text-gray-500">
@@ -427,7 +428,7 @@ export default function VerificationsQueuePage() {
                         {r.tierName ?? '—'} × {r.attendeeCount}
                       </td>
                       <td className="px-4 py-3 text-right font-medium">
-                        ₱{Number(r.total).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        {formatPHP(Number(r.total))}
                       </td>
                       <td className="px-4 py-3">
                         {(() => {

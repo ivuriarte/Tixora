@@ -4,6 +4,8 @@ import { useState, useEffect } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
 import api from '@/lib/api';
+import { ScreenSkeleton } from '@/components/ScreenState';
+import { formatPHP } from '@axon-tickets/utils';
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -83,7 +85,7 @@ interface FunnelData {
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
 function fmtRevenue(n: number) {
-  return `₱${n.toLocaleString('en-PH', { minimumFractionDigits: 2 })}`;
+  return formatPHP(n);
 }
 
 function fmtPct(n: number) {
@@ -247,7 +249,7 @@ export default function AdminAnalyticsPage() {
         {/* Header */}
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">Real Time Analytics</h1>
+            <h1 className="axon-page-title text-3xl sm:text-4xl">Real-time analytics</h1>
             <p className="text-sm text-gray-400 mt-0.5">
               Real-time stats for your events
             </p>
@@ -286,7 +288,7 @@ export default function AdminAnalyticsPage() {
         </div>
 
         {analyticsLoading && (
-          <p className="text-gray-400 text-sm">Loading analytics…</p>
+          <ScreenSkeleton rows={4} compact />
         )}
 
         {analytics && (

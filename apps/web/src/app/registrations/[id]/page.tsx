@@ -6,11 +6,12 @@ import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
-import { formatManila, centavosToPeso, formatPHP } from '@axon-tickets/utils';
+import { formatManila, formatPHP } from '@axon-tickets/utils';
 import api from '@/lib/api';
 import PaymentProofUpload from '@/components/PaymentProofUpload';
 import type { Registration, RegistrationStatus } from '@axon-tickets/types';
 import { trackPixelCustomEvent, trackPixelEvent } from '@/lib/metaPixel';
+import { ErrorState, ScreenSkeleton } from '@/components/ScreenState';
 
 const STATUS_LABELS: Record<RegistrationStatus, string> = {
   pending_payment: 'Waiting for Payment',
@@ -78,7 +79,7 @@ export default function RegistrationDetailPage() {
         content_ids: trackedEventId ? [trackedEventId] : [],
         content_name: reg.event.title,
         currency: reg.currency || 'PHP',
-        value: centavosToPeso(reg.total),
+        value: reg.total,
         num_items: reg.attendeeCount,
       }, `initiate-checkout:${reg.id}`);
     }
@@ -100,7 +101,7 @@ export default function RegistrationDetailPage() {
           content_ids: trackedEventId ? [trackedEventId] : [],
           content_name: reg.event.title,
           currency: reg.currency || 'PHP',
-          value: centavosToPeso(reg.total),
+          value: reg.total,
           num_items: reg.attendeeCount,
         },
         `purchase-registration:${reg.id}`,
@@ -130,13 +131,13 @@ export default function RegistrationDetailPage() {
       trackPixelEvent('AddPaymentInfo', {
         content_name: reg.event.title,
         currency: reg.currency || 'PHP',
-        value: centavosToPeso(reg.total),
+        value: reg.total,
       });
       trackPixelCustomEvent('Registration_Submitted_For_Review', {
         event_id: trackedEventId ?? null,
         event_name: reg.event.title,
         currency: reg.currency || 'PHP',
-        value: centavosToPeso(reg.total),
+        value: reg.total,
       }, `reg-submitted-review:${reg.id}`);
     }
     await fetchReg();
@@ -146,9 +147,7 @@ export default function RegistrationDetailPage() {
     return (
       <main className="min-h-screen bg-gray-50 py-10">
         <div className="max-w-2xl mx-auto px-4 sm:px-6 space-y-4">
-          {[1, 2, 3].map((i) => (
-            <div key={i} className="h-32 bg-white rounded-2xl border border-gray-200 animate-pulse" />
-          ))}
+          <ScreenSkeleton rows={5} />
         </div>
       </main>
     );
@@ -157,15 +156,7 @@ export default function RegistrationDetailPage() {
   if (error || !reg) {
     return (
       <main className="min-h-screen bg-gray-50 py-10 flex items-center justify-center">
-        <div className="text-center">
-          <p className="text-gray-500">{error ?? 'Registration not found.'}</p>
-          <button
-            onClick={() => router.push('/account/tickets')}
-            className="mt-4 text-primary text-sm hover:underline"
-          >
-            Back to My Events
-          </button>
-        </div>
+        <div className="w-full max-w-lg px-4"><ErrorState title="Registration unavailable" message={error ?? 'This registration may have been removed or the link is incorrect.'} action={<button onClick={() => router.push('/account/tickets')} className="axon-pill bg-primary text-xs text-white">Back to my events</button>} /></div>
       </main>
     );
   }
@@ -193,7 +184,7 @@ export default function RegistrationDetailPage() {
               <div className="flex items-center gap-3 mt-3">
                 <Link
                   href={`/account/complete-profile?returnTo=/registrations/${id}`}
-                  className="text-xs font-semibold text-primary hover:underline"
+                  className="inline-flex min-h-[44px] items-center text-xs font-bold text-primary hover:underline"
                 >
                   Complete now
                 </Link>
@@ -229,7 +220,7 @@ export default function RegistrationDetailPage() {
           </button>
           <div className="mt-3 flex items-start justify-between gap-4">
             <div>
-              <p className="text-2xl font-bold text-primary font-mono">{reg.referenceNumber}</p>
+              <h1 className="font-mono text-3xl font-black tracking-tight text-primary">{reg.referenceNumber}</h1>
               <p className="text-sm text-gray-500 mt-0.5">{reg.event.title}</p>
             </div>
             <span
@@ -275,7 +266,7 @@ export default function RegistrationDetailPage() {
               )}
             </div>
             <p className="text-xs text-gray-500">
-              Send exactly <span className="font-semibold text-primary">{formatPHP(centavosToPeso(reg.total))}</span> and write your reference number in the transfer note or remarks box.
+              Send exactly <span className="font-semibold text-primary">{formatPHP(reg.total)}</span> and write your reference number in the transfer note or remarks box.
             </p>
           </div>
         )}
@@ -285,16 +276,16 @@ export default function RegistrationDetailPage() {
           <h2 className="font-semibold text-gray-900 mb-3">Order Breakdown</h2>
           <div className="flex justify-between text-gray-600">
             <span>{reg.tierName ?? 'Ticket'} × {reg.attendeeCount}</span>
-            <span>{formatPHP(centavosToPeso(reg.subtotal))}</span>
+            <span>{formatPHP(reg.subtotal)}</span>
           </div>
           <div className="flex justify-between text-gray-600">
             <span>Service fee</span>
-            <span>{formatPHP(centavosToPeso(reg.fees))}</span>
+            <span>{formatPHP(reg.fees)}</span>
           </div>
-          {reg.discount > 0 && <div className="flex justify-between font-medium text-emerald-700"><span>Referral discount{reg.referralCode ? ` (${reg.referralCode})` : ''}</span><span>−{formatPHP(centavosToPeso(reg.discount))}</span></div>}
+          {reg.discount > 0 && <div className="flex justify-between font-medium text-emerald-700"><span>Referral discount{reg.referralCode ? ` (${reg.referralCode})` : ''}</span><span>−{formatPHP(reg.discount)}</span></div>}
           <div className="flex justify-between font-bold text-gray-900 pt-2 border-t border-gray-100">
             <span>Total Due</span>
-            <span className="text-primary">{formatPHP(centavosToPeso(reg.total))}</span>
+            <span className="text-primary">{formatPHP(reg.total)}</span>
           </div>
         </div>
 

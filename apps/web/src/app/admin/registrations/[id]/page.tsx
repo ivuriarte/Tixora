@@ -4,7 +4,8 @@ import { useEffect, useState, useCallback } from 'react';
 import Image from 'next/image';
 import { useParams, useRouter } from 'next/navigation';
 import api from '@/lib/api';
-import { formatManila, centavosToPeso, formatPHP } from '@axon-tickets/utils';
+import { formatManila, formatPHP } from '@axon-tickets/utils';
+import { ErrorState, ScreenSkeleton } from '@/components/ScreenState';
 
 interface ProofRow {
   id: string;
@@ -31,12 +32,12 @@ interface AdminReg {
   verifiedAt: string | null;
   createdAt: string;
   event: { title: string; slug: string; startsAt: string; venue: string; address: string | null; landmark: string | null };
-  user: { email: string; firstName: string; lastName: string };
+  user: { email: string; firstName: string | null; lastName: string | null } | null;
   attendees: Array<{
     id: string;
     firstName: string;
     lastName: string;
-    email: string;
+    email: string | null;
     phone: string | null;
     isLead: boolean;
     qrToken: string | null;
@@ -146,7 +147,7 @@ export default function AdminRegistrationDetailPage() {
   if (loading) {
     return (
       <main className="max-w-3xl mx-auto px-4 py-10">
-        <p className="text-gray-400">Loading…</p>
+        <ScreenSkeleton rows={5} />
       </main>
     );
   }
@@ -154,19 +155,24 @@ export default function AdminRegistrationDetailPage() {
   if (!reg) {
     return (
       <main className="max-w-3xl mx-auto px-4 py-10">
-        <p className="text-gray-500">{error ?? 'Not found.'}</p>
-        <button
-          onClick={() => router.push('/admin/verifications')}
-          className="mt-4 text-sm text-primary hover:underline"
-        >
-          ← Back
-        </button>
+        <ErrorState
+          title="Registration unavailable"
+          message={error ?? 'This registration may have been removed or the link is incorrect.'}
+          action={<button onClick={() => router.push('/admin/verifications')} className="axon-pill bg-primary text-xs text-white">Back to verification queue</button>}
+        />
       </main>
     );
   }
 
   const latestProof = reg.proofs?.[0];
   const canReview = reg.status === 'proof_submitted' || reg.status === 'pending_approval';
+  const lead = reg.attendees.find((a) => a.isLead) ?? reg.attendees[0] ?? null;
+  const buyerName = lead
+    ? `${lead.firstName} ${lead.lastName}`
+    : reg.user
+      ? [reg.user.firstName, reg.user.lastName].filter(Boolean).join(' ') || 'Unnamed buyer'
+      : 'Walk-in attendee';
+  const buyerEmail = lead?.email ?? reg.user?.email ?? '';
 
   return (
     <main className="max-w-3xl mx-auto px-4 py-10 space-y-6">
@@ -217,10 +223,8 @@ export default function AdminRegistrationDetailPage() {
         {/* Buyer */}
         <div className="bg-white border border-gray-200 rounded-2xl p-5 text-sm space-y-1">
           <h2 className="font-semibold text-gray-900 mb-2">Buyer</h2>
-          <p>
-            {reg.user.firstName} {reg.user.lastName}
-          </p>
-          <p className="text-gray-500">{reg.user.email}</p>
+          <p>{buyerName}</p>
+          <p className="text-gray-500">{buyerEmail}</p>
         </div>
 
         {/* Order */}
@@ -230,16 +234,16 @@ export default function AdminRegistrationDetailPage() {
             <span>
               {reg.tierName ?? 'Ticket'} × {reg.attendeeCount}
             </span>
-            <span>{formatPHP(centavosToPeso(Number(reg.subtotal)))}</span>
+            <span>{formatPHP(Number(reg.subtotal))}</span>
           </div>
           <div className="flex justify-between text-gray-600">
             <span>Service fee</span>
-            <span>{formatPHP(centavosToPeso(Number(reg.fees)))}</span>
+            <span>{formatPHP(Number(reg.fees))}</span>
           </div>
-          {Number(reg.discount) > 0 && <div className="flex justify-between font-medium text-emerald-700"><span>Referral discount{reg.referralCodeSnapshot?.code ? ` (${reg.referralCodeSnapshot.code})` : ''}</span><span>−{formatPHP(centavosToPeso(Number(reg.discount)))}</span></div>}
+          {Number(reg.discount) > 0 && <div className="flex justify-between font-medium text-emerald-700"><span>Referral discount{reg.referralCodeSnapshot?.code ? ` (${reg.referralCodeSnapshot.code})` : ''}</span><span>−{formatPHP(Number(reg.discount))}</span></div>}
           <div className="flex justify-between font-bold text-gray-900 pt-2 border-t border-gray-100">
             <span>Total</span>
-            <span className="text-primary">{formatPHP(centavosToPeso(Number(reg.total)))}</span>
+            <span className="text-primary">{formatPHP(Number(reg.total))}</span>
           </div>
         </div>
 
@@ -281,7 +285,7 @@ export default function AdminRegistrationDetailPage() {
                     </span>
                   </div>
                   <div className="mt-2 pl-8 space-y-0.5 text-xs text-gray-500">
-                    <p>{a.email}</p>
+                    <p>{a.email ?? ''}</p>
                     {a.phone && <p>{a.phone}</p>}
                     {reg.tierName && (
                       <p className="font-medium text-gray-700">{reg.tierName}</p>

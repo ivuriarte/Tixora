@@ -5,6 +5,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import api from '@/lib/api';
 import { useAuthStore } from '@/store/auth.store';
+import { EmptyState, ScreenSkeleton } from '@/components/ScreenState';
 
 interface UserRow {
   id: string;
@@ -84,7 +85,7 @@ export default function AdminUsersPage() {
     <div className="max-w-5xl mx-auto px-4 py-8">
         <div className="flex items-center justify-between mb-6">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">User Management</h1>
+            <h1 className="axon-page-title text-3xl sm:text-4xl">User Management</h1>
             <p className="text-sm text-gray-500 mt-1">
               Grant or revoke admin access. After changing a role, ask the user to log out and back
               in so their session reflects the update.
@@ -107,13 +108,14 @@ export default function AdminUsersPage() {
         </div>
 
         {/* Table */}
-        <div className="bg-white rounded-xl shadow-sm overflow-hidden">
+        <div className="overflow-x-auto rounded-lg border border-[#e4dcf4] bg-white">
           {isLoading ? (
-            <div className="flex items-center justify-center py-20">
-              <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin" />
-            </div>
+            <ScreenSkeleton rows={6} compact />
           ) : filtered.length === 0 ? (
-            <div className="text-center py-16 text-gray-400">No users found</div>
+            <EmptyState
+              title="No users found"
+              message={search ? 'No users match this search. Try a different name or email.' : 'User accounts will appear here after registration.'}
+            />
           ) : (
             <table className="w-full text-sm">
               <thead className="bg-gray-50 border-b border-gray-100">

@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '@/lib/api';
 import toast from 'react-hot-toast';
+import { EmptyState, ScreenSkeleton } from '@/components/ScreenState';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -166,6 +167,8 @@ function OrgDrawer({
   const [rejectAcknowledged, setRejectAcknowledged] = useState(false);
   const [showRejectInput, setShowRejectInput] = useState(false);
   const [modalAction, setModalAction] = useState<ModalAction>(null);
+  const [memberEmail, setMemberEmail] = useState('');
+  const [memberRole, setMemberRole] = useState<'admin' | 'member'>('admin');
 
   const { data: org, isLoading } = useQuery<OrgDetail>({
     queryKey: ['admin-organizer', orgId],
@@ -223,6 +226,29 @@ function OrgDrawer({
     onSuccess: () => { toast.success('Organizer reinstated.'); setModalAction(null); invalidate(); },
     onError: () => { toast.error('Could not reinstate. Please try again.'); setModalAction(null); },
   });
+
+  const addMemberMutation = useMutation({
+    mutationFn: () =>
+      api.post(`/admin/organizers/${orgId}/members`, {
+        email: memberEmail.trim().toLowerCase(),
+        role: memberRole,
+      }),
+    onSuccess: () => {
+      toast.success('Organizer member added.');
+      setMemberEmail('');
+      setMemberRole('admin');
+      invalidate();
+    },
+    onError: () => toast.error('Could not add member. Please check the email and try again.'),
+  });
+
+  const removeMemberMutation = useMutation({
+    mutationFn: (memberId: string) => api.delete(`/admin/organizers/${orgId}/members/${memberId}`),
+    onSuccess: () => { toast.success('Organizer member removed.'); invalidate(); },
+    onError: () => toast.error('Could not remove member.'),
+  });
+
+  const canAddMember = memberEmail.trim().includes('@') && !addMemberMutation.isPending;
 
   return (
     <>
@@ -376,24 +402,66 @@ function OrgDrawer({
               </div>
 
               {/* Members */}
-              {org.members.length > 0 && (
-                <div>
-                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Members</p>
-                  <div className="space-y-1.5">
-                    {org.members.map((m) => (
-                      <div key={m.id} className="flex items-center justify-between text-sm">
-                        <div>
-                          <span className="font-medium text-gray-800">{m.user.name || m.user.email}</span>
-                          <span className="text-gray-400 text-xs ml-1.5">{m.user.email}</span>
-                        </div>
+              <div>
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Members</p>
+                <div className="space-y-2">
+                  {org.members.map((m) => (
+                    <div key={m.id} className="flex items-center justify-between gap-3 text-sm">
+                      <div className="min-w-0">
+                        <span className="font-medium text-gray-800">{m.user.name || m.user.email}</span>
+                        <span className="text-gray-400 text-xs ml-1.5 break-all">{m.user.email}</span>
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
                         <span className="text-xs bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded">
                           {m.role}
                         </span>
+                        {m.role !== 'owner' && (
+                          <button
+                            type="button"
+                            onClick={() => removeMemberMutation.mutate(m.id)}
+                            disabled={removeMemberMutation.isPending}
+                            className="text-xs text-red-500 hover:text-red-700 disabled:opacity-50"
+                          >
+                            Remove
+                          </button>
+                        )}
                       </div>
-                    ))}
-                  </div>
+                    </div>
+                  ))}
                 </div>
-              )}
+                <form
+                  className="mt-3 grid grid-cols-1 gap-2"
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    if (canAddMember) addMemberMutation.mutate();
+                  }}
+                >
+                  <div className="flex gap-2">
+                    <input
+                      type="email"
+                      value={memberEmail}
+                      onChange={(e) => setMemberEmail(e.target.value)}
+                      placeholder="member@email.com"
+                      className="min-w-0 flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-violet-400"
+                    />
+                    <select
+                      value={memberRole}
+                      onChange={(e) => setMemberRole(e.target.value as 'admin' | 'member')}
+                      className="w-28 border border-gray-300 rounded-lg px-2 py-2 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-violet-400"
+                    >
+                      <option value="admin">admin</option>
+                      <option value="member">member</option>
+                    </select>
+                  </div>
+                  <button
+                    type="submit"
+                    disabled={!canAddMember}
+                    className="w-full bg-violet-600 hover:bg-violet-700 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors disabled:opacity-50"
+                  >
+                    {addMemberMutation.isPending ? 'Adding member…' : 'Add member'}
+                  </button>
+                </form>
+              </div>
 
               {/* Actions */}
               {org.approvalStatus === 'pending' && (
@@ -563,7 +631,7 @@ export default function AdminOrganizersPage() {
       <main className="max-w-5xl mx-auto px-6 py-8">
         {/* Header */}
         <div className="mb-6">
-          <h1 className="text-xl font-semibold text-gray-900">Organizer Applications</h1>
+          <h1 className="axon-page-title text-3xl sm:text-4xl">Organizer Applications</h1>
           <p className="text-sm text-gray-500 mt-0.5">
             Review and approve organizer registrations before they can create events.
           </p>
@@ -588,13 +656,12 @@ export default function AdminOrganizersPage() {
 
         {/* Table */}
         {isLoading ? (
-          <div className="text-sm text-gray-400 py-8">Loading…</div>
+          <ScreenSkeleton rows={6} compact />
         ) : orgs.length === 0 ? (
-          <div className="rounded-xl border border-gray-100 bg-gray-50 px-6 py-12 text-center">
-            <p className="text-sm text-gray-500">
-              {statusFilter === 'pending' ? 'No pending applications.' : 'No results.'}
-            </p>
-          </div>
+          <EmptyState
+            title={statusFilter === 'pending' ? 'No pending applications' : 'No organizer results'}
+            message={statusFilter === 'pending' ? 'New organizer applications will appear here for review.' : 'Try a different status filter.'}
+          />
         ) : (
           <div className="rounded-xl border border-gray-200 overflow-hidden">
             <table className="w-full text-sm">

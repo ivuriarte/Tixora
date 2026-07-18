@@ -70,7 +70,7 @@ export class SchedulerService {
         });
 
         const lead = reg.attendees[0];
-        if (lead) {
+        if (lead?.email) {
           const reRegisterUrl = `${webBase}/events/${reg.event.slug}`;
           await this.emailService.sendCancellationEmail(
             lead.email,
@@ -123,7 +123,7 @@ export class SchedulerService {
 
     for (const reg of pending) {
       const lead = reg.attendees[0];
-      if (!lead) continue;
+      if (!lead?.email) continue;
       try {
         await this.emailService.sendPaymentReminderEmail(
           lead.email,

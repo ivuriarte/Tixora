@@ -73,6 +73,12 @@ export class CreateRegistrationDto {
   @MaxLength(100)
   subEventId?: string;
 
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  @MaxLength(100, { each: true })
+  subEventIds?: string[];
+
   @IsArray()
   @ValidateNested({ each: true })
   @ArrayMinSize(1)

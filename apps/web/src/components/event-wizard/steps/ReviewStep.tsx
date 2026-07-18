@@ -70,7 +70,7 @@ export default function ReviewStep({ draft, tiers, paymentMethods, onJump }: Rev
         <Section title="Location & Schedule" onEdit={() => onJump('location')} hasError={!!locationErr}>
           <p>{draft.venue || <em className="text-gray-400">no venue</em>} · {draft.city || <em className="text-gray-400">no city</em>}</p>
           {draft.address && <p className="text-gray-500 text-xs">{draft.address}</p>}
-          {draft.landmark && <p className="text-gray-500 text-xs italic">📍 {draft.landmark}</p>}
+          {draft.landmark && <p className="text-xs italic text-gray-500">Landmark: {draft.landmark}</p>}
           <p className="pt-1"><span className="text-gray-500">Starts:</span> {fmt(startsAt)}</p>
           {endsAt && <p><span className="text-gray-500">Ends:</span> {fmt(endsAt)}</p>}
         </Section>
@@ -101,7 +101,7 @@ export default function ReviewStep({ draft, tiers, paymentMethods, onJump }: Rev
               {draft.agenda.length > 0 && <li>📋 {draft.agenda.length} agenda item{draft.agenda.length === 1 ? '' : 's'}</li>}
               {draft.sponsors.length > 0 && <li>🤝 {draft.sponsors.length} sponsor{draft.sponsors.length === 1 ? '' : 's'}</li>}
               {draft.faqs.length > 0 && <li>❓ {draft.faqs.length} FAQ{draft.faqs.length === 1 ? '' : 's'}</li>}
-              {draft.customSections.length > 0 && <li>✨ {draft.customSections.length} custom detail block{draft.customSections.length === 1 ? '' : 's'}</li>}
+              {draft.customSections.length > 0 && <li>{draft.customSections.length} custom detail block{draft.customSections.length === 1 ? '' : 's'}</li>}
             </ul>
           )}
         </Section>

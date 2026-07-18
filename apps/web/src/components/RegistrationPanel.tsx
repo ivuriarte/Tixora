@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { formatPHP, centavosToPeso } from '@axon-tickets/utils';
+import { formatPHP } from '@axon-tickets/utils';
 import { trackPixelCustomEvent } from '@/lib/metaPixel';
 import { trackInternalFunnelEvent } from '@/lib/funnel';
 
@@ -105,15 +105,15 @@ export default function RegistrationPanel({
 
   if (tiers.length === 0) {
     return (
-      <div className="sticky top-6 bg-white border border-gray-200 rounded-2xl shadow-sm p-6">
+      <div className="sticky top-24 rounded-lg border border-[#e4dcf4] bg-white p-6">
         <p className="text-sm text-gray-500 text-center">No ticket tiers available yet.</p>
       </div>
     );
   }
 
   return (
-    <div className="sticky top-6 bg-white border border-gray-200 rounded-2xl shadow-sm p-6 space-y-4">
-      <h3 className="font-semibold text-gray-900">Get Tickets</h3>
+    <div className="sticky top-24 space-y-4 rounded-lg border border-[#e4dcf4] bg-white p-5" aria-labelledby="ticket-panel-title">
+      <h2 id="ticket-panel-title" className="axon-label text-sm text-[#1a0533]">Select Tickets</h2>
 
       {/* Tier picker */}
       <div className="space-y-2">
@@ -125,7 +125,7 @@ export default function RegistrationPanel({
               type="button"
               disabled={soldOut || disabled}
               onClick={() => { setSelectedId(tier.id); setQty(1); }}
-              className={`w-full text-left p-3 rounded-xl border transition-colors ${
+              className={`min-h-[64px] w-full rounded-lg border p-3 text-left transition-colors ${
                 selectedId === tier.id
                   ? 'border-primary bg-violet-50'
                   : soldOut || disabled
@@ -136,7 +136,7 @@ export default function RegistrationPanel({
               <div className="flex justify-between items-center">
                 <span className="font-medium text-sm text-gray-900">{tier.name}</span>
                 <span className="text-sm font-semibold text-primary">
-                  {tier.price === 0 ? 'Free' : formatPHP(centavosToPeso(tier.price))}
+                  {tier.price === 0 ? 'Free' : formatPHP(tier.price)}
                 </span>
               </div>
               <p className="text-xs text-gray-400 mt-0.5">
@@ -164,7 +164,8 @@ export default function RegistrationPanel({
             <button
               type="button"
               onClick={() => setQty((q) => Math.max(1, q - 1))}
-              className="w-8 h-8 rounded-full border border-gray-300 flex items-center justify-center text-gray-600 hover:border-primary"
+              className="flex h-11 w-11 items-center justify-center rounded-full border border-[#d8cdee] text-[#6b5b8a] hover:border-primary"
+              aria-label="Decrease ticket quantity"
             >
               −
             </button>
@@ -172,7 +173,8 @@ export default function RegistrationPanel({
             <button
               type="button"
               onClick={() => setQty((q) => Math.min(maxQty, q + 1))}
-              className="w-8 h-8 rounded-full border border-gray-300 flex items-center justify-center text-gray-600 hover:border-primary"
+              className="flex h-11 w-11 items-center justify-center rounded-full border border-[#d8cdee] text-[#6b5b8a] hover:border-primary"
+              aria-label="Increase ticket quantity"
             >
               +
             </button>
@@ -185,7 +187,7 @@ export default function RegistrationPanel({
         <div className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm space-y-1.5">
           <div className="flex justify-between text-gray-600">
             <span>{selected.name}</span>
-            <span>{selected.price === 0 ? 'Free' : formatPHP(centavosToPeso(selected.price))}</span>
+            <span>{selected.price === 0 ? 'Free' : formatPHP(selected.price)}</span>
           </div>
           {qty > 1 && (
             <div className="flex justify-between text-gray-500 text-xs">
@@ -196,7 +198,7 @@ export default function RegistrationPanel({
           <div className="flex justify-between font-semibold text-gray-900 border-t border-gray-200 pt-2">
             <span>Total</span>
             <span className="text-primary">
-              {selected.price === 0 ? 'Free' : formatPHP(centavosToPeso(selected.price) * qty)}
+              {selected.price === 0 ? 'Free' : formatPHP(selected.price * qty)}
             </span>
           </div>
         </div>
@@ -262,7 +264,7 @@ export default function RegistrationPanel({
                 </div>
               )}
             </div>
-            <p className="text-xs text-gray-400">Full details shown after registration</p>
+            <p className="text-xs text-[#756a92]">Payment instructions are shown after registration. Ticket prices are listed above before you continue.</p>
           </div>
         );
       })()}
@@ -273,7 +275,7 @@ export default function RegistrationPanel({
           <p className="font-semibold text-gray-800 text-sm">Payment via bank transfer</p>
           {bankName && <p>{bankName}</p>}
           {gcashNumber && <p>GCash: {gcashNumber}</p>}
-          <p className="text-gray-400">Full payment details shown after you register</p>
+          <p className="text-[#756a92]">Payment instructions are shown after registration. Ticket prices are listed above before you continue.</p>
         </div>
       )}
 
@@ -281,7 +283,7 @@ export default function RegistrationPanel({
         type="button"
         disabled={!selectedId || disabled || maxQty === 0 || isPending}
         onClick={handleRegister}
-        className="w-full py-3 rounded-xl bg-primary text-white font-semibold text-sm hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 active:scale-[0.98] disabled:active:scale-100 inline-flex items-center justify-center"
+        className="axon-pill w-full bg-primary text-xs text-white hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-50"
       >
         {isPending && (
           <svg className="animate-spin -ml-1 mr-2 h-4 w-4" fill="none" viewBox="0 0 24 24">

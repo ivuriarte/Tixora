@@ -7,6 +7,8 @@ import Navbar from '@/components/Navbar';
 import { QRCodeSVG } from 'qrcode.react';
 import { formatManila } from '@axon-tickets/utils';
 import Link from 'next/link';
+import Footer from '@/components/marketing/Footer';
+import { SkeletonBlock } from '@/components/Skeleton';
 
 interface AttendeeTicketDetail {
   id: string;
@@ -24,7 +26,7 @@ interface AttendeeTicketDetail {
 export default function AttendeeTicketDetailPage() {
   const { id } = useParams<{ id: string }>();
 
-  const { data: ticket, isLoading } = useQuery({
+  const { data: ticket, isLoading, isError, refetch } = useQuery({
     queryKey: ['ticket-attendee', id],
     queryFn: () =>
       api.get<{ data: AttendeeTicketDetail }>(`/tickets/attendee/${id}`).then((r) => r.data.data),
@@ -34,26 +36,34 @@ export default function AttendeeTicketDetailPage() {
   return (
     <>
       <Navbar />
-      <main className="max-w-md mx-auto px-4 py-10">
-        <Link href="/account/tickets" className="text-sm text-primary hover:underline mb-4 inline-block">
+      <main className="mx-auto min-h-[70vh] max-w-md px-4 py-10">
+        <Link href="/account/tickets" className="mb-4 inline-flex min-h-[44px] items-center text-sm font-bold text-primary hover:underline">
           ← Back to tickets
         </Link>
 
         {isLoading && (
-          <div className="bg-white shadow rounded-2xl overflow-hidden animate-pulse">
-            <div className="h-32 bg-gray-200" />
+          <div className="overflow-hidden rounded-lg border border-[#e4dcf4] bg-white">
+            <SkeletonBlock className="h-32 rounded-none" />
             <div className="p-8 flex flex-col items-center gap-4">
-              <div className="w-56 h-56 bg-gray-100 rounded-xl" />
-              <div className="h-4 bg-gray-100 rounded w-40" />
+              <SkeletonBlock className="h-56 w-56" />
+              <SkeletonBlock className="h-4 w-40" />
             </div>
           </div>
         )}
 
+        {isError && (
+          <div className="rounded-lg border border-red-200 bg-red-50 p-6 text-center" role="alert">
+            <h1 className="axon-section-title text-lg text-red-800">Ticket unavailable</h1>
+            <p className="mt-2 text-sm text-red-700">We couldn’t load this ticket. Check your connection and try again.</p>
+            <button type="button" onClick={() => refetch()} className="axon-pill mt-5 bg-primary text-xs text-white hover:bg-primary-hover">Try again</button>
+          </div>
+        )}
+
         {ticket && (
-          <div className="bg-white shadow rounded-2xl overflow-hidden">
+          <div className="overflow-hidden rounded-lg border border-[#e4dcf4] bg-white">
             {/* Header */}
-            <div className="bg-primary p-6 text-white">
-              <h1 className="text-xl font-bold leading-tight">{ticket.eventTitle}</h1>
+            <div className="bg-[#1a0533] p-6 text-white">
+              <h1 className="axon-display text-2xl leading-tight">{ticket.eventTitle}</h1>
               <p className="text-primary-100 text-sm mt-1">
                 {formatManila(new Date(ticket.eventStartsAt))}
               </p>
@@ -64,22 +74,23 @@ export default function AttendeeTicketDetailPage() {
             <div className="flex flex-col items-center py-8 px-4 gap-4">
               {ticket.status === 'valid' ? (
                 <>
+                  <span className="rounded-full bg-green-100 px-3 py-1 text-xs font-bold uppercase tracking-wide text-green-800">Valid ticket</span>
                   <QRCodeSVG
                     value={ticket.qrToken}
                     size={220}
                     level="H"
                     includeMargin
                   />
-                  <p className="text-xs text-gray-400 text-center">
-                    Show this QR code at the venue entrance
+                  <p className="max-w-xs text-center text-xs text-[#756a92]">
+                    Keep this QR private. Show it only to authorized event staff at the entrance.
                   </p>
                 </>
               ) : (
                 <div className="py-8 text-center space-y-2">
-                  <p className="text-2xl">
-                    {ticket.status === 'used' ? '✅' : '❌'}
-                  </p>
-                  <p className="font-semibold text-gray-700">
+                  <div className={`mx-auto flex h-12 w-12 items-center justify-center rounded-full ${ticket.status === 'used' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`} aria-hidden="true">
+                    <svg className="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d={ticket.status === 'used' ? 'm5 12 4 4L19 6' : 'M6 18 18 6M6 6l12 12'} /></svg>
+                  </div>
+                  <p className="font-bold text-[#4f416c]">
                     {ticket.status === 'used' ? 'Ticket Used' : 'Ticket Invalid'}
                   </p>
                   {ticket.checkedInAt && (
@@ -109,6 +120,7 @@ export default function AttendeeTicketDetailPage() {
           </div>
         )}
       </main>
+      <Footer />
     </>
   );
 }

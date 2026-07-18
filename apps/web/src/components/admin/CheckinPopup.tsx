@@ -83,7 +83,7 @@ export default function CheckinPopup({ popup, onClose }: Props) {
 
       {/* Card */}
       <div
-        className={`relative z-10 w-full max-w-xs rounded-2xl shadow-2xl overflow-hidden animate-popup-enter ${
+        className={`relative z-10 w-full max-w-xs overflow-hidden rounded-lg border border-[#e4dcf4] shadow-2xl animate-popup-enter ${
           isSuccess ? 'bg-white' : 'bg-white'
         }`}
       >
@@ -97,9 +97,7 @@ export default function CheckinPopup({ popup, onClose }: Props) {
               isSuccess ? 'bg-green-100' : 'bg-red-100'
             }`}
           >
-            <span className="text-3xl leading-none" role="img" aria-hidden>
-              {isSuccess ? '✅' : '⚠️'}
-            </span>
+            <svg className={`h-8 w-8 ${isSuccess ? 'text-green-700' : 'text-red-700'}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><path strokeLinecap="round" strokeLinejoin="round" d={isSuccess ? 'm5 12 4 4L19 6' : 'M12 9v4m0 4h.01M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z'} /></svg>
           </div>
 
           {/* Title */}
@@ -138,9 +136,9 @@ export default function CheckinPopup({ popup, onClose }: Props) {
             <button
               type="button"
               onClick={onClose}
-              className="w-full rounded-xl bg-red-600 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-red-700 active:bg-red-800"
+              className="axon-pill w-full bg-red-600 text-sm text-white transition-colors hover:bg-red-700"
             >
-              OK, got it
+              Dismiss message
             </button>
           )}
         </div>

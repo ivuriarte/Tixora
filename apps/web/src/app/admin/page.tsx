@@ -5,8 +5,9 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '@/lib/api';
 import ConfirmModal from '@/components/ConfirmModal';
 import Link from 'next/link';
-import { formatShortDate } from '@axon-tickets/utils';
+import { formatPHP, formatShortDate } from '@axon-tickets/utils';
 import toast from 'react-hot-toast';
+import { EmptyState, ScreenSkeleton } from '@/components/ScreenState';
 
 // completed is auto-only — never in the dropdown
 const STATUS_OPTIONS = ['draft', 'on_sale', 'sold_out', 'cancelled'];
@@ -14,7 +15,7 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.axontickets.onli
 
 function statusStyle(s: string) {
   if (s === 'on_sale') return 'bg-green-100 text-green-700';
-  if (s === 'sold_out') return 'bg-violet-100 text-violet-700';
+  if (s === 'sold_out') return 'bg-primary text-white';
   if (s === 'cancelled') return 'bg-red-100 text-red-600';
   if (s === 'completed') return 'bg-blue-100 text-blue-700';
   return 'bg-gray-100 text-gray-500';
@@ -112,8 +113,7 @@ export default function AdminDashboardPage() {
     onError: () => toast.error('Event could not be deleted. Please try again.'),
   });
 
-  const fmtRevenue = (n: number) =>
-    `₱${n.toLocaleString('en-PH', { minimumFractionDigits: 2 })}`;
+  const fmtRevenue = (n: number) => formatPHP(n);
 
   return (
     <>
@@ -128,7 +128,7 @@ export default function AdminDashboardPage() {
       />
       <main className="max-w-6xl mx-auto px-4 py-10">
         <div className="flex items-center justify-between mb-8">
-          <h1 className="text-2xl font-bold text-gray-900">Operations Overview</h1>
+          <h1 className="axon-page-title text-3xl sm:text-4xl">Operations Overview</h1>
           <Link
             href="/admin/events/new"
             className="bg-primary text-white font-semibold px-5 py-2.5 rounded-xl text-sm hover:bg-primary-hover transition-colors"
@@ -163,12 +163,9 @@ export default function AdminDashboardPage() {
         )}
 
         <h2 className="text-lg font-semibold text-gray-900 mb-4">Recent Events</h2>
-        {isLoading && <p className="text-gray-400">Loading…</p>}
+        {isLoading && <ScreenSkeleton rows={3} compact />}
         {!isLoading && data?.length === 0 && (
-          <div className="rounded-2xl border border-dashed border-gray-200 bg-white p-8 text-center">
-            <p className="font-semibold text-gray-900">No events yet</p>
-            <p className="mt-1 text-sm text-gray-500">Events you create for your organizer account will appear here.</p>
-          </div>
+          <EmptyState title="No events yet" message="Events you create for your organizer account will appear here." />
         )}
         <div className="space-y-3">
           {data?.map((event) => (

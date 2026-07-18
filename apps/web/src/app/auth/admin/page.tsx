@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import axios from 'axios';
 import { useAuthStore } from '@/store/auth.store';
 import api from '@/lib/api';
+import { SkeletonBlock } from '@/components/Skeleton';
 
 export default function AdminAuthPage() {
   const router = useRouter();
@@ -87,26 +88,26 @@ export default function AdminAuthPage() {
   // Show nothing while hydrating (avoids flash before redirect kicks in)
   if (isHydrating) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="w-7 h-7 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+      <div className="axon-auth-page" aria-label="Loading sign-in" role="status">
+        <SkeletonBlock className="h-[420px] w-full max-w-sm" />
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center px-4 py-12 bg-gray-50">
+    <div className="axon-auth-page">
       <div className="w-full max-w-sm">
 
         {/* Wordmark */}
         <div className="text-center mb-8">
-          <Link href="/" className="text-2xl font-bold text-primary">
+          <Link href="/" className="axon-label inline-flex min-h-[44px] items-center text-sm text-primary">
             Axon Tickets
           </Link>
-          <h1 className="mt-4 text-2xl font-bold text-gray-900">Admin sign-in</h1>
-          <p className="mt-1 text-sm text-gray-500">This page is for administrators only</p>
+          <h1 className="axon-display mt-4 text-4xl">Admin sign-in</h1>
+          <p className="mt-2 text-sm text-[#6b5b8a]">This page is for administrators only</p>
         </div>
 
-        <div className="bg-white shadow rounded-2xl p-8">
+        <div className="axon-auth-card">
           <form onSubmit={handleSubmit} noValidate className="space-y-5">
 
             {/* Error banner */}
@@ -179,7 +180,7 @@ export default function AdminAuthPage() {
             <button
               type="submit"
               disabled={loading || !email.trim() || !password}
-              className="w-full rounded-xl bg-primary text-white px-4 py-2.5 text-sm font-semibold hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
+              className="axon-pill w-full gap-2 bg-primary text-sm text-white hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-50"
             >
               {loading ? (
                 <>

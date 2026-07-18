@@ -11,19 +11,19 @@ const useCases = [
 export default function UseCaseCards() {
   return (
     <section className="bg-white">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-14 md:py-20">
-        <h2 className="text-2xl md:text-3xl font-bold text-gray-900 mb-10">Made for events like yours</h2>
+      <div className="page-container py-14 md:py-20">
+        <h2 className="axon-display mb-10 text-3xl md:text-5xl">Made for events like yours</h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5">
           {useCases.map((useCase) => (
             <Link
               key={useCase.href}
               href={useCase.href}
-              className="group bg-gray-50 rounded-2xl border border-gray-100 p-5 sm:p-6 hover:border-primary transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+              className="group min-h-[132px] rounded-lg border border-[#e4dcf4] bg-[#f5f0ff] p-5 transition-colors hover:border-primary sm:p-6"
             >
-              <h3 className="text-base font-semibold text-gray-900 group-hover:text-primary transition-colors mb-1">
+              <h3 className="axon-label mb-2 text-sm text-[#1a0533] transition-colors group-hover:text-primary">
                 {useCase.label}
               </h3>
-              <p className="text-sm text-gray-500 leading-relaxed">{useCase.line}</p>
+              <p className="text-sm leading-relaxed text-[#6b5b8a]">{useCase.line}</p>
             </Link>
           ))}
         </div>

@@ -17,10 +17,18 @@ import {
 import { CreateRegistrationDto } from './dto/create-registration.dto';
 import { UpdateRegistrationAttendeesDto } from './dto/update-registration-attendees.dto';
 import { ValidateReferralCodeDto } from '../admin/dto/referral-code.dto';
-import { resolveAgendaSubEvent } from '../events/agenda-sub-events';
+import { getAgendaSubEvents, resolveAgendaSubEvent } from '../events/agenda-sub-events';
 
 const ACTIVE_REGISTRATION_STATUSES = ['pending_payment', 'proof_submitted', 'pending_approval', 'verified'] as const;
 const VALID_TICKET_STATUSES = ['valid', 'used'] as const;
+const DUPLICATE_SUCCESSFUL_REGISTRATION_MESSAGE =
+  'You have already successfully registered for this event. You cannot register twice for the same event.';
+
+type SelectedSubEvent = {
+  id: string;
+  title: string;
+  time?: string;
+};
 
 @Injectable()
 export class RegistrationsService {
@@ -58,7 +66,11 @@ export class RegistrationsService {
     if (!['published', 'on_sale'].includes(event.status)) {
       throw new BadRequestException('Event is not open for registration');
     }
-    const selectedSubEvent = resolveAgendaSubEvent(event.agenda, dto.subEventId);
+    const selectedSubEvents = this.selectedSubEventsFromAgenda(event.agenda, dto.subEventIds, dto.subEventId);
+    if (getAgendaSubEvents(event.agenda).length > 0 && selectedSubEvents.length === 0) {
+      throw new BadRequestException('Please choose at least one sub-event to attend.');
+    }
+    const primarySubEvent = selectedSubEvents[0] ?? null;
 
     const tier = event.tiers[0];
     if (!tier) throw new NotFoundException('Ticket tier not found');
@@ -98,13 +110,15 @@ export class RegistrationsService {
           where: {
             userId,
             eventId: dto.eventId,
-            status: { in: ['pending_payment', 'proof_submitted', 'pending_approval'] },
+            status: { in: [...ACTIVE_REGISTRATION_STATUSES] as any[] },
           },
           select: { id: true, status: true },
         });
         if (activeRegistration) {
           throw new BadRequestException(
-            activeRegistration.status === 'pending_approval'
+            activeRegistration.status === 'verified'
+              ? DUPLICATE_SUCCESSFUL_REGISTRATION_MESSAGE
+              : activeRegistration.status === 'pending_approval'
               ? 'You already have a registration awaiting review for this event.'
               : activeRegistration.status === 'proof_submitted'
               ? 'You already have a registration awaiting review for this event.'
@@ -221,9 +235,10 @@ export class RegistrationsService {
                 birthday: a.birthday ? new Date(`${a.birthday}T00:00:00.000Z`) : null,
                 gender: a.gender || null,
                 city: a.city?.trim() || null,
-                subEventId: selectedSubEvent?.id ?? null,
-                subEventTitle: selectedSubEvent?.title ?? null,
-                subEventTime: selectedSubEvent?.time ?? null,
+                subEventId: primarySubEvent?.id ?? null,
+                subEventTitle: this.summarizeSubEvents(selectedSubEvents),
+                subEventTime: selectedSubEvents.length === 1 ? primarySubEvent?.time ?? null : null,
+                selectedSubEvents: selectedSubEvents.length > 0 ? (selectedSubEvents as unknown as Prisma.InputJsonValue) : Prisma.JsonNull,
                 isLead: i === 0,
               })),
             },
@@ -257,7 +272,7 @@ export class RegistrationsService {
     );
 
     const lead = registration.attendees.find((a) => a.isLead) ?? registration.attendees[0];
-    if (lead) {
+    if (lead?.email) {
       const webBase = this.config.get<string>('webUrl') ?? 'https://axontickets.online';
       const registrationUrl = `${webBase}/registrations/${registration.id}`;
       try {
@@ -330,6 +345,35 @@ export class RegistrationsService {
       status: registration.status,
       createdAt: registration.createdAt.toISOString(),
     };
+  }
+
+  private selectedSubEventsFromAgenda(agenda: Prisma.JsonValue, ids?: string[], fallbackId?: string): SelectedSubEvent[] {
+    const requestedIds = [
+      ...new Set(
+        [...(ids ?? []), fallbackId]
+          .filter((id): id is string => Boolean(id?.trim()))
+          .map((id) => id.trim()),
+      ),
+    ];
+    if (requestedIds.length === 0) return [];
+
+    return requestedIds.map((id) => {
+      const item = resolveAgendaSubEvent(agenda, id);
+      if (!item) {
+        throw new BadRequestException('One or more selected sub-events are no longer available. Please refresh the form and choose again.');
+      }
+      return {
+        id: item.id,
+        title: item.title,
+        ...(item.time ? { time: item.time } : {}),
+      };
+    });
+  }
+
+  private summarizeSubEvents(items: SelectedSubEvent[]) {
+    if (items.length === 0) return null;
+    if (items.length === 1) return items[0].time ? `${items[0].time} - ${items[0].title}` : items[0].title;
+    return `${items.length} sub-events selected`;
   }
 
   async validateReferralCode(dto: ValidateReferralCodeDto) {
@@ -652,7 +696,7 @@ export class RegistrationsService {
     });
 
     const lead = reg.attendees[0];
-    if (lead) {
+    if (lead?.email) {
       const webBase =
         this.config.get<string>('webUrl') ?? 'https://axontickets.online';
       try {
@@ -708,8 +752,10 @@ export class RegistrationsService {
         currency: r.currency,
         leadName: r.attendees[0]
           ? `${r.attendees[0].firstName} ${r.attendees[0].lastName}`
-          : `${r.user.firstName} ${r.user.lastName}`,
-        leadEmail: r.attendees[0]?.email ?? r.user.email,
+          : r.user
+            ? `${r.user.firstName} ${r.user.lastName}`
+            : 'Walk-in attendee',
+        leadEmail: r.attendees[0]?.email ?? r.user?.email ?? '',
         hasProof: r.proofs.length > 0,
         proofStatus: r.proofs[0]?.status ?? null,
         createdAt: r.createdAt.toISOString(),
@@ -898,7 +944,7 @@ export class RegistrationsService {
 
     // Send rejection email (await for Lambda reliability)
     const lead = reg.attendees[0];
-    if (lead) {
+    if (lead?.email) {
       const webBase =
         this.config.get<string>('web.baseUrl') ??
         'https://axontickets.online';
@@ -1068,8 +1114,10 @@ export class RegistrationsService {
         eventSlug: r.event.slug,
         leadName: r.attendees[0]
           ? `${r.attendees[0].firstName} ${r.attendees[0].lastName}`
-          : `${r.user.firstName} ${r.user.lastName}`,
-        leadEmail: r.attendees[0]?.email ?? r.user.email,
+          : r.user
+            ? `${r.user.firstName} ${r.user.lastName}`
+            : 'Walk-in attendee',
+        leadEmail: r.attendees[0]?.email ?? r.user?.email ?? '',
         hasProof: r.proofs.length > 0,
         proofStatus: r.proofs[0]?.status ?? null,
         createdAt: r.createdAt.toISOString(),
@@ -1165,6 +1213,7 @@ export class RegistrationsService {
           attendeeId: a.id,
           hasQrToken: !!qrToken,
         });
+        if (!a.email) return undefined;
         return this.emailService.sendQrCodeEmail(
           a.email,
           a.firstName,

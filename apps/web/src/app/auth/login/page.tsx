@@ -24,21 +24,21 @@ function LoginForm() {
     '/auth/access' + (redirect ? `?redirect=${encodeURIComponent(redirect)}` : '');
 
   return (
-    <div className="min-h-screen flex items-center justify-center px-4 py-12 bg-gray-50">
+    <div className="flex min-h-screen items-center justify-center bg-[#f5f0ff] px-4 py-12">
       <div className="w-full max-w-sm">
         <div className="text-center mb-8">
-          <Link href="/" className="text-2xl font-bold text-primary">
-            Axon Tickets
+          <Link href="/" className="axon-label text-sm text-primary">
+            Axon Tickets · Philippine Event Ticketing
           </Link>
-          <h1 className="mt-4 text-2xl font-bold text-gray-900">Welcome back</h1>
-          <p className="mt-1 text-sm text-gray-500">Sign in to your account</p>
+          <h1 className="axon-display mt-5 text-5xl text-[#1a0533]">Sign In</h1>
+          <p className="mt-3 text-sm text-[#6b5b8a]">Welcome back to Axon Tickets.</p>
         </div>
 
-        <div className="bg-white shadow rounded-2xl p-8 space-y-4">
+        <div className="space-y-4 rounded-lg border border-[#e4dcf4] bg-white p-8">
           {/* Email (OTP) — primary */}
           <Link
             href={accessHref}
-            className="flex items-center justify-center gap-3 w-full rounded-xl bg-primary text-white px-4 py-2.5 text-sm font-semibold hover:bg-primary/90 transition-colors"
+            className="axon-pill w-full gap-3 bg-primary text-xs text-white hover:bg-primary-hover"
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" aria-hidden="true">
               <path strokeLinecap="round" strokeLinejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75" />

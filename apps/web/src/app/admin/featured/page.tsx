@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '@/lib/api';
 import toast from 'react-hot-toast';
+import { EmptyState, ScreenSkeleton } from '@/components/ScreenState';
 
 interface FeaturedEvent {
   id: string;
@@ -205,13 +206,13 @@ export default function FeaturedEventsPage() {
   return (
     <main className="max-w-4xl mx-auto px-4 py-10">
       <div className="mb-8">
-        <h1 className="text-2xl font-bold text-gray-900">Featured Events</h1>
+        <h1 className="axon-page-title text-3xl sm:text-4xl">Featured Events</h1>
         <p className="text-sm text-gray-500 mt-1">
           Featured events appear in the animated hero carousel on the homepage. Only admins can manage this.
         </p>
       </div>
 
-      {isLoading && <p className="text-gray-400 text-sm">Loading events…</p>}
+      {isLoading && <ScreenSkeleton rows={5} compact />}
 
       {featured.length > 0 && (
         <section className="mb-8">
@@ -229,10 +230,7 @@ export default function FeaturedEventsPage() {
       )}
 
       {featured.length === 0 && !isLoading && (
-        <div className="rounded-xl border border-dashed border-gray-200 px-4 py-8 text-center mb-8">
-          <p className="text-sm text-gray-400">No events are currently featured on the homepage.</p>
-          <p className="text-xs text-gray-400 mt-0.5">Toggle an event below to feature it.</p>
-        </div>
+        <div className="mb-8"><EmptyState title="No featured events" message="Choose an eligible event below to add it to the homepage carousel." /></div>
       )}
 
       {notFeatured.length > 0 && (

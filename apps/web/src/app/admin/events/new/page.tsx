@@ -179,7 +179,15 @@ export default function AdminNewEventPage() {
           .filter((s) => s.name.length > 0);
         if (cleaned.length > 0) payload.sponsors = cleaned;
       }
-      if (draft.customSections.length > 0) payload.customSections = draft.customSections;
+      if (draft.customSections.length > 0) {
+        payload.customSections = draft.customSections.map((section) => ({
+          title: section.title.trim(),
+          description: section.description.trim(),
+          ...(section.imageUrl?.trim() && { imageUrl: section.imageUrl.trim() }),
+          ...(section.imageUrl?.trim() && section.imageAlt?.trim() && { imageAlt: section.imageAlt.trim() }),
+          isVisible: section.isVisible,
+        }));
+      }
       if (draft.faqs.length > 0) {
         const cleaned = draft.faqs
           .filter((f) => f && typeof f === 'object' && !Array.isArray(f))
@@ -243,10 +251,12 @@ export default function AdminNewEventPage() {
       toast.success('Event created! You can now add ticket tiers and publish it for sale.');
       router.push('/admin');
     } catch (err: unknown) {
-      const message =
-        (err as { response?: { data?: { message?: string } } })?.response?.data?.message ??
-        'Failed to create event';
-      toast.error(message);
+      const rawMessage =
+        (err as { response?: { data?: { message?: unknown } } })?.response?.data?.message;
+      const message = Array.isArray(rawMessage)
+        ? rawMessage.filter((item): item is string => typeof item === 'string').join('\n')
+        : typeof rawMessage === 'string' ? rawMessage : 'Failed to create event';
+      toast.error(message, { style: { whiteSpace: 'pre-line' } });
     } finally {
       setLoading(false);
     }

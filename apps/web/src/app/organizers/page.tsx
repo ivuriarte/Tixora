@@ -66,15 +66,15 @@ export default function OrganizersPage() {
         />
         <UseCaseCards />
         <section className="bg-gray-50">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-14 md:py-20">
-            <h2 className="text-2xl md:text-3xl font-bold text-gray-900 mb-8">Why organizers choose Axon Tickets</h2>
+          <div className="page-container py-14 md:py-20">
+            <h2 className="axon-display mb-8 text-3xl md:text-5xl">Why organizers choose Axon Tickets</h2>
             <ul className="space-y-4 max-w-2xl">
               {whyBullets.map((bullet) => (
                 <li key={bullet} className="flex items-start gap-3">
                   <svg className="w-5 h-5 text-primary shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden="true">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                   </svg>
-                  <span className="text-gray-700">{bullet}</span>
+                  <span className="text-[#4f416c]">{bullet}</span>
                 </li>
               ))}
             </ul>

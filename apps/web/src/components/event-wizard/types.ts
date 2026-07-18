@@ -161,6 +161,7 @@ export function todayStr(): string {
 export function validateBasics(d: EventDraft): string | null {
   if (!d.title.trim()) return 'Title is required';
   if (!d.description.trim()) return 'Description is required';
+  if (!d.imageUrl.trim()) return 'A cover image is required before this event can be published';
   return null;
 }
 

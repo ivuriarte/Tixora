@@ -99,7 +99,7 @@ export default function PaymentProofDropzone({ registrationId, onUploaded }: Pro
         }}
         onDragLeave={() => setDragOver(false)}
         onDrop={handleDrop}
-        className={`relative flex flex-col items-center justify-center rounded-2xl border-2 border-dashed px-6 py-10 text-center cursor-pointer transition-colors ${
+        className={`relative flex cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed px-6 py-10 text-center transition-colors ${
           dragOver
             ? 'border-primary bg-primary/5'
             : preview
@@ -156,7 +156,7 @@ export default function PaymentProofDropzone({ registrationId, onUploaded }: Pro
       </label>
 
       {file && (
-        <div className="flex items-center justify-between rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm">
+        <div className="flex items-center justify-between rounded-lg border border-[#e4dcf4] bg-white px-3 py-2 text-sm">
           <div className="min-w-0">
             <p className="truncate font-medium text-gray-900">{file.name}</p>
             <p className="text-xs text-gray-500">
@@ -167,7 +167,7 @@ export default function PaymentProofDropzone({ registrationId, onUploaded }: Pro
             type="button"
             onClick={clear}
             disabled={uploading}
-            className="ml-3 text-xs font-medium text-gray-500 hover:text-red-600 disabled:opacity-50"
+            className="ml-3 min-h-[44px] px-3 text-xs font-bold text-[#756a92] hover:text-red-600 disabled:opacity-50"
           >
             Remove
           </button>
@@ -196,9 +196,9 @@ export default function PaymentProofDropzone({ registrationId, onUploaded }: Pro
         type="button"
         onClick={upload}
         disabled={!file || uploading}
-        className="w-full rounded-xl bg-primary py-3 text-sm font-semibold text-white hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+        className="axon-pill w-full bg-primary text-sm text-white hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-50"
       >
-        {uploading ? 'Uploading…' : 'Submit Proof of Payment'}
+        {uploading ? 'Uploading…' : 'Upload payment proof'}
       </button>
 
       <p className="text-[11px] text-gray-500 leading-relaxed">

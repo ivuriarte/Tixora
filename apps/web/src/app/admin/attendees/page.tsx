@@ -6,15 +6,17 @@ import { useQuery } from '@tanstack/react-query';
 import { Download, Printer } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '@/lib/api';
+import { EmptyState, ScreenSkeleton } from '@/components/ScreenState';
 
 interface Attendee {
   id: string;
-  userEmail: string;
+  userEmail: string | null;
   userName: string;
   userCompany: string | null;
   userJobTitle: string | null;
   userCity: string | null;
   userPhone: string | null;
+  subEvents: string | null;
   tierName: string;
   orderStatus: string | null;
   paymentMethod: string | null;
@@ -170,7 +172,7 @@ export default function AdminAttendeesPage() {
     <main className="max-w-7xl mx-auto px-4 py-10">
         <div className="flex items-center justify-between mb-8">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">Attendees</h1>
+            <h1 className="axon-page-title text-3xl sm:text-4xl">Attendees</h1>
             <p className="text-sm text-gray-500 mt-1">
               Select an event to view its attendee roster.
             </p>
@@ -219,11 +221,11 @@ export default function AdminAttendeesPage() {
         </div>
 
         {!selectedEventId && (
-          <div className="text-center py-20 text-gray-400">Select an event to view attendees.</div>
+          <EmptyState title="Select an event" message="Choose an event above to view, search, print, or export its attendee list." />
         )}
 
         {selectedEventId && isLoading && (
-          <p className="text-gray-400">Loading…</p>
+          <ScreenSkeleton rows={6} compact />
         )}
 
         {selectedEventId && !isLoading && (
@@ -243,7 +245,7 @@ export default function AdminAttendeesPage() {
               </div>
             )}
             <div className="bg-white shadow rounded-2xl overflow-x-auto">
-              <table className="w-full text-sm min-w-[800px]">
+              <table className="w-full text-sm min-w-[980px]">
                 <thead>
                   <tr className="bg-gray-50 text-left text-gray-500 text-xs uppercase tracking-wide">
                     <th className="px-4 py-3 w-12">
@@ -263,6 +265,7 @@ export default function AdminAttendeesPage() {
                     <th className="px-4 py-3">Company</th>
                     <th className="px-4 py-3">Position</th>
                     <th className="px-4 py-3">City</th>
+                    <th className="px-4 py-3">Sub Events</th>
                     <th className="px-4 py-3">Tier</th>
                     <th className="px-4 py-3">Payment</th>
                     <th className="px-4 py-3">Checked In</th>
@@ -281,10 +284,17 @@ export default function AdminAttendeesPage() {
                         />
                       </td>
                       <td className="px-4 py-3 font-medium text-gray-900 whitespace-nowrap">{a.userName}</td>
-                      <td className="px-4 py-3 text-gray-600 text-xs">{a.userEmail}</td>
+                      <td className="px-4 py-3 text-gray-600 text-xs">{a.userEmail ?? '—'}</td>
                       <td className="px-4 py-3 text-gray-600 text-xs">{a.userCompany ?? '—'}</td>
                       <td className="px-4 py-3 text-gray-600 text-xs">{a.userJobTitle ?? '—'}</td>
                       <td className="px-4 py-3 text-gray-600 text-xs">{a.userCity ?? '—'}</td>
+                      <td className="px-4 py-3 text-gray-600 text-xs max-w-[220px]">
+                        {a.subEvents ? (
+                          <span className="line-clamp-2" title={a.subEvents}>{a.subEvents}</span>
+                        ) : (
+                          '—'
+                        )}
+                      </td>
                       <td className="px-4 py-3">
                         <span className="text-xs font-medium bg-purple-50 text-purple-700 px-2 py-0.5 rounded-full">
                           {a.tierName}
@@ -306,7 +316,7 @@ export default function AdminAttendeesPage() {
                   ))}
                   {data?.data.length === 0 && (
                     <tr>
-                      <td colSpan={9} className="px-4 py-8 text-center text-gray-400">No attendees found</td>
+                      <td colSpan={10} className="px-4 py-8 text-center text-gray-400">No attendees found</td>
                     </tr>
                   )}
                 </tbody>

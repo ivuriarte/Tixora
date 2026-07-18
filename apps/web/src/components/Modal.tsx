@@ -16,7 +16,7 @@ export default function Modal({ open, onClose, title, children }: {
             enter="ease-out duration-300" enterFrom="opacity-0" enterTo="opacity-100"
             leave="ease-in duration-200" leaveFrom="opacity-100" leaveTo="opacity-0"
           >
-            <DialogBackdrop className="fixed inset-0 bg-black bg-opacity-30 transition-opacity" />
+            <DialogBackdrop className="fixed inset-0 bg-[#1a0533]/55 backdrop-blur-sm transition-opacity" />
           </Transition.Child>
 
           {/* Centering trick */}
@@ -27,8 +27,8 @@ export default function Modal({ open, onClose, title, children }: {
             enter="ease-out duration-300" enterFrom="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95" enterTo="opacity-100 translate-y-0 sm:scale-100"
             leave="ease-in duration-200" leaveFrom="opacity-100 translate-y-0 sm:scale-100" leaveTo="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
           >
-            <DialogPanel className="inline-block align-bottom bg-white rounded-2xl px-6 pt-6 pb-5 text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-md w-full">
-              {title && <Dialog.Title as="h3" className="text-lg font-semibold text-gray-900 mb-2">{title}</Dialog.Title>}
+            <DialogPanel className="inline-block w-full transform overflow-hidden rounded-lg border border-[#e4dcf4] bg-white px-6 pb-5 pt-6 text-left align-bottom shadow-xl transition-all sm:my-8 sm:max-w-md sm:align-middle">
+              {title && <Dialog.Title as="h3" className="axon-section-title mb-2 text-lg">{title}</Dialog.Title>}
               {children}
             </DialogPanel>
           </Transition.Child>

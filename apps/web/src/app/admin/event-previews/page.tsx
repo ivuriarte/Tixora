@@ -5,6 +5,7 @@ import api from '@/lib/api';
 import Link from 'next/link';
 import Image from 'next/image';
 import { formatShortDate } from '@axon-tickets/utils';
+import EventCoverFallback from '@/components/EventCoverFallback';
 
 interface EventSummary {
   id: string;
@@ -22,7 +23,7 @@ interface EventSummary {
 
 function statusBadge(status: string) {
   if (status === 'on_sale') return 'bg-green-100 text-green-700';
-  if (status === 'sold_out') return 'bg-violet-100 text-violet-700';
+  if (status === 'sold_out') return 'bg-primary text-white';
   if (status === 'cancelled') return 'bg-red-100 text-red-600';
   if (status === 'draft') return 'bg-yellow-100 text-yellow-700';
   if (status === 'completed') return 'bg-blue-100 text-blue-700';
@@ -39,7 +40,7 @@ export default function EventPreviewsPage() {
   return (
     <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900">Event Previews</h1>
+          <h1 className="axon-page-title text-3xl sm:text-4xl">Event Previews</h1>
           <p className="text-gray-500 mt-1">
             Browse all events as a customer would see them. Registration is disabled in preview mode.
           </p>
@@ -70,7 +71,7 @@ export default function EventPreviewsPage() {
               <Link
                 key={event.id}
                 href={`/events/${event.slug}?preview=1`}
-                className="group block rounded-2xl overflow-hidden bg-white shadow hover:shadow-md transition-shadow"
+                className="group block overflow-hidden rounded-lg border border-[#e4dcf4] bg-white transition-colors hover:border-primary"
               >
                 <div className="relative h-44 bg-gray-200">
                   {event.imageUrl ? (
@@ -82,9 +83,7 @@ export default function EventPreviewsPage() {
                       sizes="(max-width: 640px) 100vw, 400px"
                     />
                   ) : (
-                    <div className="h-full flex items-center justify-center bg-gradient-to-br from-violet-100 to-violet-50 text-primary text-4xl font-bold select-none">
-                      {event.title[0]}
-                    </div>
+                    <EventCoverFallback title={event.title} startsAt={event.startsAt} className="p-4" />
                   )}
                   <span className={`absolute top-2 left-2 text-[10px] font-bold uppercase px-2 py-0.5 rounded ${statusBadge(event.status)}`}>
                     {event.status.replace('_', ' ')}
