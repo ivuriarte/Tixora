@@ -433,6 +433,7 @@ export class AdminService {
         title: e.title,
         description: e.description,
         imageUrl: e.imageUrl ?? null,
+        featuredImageUrl: e.featuredImageUrl ?? null,
         venue: e.venue,
         city: e.city,
         startsAt: e.startsAt.toISOString(),

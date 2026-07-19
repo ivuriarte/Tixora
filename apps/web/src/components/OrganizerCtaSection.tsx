@@ -10,6 +10,7 @@ interface OrganizerCtaSectionProps {
   buttonHref?: string;
   dataTrack?: string;
   hideWhenAuthenticated?: boolean;
+  feeNote?: string;
 }
 
 export default function OrganizerCtaSection({
@@ -19,6 +20,7 @@ export default function OrganizerCtaSection({
   buttonHref = '/become-organizer',
   dataTrack,
   hideWhenAuthenticated = true,
+  feeNote,
 }: OrganizerCtaSectionProps) {
   const { isAuthenticated, isHydrating } = useAuthStore();
 
@@ -46,6 +48,7 @@ export default function OrganizerCtaSection({
               <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
             </svg>
           </Link>
+          {feeNote && <p className="mt-4 text-xs font-semibold text-[#c4b5fd]">{feeNote}</p>}
       </div>
     </section>
   );

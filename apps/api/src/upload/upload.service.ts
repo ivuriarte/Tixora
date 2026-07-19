@@ -1,4 +1,4 @@
-import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { v2 as cloudinary, UploadApiResponse } from 'cloudinary';
 import { PrismaService } from '../prisma/prisma.service';
@@ -56,6 +56,63 @@ export class UploadService {
 
     this.logger.log({ msg: 'Event image uploaded', eventId, imageUrl });
     return { imageUrl };
+  }
+
+  async uploadFeaturedImage(
+    eventId: string,
+    buffer: Buffer,
+  ): Promise<{ featuredImageUrl: string; width: number; height: number }> {
+    const event = await this.prisma.event.findUnique({
+      where: { id: eventId },
+      select: { id: true },
+    });
+    if (!event) throw new NotFoundException('Event not found');
+
+    const result = await new Promise<UploadApiResponse>((resolve, reject) => {
+      const stream = cloudinary.uploader.upload_stream(
+        {
+          folder: 'axon-tickets/featured-events',
+          public_id: `event-${eventId}-${Date.now()}`,
+          overwrite: false,
+          resource_type: 'image',
+        },
+        (error, uploaded) => {
+          if (error || !uploaded) reject(error ?? new Error('Upload failed'));
+          else resolve(uploaded);
+        },
+      );
+      stream.end(buffer);
+    });
+
+    const width = result.width ?? 0;
+    const height = result.height ?? 0;
+    const ratio = height > 0 ? width / height : 0;
+    const hasValidDimensions = width >= 1200 && height >= 800 && width <= 3600 && height <= 2400;
+    const hasThreeByTwoRatio = Math.abs(ratio - 1.5) <= 0.015;
+
+    if (!hasValidDimensions || !hasThreeByTwoRatio) {
+      await cloudinary.uploader.destroy(result.public_id, { resource_type: 'image' }).catch(() => undefined);
+      throw new BadRequestException(
+        'Featured artwork must use a 3:2 aspect ratio and be between 1200×800 and 3600×2400 pixels. Recommended: 1800×1200.',
+      );
+    }
+
+    const featuredImageUrl = cloudinary.url(result.public_id, {
+      secure: true,
+      version: result.version,
+      transformation: [
+        { width: 1800, height: 1200, crop: 'fill', gravity: 'auto' },
+        { quality: 'auto:good', fetch_format: 'auto' },
+      ],
+    });
+
+    await this.prisma.event.update({
+      where: { id: eventId },
+      data: { featuredImageUrl },
+    });
+
+    this.logger.log({ msg: 'Featured event artwork uploaded', eventId, width, height });
+    return { featuredImageUrl, width, height };
   }
 
   async uploadPaymentProof(

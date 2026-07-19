@@ -1,19 +1,18 @@
 'use client';
 
-import { useState } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import Image from 'next/image';
+import { ChangeEvent, useEffect, useState } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import api from '@/lib/api';
 import toast from 'react-hot-toast';
 import { EmptyState, ScreenSkeleton } from '@/components/ScreenState';
 
-interface FeaturedEvent {
-  id: string;
-  title: string;
-  featuredOrder: number | null;
-  featuredUntil: string | null;
-  startsAt: string;
-  tagline: string | null;
-}
+const FEATURED_LIMIT = 3;
+const MIN_WIDTH = 1200;
+const MIN_HEIGHT = 800;
+const MAX_WIDTH = 3600;
+const MAX_HEIGHT = 2400;
+const MAX_FILE_BYTES = 5 * 1024 * 1024;
 
 interface AdminEvent {
   id: string;
@@ -21,10 +20,17 @@ interface AdminEvent {
   status: string;
   startsAt: string;
   venue: string;
+  imageUrl?: string | null;
+  featuredImageUrl?: string | null;
   isFeatured?: boolean;
   featuredOrder?: number | null;
   featuredUntil?: string | null;
-  tagline?: string | null;
+}
+
+interface FeaturedImageResponse {
+  featuredImageUrl: string;
+  width: number;
+  height: number;
 }
 
 function fmtDate(iso: string | null) {
@@ -38,193 +44,272 @@ function fmtDate(iso: string | null) {
   }
 }
 
+function readImageDimensions(file: File): Promise<{ width: number; height: number }> {
+  return new Promise((resolve, reject) => {
+    const objectUrl = URL.createObjectURL(file);
+    const image = new window.Image();
+    image.onload = () => {
+      URL.revokeObjectURL(objectUrl);
+      resolve({ width: image.naturalWidth, height: image.naturalHeight });
+    };
+    image.onerror = () => {
+      URL.revokeObjectURL(objectUrl);
+      reject(new Error('The selected file could not be read as an image.'));
+    };
+    image.src = objectUrl;
+  });
+}
+
 interface EditState {
   isFeatured: boolean;
   featuredOrder: string;
   featuredUntil: string;
-  tagline: string;
+  featuredImageUrl: string;
 }
 
-function EventFeaturedRow({ event }: { event: AdminEvent }) {
-  const qc = useQueryClient();
-  const [editing, setEditing] = useState(false);
-  const [form, setForm] = useState<EditState>({
+function stateFromEvent(event: AdminEvent): EditState {
+  return {
     isFeatured: event.isFeatured ?? false,
     featuredOrder: event.featuredOrder != null ? String(event.featuredOrder) : '',
     featuredUntil: event.featuredUntil ? event.featuredUntil.slice(0, 10) : '',
-    tagline: event.tagline ?? '',
-  });
+    featuredImageUrl: event.featuredImageUrl ?? '',
+  };
+}
 
-  const mutation = useMutation({
+function EventFeaturedRow({ event, featuredCount }: { event: AdminEvent; featuredCount: number }) {
+  const qc = useQueryClient();
+  const [editing, setEditing] = useState(false);
+  const [form, setForm] = useState<EditState>(() => stateFromEvent(event));
+
+  useEffect(() => {
+    setForm(stateFromEvent(event));
+  }, [event]);
+
+  const updateMutation = useMutation({
     mutationFn: (data: Record<string, unknown>) => api.put(`/admin/events/${event.id}`, data),
-    onSuccess: () => {
-      toast.success('Featured settings updated.');
-      qc.invalidateQueries({ queryKey: ['admin-events-all'] });
-      qc.invalidateQueries({ queryKey: ['featured-events'] });
-      setEditing(false);
+    onSuccess: async () => {
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: ['admin-events-all'] }),
+        qc.invalidateQueries({ queryKey: ['featured-events'] }),
+      ]);
     },
-    onError: () => toast.error('Could not update. Please try again.'),
   });
 
-  function handleToggle() {
+  const uploadMutation = useMutation({
+    mutationFn: (payload: FormData) =>
+      api.post<{ data: FeaturedImageResponse }>(`/upload/events/${event.id}/featured-image`, payload),
+    onSuccess: async (response) => {
+      const uploaded = response.data.data;
+      setForm((current) => ({ ...current, featuredImageUrl: uploaded.featuredImageUrl }));
+      toast.success(`Featured artwork saved (${uploaded.width}×${uploaded.height}).`);
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: ['admin-events-all'] }),
+        qc.invalidateQueries({ queryKey: ['featured-events'] }),
+      ]);
+    },
+    onError: () => toast.error('The artwork could not be uploaded. Check the format and dimensions, then try again.'),
+  });
+
+  async function handleToggle() {
     const next = !form.isFeatured;
-    setForm((f) => ({ ...f, isFeatured: next }));
-    mutation.mutate({ isFeatured: next });
+    if (next && featuredCount >= FEATURED_LIMIT) {
+      toast.error('The homepage supports up to 3 featured events. Disable one first.');
+      return;
+    }
+
+    setForm((current) => ({ ...current, isFeatured: next }));
+    if (next) setEditing(true);
+    try {
+      await updateMutation.mutateAsync({ isFeatured: next });
+      toast.success(next ? 'Event added to the homepage.' : 'Event removed from the homepage.');
+      if (!next) setEditing(false);
+    } catch {
+      setForm((current) => ({ ...current, isFeatured: !next }));
+      toast.error('The featured setting was not saved. Please try again.');
+    }
   }
 
-  function handleSave() {
-    mutation.mutate({
-      isFeatured: form.isFeatured,
-      tagline: form.tagline.trim() || null,
-      featuredOrder: form.featuredOrder.trim() ? parseInt(form.featuredOrder, 10) : null,
-      featuredUntil: form.featuredUntil
-        ? new Date(`${form.featuredUntil}T23:59:59+08:00`).toISOString()
-        : null,
-    });
+  async function handleSave() {
+    try {
+      await updateMutation.mutateAsync({
+        isFeatured: form.isFeatured,
+        featuredOrder: form.featuredOrder.trim() ? parseInt(form.featuredOrder, 10) : null,
+        featuredUntil: form.featuredUntil
+          ? new Date(`${form.featuredUntil}T23:59:59+08:00`).toISOString()
+          : null,
+      });
+      toast.success('Featured settings saved.');
+      setEditing(false);
+    } catch {
+      toast.error('The featured settings were not saved. Please try again.');
+    }
   }
+
+  async function handleArtwork(eventChange: ChangeEvent<HTMLInputElement>) {
+    const file = eventChange.target.files?.[0];
+    eventChange.target.value = '';
+    if (!file) return;
+
+    if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
+      toast.error('Choose a JPG, PNG, or WEBP image.');
+      return;
+    }
+    if (file.size > MAX_FILE_BYTES) {
+      toast.error('Featured artwork must be 5 MB or smaller.');
+      return;
+    }
+
+    try {
+      const { width, height } = await readImageDimensions(file);
+      const ratio = width / height;
+      const validDimensions = width >= MIN_WIDTH && height >= MIN_HEIGHT && width <= MAX_WIDTH && height <= MAX_HEIGHT;
+      if (!validDimensions || Math.abs(ratio - 1.5) > 0.015) {
+        toast.error('Use a 3:2 image between 1200×800 and 3600×2400 px. Recommended: 1800×1200 px.');
+        return;
+      }
+      const payload = new FormData();
+      payload.append('image', file);
+      uploadMutation.mutate(payload);
+    } catch {
+      toast.error('The selected file could not be read as an image.');
+    }
+  }
+
+  const artwork = form.featuredImageUrl || event.imageUrl || null;
+  const isSaving = updateMutation.isPending || uploadMutation.isPending;
 
   return (
-    <div className="rounded-xl border border-gray-200 bg-white p-4">
-      <div className="flex items-start justify-between gap-3">
+    <article className="rounded-lg border border-[#e4dcf4] bg-white p-4 sm:p-5">
+      <div className="flex items-start justify-between gap-4">
         <div className="min-w-0 flex-1">
-          <p className="font-medium text-gray-900 truncate">{event.title}</p>
-          <p className="text-xs text-gray-500 mt-0.5">
-            {fmtDate(event.startsAt)} · {event.venue}
-          </p>
-          {form.isFeatured && form.tagline && (
-            <p className="text-xs text-indigo-600 mt-0.5 truncate">{form.tagline}</p>
-          )}
+          <p className="truncate font-semibold text-[#1a0533]">{event.title}</p>
+          <p className="mt-1 text-xs text-[#756a92]">{fmtDate(event.startsAt)} · {event.venue}</p>
         </div>
-        <div className="flex items-center gap-3 shrink-0">
+        <div className="flex shrink-0 items-center gap-3">
           {form.isFeatured && (
             <button
-              onClick={() => setEditing((v) => !v)}
-              className="text-xs text-indigo-600 hover:text-indigo-800 font-medium"
+              type="button"
+              onClick={() => setEditing((value) => !value)}
+              className="text-xs font-semibold text-primary hover:text-primary-hover"
             >
-              {editing ? 'Close' : 'Edit settings'}
+              {editing ? 'Close' : 'Configure'}
             </button>
           )}
-          {form.isFeatured && (
-            <div className="flex items-center gap-2 text-xs text-gray-500">
-              {form.featuredOrder && (
-                <span className="bg-indigo-50 text-indigo-700 font-medium px-2 py-0.5 rounded-full">
-                  Slot {form.featuredOrder}
-                </span>
-              )}
-              {form.featuredUntil ? (
-                <span>Until {fmtDate(form.featuredUntil)}</span>
-              ) : (
-                <span className="text-gray-400">No expiry</span>
-              )}
-            </div>
-          )}
-          <label className="relative inline-flex items-center cursor-pointer shrink-0">
+          <label className="relative inline-flex cursor-pointer items-center" aria-label={`${form.isFeatured ? 'Disable' : 'Enable'} ${event.title} as a featured event`}>
             <input
               type="checkbox"
-              className="sr-only peer"
+              className="peer sr-only"
               checked={form.isFeatured}
               onChange={handleToggle}
-              disabled={mutation.isPending}
+              disabled={isSaving}
             />
-            <div className="w-10 h-5 bg-gray-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-indigo-400 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-indigo-600" />
+            <span className="h-6 w-11 rounded-full bg-[#e4dcf4] transition-colors peer-checked:bg-primary peer-focus-visible:ring-2 peer-focus-visible:ring-primary/40 peer-disabled:cursor-wait peer-disabled:opacity-50 after:absolute after:left-[3px] after:top-[3px] after:h-[18px] after:w-[18px] after:rounded-full after:border after:border-[#d3c8e8] after:bg-white after:transition-transform after:content-[''] peer-checked:after:translate-x-5" />
           </label>
         </div>
       </div>
 
+      {form.isFeatured && !editing && (
+        <div className="mt-3 flex flex-wrap gap-2 text-xs text-[#6b5b8a]">
+          {form.featuredOrder && <span className="rounded-full bg-[#f0ebff] px-2.5 py-1 font-semibold text-primary">Slot {form.featuredOrder}</span>}
+          <span className="rounded-full bg-[#f5f0ff] px-2.5 py-1">{form.featuredUntil ? `Until ${fmtDate(form.featuredUntil)}` : 'No expiry'}</span>
+          <span className={`rounded-full px-2.5 py-1 ${form.featuredImageUrl ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'}`}>
+            {form.featuredImageUrl ? 'Dedicated artwork ready' : 'Using event cover fallback'}
+          </span>
+        </div>
+      )}
+
       {editing && form.isFeatured && (
-        <div className="mt-3 pt-3 border-t border-gray-100 space-y-3">
-          <div>
-            <label className="block text-xs font-medium text-gray-700 mb-1">
-              Tagline <span className="text-gray-400 font-normal">(shown as badge in hero carousel)</span>
-            </label>
-            <input
-              type="text"
-              maxLength={100}
-              placeholder="e.g. FULL-DAY LEADERSHIP CONFERENCE"
-              value={form.tagline}
-              onChange={(e) => setForm((f) => ({ ...f, tagline: e.target.value }))}
-              className="w-full rounded-lg border border-gray-300 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
-            />
-          </div>
-          <div className="grid grid-cols-2 gap-3">
+        <div className="mt-4 space-y-5 border-t border-[#eee8f7] pt-4">
+          <div className="grid gap-4 md:grid-cols-[220px_1fr] md:items-start">
+            <div className="relative aspect-[3/2] overflow-hidden rounded-lg border border-[#e4dcf4] bg-[#1a0533]">
+              {artwork ? (
+                <Image src={artwork} alt={`${event.title} featured artwork preview`} fill sizes="220px" className="object-cover" />
+              ) : (
+                <div className="flex h-full items-center justify-center px-5 text-center text-xs font-semibold text-[#c4b5fd]">No featured artwork uploaded</div>
+              )}
+            </div>
             <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1">
-                Display slot <span className="text-gray-400 font-normal">(1 = first)</span>
+              <p className="text-sm font-semibold text-[#1a0533]">Homepage featured artwork</p>
+              <p className="mt-1 text-xs leading-5 text-[#6b5b8a]">
+                Separate from the event-detail cover. Use a 3:2 landscape composition with the subject inside the center safe area.
+              </p>
+              <div className="mt-3 rounded-lg bg-[#f5f0ff] p-3 text-xs leading-5 text-[#4f416c]">
+                <strong>Recommended:</strong> 1800×1200 px · <strong>Accepted:</strong> 1200×800 to 3600×2400 px · JPG, PNG, or WEBP · 5 MB maximum
+              </div>
+              <label className="axon-pill mt-3 cursor-pointer bg-primary px-4 text-[11px] text-white hover:bg-primary-hover">
+                {uploadMutation.isPending ? 'Uploading…' : form.featuredImageUrl ? 'Replace artwork' : 'Upload artwork'}
+                <input type="file" accept="image/jpeg,image/png,image/webp" className="sr-only" disabled={isSaving} onChange={handleArtwork} />
               </label>
+            </div>
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div>
+              <label htmlFor={`featured-order-${event.id}`} className="mb-1 block text-xs font-semibold text-[#4f416c]">Display slot <span className="font-normal text-[#8d82a8]">(1 = first)</span></label>
               <input
+                id={`featured-order-${event.id}`}
                 type="number"
                 min={1}
+                max={3}
                 placeholder="1"
                 value={form.featuredOrder}
-                onChange={(e) => setForm((f) => ({ ...f, featuredOrder: e.target.value }))}
-                className="w-full rounded-lg border border-gray-300 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                onChange={(change) => setForm((current) => ({ ...current, featuredOrder: change.target.value }))}
+                className="axon-input w-full text-sm"
               />
             </div>
             <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1">
-                Featured until <span className="text-gray-400 font-normal">(leave blank = no expiry)</span>
-              </label>
+              <label htmlFor={`featured-until-${event.id}`} className="mb-1 block text-xs font-semibold text-[#4f416c]">Featured until <span className="font-normal text-[#8d82a8]">(optional)</span></label>
               <input
+                id={`featured-until-${event.id}`}
                 type="date"
                 value={form.featuredUntil}
-                onChange={(e) => setForm((f) => ({ ...f, featuredUntil: e.target.value }))}
-                className="w-full rounded-lg border border-gray-300 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                onChange={(change) => setForm((current) => ({ ...current, featuredUntil: change.target.value }))}
+                className="axon-input w-full text-sm"
               />
             </div>
           </div>
           <div className="flex justify-end">
-            <button
-              onClick={handleSave}
-              disabled={mutation.isPending}
-              className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-medium px-4 py-1.5 rounded-lg disabled:opacity-50 transition-colors"
-            >
-              {mutation.isPending ? 'Saving…' : 'Save settings'}
+            <button type="button" onClick={handleSave} disabled={isSaving} className="axon-pill bg-primary px-5 text-[11px] text-white hover:bg-primary-hover disabled:cursor-wait disabled:opacity-50">
+              {updateMutation.isPending ? 'Saving…' : 'Save settings'}
             </button>
           </div>
         </div>
       )}
-    </div>
+    </article>
   );
 }
 
 export default function FeaturedEventsPage() {
   const { data: events = [], isLoading } = useQuery<AdminEvent[]>({
     queryKey: ['admin-events-all'],
-    queryFn: () =>
-      api.get<{ data: { data: AdminEvent[] } }>('/admin/events?limit=200').then((r) => r.data.data.data),
+    queryFn: () => api.get<{ data: { data: AdminEvent[] } }>('/admin/events?limit=200').then((response) => response.data.data.data),
   });
 
-  const { data: featuredEvents = [] } = useQuery<FeaturedEvent[]>({
-    queryKey: ['featured-events'],
-    queryFn: () =>
-      api.get<{ data: FeaturedEvent[] }>('/events/featured').then((r) => r.data.data ?? []),
-  });
-
-  const featured = events.filter((e) => e.isFeatured);
-  const notFeatured = events.filter((e) => !e.isFeatured && e.status !== 'cancelled');
+  const featured = events.filter((event) => event.isFeatured);
+  const activeFeaturedCount = featured.filter((event) => !event.featuredUntil || new Date(event.featuredUntil) > new Date()).length;
+  const notFeatured = events.filter((event) => !event.isFeatured && event.status !== 'cancelled');
 
   return (
-    <main className="max-w-4xl mx-auto px-4 py-10">
+    <main className="axon-admin-page max-w-5xl">
       <div className="mb-8">
         <h1 className="axon-page-title text-3xl sm:text-4xl">Featured Events</h1>
-        <p className="text-sm text-gray-500 mt-1">
-          Featured events appear in the animated hero carousel on the homepage. Only admins can manage this.
+        <p className="mt-2 max-w-2xl text-sm leading-6 text-[#6b5b8a]">
+          Select up to three events for the homepage carousel, set their order, and upload artwork composed specifically for the larger hero.
         </p>
       </div>
 
       {isLoading && <ScreenSkeleton rows={5} compact />}
 
       {featured.length > 0 && (
-        <section className="mb-8">
-          <h2 className="text-sm font-semibold text-gray-700 uppercase tracking-wider mb-3">
-            Currently Featured — {featured.length} event{featured.length !== 1 ? 's' : ''}
-          </h2>
+        <section className="mb-8" aria-labelledby="currently-featured-heading">
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <h2 id="currently-featured-heading" className="axon-section-title text-sm">Currently Featured</h2>
+            <span className="text-xs font-semibold text-[#756a92]">{activeFeaturedCount} / {FEATURED_LIMIT} active slots</span>
+          </div>
           <div className="space-y-3">
-            {featured
+            {[...featured]
               .sort((a, b) => (a.featuredOrder ?? 99) - (b.featuredOrder ?? 99))
-              .map((event) => (
-                <EventFeaturedRow key={event.id} event={event} />
-              ))}
+              .map((event) => <EventFeaturedRow key={event.id} event={event} featuredCount={activeFeaturedCount} />)}
           </div>
         </section>
       )}
@@ -234,14 +319,10 @@ export default function FeaturedEventsPage() {
       )}
 
       {notFeatured.length > 0 && (
-        <section>
-          <h2 className="text-sm font-semibold text-gray-700 uppercase tracking-wider mb-3">
-            All Events
-          </h2>
+        <section aria-labelledby="all-events-heading">
+          <h2 id="all-events-heading" className="axon-section-title mb-3 text-sm">All Events</h2>
           <div className="space-y-3">
-            {notFeatured.map((event) => (
-              <EventFeaturedRow key={event.id} event={event} />
-            ))}
+            {notFeatured.map((event) => <EventFeaturedRow key={event.id} event={event} featuredCount={activeFeaturedCount} />)}
           </div>
         </section>
       )}

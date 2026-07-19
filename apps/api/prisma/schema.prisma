@@ -151,6 +151,7 @@ model Event {
   customSections     Json?       @map("custom_sections") // Array of configurable event detail blocks
   // Featured hero fields
   tagline            String?     @map("tagline") // Badge text e.g. "FULL-DAY LEADERSHIP CONFERENCE"
+  featuredImageUrl   String?     @map("featured_image_url") // Dedicated 3:2 homepage hero artwork
   isFeatured         Boolean     @default(false) @map("is_featured")
   featuredOrder      Int?        @map("featured_order") // 1 = first slot; null = not featured
   featuredUntil      DateTime?   @map("featured_until") // auto-expiry; null = no expiry

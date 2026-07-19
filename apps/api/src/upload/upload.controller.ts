@@ -45,6 +45,30 @@ export class UploadController {
     return this.uploadService.uploadEventImage(eventId, file.buffer, file.mimetype);
   }
 
+  @Post('events/:eventId/featured-image')
+  @ApiOperation({ summary: 'Upload dedicated 3:2 homepage featured artwork (admin only)' })
+  @ApiConsumes('multipart/form-data')
+  @UseInterceptors(
+    FileInterceptor('image', {
+      limits: { fileSize: 5 * 1024 * 1024 },
+      fileFilter: (_req, file, cb) => {
+        const allowed = ['image/jpeg', 'image/png', 'image/webp'];
+        if (!allowed.includes(file.mimetype)) {
+          cb(new BadRequestException('Only JPG, PNG, and WEBP images are allowed'), false);
+        } else {
+          cb(null, true);
+        }
+      },
+    }),
+  )
+  uploadFeaturedImage(
+    @Param('eventId') eventId: string,
+    @UploadedFile() file: Express.Multer.File,
+  ) {
+    if (!file) throw new BadRequestException('Image file is required');
+    return this.uploadService.uploadFeaturedImage(eventId, file.buffer);
+  }
+
   @Post('payment-qr')
   @ApiOperation({ summary: 'Upload a payment QR code image (admin only)' })
   @ApiConsumes('multipart/form-data')

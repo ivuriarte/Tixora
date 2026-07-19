@@ -789,6 +789,21 @@ export class EventsService {
     if (dto.status === 'on_sale' && !(dto.imageUrl?.trim() || existing.imageUrl)) {
       throw new BadRequestException('Upload an event cover image before publishing.');
     }
+    if (dto.isFeatured === true && !existing.isFeatured) {
+      const activeFeaturedCount = await this.prisma.event.count({
+        where: {
+          id: { not: id },
+          isFeatured: true,
+          OR: [
+            { featuredUntil: null },
+            { featuredUntil: { gt: new Date() } },
+          ],
+        },
+      });
+      if (activeFeaturedCount >= 3) {
+        throw new BadRequestException('The homepage supports up to 3 featured events. Disable one before adding another.');
+      }
+    }
     return this.prisma.event.update({
       where: { id },
       data: {
@@ -839,7 +854,7 @@ export class EventsService {
   }
 
   /**
-   * Returns up to 10 currently-featured events ordered by featuredOrder ASC.
+   * Returns up to 3 currently-featured events ordered by featuredOrder ASC.
    * Excludes events where featuredUntil is set and in the past.
    */
   async findFeatured() {
@@ -857,7 +872,7 @@ export class EventsService {
         { featuredOrder: { sort: 'asc', nulls: 'last' } },
         { startsAt: 'asc' },
       ],
-      take: 10,
+      take: 3,
       include: {
         tiers: {
           where: { isVisible: true },
@@ -880,6 +895,7 @@ export class EventsService {
         description: e.description,
         speakerName: e.speakerName,
         tagline: e.tagline,
+        featuredImageUrl: e.featuredImageUrl,
         venue: e.venue,
         city: e.city,
         startsAt: e.startsAt.toISOString(),
@@ -889,6 +905,7 @@ export class EventsService {
         maxCapacity: e.maxCapacity,
         featuredOrder: e.featuredOrder,
         isFree: e.isFree,
+        primaryTierId: tiers.find((tier) => tier.availableQuantity > 0)?.id ?? e.tiers[0]?.id ?? null,
         lowestPrice: e.isFree ? 0 : e.tiers[0] ? Number(e.tiers[0].price) : null,
         totalAvailable: tiers.reduce(
           (sum: number, t) => sum + t.availableQuantity,

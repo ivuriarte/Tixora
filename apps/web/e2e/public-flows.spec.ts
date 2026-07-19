@@ -35,6 +35,21 @@ test.describe('Homepage', () => {
     await page.getByRole('link', { name: 'Sign up' }).click();
     await expect(page).toHaveURL(/auth\/register/);
   });
+
+  test('featured hero exposes event details without unsupported payment copy', async ({ page }) => {
+    await page.goto('/');
+    const carousel = page.getByRole('region', { name: 'Featured events' });
+    if ((await carousel.count()) === 0) return;
+
+    await expect(carousel.getByText('Featured Event', { exact: true })).toBeVisible();
+    await expect(carousel.getByText(/GCash accepted/i)).toHaveCount(0);
+
+    const viewEvent = carousel.getByRole('link', { name: 'View Event', exact: true });
+    await expect(viewEvent).toBeVisible();
+    const href = await viewEvent.getAttribute('href');
+    expect(href).toMatch(/^\/events\/[a-z0-9-]+$/);
+    expect(href).not.toContain('vercel.app');
+  });
 });
 
 // ── Auth – Login ────────────────────────────────────────────────────────────
@@ -152,6 +167,20 @@ test.describe('API Health', () => {
     expect(Array.isArray(body.data)).toBe(true);
     expect(body.meta).toBeDefined();
     expect(typeof body.meta.total).toBe('number');
+  });
+
+  test('GET /api/v1/events/featured returns the bounded homepage contract', async ({ request }) => {
+    const res = await request.get(`${API_URL}/api/v1/events/featured`);
+    expect(res.status()).toBe(200);
+    const json = await res.json();
+    const events = json.data ?? json;
+    expect(Array.isArray(events)).toBe(true);
+    expect(events.length).toBeLessThanOrEqual(3);
+    for (const event of events) {
+      expect(event.slug).toBeTruthy();
+      expect(Object.prototype.hasOwnProperty.call(event, 'primaryTierId')).toBe(true);
+      expect(Object.prototype.hasOwnProperty.call(event, 'featuredImageUrl')).toBe(true);
+    }
   });
 
   test('GET /api/v1/events with invalid page defaults gracefully', async ({ request }) => {
