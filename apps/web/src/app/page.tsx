@@ -52,6 +52,24 @@ async function getEvents(page = 1, query = ''): Promise<{ data: EventSummary[]; 
   }
 }
 
+interface PublicStats {
+  eventsHosted: number;
+  attendeesCheckedIn: number;
+  verifiedOrganizers: number;
+}
+
+async function getPublicStats(): Promise<PublicStats | null> {
+  const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'https://api.axontickets.online/api/v1';
+  try {
+    const res = await fetch(`${baseUrl}/events/public-stats`, { cache: 'no-store', signal: AbortSignal.timeout(5000) });
+    if (!res.ok) return null;
+    const json = await res.json();
+    return json.data ?? json;
+  } catch {
+    return null;
+  }
+}
+
 async function getFeaturedEvent(slug: string): Promise<EventSummary | null> {
   const baseUrl = (process.env.NEXT_PUBLIC_API_URL || 'https://api.axontickets.online/api/v1');
   try {
@@ -80,7 +98,6 @@ interface FeaturedApiEvent {
   lowestPrice?: number | null;
   isFree?: boolean;
   totalAvailable?: number;
-  maxCapacity?: number | null;
   featuredOrder?: number | null;
 }
 
@@ -234,7 +251,7 @@ export default async function HomePage({ searchParams }: { searchParams: { page?
   // Marketplace mode: brand hero + featured carousel + event grid + marketing sections
   const page = parseInt(searchParams.page ?? '1', 10) || 1;
   const query = searchParams.q?.trim().slice(0, 120) ?? '';
-  const featuredEvents = await getFeaturedEvents();
+  const [featuredEvents, publicStats] = await Promise.all([getFeaturedEvents(), getPublicStats()]);
 
   return (
     <>
@@ -243,7 +260,22 @@ export default async function HomePage({ searchParams }: { searchParams: { page?
       <main className="min-h-screen bg-white">
         <FeaturedHeroCarousel events={featuredEvents} />
 
-        <EventTrustBar />
+        {publicStats && (
+          <section aria-label="Axon Tickets activity" className="border-b border-[#e4dcf4] bg-white">
+            <div className="mx-auto grid max-w-7xl grid-cols-1 divide-y divide-[#e4dcf4] px-4 sm:grid-cols-3 sm:divide-x sm:divide-y-0 sm:px-6 lg:px-8">
+              {[
+                [publicStats.eventsHosted, 'Events Hosted'],
+                [publicStats.attendeesCheckedIn, 'Attendees Checked In'],
+                [publicStats.verifiedOrganizers, 'KYC-Verified Organizers'],
+              ].map(([value, label]) => (
+                <div key={label} className="px-5 py-6 text-center">
+                  <p className="font-mono text-3xl font-black tabular-nums text-primary">{Number(value).toLocaleString('en-PH')}</p>
+                  <p className="axon-label mt-1 text-[10px] text-[#756a92]">{label}</p>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
 
         {/* Upcoming events */}
         <section id="upcoming-events" className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 md:py-16 scroll-mt-20">
@@ -286,38 +318,6 @@ const homeFeatures = [
   { title: 'Payment proof collection', description: 'Collect GCash or bank transfer proof and verify it before issuing tickets.', iconPath: iconPaths.paymentProof },
   { title: 'Attendee records & reports', description: 'A complete record of who registered and who showed up.', iconPath: iconPaths.reports },
 ];
-
-function EventTrustBar() {
-  const items = [
-    {
-      label: 'Verified organizers',
-      icon: <><path d="M12 3 5 6v5c0 4.6 2.8 8.1 7 10 4.2-1.9 7-5.4 7-10V6l-7-3Z" /><path d="m9 12 2 2 4-4" /></>,
-    },
-    {
-      label: 'Secure payments',
-      icon: <><rect x="5" y="9" width="14" height="11" rx="2" /><path d="M8 9V7a4 4 0 0 1 8 0v2M12 13v3" /></>,
-    },
-    {
-      label: 'Instant QR tickets',
-      icon: <><path d="M4 7a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v2a3 3 0 0 0 0 6v2a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-2a3 3 0 0 0 0-6V7Z" /><path d="M12 8v8" /></>,
-    },
-  ];
-
-  return (
-    <section aria-label="Why book with Axon Tickets" className="border-b border-[#e8e1f2] bg-white">
-      <div className="mx-auto grid max-w-7xl grid-cols-1 divide-y divide-[#ece6f4] px-4 sm:grid-cols-3 sm:divide-x sm:divide-y-0 sm:px-6 lg:px-8">
-        {items.map((item) => (
-          <div key={item.label} className="flex items-center justify-center gap-3 px-5 py-5 text-sm font-semibold text-[#2d1748] sm:py-6">
-            <span className="flex h-10 w-10 items-center justify-center rounded-full bg-[#f3edff] text-primary">
-              <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-5 w-5">{item.icon}</svg>
-            </span>
-            {item.label}
-          </div>
-        ))}
-      </div>
-    </section>
-  );
-}
 
 async function EventsGrid({ page, query, enableMarketplace }: { page: number; query: string; enableMarketplace: boolean }) {
   const result = enableMarketplace ? await getEvents(page, query) : { data: [], meta: { total: 0, totalPages: 0 } };
