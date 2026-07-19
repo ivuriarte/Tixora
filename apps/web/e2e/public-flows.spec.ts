@@ -58,14 +58,14 @@ test.describe('Auth — Login', () => {
   // Login is OTP/OAuth only — no email+password form
   test('renders login page with entry options', async ({ page }) => {
     await page.goto('/auth/login');
-    await expect(page.getByRole('heading', { name: /welcome back/i })).toBeVisible();
+    await expect(page.getByRole('heading', { name: /sign in/i })).toBeVisible();
     await expect(page.getByRole('link', { name: /continue with email/i })).toBeVisible();
   });
 
   test('unauthenticated user stays on login page', async ({ page }) => {
     await page.goto('/auth/login');
     await expect(page).toHaveURL(/auth\/login/);
-    await expect(page.getByRole('heading', { name: /welcome back/i })).toBeVisible();
+    await expect(page.getByRole('heading', { name: /sign in/i })).toBeVisible();
   });
 
   test('continue with email navigates to OTP page', async ({ page }) => {
@@ -148,7 +148,7 @@ test.describe('Event Detail', () => {
 // ── API Health ───────────────────────────────────────────────────────────────
 
 test.describe('API Health', () => {
-  const API_URL = process.env.API_URL ?? 'https://api-tau-six-59.vercel.app';
+  const API_URL = process.env.API_URL ?? 'https://api-uat.axontickets.online';
 
   test('GET /api/v1/health returns 200', async ({ request }) => {
     const res = await request.get(`${API_URL}/api/v1/health`);

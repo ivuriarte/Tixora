@@ -83,7 +83,8 @@
     "testEnvironment": "node",
     "testPathIgnorePatterns": [
       "/node_modules/",
-      "/.vercel/"
+      "/.vercel/",
+      "/dist/"
     ],
     "moduleNameMapper": {
       "^@axon-tickets/(.*)$": "<rootDir>/../../packages/$1/src"
