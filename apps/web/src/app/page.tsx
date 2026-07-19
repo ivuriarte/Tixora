@@ -28,6 +28,7 @@ interface EventSummary {
   city: string;
   startsAt: string;
   imageUrl?: string | null;
+  featuredImageUrl?: string | null;
   lowestPrice?: number | null;
   isFree?: boolean;
   status: string;
@@ -98,6 +99,7 @@ interface FeaturedApiEvent {
   lowestPrice?: number | null;
   isFree?: boolean;
   totalAvailable?: number;
+  primaryTierId?: string | null;
   featuredOrder?: number | null;
 }
 
@@ -252,6 +254,12 @@ export default async function HomePage({ searchParams }: { searchParams: { page?
   const page = parseInt(searchParams.page ?? '1', 10) || 1;
   const query = searchParams.q?.trim().slice(0, 120) ?? '';
   const [featuredEvents, publicStats] = await Promise.all([getFeaturedEvents(), getPublicStats()]);
+  const showPublicStats = Boolean(
+    publicStats &&
+    publicStats.eventsHosted >= 10 &&
+    publicStats.attendeesCheckedIn >= 100 &&
+    publicStats.verifiedOrganizers >= 1,
+  );
 
   return (
     <>
@@ -260,7 +268,7 @@ export default async function HomePage({ searchParams }: { searchParams: { page?
       <main className="min-h-screen bg-white">
         <FeaturedHeroCarousel events={featuredEvents} />
 
-        {publicStats && (
+        {publicStats && showPublicStats && (
           <section aria-label="Axon Tickets activity" className="border-b border-[#e4dcf4] bg-white">
             <div className="mx-auto grid max-w-7xl grid-cols-1 divide-y divide-[#e4dcf4] px-4 sm:grid-cols-3 sm:divide-x sm:divide-y-0 sm:px-6 lg:px-8">
               {[
@@ -298,8 +306,10 @@ export default async function HomePage({ searchParams }: { searchParams: { page?
         {/* ── Become an Organizer CTA (hidden for authenticated users) ── */}
         <OrganizerCtaSection
           heading="Ready to run your next event with Axon Tickets?"
+          description="Create your event page, collect registrations and payment proofs, issue QR tickets, and manage check-in from one platform."
           buttonLabel="Start Organizing"
           dataTrack="homepage-start-organizing"
+          feeNote="Free events have no processing fee. Paid registrations use a flat ₱50 per-transaction processing fee."
         />
       </main>
       <Footer />

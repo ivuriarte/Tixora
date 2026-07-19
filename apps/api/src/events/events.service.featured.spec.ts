@@ -14,17 +14,24 @@
  *  U-68  maps lowestPrice and totalAvailable from tiers correctly
  */
 
+import { BadRequestException } from '@nestjs/common';
 import { EventsService } from './events.service';
 
 // ── minimal stub for PrismaService ─────────────────────────────────────────
 
 const mockFindMany = jest.fn();
 const mockFindUnique = jest.fn();
-const mockUpdate = jest.fn();
+const mockEventCount = jest.fn();
+const mockEventUpdate = jest.fn();
 const mockRegistrationGroupBy = jest.fn();
 const mockTicketGroupBy = jest.fn();
 const mockPrisma = {
-  event: { findMany: mockFindMany, findUnique: mockFindUnique, update: mockUpdate },
+  event: {
+    findMany: mockFindMany,
+    findUnique: mockFindUnique,
+    count: mockEventCount,
+    update: mockEventUpdate,
+  },
   registration: { groupBy: mockRegistrationGroupBy },
   ticket: { groupBy: mockTicketGroupBy },
 } as any;
@@ -41,6 +48,7 @@ function makeDbEvent(overrides: {
   status?: string;
   featuredUntil?: Date | null;
   featuredOrder?: number | null;
+  featuredImageUrl?: string | null;
   startsAt?: Date;
   tagline?: string | null;
   tiers?: Array<{ id?: string; price: number | { toNumber: () => number }; soldQuantity: number; totalQuantity: number }>;
@@ -53,6 +61,7 @@ function makeDbEvent(overrides: {
     description: 'A test event',
     speakerName: 'Speaker Name',
     tagline: overrides.tagline ?? null,
+    featuredImageUrl: overrides.featuredImageUrl ?? null,
     venue: 'Manila',
     city: 'Davao',
     startsAt: overrides.startsAt ?? new Date('2026-09-01T02:00:00Z'),
@@ -60,6 +69,7 @@ function makeDbEvent(overrides: {
     imageUrl: '/featured/test.jpg',
     status: overrides.status ?? 'on_sale',
     maxCapacity: 100,
+    isFree: false,
     isFeatured: overrides.isFeatured ?? true,
     featuredOrder: overrides.featuredOrder ?? null,
     featuredUntil: overrides.featuredUntil ?? null,
@@ -75,7 +85,8 @@ describe('EventsService.findFeatured()', () => {
   beforeEach(() => {
     mockFindMany.mockReset();
     mockFindUnique.mockReset();
-    mockUpdate.mockReset();
+    mockEventCount.mockReset();
+    mockEventUpdate.mockReset();
     mockRegistrationGroupBy.mockReset();
     mockTicketGroupBy.mockReset();
     mockRegistrationGroupBy.mockResolvedValue([]);
@@ -103,7 +114,6 @@ describe('EventsService.findFeatured()', () => {
     mockFindMany.mockResolvedValue([]);
     await service.findFeatured();
     const [queryArgs] = mockFindMany.mock.calls[0];
-    // OR clause should include a `{ featuredUntil: { gt: <date> } }` branch
     const orClause = queryArgs.where.OR as Array<unknown>;
     expect(orClause).toHaveLength(2);
     const futureBranch = orClause[1] as { featuredUntil: { gt: Date } };
@@ -160,12 +170,10 @@ describe('EventsService.findFeatured()', () => {
   it('orders by featuredOrder ASC nulls-last, then startsAt ASC', async () => {
     const evt1 = makeDbEvent({ id: 'a', featuredOrder: 2, startsAt: new Date('2026-09-01T00:00:00Z') });
     const evt2 = makeDbEvent({ id: 'b', featuredOrder: 1, startsAt: new Date('2026-09-02T00:00:00Z') });
-    // Prisma sorts these — simulate it returning in order
     mockFindMany.mockResolvedValue([evt2, evt1]);
     const result = await service.findFeatured();
     expect(result[0].id).toBe('b');
     expect(result[1].id).toBe('a');
-    // Verify the orderBy clause is correct
     const [queryArgs] = mockFindMany.mock.calls[0];
     const [firstOrder] = queryArgs.orderBy as Array<{ featuredOrder?: unknown }>;
     expect(firstOrder).toHaveProperty('featuredOrder');
@@ -186,8 +194,33 @@ describe('EventsService.findFeatured()', () => {
     ]);
     mockFindMany.mockResolvedValue([evt]);
     const result = await service.findFeatured();
-    expect(result[0].lowestPrice).toBe(500);         // first tier (already ordered by price ASC by Prisma)
-    expect(result[0].totalAvailable).toBe(63);       // (50-11) + (30-6)
+    expect(result[0].lowestPrice).toBe(500);
+    expect(result[0].totalAvailable).toBe(63);
+  });
+
+  it('limits the homepage contract to three slides and returns the dedicated artwork', async () => {
+    mockFindMany.mockResolvedValue([
+      makeDbEvent({ featuredImageUrl: 'https://res.cloudinary.com/demo/featured.webp' }),
+    ]);
+    const result = await service.findFeatured();
+    const [queryArgs] = mockFindMany.mock.calls[0];
+    expect(queryArgs.take).toBe(3);
+    expect(result[0]).toEqual(expect.objectContaining({
+      featuredImageUrl: 'https://res.cloudinary.com/demo/featured.webp',
+      primaryTierId: 'tier_1',
+    }));
+  });
+
+  it('rejects a fourth active featured event', async () => {
+    mockFindUnique.mockResolvedValue({
+      id: 'event-4',
+      imageUrl: 'https://res.cloudinary.com/demo/cover.webp',
+      isFeatured: false,
+    });
+    mockEventCount.mockResolvedValue(3);
+
+    await expect(service.update('event-4', { isFeatured: true })).rejects.toThrow(BadRequestException);
+    expect(mockEventUpdate).not.toHaveBeenCalled();
   });
 });
 
@@ -196,9 +229,9 @@ describe('EventsService.update() featured settings', () => {
 
   beforeEach(() => {
     mockFindUnique.mockReset();
-    mockUpdate.mockReset();
+    mockEventUpdate.mockReset();
     mockFindUnique.mockResolvedValue({ id: 'evt_1', imageUrl: '/featured/test.jpg' });
-    mockUpdate.mockImplementation(({ data }) => Promise.resolve({ id: 'evt_1', ...data }));
+    mockEventUpdate.mockImplementation(({ data }) => Promise.resolve({ id: 'evt_1', ...data }));
     service = new EventsService(mockPrisma, mockRedis, { ensureWorkspace: jest.fn() } as any);
   });
 
@@ -209,7 +242,7 @@ describe('EventsService.update() featured settings', () => {
       featuredUntil: '2026-12-31T15:59:59.000Z',
     });
 
-    expect(mockUpdate).toHaveBeenCalledWith({
+    expect(mockEventUpdate).toHaveBeenCalledWith({
       where: { id: 'evt_1' },
       data: expect.objectContaining({
         isFeatured: false,

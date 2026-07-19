@@ -113,3 +113,12 @@
   from { width: 100%; }
   to   { width: 0%; }
 }
+
+@keyframes featured-hero-enter {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.featured-hero-enter {
+  animation: featured-hero-enter 600ms ease both;
+}
