@@ -13,19 +13,20 @@ export default function DescriptionSection({ description }: DescriptionSectionPr
   const shouldCollapse = description.length > COLLAPSE_THRESHOLD;
   const displayText = !shouldCollapse || isExpanded 
     ? description 
-    : description.slice(0, COLLAPSE_THRESHOLD) + '...';
+    : `${description.slice(0, COLLAPSE_THRESHOLD).trimEnd()}…`;
 
   return (
-    <div>
-      <h2 className="text-lg font-semibold text-gray-900 mb-2">About this event</h2>
+    <section aria-labelledby="event-description-heading">
+      <p className="text-xs font-bold uppercase tracking-[0.14em] text-primary">Event overview</p>
+      <h2 id="event-description-heading" className="mt-2 text-3xl font-black tracking-[-0.03em] text-[#1a0533] sm:text-4xl">About this event</h2>
       <div className="relative">
-        <p className="text-gray-600 whitespace-pre-wrap leading-relaxed">
+        <p id="event-description" className="mt-5 max-w-3xl whitespace-pre-wrap text-base leading-8 text-[#6b5b8a]">
           {displayText}
         </p>
         {shouldCollapse && (
           <button
             onClick={() => setIsExpanded(!isExpanded)}
-            className="mt-3 inline-flex items-center gap-1 text-sm font-medium text-primary hover:text-primary-dark transition-colors"
+            className="mt-4 inline-flex items-center gap-1 text-sm font-bold text-primary transition-colors hover:text-primary-dark"
             aria-expanded={isExpanded}
             aria-controls="event-description"
           >
@@ -47,6 +48,6 @@ export default function DescriptionSection({ description }: DescriptionSectionPr
           </button>
         )}
       </div>
-    </div>
+    </section>
   );
 }

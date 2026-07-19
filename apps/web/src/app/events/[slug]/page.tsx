@@ -11,6 +11,7 @@ import EventCoverFallback from '@/components/EventCoverFallback';
 import StickyEventCta from '@/components/StickyEventCta';
 import ShareEventButton from '@/components/ShareEventButton';
 import Footer from '@/components/marketing/Footer';
+import { formatEventDisplayTitle, isDuplicateEventCopy, scarcityLabel } from '@/lib/event-display';
 
 interface Tier {
   id: string;
@@ -50,6 +51,7 @@ interface Event {
   isFree?: boolean;
   // Conference fields
   speakerName?: string | null;
+  tagline?: string | null;
   agenda?: AgendaItem[] | null;
   sponsors?: Sponsor[] | null;
   faqs?: Faq[] | null;
@@ -205,6 +207,10 @@ export default async function EventPage({ params, searchParams }: { params: { sl
   const availablePrices = event.tiers.filter((tier) => tier.availableQuantity > 0).map((tier) => event.isFree ? 0 : tier.price);
   const lowestPrice = availablePrices.length > 0 ? Math.min(...availablePrices) : null;
   const fromPrice = lowestPrice === 0 ? 'Free' : lowestPrice != null ? `from ₱${lowestPrice.toLocaleString('en-PH')}` : 'View options';
+  const totalAvailable = event.tiers.reduce((sum, tier) => sum + Math.max(0, tier.availableQuantity), 0);
+  const totalInventory = event.tiers.reduce((sum, tier) => sum + Math.max(0, tier.totalQuantity), 0);
+  const lowAvailability = scarcityLabel(totalAvailable, totalInventory);
+  const eventLabel = isDuplicateEventCopy(event.tagline, event.title) ? null : event.tagline?.trim();
 
   const agenda = sanitizeList<AgendaItem>(event.agenda, ['title']);
   const tierOrder = ['Platinum', 'Gold', 'Silver', 'Bronze', 'Partner', 'Media Partner', 'Community Partner'];
@@ -225,37 +231,51 @@ export default async function EventPage({ params, searchParams }: { params: { sl
       <main className="pb-24 md:pb-0">
         <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: serializedJsonLd }} />
         <EventFunnelTracker eventId={event.id} eventSlug={event.slug} eventTitle={event.title} />
-        <section className="bg-[#1a0533] text-white">
-          <div className="page-container grid gap-8 py-10 lg:grid-cols-[1.1fr_.9fr] lg:items-center lg:py-14">
-            <div>
-              <div className="mb-5 flex flex-wrap items-center gap-2">
-                <span className="rounded-full border border-primary-900 px-3 py-1 text-[10px] font-bold uppercase tracking-[0.1em] text-[#a78bfa]">
-                  {isCancelled ? 'Cancelled' : isSoldOut ? 'Sold Out' : 'Open'}
+        <section className="relative overflow-hidden bg-[#160126] text-white">
+          <div aria-hidden="true" className="absolute inset-0 bg-[radial-gradient(circle_at_35%_18%,rgba(124,58,237,0.24),transparent_34%),linear-gradient(115deg,#160126_0%,#22043f_52%,#12001e_100%)]" />
+
+          <div className="page-container relative flex min-h-[540px] items-center lg:min-h-[610px]">
+            <div className="hero-reveal relative z-20 w-full py-12 lg:w-[44%] lg:py-20">
+              <div className="flex flex-wrap items-center gap-2 text-[11px] font-bold uppercase tracking-[0.12em] text-[#d6c6ff]">
+                <span className={`rounded-full border px-3 py-1.5 ${isCancelled ? 'border-red-300/25 bg-red-300/10 text-red-100' : isSoldOut ? 'border-amber-300/25 bg-amber-300/10 text-amber-100' : 'border-white/15 bg-white/[0.07]'}`}>
+                  {isCancelled ? 'Cancelled' : isSoldOut ? 'Sold out' : 'Tickets available'}
                 </span>
-                {!isCancelled && !isSoldOut && event.tiers.some((tier) => tier.availableQuantity > 0) && (
-                  <span className="text-xs font-semibold text-[#a78bfa]">{event.tiers.reduce((sum, tier) => sum + Math.max(0, tier.availableQuantity), 0).toLocaleString('en-PH')} seats left</span>
-                )}
+                {eventLabel && <><span aria-hidden="true" className="text-white/35">•</span><span>{eventLabel}</span></>}
+                {!isCancelled && !isSoldOut && lowAvailability && <span className="rounded-full bg-amber-300/15 px-2.5 py-1 text-amber-100">{lowAvailability}</span>}
               </div>
-              <h1 className="axon-display max-w-4xl text-5xl text-white sm:text-6xl lg:text-7xl">{event.title}</h1>
-              {event.speakerName && <p className="axon-label mt-4 text-sm text-[#a78bfa]">Featuring {event.speakerName}</p>}
-              <div className="mt-7 space-y-2 text-sm font-medium text-[#c4b5fd]">
-                <p>{formatManila(new Date(event.startsAt))}{event.endsAt ? ` – ${formatManila(new Date(event.endsAt))}` : ''}</p>
-                <p>{event.venue}, {event.city}</p>
+
+              <h1 className="mt-6 max-w-3xl text-5xl font-black leading-[0.96] tracking-[-0.045em] text-white sm:text-6xl lg:text-[4rem]">
+                {formatEventDisplayTitle(event.title)}
+              </h1>
+              {event.speakerName && <p className="mt-4 text-sm font-bold uppercase tracking-[0.12em] text-[#c5adff]">Featuring {event.speakerName}</p>}
+
+              <div className="mt-7 flex flex-col gap-3 text-sm font-semibold text-[#eee7fb]">
+                <div className="flex items-start gap-3">
+                  <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="mt-0.5 h-5 w-5 shrink-0 text-[#b99af7]"><path d="M7 3v3M17 3v3M4.5 9h15M5 5.5h14a1.5 1.5 0 0 1 1.5 1.5v12a1.5 1.5 0 0 1-1.5 1.5H5A1.5 1.5 0 0 1 3.5 19V7A1.5 1.5 0 0 1 5 5.5Z" /></svg>
+                  <span>{formatManila(new Date(event.startsAt))}{event.endsAt ? ` – ${formatManila(new Date(event.endsAt))}` : ''}</span>
+                </div>
+                <div className="flex items-start gap-3">
+                  <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="mt-0.5 h-5 w-5 shrink-0 text-[#b99af7]"><path d="M20 10c0 5-8 11-8 11S4 15 4 10a8 8 0 1 1 16 0Z" /><circle cx="12" cy="10" r="2.5" /></svg>
+                  <span>{event.venue}{event.city ? ` · ${event.city}` : ''}</span>
+                </div>
               </div>
-              <div className="mt-8 flex flex-wrap gap-3">
-                <a href="#ticket-panel" className="axon-pill bg-primary text-xs text-white hover:bg-primary-hover">Get Tickets</a>
-                <ShareEventButton title={event.title} text={`Join me at ${event.title}.`} className="axon-pill gap-2 border border-white/25 text-xs text-white hover:bg-white/10" />
-              </div>
-            </div>
-            <div className="overflow-hidden rounded-lg border border-white/10 bg-[#2d0f5e]">
-              <div className="relative aspect-[16/10]">
-                {event.imageUrl ? <Image src={event.imageUrl} alt={`${event.title} event cover`} fill priority className="object-cover" sizes="(max-width: 1024px) 100vw, 45vw" /> : <EventCoverFallback title={event.title} startsAt={event.startsAt} />}
+
+              <p className="mt-8 text-lg font-bold text-white">{lowestPrice === 0 ? 'Free registration' : lowestPrice != null ? `Tickets from ₱${lowestPrice.toLocaleString('en-PH')}` : 'Ticket options available'}</p>
+              <div className="mt-6 flex flex-wrap gap-3">
+                <a href="#ticket-panel" className="axon-pill bg-white text-xs text-[#1a0533] hover:bg-[#f3effb]">Get tickets</a>
+                <ShareEventButton title={event.title} text={`Join me at ${event.title}.`} className="axon-pill gap-2 border border-white/25 bg-white/[0.03] text-xs text-white hover:bg-white/10" />
               </div>
             </div>
           </div>
+
+          <div className="relative h-[360px] overflow-hidden border-t border-white/10 lg:absolute lg:inset-y-0 lg:right-0 lg:h-auto lg:w-[55%] lg:border-l lg:border-t-0">
+            {event.imageUrl ? <Image src={event.imageUrl} alt={`${event.title} event cover`} fill priority className="object-cover" sizes="(max-width: 1024px) 100vw, 57vw" /> : <EventCoverFallback title={event.title} startsAt={event.startsAt} />}
+            <div aria-hidden="true" className="absolute inset-0 bg-gradient-to-t from-[#160126]/55 via-transparent to-black/10 lg:bg-[linear-gradient(90deg,#160126_0%,rgba(22,1,38,0.68)_14%,rgba(22,1,38,0.06)_52%,rgba(0,0,0,0.08)_100%)]" />
+          </div>
         </section>
 
-        <div className="page-container py-10">
+        <div className="bg-[#fcfbfe]">
+        <div className="page-container py-12 lg:py-16">
         {isPreview && (
           <div className="mb-6 flex items-center justify-between bg-amber-50 border border-amber-200 rounded-xl px-4 py-3">
             <div className="flex items-center gap-2 text-amber-800">
@@ -268,9 +288,9 @@ export default async function EventPage({ params, searchParams }: { params: { sl
             <a href="/admin/event-previews" className="text-sm text-amber-700 hover:underline font-medium">← Back to Event Previews</a>
           </div>
         )}
-        <div className="lg:grid lg:grid-cols-3 lg:gap-10">
+        <div className="lg:grid lg:grid-cols-[minmax(0,1fr)_360px] lg:gap-14">
           {/* Left: Details */}
-          <div className="lg:col-span-2 space-y-8">
+          <div className="min-w-0 space-y-10">
             {event.description && <DescriptionSection description={event.description} />}
 
             {/* Location map */}
@@ -405,7 +425,7 @@ export default async function EventPage({ params, searchParams }: { params: { sl
           </div>
 
           {/* Right: Date/venue info + registration */}
-          <div className="mt-8 lg:mt-0 space-y-4">
+          <div className="mt-10 space-y-4 lg:mt-0">
             {/* Date & venue card */}
             <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
               {event.organizerName && (
@@ -456,6 +476,7 @@ export default async function EventPage({ params, searchParams }: { params: { sl
             />
             </div>
           </div>
+        </div>
         </div>
         </div>
       </main>
