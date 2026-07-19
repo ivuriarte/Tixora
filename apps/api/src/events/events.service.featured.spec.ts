@@ -19,10 +19,12 @@ import { EventsService } from './events.service';
 // ── minimal stub for PrismaService ─────────────────────────────────────────
 
 const mockFindMany = jest.fn();
+const mockFindUnique = jest.fn();
+const mockUpdate = jest.fn();
 const mockRegistrationGroupBy = jest.fn();
 const mockTicketGroupBy = jest.fn();
 const mockPrisma = {
-  event: { findMany: mockFindMany },
+  event: { findMany: mockFindMany, findUnique: mockFindUnique, update: mockUpdate },
   registration: { groupBy: mockRegistrationGroupBy },
   ticket: { groupBy: mockTicketGroupBy },
 } as any;
@@ -72,6 +74,8 @@ describe('EventsService.findFeatured()', () => {
 
   beforeEach(() => {
     mockFindMany.mockReset();
+    mockFindUnique.mockReset();
+    mockUpdate.mockReset();
     mockRegistrationGroupBy.mockReset();
     mockTicketGroupBy.mockReset();
     mockRegistrationGroupBy.mockResolvedValue([]);
@@ -184,5 +188,34 @@ describe('EventsService.findFeatured()', () => {
     const result = await service.findFeatured();
     expect(result[0].lowestPrice).toBe(500);         // first tier (already ordered by price ASC by Prisma)
     expect(result[0].totalAvailable).toBe(63);       // (50-11) + (30-6)
+  });
+});
+
+describe('EventsService.update() featured settings', () => {
+  let service: EventsService;
+
+  beforeEach(() => {
+    mockFindUnique.mockReset();
+    mockUpdate.mockReset();
+    mockFindUnique.mockResolvedValue({ id: 'evt_1', imageUrl: '/featured/test.jpg' });
+    mockUpdate.mockImplementation(({ data }) => Promise.resolve({ id: 'evt_1', ...data }));
+    service = new EventsService(mockPrisma, mockRedis, { ensureWorkspace: jest.fn() } as any);
+  });
+
+  it('atomically clears ordering and expiry when featuring is disabled', async () => {
+    await service.update('evt_1', {
+      isFeatured: false,
+      featuredOrder: 3,
+      featuredUntil: '2026-12-31T15:59:59.000Z',
+    });
+
+    expect(mockUpdate).toHaveBeenCalledWith({
+      where: { id: 'evt_1' },
+      data: expect.objectContaining({
+        isFeatured: false,
+        featuredOrder: null,
+        featuredUntil: null,
+      }),
+    });
   });
 });

@@ -1,19 +1,10 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '@/lib/api';
 import toast from 'react-hot-toast';
 import { EmptyState, ScreenSkeleton } from '@/components/ScreenState';
-
-interface FeaturedEvent {
-  id: string;
-  title: string;
-  featuredOrder: number | null;
-  featuredUntil: string | null;
-  startsAt: string;
-  tagline: string | null;
-}
 
 interface AdminEvent {
   id: string;
@@ -45,22 +36,29 @@ interface EditState {
   tagline: string;
 }
 
-function EventFeaturedRow({ event }: { event: AdminEvent }) {
-  const qc = useQueryClient();
-  const [editing, setEditing] = useState(false);
-  const [form, setForm] = useState<EditState>({
+function editStateFor(event: AdminEvent): EditState {
+  return {
     isFeatured: event.isFeatured ?? false,
     featuredOrder: event.featuredOrder != null ? String(event.featuredOrder) : '',
     featuredUntil: event.featuredUntil ? event.featuredUntil.slice(0, 10) : '',
     tagline: event.tagline ?? '',
-  });
+  };
+}
+
+function EventFeaturedRow({ event }: { event: AdminEvent }) {
+  const qc = useQueryClient();
+  const [editing, setEditing] = useState(false);
+  const [form, setForm] = useState<EditState>(() => editStateFor(event));
+
+  useEffect(() => {
+    setForm(editStateFor(event));
+  }, [event]);
 
   const mutation = useMutation({
     mutationFn: (data: Record<string, unknown>) => api.put(`/admin/events/${event.id}`, data),
     onSuccess: () => {
       toast.success('Featured settings updated.');
       qc.invalidateQueries({ queryKey: ['admin-events-all'] });
-      qc.invalidateQueries({ queryKey: ['featured-events'] });
       setEditing(false);
     },
     onError: () => toast.error('Could not update. Please try again.'),
@@ -68,8 +66,20 @@ function EventFeaturedRow({ event }: { event: AdminEvent }) {
 
   function handleToggle() {
     const next = !form.isFeatured;
-    setForm((f) => ({ ...f, isFeatured: next }));
-    mutation.mutate({ isFeatured: next });
+    const previous = form;
+    const nextForm = {
+      ...form,
+      isFeatured: next,
+      ...(!next && { featuredOrder: '', featuredUntil: '' }),
+    };
+    setForm(nextForm);
+    mutation.mutate(
+      {
+        isFeatured: next,
+        ...(!next && { featuredOrder: null, featuredUntil: null }),
+      },
+      { onError: () => setForm(previous) },
+    );
   }
 
   function handleSave() {
@@ -192,12 +202,6 @@ export default function FeaturedEventsPage() {
     queryKey: ['admin-events-all'],
     queryFn: () =>
       api.get<{ data: { data: AdminEvent[] } }>('/admin/events?limit=200').then((r) => r.data.data.data),
-  });
-
-  const { data: featuredEvents = [] } = useQuery<FeaturedEvent[]>({
-    queryKey: ['featured-events'],
-    queryFn: () =>
-      api.get<{ data: FeaturedEvent[] }>('/events/featured').then((r) => r.data.data ?? []),
   });
 
   const featured = events.filter((e) => e.isFeatured);

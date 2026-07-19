@@ -828,6 +828,10 @@ export class EventsService {
         ...(dto.isFeatured !== undefined && { isFeatured: dto.isFeatured }),
         ...(dto.featuredOrder !== undefined && { featuredOrder: dto.featuredOrder }),
         ...(dto.featuredUntil !== undefined && { featuredUntil: dto.featuredUntil ? new Date(dto.featuredUntil) : null }),
+        // Turning featuring off must also remove ordering and expiry metadata.
+        // Keeping an expired date here would make a later quick re-enable appear
+        // successful in admin while remaining absent from the public carousel.
+        ...(dto.isFeatured === false && { featuredOrder: null, featuredUntil: null }),
       },
     });
   }
