@@ -4,7 +4,7 @@
 
 **Release branch:** `codex/uat-ui-reconciliation`
 
-**Application commit deployed:** `acf64d1f40f0f96f46ca9c2e076cb48d74b9ae77`
+**Application commit deployed:** `066b542677a2660601c1afb23fc9623655c0f0e9`
 
 **Environment:** UAT only; no production deployment or production-data change was performed.
 
@@ -49,12 +49,12 @@ authenticated organizer/super-admin acceptance remain release-owner activities.
 
 | Component | UAT target                           | Deployment evidence                              | Result                                          |
 | --------- | ------------------------------------ | ------------------------------------------------ | ----------------------------------------------- |
-| Web       | `https://uat.axontickets.online`     | `dpl_4ZCjAYsPbBTzLUCMEEEUoRxmTd2J`               | Ready; protected by Vercel SSO                  |
-| API       | `https://api-uat.axontickets.online` | `dpl_Aw3m3Vcsycok2jYFVWiPtYQh4suM`               | Ready and healthy                               |
+| Web       | `https://uat.axontickets.online`     | `dpl_Dh4LxbVjuABjj7LtFmMqM5Pcf4eR`               | Ready; protected by Vercel SSO                  |
+| API       | `https://api-uat.axontickets.online` | `dpl_3XLQi6Y1dNPL6FFyK4N6TuTfAdEe`               | Ready and healthy                               |
 | Database  | UAT PostgreSQL only                  | `20260726153000_release_2_discovery_and_running` | Applied successfully; all 36 migrations current |
 
 An authenticated deployment request returned HTTP 200 from the web deployment, displayed
-the UAT banner and deployed commit `acf64d1`, rendered Release 2.0 discovery content, and
+the UAT banner and deployed commit `066b542`, rendered Release 2.0 discovery content, and
 returned `X-Robots-Tag: noindex`.
 
 The live API health check returned HTTP 200 with UAT environment, database, and Redis
