@@ -58,14 +58,15 @@ test.describe('Auth — Login', () => {
   // Login is OTP/OAuth only — no email+password form
   test('renders login page with entry options', async ({ page }) => {
     await page.goto('/auth/login');
-    await expect(page.getByRole('heading', { name: /welcome back/i })).toBeVisible();
+    await expect(page.getByRole('heading', { name: /sign in/i })).toBeVisible();
+    await expect(page.getByText(/welcome back to Axon Tickets/i)).toBeVisible();
     await expect(page.getByRole('link', { name: /continue with email/i })).toBeVisible();
   });
 
   test('unauthenticated user stays on login page', async ({ page }) => {
     await page.goto('/auth/login');
     await expect(page).toHaveURL(/auth\/login/);
-    await expect(page.getByRole('heading', { name: /welcome back/i })).toBeVisible();
+    await expect(page.getByRole('heading', { name: /sign in/i })).toBeVisible();
   });
 
   test('continue with email navigates to OTP page', async ({ page }) => {
@@ -109,7 +110,9 @@ test.describe('Navigation', () => {
   test('unauthenticated /admin redirects to auth page', async ({ page }) => {
     await page.goto('/admin');
     // Client-side auth guard redirects to /auth/admin (dedicated admin login)
-    await page.waitForURL((url) => url.pathname.includes('/auth/'), { timeout: 10_000 }).catch(() => {});
+    await page
+      .waitForURL((url) => url.pathname.includes('/auth/'), { timeout: 10_000 })
+      .catch(() => {});
     const currentUrl = page.url();
     expect(currentUrl).toMatch(/\/auth\/(admin|login|access)/);
   });
@@ -118,8 +121,14 @@ test.describe('Navigation', () => {
     const res = await page.goto('/this-page-does-not-exist-at-all');
     // Either 404 status or a not-found UI
     const is404Status = res?.status() === 404;
-    const has404Text = await page.locator('text=404').isVisible().catch(() => false);
-    const hasNotFound = await page.locator('text=/not found/i').isVisible().catch(() => false);
+    const has404Text = await page
+      .locator('text=404')
+      .isVisible()
+      .catch(() => false);
+    const hasNotFound = await page
+      .locator('text=/not found/i')
+      .isVisible()
+      .catch(() => false);
     expect(is404Status || has404Text || hasNotFound).toBe(true);
   });
 });
@@ -138,8 +147,15 @@ test.describe('Event Detail', () => {
     const href = await firstCard.getAttribute('href');
     if (href) {
       await page.goto(href);
-      const is404 = await page.locator('text=404').isVisible().catch(() => false);
-      const hasHeading = await page.locator('h1, h2').first().isVisible().catch(() => false);
+      const is404 = await page
+        .locator('text=404')
+        .isVisible()
+        .catch(() => false);
+      const hasHeading = await page
+        .locator('h1, h2')
+        .first()
+        .isVisible()
+        .catch(() => false);
       expect(is404 || hasHeading).toBe(true);
     }
   });
