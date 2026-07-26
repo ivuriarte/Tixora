@@ -37,26 +37,36 @@ export default function EventCard({ event }: Props) {
   };
   return (
     <Link href={`/events/${event.slug}`} className="group axon-card block overflow-hidden transition-colors hover:border-primary">
-      <div className="relative aspect-square bg-[#ede9fe]">
+      <div className="relative aspect-video bg-[#ede9fe]">
         {event.imageUrl ? (
-          <Image
-            src={event.imageUrl}
-            alt={event.title}
-            fill
-            className="object-cover"
-            sizes="(max-width: 640px) 50vw, (max-width: 1280px) 33vw, 25vw"
-          />
+          <>
+            <Image
+              src={event.imageUrl}
+              alt=""
+              fill
+              aria-hidden="true"
+              className="scale-110 object-cover opacity-30 blur-xl"
+              sizes="(max-width: 640px) 50vw, (max-width: 1280px) 33vw, 25vw"
+            />
+            <Image
+              src={event.imageUrl}
+              alt={event.title}
+              fill
+              className="z-10 object-contain"
+              sizes="(max-width: 640px) 50vw, (max-width: 1280px) 33vw, 25vw"
+            />
+          </>
         ) : (
           <EventCoverFallback title={event.title} startsAt={event.startsAt} className="select-none" />
         )}
 
         {event.status === 'sold_out' && (
-          <span className="absolute right-3 top-3 rounded-full bg-primary px-3 py-1 text-[10px] font-bold uppercase tracking-[0.08em] text-white">
+          <span className="absolute right-3 top-3 z-20 rounded-full bg-primary px-3 py-1 text-[10px] font-bold uppercase tracking-[0.08em] text-white">
             SOLD OUT
           </span>
         )}
         {event.labels && event.labels.length > 0 && (
-          <div className="absolute left-3 top-3 flex max-w-[80%] flex-wrap gap-1.5">
+          <div className="absolute left-3 top-3 z-20 flex max-w-[80%] flex-wrap gap-1.5">
             {event.labels.slice(0, 3).map((label) => (
               <span
                 key={label}

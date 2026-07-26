@@ -311,32 +311,18 @@ export default async function HomePage({
   return (
     <>
       <AdminRedirect />
-      <Navbar />
+      <Navbar initialSearchQuery={query} />
       <main className="min-h-screen bg-white">
         <FeaturedHeroCarousel events={featuredEvents} />
 
         <section id="events" className="mx-auto max-w-7xl scroll-mt-20 px-4 py-10 sm:px-6 md:py-14 lg:px-8">
-          <div className="flex flex-col gap-6 border-b border-[#e4dcf4] pb-7 lg:flex-row lg:items-end lg:justify-between">
+          <div className="border-b border-[#e4dcf4] pb-7">
             <div>
               <p className="axon-label text-xs text-primary">Discover Axon Events</p>
               <h2 className="axon-display mt-2 text-3xl text-[#1a0533] sm:text-4xl">
                 What&apos;s happening
               </h2>
             </div>
-            <form action="/" className="flex w-full max-w-xl gap-2" role="search">
-              {category !== 'all' && <input type="hidden" name="category" value={category} />}
-              <label htmlFor="event-search" className="sr-only">Search events</label>
-              <input
-                id="event-search"
-                name="q"
-                defaultValue={query}
-                placeholder="Search events, venues, or cities"
-                className="min-h-11 min-w-0 flex-1 rounded-full border border-[#d8cdee] bg-white px-5 text-sm text-[#1a0533] outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20"
-              />
-              <button className="axon-pill bg-primary text-xs text-white hover:bg-primary-hover" type="submit">
-                Search
-              </button>
-            </form>
           </div>
 
           <nav aria-label="Event categories" className="flex gap-2 overflow-x-auto py-6">

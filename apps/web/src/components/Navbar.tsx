@@ -9,14 +9,14 @@ import { getRefreshToken } from '@/lib/auth';
 import { useRouter, usePathname } from 'next/navigation';
 import toast from 'react-hot-toast';
 
-export default function Navbar() {
+export default function Navbar({ initialSearchQuery = '' }: { initialSearchQuery?: string }) {
   const { user, isAuthenticated, isHydrating, logout } = useAuthStore();
   const router = useRouter();
   const pathname = usePathname();
   const [pendingCount, setPendingCount] = useState<number>(0);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isLoginOpen, setIsLoginOpen] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
+  const [searchQuery, setSearchQuery] = useState(initialSearchQuery);
   const loginRef = useRef<HTMLDivElement>(null);
   const isStaff = Boolean(user?.isAdmin || user?.loginPortal === 'organizer');
   const dashboardLabel = user?.isAdmin ? 'Admin Dashboard' : 'Organizer Dashboard';
@@ -26,6 +26,10 @@ export default function Navbar() {
     setIsMenuOpen(false);
     setIsLoginOpen(false);
   }, [pathname]);
+
+  useEffect(() => {
+    setSearchQuery(initialSearchQuery);
+  }, [initialSearchQuery]);
 
   // Close login dropdown when clicking outside
   useEffect(() => {
@@ -75,7 +79,7 @@ export default function Navbar() {
   function handleSearch(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const query = searchQuery.trim();
-    router.push(query ? `/?q=${encodeURIComponent(query)}#upcoming-events` : '/#upcoming-events');
+    router.push(query ? `/?q=${encodeURIComponent(query)}#events` : '/#events');
     setIsMenuOpen(false);
   }
 
@@ -84,12 +88,12 @@ export default function Navbar() {
       <div className="mx-auto flex min-h-[72px] max-w-7xl items-center gap-5 px-4 sm:px-6 lg:px-8">
         <Link href="/" className="flex shrink-0 flex-col justify-center rounded-sm">
           <Image
-            src="/axon-logo.svg"
+            src="/axon-tickets-logo.png"
             alt="Axon Tickets"
-            width={148}
-            height={30}
+            width={166}
+            height={48}
             priority
-            unoptimized
+            className="h-auto w-[148px] sm:w-[166px]"
           />
           <span className="mt-0.5 text-[9px] font-bold uppercase tracking-[0.14em] text-[#756a92]">
             Philippine Event Ticketing

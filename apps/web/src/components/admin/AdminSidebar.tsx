@@ -258,12 +258,11 @@ export default function AdminSidebar({ isOpen, onClose }: { isOpen: boolean; onC
         <div>
           <Link href="/admin" className="flex items-center" onClick={onClose}>
             <Image
-              src="/axon-logo.svg"
+              src="/axon-tickets-logo.png"
               alt="Axon Tickets"
               width={120}
-              height={24}
+              height={34}
               priority
-              unoptimized
             />
           </Link>
           <p className="text-[11px] text-gray-400 mt-1.5">{user?.isAdmin ? 'Admin panel' : 'Organizer workspace'}</p>

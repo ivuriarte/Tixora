@@ -5,7 +5,6 @@ import Image from 'next/image';
 import Link from 'next/link';
 import EventCoverFallback from '@/components/EventCoverFallback';
 
-const AUTO_ROTATE_MS = 6000;
 const DARK_BLUR_DATA_URL =
   'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%2230%22 height=%2220%22%3E%3Crect width=%2230%22 height=%2220%22 fill=%22%230d021c%22/%3E%3C/svg%3E';
 
@@ -97,51 +96,16 @@ export default function FeaturedHeroCarousel({ events }: { events: FeaturedHeroE
     [events],
   );
   const [activeIndex, setActiveIndex] = useState(0);
-  const [paused, setPaused] = useState(false);
-  const [interacting, setInteracting] = useState(false);
-  const [reduceMotion, setReduceMotion] = useState(false);
-  const [progress, setProgress] = useState(0);
-  const elapsedRef = useRef(0);
   const touchStartRef = useRef<number | null>(null);
-
-  useEffect(() => {
-    const media = window.matchMedia('(prefers-reduced-motion: reduce)');
-    const update = () => setReduceMotion(media.matches);
-    update();
-    media.addEventListener('change', update);
-    return () => media.removeEventListener('change', update);
-  }, []);
 
   useEffect(() => {
     if (activeIndex >= slides.length) {
       setActiveIndex(0);
-      elapsedRef.current = 0;
-      setProgress(0);
     }
   }, [activeIndex, slides.length]);
 
-  useEffect(() => {
-    if (slides.length <= 1 || paused || interacting || reduceMotion) return;
-    let previous = performance.now();
-    const timer = window.setInterval(() => {
-      const now = performance.now();
-      elapsedRef.current += now - previous;
-      previous = now;
-      if (elapsedRef.current >= AUTO_ROTATE_MS) {
-        elapsedRef.current = 0;
-        setProgress(0);
-        setActiveIndex((current) => (current + 1) % slides.length);
-        return;
-      }
-      setProgress(elapsedRef.current / AUTO_ROTATE_MS);
-    }, 80);
-    return () => window.clearInterval(timer);
-  }, [interacting, paused, reduceMotion, slides.length]);
-
   function showSlide(index: number) {
     const normalized = (index + slides.length) % slides.length;
-    elapsedRef.current = 0;
-    setProgress(0);
     setActiveIndex(normalized);
   }
 
@@ -161,11 +125,6 @@ export default function FeaturedHeroCarousel({ events }: { events: FeaturedHeroE
   const event = slides[activeIndex];
   const isOrganizerPromotion = event.isOrganizerPromotion === true;
   const soldOut = event.status === 'sold_out' || event.totalAvailable === 0;
-  const capacity = event.totalAvailable == null
-    ? null
-    : soldOut
-      ? 'Sold out'
-      : `${event.totalAvailable.toLocaleString('en-PH')} ${event.isFree ? 'slots' : 'seats'} remaining`;
   const artwork = event.featuredImageUrl || event.imageUrl;
   const primaryHref = isOrganizerPromotion
     ? '/become-organizer'
@@ -199,14 +158,8 @@ export default function FeaturedHeroCarousel({ events }: { events: FeaturedHeroE
         if (start == null || end == null || Math.abs(start - end) < 50) return;
         showSlide(start > end ? activeIndex + 1 : activeIndex - 1);
       }}
-      onMouseEnter={() => setInteracting(true)}
-      onMouseLeave={() => setInteracting(false)}
-      onFocusCapture={() => setInteracting(true)}
-      onBlurCapture={(eventBlur) => {
-        if (!eventBlur.currentTarget.contains(eventBlur.relatedTarget as Node | null)) setInteracting(false);
-      }}
     >
-      <div key={event.id} className="featured-hero-enter mx-auto grid min-h-[610px] max-w-[1440px] gap-9 px-4 pb-28 pt-9 sm:px-6 lg:grid-cols-[minmax(0,.88fr)_minmax(560px,1.12fr)] lg:items-center lg:gap-14 lg:px-10 lg:pb-28 lg:pt-14">
+      <div key={event.id} className="featured-hero-enter mx-auto grid min-h-[610px] max-w-[1440px] gap-9 px-4 pb-24 pt-9 sm:px-6 lg:grid-cols-[minmax(0,.88fr)_minmax(560px,1.12fr)] lg:items-center lg:gap-14 lg:px-10 lg:pb-24 lg:pt-14">
         <div className="order-2 min-w-0 lg:order-1" aria-live="polite" aria-atomic="true">
           <p className="axon-label text-xs text-[#a78bfa]">
             {isOrganizerPromotion ? 'For Event Organizers' : 'Featured Event'}
@@ -242,12 +195,6 @@ export default function FeaturedHeroCarousel({ events }: { events: FeaturedHeroE
               <Link href={`/events/${event.slug}`} className="axon-pill w-full border border-[#7c3aed] bg-transparent text-xs text-[#d8ccfa] hover:border-[#a78bfa] hover:bg-white/5 hover:text-white sm:w-auto">
                 View Event
               </Link>
-            )}
-            {capacity && (
-              <span className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-full border border-[#6d28d9] px-4 text-xs font-semibold text-[#c4b5fd] sm:w-auto">
-                <span className={`h-2 w-2 rounded-full ${soldOut ? 'bg-red-400' : 'bg-emerald-400'}`} aria-hidden="true" />
-                {capacity}
-              </span>
             )}
           </div>
 
@@ -314,41 +261,33 @@ export default function FeaturedHeroCarousel({ events }: { events: FeaturedHeroE
         </Link>
       </div>
 
-      <div className="absolute inset-x-0 bottom-0 bg-[#0d021c]/45 backdrop-blur-sm">
-        <div className="mx-auto flex h-[76px] max-w-[1440px] items-center gap-4 px-4 sm:px-6 lg:px-10">
-          <p className="min-w-[64px] text-sm font-extrabold tabular-nums text-white">
-            {String(activeIndex + 1).padStart(2, '0')} <span className="font-semibold text-[#a78bfa]">/ {String(slides.length).padStart(2, '0')}</span>
-          </p>
-          <div className="h-[3px] flex-1 overflow-hidden rounded-full bg-white/15" aria-hidden="true">
-            <div className="h-full rounded-full bg-primary transition-[width] duration-100 ease-linear" style={{ width: `${slides.length <= 1 ? 100 : progress * 100}%` }} />
-          </div>
-          <div className="hidden items-center gap-1.5 sm:flex" aria-label="Choose carousel slide">
+      <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-[#0d021c]/80 to-transparent">
+        <div className="mx-auto flex h-16 max-w-[1440px] items-center justify-center px-4 sm:px-6 lg:px-10">
+          <div
+            className="flex items-center gap-0.5 rounded-full border border-white/10 bg-[#0d021c]/50 px-1.5 py-1 shadow-lg shadow-black/15 backdrop-blur-md"
+            role="group"
+            aria-label="Choose carousel slide"
+          >
             {slides.map((slide, index) => (
               <button
                 key={slide.id}
                 type="button"
                 onClick={() => showSlide(index)}
-                className={`h-2.5 rounded-full transition-all ${
-                  index === activeIndex ? 'w-7 bg-white' : 'w-2.5 bg-white/35 hover:bg-white/60'
-                }`}
+                className="group/dot flex h-8 w-8 items-center justify-center rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
                 aria-label={`Show slide ${index + 1}: ${slide.title}`}
                 aria-current={index === activeIndex ? 'true' : undefined}
-              />
+              >
+                <span
+                  className={`block h-1.5 rounded-full transition-all duration-300 ${
+                    index === activeIndex
+                      ? 'w-5 bg-white shadow-[0_0_12px_rgba(255,255,255,0.45)]'
+                      : 'w-1.5 bg-white/40 group-hover/dot:bg-white/70'
+                  }`}
+                  aria-hidden="true"
+                />
+              </button>
             ))}
           </div>
-          {slides.length > 1 && (
-            <div className="ml-auto flex gap-2 sm:gap-3">
-              <button type="button" onClick={() => showSlide(activeIndex - 1)} className="flex h-11 w-11 items-center justify-center rounded-full border border-[#6d28d9] text-[#c4b5fd] transition-colors hover:border-[#a78bfa] hover:bg-white/5 hover:text-white" aria-label="Previous featured event">
-                <svg aria-hidden="true" className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="m15 18-6-6 6-6" /></svg>
-              </button>
-              <button type="button" onClick={() => setPaused((value) => !value)} className="flex h-11 w-11 items-center justify-center rounded-full border border-[#6d28d9] text-[#c4b5fd] transition-colors hover:border-[#a78bfa] hover:bg-white/5 hover:text-white" aria-label={paused ? 'Resume featured event carousel' : 'Pause featured event carousel'}>
-                {paused ? <span aria-hidden="true" className="ml-0.5 text-sm">▶</span> : <svg aria-hidden="true" className="h-4 w-4" viewBox="0 0 24 24" fill="currentColor"><rect x="5" y="4" width="5" height="16" /><rect x="14" y="4" width="5" height="16" /></svg>}
-              </button>
-              <button type="button" onClick={() => showSlide(activeIndex + 1)} className="flex h-11 w-11 items-center justify-center rounded-full border border-[#6d28d9] text-[#c4b5fd] transition-colors hover:border-[#a78bfa] hover:bg-white/5 hover:text-white" aria-label="Next featured event">
-                <svg aria-hidden="true" className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="m9 18 6-6-6-6" /></svg>
-              </button>
-            </div>
-          )}
         </div>
       </div>
     </section>

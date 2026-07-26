@@ -17,6 +17,47 @@ test.describe('Release 2.0 discovery', () => {
     }
   });
 
+  test('uses the approved search, carousel controls, full-artwork fit, and Axon logo', async ({
+    page,
+  }) => {
+    await page.goto('/');
+
+    await expect(page.getByRole('search')).toHaveCount(1);
+    await expect(page.locator('nav img[alt="Axon Tickets"]')).toHaveAttribute(
+      'src',
+      /axon-tickets-logo\.png/,
+    );
+
+    const carousel = page.getByRole('region', { name: 'Featured events' });
+    await expect(carousel.getByText(/seats remaining|slots remaining/i)).toHaveCount(0);
+    await expect(
+      carousel.getByRole('button', {
+        name: /previous featured|next featured|pause featured|resume featured/i,
+      }),
+    ).toHaveCount(0);
+
+    const slideChooser = carousel.getByRole('group', { name: 'Choose carousel slide' });
+    await expect(slideChooser).toBeVisible();
+    const dots = slideChooser.getByRole('button');
+    expect(await dots.count()).toBeGreaterThan(1);
+    const dotVisuals = await dots.locator('span').evaluateAll((elements) =>
+      elements.map((element) => {
+        const rectangle = element.getBoundingClientRect();
+        return { width: rectangle.width, height: rectangle.height };
+      }),
+    );
+    expect(dotVisuals.every((dot) => dot.width <= 24 && dot.height <= 8)).toBe(true);
+
+    await dots.nth(1).click();
+    await expect(dots.nth(1)).toHaveAttribute('aria-current', 'true');
+
+    const eventArtwork = page.locator('#events a[href^="/events/"] img[alt]:not([alt=""])').first();
+    await expect(eventArtwork).toBeVisible();
+    expect(await eventArtwork.evaluate((image) => getComputedStyle(image).objectFit)).toBe(
+      'contain',
+    );
+  });
+
   test('search and category filtering preserve a stable empty/result state', async ({ page }) => {
     await page.goto('/?category=sports&q=nonexistent-release-two-event#events');
 
@@ -26,7 +67,7 @@ test.describe('Release 2.0 discovery', () => {
         exact: true,
       }),
     ).toHaveAttribute('aria-current', 'page');
-    await expect(page.getByRole('search').getByRole('textbox')).toHaveValue(
+    await expect(page.getByRole('search').getByRole('searchbox')).toHaveValue(
       'nonexistent-release-two-event',
     );
     await expect(page.getByText(/No events in this section/i).first()).toBeVisible();
