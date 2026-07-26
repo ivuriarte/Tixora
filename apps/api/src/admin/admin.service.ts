@@ -40,6 +40,18 @@ interface NametagRow {
   createdAt: Date;
 }
 
+function isPrismaErrorCode(error: unknown, code: string): boolean {
+  return typeof error === 'object' && error !== null && 'code' in error && error.code === code;
+}
+
+function alreadyCheckedInException(checkedInAt: Date | null): ConflictException {
+  return new ConflictException({
+    code: 'ALREADY_CHECKED_IN',
+    message: 'This ticket has already been checked in.',
+    checkedInAt: checkedInAt?.toISOString() ?? null,
+  });
+}
+
 @Injectable()
 export class AdminService {
   private readonly logger = new Logger(AdminService.name);
@@ -61,6 +73,17 @@ export class AdminService {
 
   async assertEventAccess(eventId: string, user: JwtPayload): Promise<void> {
     return this.eventAccess.assertEventAccess(eventId, user);
+  }
+
+  async assertEventExportAccess(eventId: string, user: JwtPayload): Promise<void> {
+    const event = await this.prisma.event.findFirst({
+      where: user.isAdmin ? { id: eventId } : { id: eventId, createdById: user.sub },
+      select: { id: true },
+    });
+    if (!event) throw new NotFoundException('Event not found');
+    // Export remains available after an event ends. The retention job removes or
+    // anonymizes each attendee record exactly two years after that record was
+    // created, so event age must not be used as a coarse export cutoff.
   }
 
   async assertRegistrationAccess(registrationId: string, user: JwtPayload): Promise<void> {
@@ -101,6 +124,12 @@ export class AdminService {
     now = new Date(),
   ) {
     const checkInDate = this.checkInDateFor(now);
+    const existing = await tx.attendeeAttendance.findFirst({
+      where: { attendeeId: attendee.id, eventId, checkInDate },
+      select: { checkedInAt: true },
+    });
+    if (existing) throw alreadyCheckedInException(existing.checkedInAt);
+
     try {
       const attendance = await tx.attendeeAttendance.create({
         data: {
@@ -121,15 +150,10 @@ export class AdminService {
 
       return attendance;
     } catch (error) {
-      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
-        const existing = await tx.attendeeAttendance.findFirst({
-          where: { attendeeId: attendee.id, eventId, checkInDate },
-          select: { checkedInAt: true },
-        });
-        throw new ConflictException(
-          `Already checked in today at ${existing?.checkedInAt?.toISOString() ?? 'unknown time'}`,
-        );
-      }
+      // Do not query again after a unique-constraint failure: PostgreSQL has
+      // already aborted this transaction. The pre-check above supplies the
+      // timestamp for normal repeat scans; this branch safely handles races.
+      if (isPrismaErrorCode(error, 'P2002')) throw alreadyCheckedInException(null);
       throw error;
     }
   }
@@ -294,7 +318,7 @@ export class AdminService {
       });
       return created;
     } catch (error) {
-      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+      if (isPrismaErrorCode(error, 'P2002')) {
         throw new ConflictException('That referral code already exists for this event.');
       }
       throw error;
@@ -439,6 +463,10 @@ export class AdminService {
         startsAt: e.startsAt.toISOString(),
         status: e.status,
         isFree: e.isFree,
+        isFeatured: e.isFeatured,
+        featuredOrder: e.featuredOrder ?? null,
+        featuredUntil: e.featuredUntil?.toISOString() ?? null,
+        tagline: e.tagline ?? null,
         onsiteRegistrationEnabled: e.onsiteRegistrationEnabled,
         organization: e.organization ? { id: e.organization.id, name: e.organization.name } : null,
         maxCapacity: e.maxCapacity ?? null,
@@ -847,9 +875,7 @@ export class AdminService {
 
     if (ticket.status !== 'valid') {
       if (ticket.status === 'used') {
-        throw new ConflictException(
-          `Already checked in at ${ticket.checkedInAt?.toISOString()}`,
-        );
+        throw alreadyCheckedInException(ticket.checkedInAt);
       }
       throw new BadRequestException(`Ticket is ${ticket.status}`);
     }
@@ -866,9 +892,7 @@ export class AdminService {
         select: { status: true, checkedInAt: true },
       });
       if (fresh?.status === 'used') {
-        throw new ConflictException(
-          `Already checked in at ${fresh.checkedInAt?.toISOString() ?? 'unknown time'}`,
-        );
+        throw alreadyCheckedInException(fresh.checkedInAt);
       }
       throw new BadRequestException(`Ticket is ${fresh?.status ?? 'unavailable'}`);
     }
@@ -1160,6 +1184,13 @@ export class AdminService {
         status: a.attendanceRecords[0] ? 'used' : 'valid',
         checkedInAt: a.attendanceRecords[0]?.checkedInAt.toISOString() ?? null,
         firstCheckedInAt: a.checkedInAt?.toISOString() ?? null,
+        raceDistance: a.raceDistance,
+        raceDivision: a.raceDivision,
+        genderIdentity: a.genderIdentity,
+        merchandiseSize: a.merchandiseSize,
+        bibNumber: a.bibNumber,
+        claimMethod: a.claimMethod,
+        claimedAt: a.claimedAt?.toISOString() ?? null,
       })),
       ...tickets.map((t) => ({
         id: t.id,
@@ -1175,6 +1206,13 @@ export class AdminService {
         paymentMethod: t.order?.paymentMethod ?? null,
         status: t.status,
         checkedInAt: t.checkedInAt?.toISOString() ?? null,
+        raceDistance: null,
+        raceDivision: null,
+        genderIdentity: null,
+        merchandiseSize: null,
+        bibNumber: null,
+        claimMethod: null,
+        claimedAt: null,
       })),
     ];
 
@@ -1191,6 +1229,106 @@ export class AdminService {
         hasPrevPage: page > 1,
       },
     };
+  }
+
+  async setAttendeeClaimStatus(
+    eventId: string,
+    attendeeId: string,
+    claimed: boolean,
+    user: JwtPayload,
+  ) {
+    await this.assertEventAccess(eventId, user);
+    const attendee = await this.prisma.attendee.findFirst({
+      where: {
+        id: attendeeId,
+        eventId,
+        registration: { status: 'verified' },
+      },
+      select: {
+        id: true,
+        claimedAt: true,
+        merchandiseSize: true,
+        raceDistance: true,
+        raceDivision: true,
+      },
+    });
+    if (!attendee) throw new NotFoundException('Attendee not found');
+    if (claimed && attendee.claimedAt) {
+      throw new ConflictException('Merchandise has already been claimed.');
+    }
+    if (!claimed && !attendee.claimedAt) {
+      throw new ConflictException('Merchandise is not currently marked as claimed.');
+    }
+    const claimedAt = claimed ? new Date() : null;
+    const updated = await this.prisma.attendee.update({
+      where: { id: attendeeId },
+      data: { claimedAt },
+      select: { id: true, claimedAt: true },
+    });
+    await this.audit.log({
+      action: claimed ? 'MERCHANDISE_CLAIMED' : 'MERCHANDISE_CLAIM_REVERSED',
+      entityType: 'Attendee',
+      entityId: attendeeId,
+      performedById: user.sub,
+      metadata: {
+        eventId,
+        merchandiseSize: attendee.merchandiseSize,
+        raceDistance: attendee.raceDistance,
+        raceDivision: attendee.raceDivision,
+        previousClaimedAt: attendee.claimedAt?.toISOString() ?? null,
+      },
+    });
+    return {
+      id: updated.id,
+      claimedAt: updated.claimedAt?.toISOString() ?? null,
+    };
+  }
+
+  async getMerchandiseSummary(eventId: string, user: JwtPayload) {
+    await this.assertEventAccess(eventId, user);
+    const attendees = await this.prisma.attendee.findMany({
+      where: {
+        eventId,
+        registration: { status: 'verified' },
+        merchandiseSize: { not: null },
+      },
+      select: {
+        raceDistance: true,
+        raceDivision: true,
+        merchandiseSize: true,
+        claimedAt: true,
+      },
+    });
+    const groups = new Map<string, {
+      distance: string;
+      raceDivision: string;
+      size: string;
+      registered: number;
+      claimed: number;
+    }>();
+    attendees.forEach((attendee) => {
+      const distance = attendee.raceDistance ?? 'Unspecified';
+      const raceDivision = attendee.raceDivision ?? 'Open';
+      const size = attendee.merchandiseSize ?? 'Unspecified';
+      const key = `${distance}\u0000${raceDivision}\u0000${size}`;
+      const group = groups.get(key) ?? {
+        distance,
+        raceDivision,
+        size,
+        registered: 0,
+        claimed: 0,
+      };
+      group.registered += 1;
+      if (attendee.claimedAt) group.claimed += 1;
+      groups.set(key, group);
+    });
+    return [...groups.values()]
+      .map((group) => ({ ...group, remaining: group.registered - group.claimed }))
+      .sort((a, b) =>
+        `${a.distance}-${a.raceDivision}-${a.size}`.localeCompare(
+          `${b.distance}-${b.raceDivision}-${b.size}`,
+        ),
+      );
   }
 
   // ── Analytics ──────────────────────────────────────────────────────────
@@ -1644,7 +1782,8 @@ export class AdminService {
     return header + merged.map((m) => m.row).join('\n');
   }
 
-  async exportAttendees(eventId: string): Promise<string> {
+  async exportAttendees(eventId: string, user: JwtPayload): Promise<string> {
+    await this.assertEventExportAccess(eventId, user);
     // ── Path A: Registration flow (Attendee records from verified registrations) ──
     const attendees = await this.prisma.attendee.findMany({
       where: { registration: { eventId, status: 'verified' } },
@@ -1674,7 +1813,7 @@ export class AdminService {
       },
     });
 
-    const header = 'ID,Name,Email,Phone,Company,Job Title,Birthday,Gender,City,Tier,Sub Events,Payment Status,Payment Method,Discount (PHP),Referral Code,Checked In,Checked In At\n';
+    const header = 'ID,Name,Email,Phone,Company,Job Title,Birthday,Gender Identity,Race Division,Distance,Bib,Merchandise Size,Claim Method,Claimed,Claimed At,City,Tier,Sub Events,Payment Status,Payment Method,Discount (PHP),Referral Code,Checked In,Checked In At\n';
 
     const attendeeRows = attendees.map((a) => {
       const referralCode = (a.registration.referralCodeSnapshot as { code?: string } | null)?.code ?? '';
@@ -1686,7 +1825,14 @@ export class AdminService {
         `"${this.escapeCsvCell(a.company ?? '')}"`,
         `"${this.escapeCsvCell(a.jobTitle ?? '')}"`,
         a.birthday?.toISOString().slice(0, 10) ?? '',
-        this.escapeCsvCell(a.gender ?? ''),
+        this.escapeCsvCell(a.genderIdentity ?? a.gender ?? ''),
+        this.escapeCsvCell(a.raceDivision ?? ''),
+        this.escapeCsvCell(a.raceDistance ?? ''),
+        this.escapeCsvCell(a.bibNumber ?? ''),
+        this.escapeCsvCell(a.merchandiseSize ?? ''),
+        this.escapeCsvCell(a.claimMethod ?? ''),
+        a.claimedAt ? 'Yes' : 'No',
+        a.claimedAt?.toISOString() ?? '',
         `"${this.escapeCsvCell(a.city ?? a.registration.user?.city ?? '')}"`,
         `"${this.escapeCsvCell(a.registration.tierName ?? 'Registration')}"`,
         `"${this.escapeCsvCell(this.formatSelectedSubEvents(a.selectedSubEvents, a.subEventTitle, a.subEventTime) ?? '')}"`,
@@ -1708,6 +1854,13 @@ export class AdminService {
       `"${this.escapeCsvCell(t.user.jobTitle ?? '')}"`,
       '',
       '',
+      '',
+      '',
+      '',
+      '',
+      '',
+      'No',
+      '',
       `"${this.escapeCsvCell(t.user.city ?? '')}"`,
       `"${this.escapeCsvCell(t.ticketTier.name)}"`,
       '',
@@ -1717,7 +1870,18 @@ export class AdminService {
       t.checkedInAt?.toISOString() ?? '',
     ].join(','));
 
-    return header + [...attendeeRows, ...ticketRows].join('\n');
+    const csv = header + [...attendeeRows, ...ticketRows].join('\n');
+    await this.audit.log({
+      action: 'ATTENDEE_MASTERLIST_EXPORTED',
+      entityType: 'Event',
+      entityId: eventId,
+      performedById: user.sub,
+      metadata: {
+        attendeeRows: attendeeRows.length,
+        ticketRows: ticketRows.length,
+      },
+    });
+    return csv;
   }
 
   async generateNametagsPdf(eventId: string, attendeeIds?: string[]): Promise<Buffer> {
@@ -2289,7 +2453,8 @@ export class AdminService {
    * Export all registrations for an event (manual payment flow) as CSV.
    * Includes every status so admins have a complete backup before event day.
    */
-  async exportRegistrations(eventId: string): Promise<string> {
+  async exportRegistrations(eventId: string, user: JwtPayload): Promise<string> {
+    await this.assertEventExportAccess(eventId, user);
     const registrations = await this.prisma.registration.findMany({
       where: { eventId },
       orderBy: { createdAt: 'asc' },
@@ -2332,7 +2497,15 @@ export class AdminService {
       ].join(',');
     });
 
-    return header + rows.join('\n');
+    const csv = header + rows.join('\n');
+    await this.audit.log({
+      action: 'REGISTRATION_MASTERLIST_EXPORTED',
+      entityType: 'Event',
+      entityId: eventId,
+      performedById: user.sub,
+      metadata: { rows: rows.length },
+    });
+    return csv;
   }
 
   // ── Dashboard Stats ─────────────────────────────────────────────────────
@@ -2720,6 +2893,38 @@ export class AdminService {
       where: { approvalStatus: 'pending' },
     });
     return { count };
+  }
+
+  async setOrganizerProfileVisibility(id: string, visible: boolean, adminId: string) {
+    const organization = await this.prisma.organization.findUnique({
+      where: { id },
+      select: { id: true, name: true, isPublic: true, hiddenAt: true },
+    });
+    if (!organization) throw new NotFoundException('Organizer not found');
+    const updated = await this.prisma.organization.update({
+      where: { id },
+      data: {
+        isPublic: visible,
+        hiddenAt: visible ? null : new Date(),
+      },
+      select: { id: true, isPublic: true, hiddenAt: true },
+    });
+    await this.audit.log({
+      action: visible ? 'ORGANIZER_PROFILE_RESTORED' : 'ORGANIZER_PROFILE_HIDDEN',
+      entityType: 'Organization',
+      entityId: id,
+      performedById: adminId,
+      metadata: {
+        name: organization.name,
+        previousIsPublic: organization.isPublic,
+        previousHiddenAt: organization.hiddenAt?.toISOString() ?? null,
+      },
+    });
+    return {
+      id: updated.id,
+      visible: updated.isPublic && !updated.hiddenAt,
+      hiddenAt: updated.hiddenAt?.toISOString() ?? null,
+    };
   }
 
   async suspendOrganizer(id: string, adminId: string, reason?: string) {

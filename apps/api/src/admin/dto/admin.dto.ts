@@ -84,7 +84,7 @@ export class BulkRejectDto {
 }
 
 export class UpdatePlatformSettingsDto {
-  @ApiProperty({ description: 'Flat service fee per order in pesos (₱). Min ₱0, max ₱9999.' })
+  @ApiProperty({ description: 'Flat processing fee per transaction in pesos (₱). Min ₱0, max ₱9999.' })
   @IsNumber()
   @Min(0)
   @Max(9999)

@@ -8,7 +8,7 @@ import {
   HttpException,
   HttpStatus,
 } from '@nestjs/common';
-import { JwtService } from '@nestjs/jwt';
+import { JwtService, type JwtSignOptions } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcryptjs';
 import { createHash, randomInt } from 'crypto';
@@ -614,7 +614,8 @@ export class AuthService {
     const payload: JwtPayload = { sub: userId, email, isAdmin };
     return this.jwt.signAsync(payload, {
       algorithm: 'RS256',
-      expiresIn: this.config.get<string>('jwt.accessExpiry') ?? '15m',
+      expiresIn: (this.config.get<string>('jwt.accessExpiry') ??
+        '15m') as JwtSignOptions['expiresIn'],
     });
   }
 
@@ -636,7 +637,10 @@ export class AuthService {
 
     const token = await this.jwt.signAsync(
       { sub: userId, jti },
-      { algorithm: 'RS256', expiresIn: refreshExpiry },
+      {
+        algorithm: 'RS256',
+        expiresIn: refreshExpiry as JwtSignOptions['expiresIn'],
+      },
     );
 
     await this.redis.set(`refresh:${userId}:${jti}`, '1', ttlSeconds);

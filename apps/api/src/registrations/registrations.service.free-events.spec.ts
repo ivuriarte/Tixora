@@ -48,6 +48,7 @@ function makeService(opts: {
     discount: new Prisma.Decimal(0),
     unitPrice: new Prisma.Decimal(0),
     attendeeCount: 1,
+    attendeesCompletedAt: new Date(),
     currency: 'PHP',
     notes: null,
     rejectionReason: null,
@@ -139,6 +140,7 @@ function mockRegForApprove(opts: { total: number; proofs?: object[] } = { total:
     rejectionReason: null,
     currency: 'PHP',
     attendeeCount: 1,
+    attendeesCompletedAt: new Date(),
     createdAt: new Date(),
     proofs: opts.proofs ?? [],
     attendees: [{ id: 'att_1', isLead: true, email: 'ana@example.com', firstName: 'Ana', qrToken: null }],
@@ -168,6 +170,24 @@ describe('RegistrationsService — free-event creation', () => {
 
     const createCall = mockTx.registration.create.mock.calls[0][0];
     expect(createCall.data.status).toBe('pending_payment');
+  });
+
+  it('charges one flat platform fee for a group registration transaction', async () => {
+    const { service, mockTx } = makeService({ tierPrice: 650, platformFee: 50, allowManualPayment: true });
+    const groupCreateDto = {
+      ...baseCreateDto,
+      attendees: [
+        attendeeDto,
+        { ...attendeeDto, firstName: 'Ben', email: 'ben@example.com' },
+      ],
+    };
+
+    await (service as any).createImpl(groupCreateDto, 'user_1', '127.0.0.1');
+
+    const createCall = mockTx.registration.create.mock.calls[0][0];
+    expect(createCall.data.subtotal).toBe(1300);
+    expect(createCall.data.fees).toBe(50);
+    expect(createCall.data.total).toBe(1350);
   });
 
   it('sets fees to 0 for a free event', async () => {

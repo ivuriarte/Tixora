@@ -9,6 +9,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { UploadService } from '../upload/upload.service';
 import { AuditService } from '../audit/audit.service';
 import { FunnelService } from '../funnel/funnel.service';
+import { createHash, timingSafeEqual } from 'crypto';
 
 @Injectable()
 export class PaymentProofsService {
@@ -23,22 +24,44 @@ export class PaymentProofsService {
 
   async create(
     registrationId: string,
-    userId: string,
+    userId: string | null,
     buffer: Buffer,
     mimeType: string,
     ip?: string,
     userAgent?: string,
     referrer?: string,
+    guestAccessToken?: string,
   ) {
     this.logger.log({ msg: 'Payment proof submission requested', registrationId, userId });
 
     const reg = await this.prisma.registration.findUnique({
       where: { id: registrationId },
-      select: { id: true, userId: true, status: true, eventId: true, total: true, attendeeCount: true },
+      select: {
+        id: true,
+        userId: true,
+        guestAccessTokenHash: true,
+        status: true,
+        eventId: true,
+        total: true,
+        attendeeCount: true,
+        attendeesCompletedAt: true,
+      },
     });
     if (!reg) throw new NotFoundException('Registration not found');
-    if (reg.userId !== userId) {
+    if (userId && reg.userId !== userId) {
       throw new ForbiddenException('You do not own this registration');
+    }
+    if (!userId) {
+      if (!guestAccessToken || !reg.guestAccessTokenHash || reg.userId !== null) {
+        throw new ForbiddenException('You do not own this registration');
+      }
+      const supplied = Buffer.from(
+        createHash('sha256').update(guestAccessToken).digest('hex'),
+      );
+      const stored = Buffer.from(reg.guestAccessTokenHash);
+      if (supplied.length !== stored.length || !timingSafeEqual(supplied, stored)) {
+        throw new ForbiddenException('You do not own this registration');
+      }
     }
     if (!['pending_payment', 'rejected'].includes(reg.status)) {
       throw new BadRequestException(
@@ -70,7 +93,7 @@ export class PaymentProofsService {
       entityType: 'PaymentProof',
       entityId: proof.id,
       registrationId,
-      performedById: userId,
+      performedById: userId ?? undefined,
       ipAddress: ip,
       metadata: { imageUrl },
     });
@@ -90,19 +113,21 @@ export class PaymentProofsService {
       { userAgent, referrer },
     );
 
-    await this.funnel.track(
-      {
-        eventId: reg.eventId,
-        userId,
-        step: 'registration_submitted_for_review',
-        status: 'success',
-        metadata: {
-          registrationId,
-          amount: Number(reg.total),
+    if (reg.attendeesCompletedAt) {
+      await this.funnel.track(
+        {
+          eventId: reg.eventId,
+          userId,
+          step: 'registration_submitted_for_review',
+          status: 'success',
+          metadata: {
+            registrationId,
+            amount: Number(reg.total),
+          },
         },
-      },
-      { userAgent, referrer },
-    );
+        { userAgent, referrer },
+      );
+    }
 
     this.logger.log({
       msg: 'Payment proof submitted',
@@ -117,5 +142,26 @@ export class PaymentProofsService {
       status: proof.status,
       uploadedAt: proof.createdAt.toISOString(),
     };
+  }
+
+  createForGuest(
+    registrationId: string,
+    guestAccessToken: string | undefined,
+    buffer: Buffer,
+    mimeType: string,
+    ip?: string,
+    userAgent?: string,
+    referrer?: string,
+  ) {
+    return this.create(
+      registrationId,
+      null,
+      buffer,
+      mimeType,
+      ip,
+      userAgent,
+      referrer,
+      guestAccessToken,
+    );
   }
 }

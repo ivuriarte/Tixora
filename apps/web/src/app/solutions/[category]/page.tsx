@@ -20,8 +20,13 @@ export function generateStaticParams() {
   return solutionCategories.map((c) => ({ category: c.slug }));
 }
 
-export function generateMetadata({ params }: { params: { category: string } }): Metadata {
-  const category = getSolutionCategory(params.category);
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ category: string }>;
+}): Promise<Metadata> {
+  const { category: categorySlug } = await params;
+  const category = getSolutionCategory(categorySlug);
   if (!category) return {};
   return {
     title: `${category.name} Ticketing & Registration — Axon Tickets`,
@@ -35,8 +40,13 @@ export function generateMetadata({ params }: { params: { category: string } }): 
   };
 }
 
-export default function SolutionCategoryPage({ params }: { params: { category: string } }) {
-  const category = getSolutionCategory(params.category);
+export default async function SolutionCategoryPage({
+  params,
+}: {
+  params: Promise<{ category: string }>;
+}) {
+  const { category: categorySlug } = await params;
+  const category = getSolutionCategory(categorySlug);
   if (!category) notFound();
 
   return (

@@ -14,6 +14,7 @@ import {
   generateReferenceNumber,
   generateAttendeeQrToken,
 } from '@axon-tickets/utils';
+import { createHash, randomBytes, timingSafeEqual } from 'crypto';
 import { CreateRegistrationDto } from './dto/create-registration.dto';
 import { UpdateRegistrationAttendeesDto } from './dto/update-registration-attendees.dto';
 import { ValidateReferralCodeDto } from '../admin/dto/referral-code.dto';
@@ -56,8 +57,34 @@ export class RegistrationsService {
     }
   }
 
-  private async createImpl(dto: CreateRegistrationDto, userId: string, ip?: string) {
-    this.validateAttendeeDemographics(dto.attendees);
+  async createGuest(dto: CreateRegistrationDto, ip?: string) {
+    if (!dto.guestEmail?.trim()) {
+      throw new BadRequestException('Guest email is required.');
+    }
+    if (dto.accountConsent === true) {
+      throw new BadRequestException('Use account activation when account consent is granted.');
+    }
+    const guestAccessToken = randomBytes(32).toString('base64url');
+    const guestAccessTokenHash = createHash('sha256').update(guestAccessToken).digest('hex');
+    const registration = await this.createImpl(
+      dto,
+      null,
+      ip,
+      dto.guestEmail.trim().toLowerCase(),
+      guestAccessTokenHash,
+    );
+    return { ...registration, guestAccessToken };
+  }
+
+  private async createImpl(
+    dto: CreateRegistrationDto,
+    userId: string | null,
+    ip?: string,
+    guestEmail?: string,
+    guestAccessTokenHash?: string,
+  ) {
+    const attendees = dto.attendees ?? [];
+    this.validateAttendeeDemographics(attendees);
     const event = await this.prisma.event.findUnique({
       where: { id: dto.eventId },
       include: { tiers: { where: { id: dto.tierId } } },
@@ -66,8 +93,9 @@ export class RegistrationsService {
     if (!['published', 'on_sale'].includes(event.status)) {
       throw new BadRequestException('Event is not open for registration');
     }
+    this.validateRunningAttendees(event, attendees);
     const selectedSubEvents = this.selectedSubEventsFromAgenda(event.agenda, dto.subEventIds, dto.subEventId);
-    if (getAgendaSubEvents(event.agenda).length > 0 && selectedSubEvents.length === 0) {
+    if (attendees.length > 0 && getAgendaSubEvents(event.agenda).length > 0 && selectedSubEvents.length === 0) {
       throw new BadRequestException('Please choose at least one sub-event to attend.');
     }
     const primarySubEvent = selectedSubEvents[0] ?? null;
@@ -75,7 +103,10 @@ export class RegistrationsService {
     const tier = event.tiers[0];
     if (!tier) throw new NotFoundException('Ticket tier not found');
 
-    const attendeeCount = dto.attendees.length;
+    const attendeeCount = attendees.length || dto.attendeeCount || 0;
+    if (attendeeCount < 1) {
+      throw new BadRequestException('At least one attendee is required.');
+    }
     if (attendeeCount > tier.maxPerOrder) {
       throw new BadRequestException(
         `Maximum ${tier.maxPerOrder} attendees per registration for this tier`,
@@ -100,7 +131,8 @@ export class RegistrationsService {
         // click, auto-submit firing twice, network retry) could both pass the
         // duplicate-registration check below before either one commits.
         // pg_advisory_xact_lock auto-releases when this transaction ends.
-        await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${userId}), hashtext(${dto.eventId}))`;
+        const ownerKey = userId ?? guestEmail!;
+        await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${ownerKey}), hashtext(${dto.eventId}))`;
 
         // Duplicate registration guard: block if user already has an active
         // registration for this event.
@@ -108,7 +140,9 @@ export class RegistrationsService {
         // through before this one commits.
         const activeRegistration = await tx.registration.findFirst({
           where: {
-            userId,
+            ...(userId
+              ? { userId }
+              : { guestEmail: { equals: guestEmail, mode: 'insensitive' as const } }),
             eventId: dto.eventId,
             status: { in: [...ACTIVE_REGISTRATION_STATUSES] as any[] },
           },
@@ -132,7 +166,9 @@ export class RegistrationsService {
         if (maxPerUser > 0) {
           const existing = await tx.registration.aggregate({
             where: {
-              userId,
+              ...(userId
+                ? { userId }
+                : { guestEmail: { equals: guestEmail, mode: 'insensitive' as const } }),
               eventId: dto.eventId,
               status: { notIn: ['cancelled', 'rejected'] },
             },
@@ -202,6 +238,8 @@ export class RegistrationsService {
           data: {
             referenceNumber,
             userId,
+            guestEmail: guestEmail ?? null,
+            guestAccessTokenHash: guestAccessTokenHash ?? null,
             eventId: dto.eventId,
             tierId: dto.tierId,
             tierName: tier.name,
@@ -224,8 +262,12 @@ export class RegistrationsService {
             }),
             currency: tier.currency,
             notes: dto.notes,
-            attendees: {
-              create: dto.attendees.map((a, i) => ({
+            accountConsent: dto.accountConsent === true,
+            accountConsentAt: dto.accountConsent === true ? new Date() : null,
+            attendeesCompletedAt: attendees.length > 0 ? new Date() : null,
+            ...(attendees.length > 0 && {
+              attendees: {
+                create: attendees.map((a, i) => ({
                 firstName: a.firstName,
                 lastName: a.lastName,
                 email: a.email,
@@ -234,14 +276,27 @@ export class RegistrationsService {
                 jobTitle: a.jobTitle,
                 birthday: a.birthday ? new Date(`${a.birthday}T00:00:00.000Z`) : null,
                 gender: a.gender || null,
+                raceDistance: a.raceDistance?.trim() || null,
+                raceDivision: a.raceDivision?.trim() || null,
+                genderIdentity: a.genderIdentity?.trim() || null,
+                emergencyContactName: a.emergencyContactName?.trim() || null,
+                emergencyContactPhone: a.emergencyContactPhone?.trim() || null,
+                emergencyContactRelationship: a.emergencyContactRelationship?.trim() || null,
+                merchandiseSize: a.merchandiseSize?.trim() || null,
+                claimMethod: a.claimMethod ?? null,
+                deliveryAddress: a.deliveryAddress
+                  ? (a.deliveryAddress as unknown as Prisma.InputJsonValue)
+                  : Prisma.JsonNull,
                 city: a.city?.trim() || null,
                 subEventId: primarySubEvent?.id ?? null,
                 subEventTitle: this.summarizeSubEvents(selectedSubEvents),
                 subEventTime: selectedSubEvents.length === 1 ? primarySubEvent?.time ?? null : null,
                 selectedSubEvents: selectedSubEvents.length > 0 ? (selectedSubEvents as unknown as Prisma.InputJsonValue) : Prisma.JsonNull,
                 isLead: i === 0,
-              })),
-            },
+                event: { connect: { id: dto.eventId } },
+                })),
+              },
+            }),
           },
           include: { attendees: true, event: true },
         });
@@ -255,12 +310,12 @@ export class RegistrationsService {
             },
           });
         }
-        const leadAttendee = dto.attendees[0];
+        const leadAttendee = attendees[0];
         const profileDemographics: { birthday?: Date; gender?: string; city?: string } = {};
-        if (leadAttendee.birthday) profileDemographics.birthday = new Date(`${leadAttendee.birthday}T00:00:00.000Z`);
-        if (leadAttendee.gender) profileDemographics.gender = leadAttendee.gender;
-        if (leadAttendee.city?.trim()) profileDemographics.city = leadAttendee.city.trim();
-        if (Object.keys(profileDemographics).length > 0) {
+        if (leadAttendee?.birthday) profileDemographics.birthday = new Date(`${leadAttendee.birthday}T00:00:00.000Z`);
+        if (leadAttendee?.gender) profileDemographics.gender = leadAttendee.gender;
+        if (leadAttendee?.city?.trim()) profileDemographics.city = leadAttendee.city.trim();
+        if (userId && Object.keys(profileDemographics).length > 0) {
           await tx.user.update({
             where: { id: userId },
             data: profileDemographics,
@@ -311,7 +366,7 @@ export class RegistrationsService {
       entityType: 'Registration',
       entityId: registration.id,
       registrationId: registration.id,
-      performedById: userId,
+      performedById: userId ?? undefined,
       ipAddress: ip,
       metadata: {
         referralCode: (registration.referralCodeSnapshot as any)?.code ?? null,
@@ -345,6 +400,66 @@ export class RegistrationsService {
       status: registration.status,
       createdAt: registration.createdAt.toISOString(),
     };
+  }
+
+  private async assertGuestAccess(id: string, token?: string) {
+    if (!token) throw new NotFoundException('Registration not found');
+    const registration = await this.prisma.registration.findFirst({
+      where: { id, userId: null, guestAccessTokenHash: { not: null } },
+      select: { id: true, guestAccessTokenHash: true },
+    });
+    if (!registration?.guestAccessTokenHash) {
+      throw new NotFoundException('Registration not found');
+    }
+    const supplied = Buffer.from(createHash('sha256').update(token).digest('hex'));
+    const stored = Buffer.from(registration.guestAccessTokenHash);
+    if (supplied.length !== stored.length || !timingSafeEqual(supplied, stored)) {
+      throw new NotFoundException('Registration not found');
+    }
+  }
+
+  async findGuestById(id: string, token?: string) {
+    await this.assertGuestAccess(id, token);
+    const registration = await this.prisma.registration.findUnique({
+      where: { id },
+      include: {
+        event: {
+          select: {
+            id: true,
+            slug: true,
+            title: true,
+            startsAt: true,
+            venue: true,
+            isFree: true,
+            platformFee: true,
+            paymentMethods: true,
+            bankName: true,
+            bankAccountName: true,
+            bankAccountNumber: true,
+            runningConfig: true,
+            eventType: true,
+          },
+        },
+        tier: { select: { id: true, name: true } },
+        attendees: { orderBy: [{ isLead: 'desc' }, { createdAt: 'asc' }] },
+        proofs: {
+          select: { id: true, status: true, createdAt: true },
+          orderBy: { createdAt: 'desc' },
+        },
+      },
+    });
+    if (!registration) throw new NotFoundException('Registration not found');
+    const { guestAccessTokenHash: _secret, ...safe } = registration;
+    return safe;
+  }
+
+  async updateGuestAttendees(
+    id: string,
+    token: string | undefined,
+    dto: UpdateRegistrationAttendeesDto,
+  ) {
+    await this.assertGuestAccess(id, token);
+    return this.updateAttendeesForRegistration(id, null, dto);
   }
 
   private selectedSubEventsFromAgenda(agenda: Prisma.JsonValue, ids?: string[], fallbackId?: string): SelectedSubEvent[] {
@@ -429,6 +544,83 @@ export class RegistrationsService {
         throw new BadRequestException('Birthday must be a valid past date within the last 120 years.');
       }
     }
+  }
+
+  private validateRunningAttendees(
+    event: { eventType: string; runningConfig: Prisma.JsonValue },
+    attendees: CreateRegistrationDto['attendees'],
+  ) {
+    if (event.eventType !== 'running' || !attendees?.length) return;
+    if (!event.runningConfig || typeof event.runningConfig !== 'object' || Array.isArray(event.runningConfig)) {
+      throw new BadRequestException('This running event is missing its registration configuration.');
+    }
+    const config = event.runningConfig as Record<string, unknown>;
+    const distances = Array.isArray(config.distances)
+      ? config.distances
+          .flatMap((item) =>
+            item && typeof item === 'object' && !Array.isArray(item)
+              ? [
+                  String((item as Record<string, unknown>).name ?? ''),
+                  String((item as Record<string, unknown>).code ?? ''),
+                ]
+              : [],
+          )
+          .filter(Boolean)
+      : [];
+    const divisions = Array.isArray(config.raceDivisions)
+      ? config.raceDivisions.filter((item): item is string => typeof item === 'string')
+      : [];
+    const identities = Array.isArray(config.genderIdentityOptions)
+      ? config.genderIdentityOptions.filter((item): item is string => typeof item === 'string')
+      : [];
+    const sizes = Array.isArray(config.merchandiseSizes)
+      ? config.merchandiseSizes.filter((item): item is string => typeof item === 'string')
+      : [];
+    const claimMethods = Array.isArray(config.claimMethods)
+      ? config.claimMethods.filter((item): item is string => typeof item === 'string')
+      : [];
+
+    attendees.forEach((attendee, index) => {
+      const label = `Attendee ${index + 1}`;
+      if (!attendee.raceDistance || !distances.includes(attendee.raceDistance)) {
+        throw new BadRequestException(`${label} must select a configured race distance.`);
+      }
+      if (!attendee.raceDivision || !divisions.includes(attendee.raceDivision)) {
+        throw new BadRequestException(`${label} must select a configured race division.`);
+      }
+      if (attendee.genderIdentity && !identities.includes(attendee.genderIdentity)) {
+        throw new BadRequestException(`${label} selected an unsupported gender identity option.`);
+      }
+      if (!attendee.emergencyContactName || !attendee.emergencyContactPhone) {
+        throw new BadRequestException(`${label} requires an emergency contact name and phone number.`);
+      }
+      if (!attendee.merchandiseSize || !sizes.includes(attendee.merchandiseSize)) {
+        throw new BadRequestException(`${label} must select a configured merchandise size.`);
+      }
+      if (!attendee.claimMethod || !claimMethods.includes(attendee.claimMethod)) {
+        throw new BadRequestException(`${label} must select a supported claim method.`);
+      }
+      if (attendee.claimMethod === 'delivery' && !attendee.deliveryAddress) {
+        throw new BadRequestException(`${label} requires a delivery address.`);
+      }
+    });
+  }
+
+  private distanceCode(runningConfig: Prisma.JsonValue, distanceName: string) {
+    if (!runningConfig || typeof runningConfig !== 'object' || Array.isArray(runningConfig)) {
+      return distanceName.replace(/[^A-Za-z0-9]/g, '').toUpperCase().slice(0, 12) || 'RACE';
+    }
+    const distances = (runningConfig as Record<string, unknown>).distances;
+    if (!Array.isArray(distances)) return 'RACE';
+    const match = distances.find((item) => {
+      if (!item || typeof item !== 'object' || Array.isArray(item)) return false;
+      return String((item as Record<string, unknown>).name ?? '') === distanceName;
+    });
+    if (!match || typeof match !== 'object' || Array.isArray(match)) return 'RACE';
+    return String((match as Record<string, unknown>).code ?? 'RACE')
+      .replace(/[^A-Za-z0-9]/g, '')
+      .toUpperCase()
+      .slice(0, 12) || 'RACE';
   }
 
   async findMine(userId: string, page = 1, limit = 20) {
@@ -614,44 +806,92 @@ export class RegistrationsService {
   }
 
   async updateAttendees(id: string, userId: string, dto: UpdateRegistrationAttendeesDto) {
+    return this.updateAttendeesForRegistration(id, userId, dto);
+  }
+
+  private async updateAttendeesForRegistration(
+    id: string,
+    userId: string | null,
+    dto: UpdateRegistrationAttendeesDto,
+  ) {
     this.validateAttendeeDemographics(dto.attendees);
     const reg = await this.prisma.registration.findFirst({
       where: { id, userId },
-      include: { attendees: { orderBy: { isLead: 'desc' } } },
+      include: {
+        attendees: { orderBy: { isLead: 'desc' } },
+        event: { select: { id: true, eventType: true, runningConfig: true } },
+      },
     });
     if (!reg) throw new NotFoundException('Registration not found');
-    if (reg.status !== 'pending_payment') {
+    const canCompleteFreeGuestIntent =
+      reg.status === 'pending_approval' &&
+      reg.userId === null &&
+      !reg.attendeesCompletedAt &&
+      Number(reg.total) === 0;
+    if (!['pending_payment', 'proof_submitted'].includes(reg.status) && !canCompleteFreeGuestIntent) {
       throw new BadRequestException(
-        'Attendee details can only be updated before payment is submitted',
+        'Attendee details can only be completed before final approval review',
       );
     }
-    if (dto.attendees.length !== reg.attendees.length) {
+    this.validateRunningAttendees(reg.event, dto.attendees);
+    if (dto.attendees.length !== reg.attendeeCount) {
       throw new BadRequestException(
-        `Expected ${reg.attendees.length} attendee(s) — cannot change quantity`,
+        `Expected ${reg.attendeeCount} attendee(s) — cannot change quantity`,
       );
     }
 
-    await this.prisma.$transaction([
-      ...reg.attendees.map((a, i) =>
-        this.prisma.attendee.update({
-          where: { id: a.id },
-          data: {
-            firstName: dto.attendees[i].firstName,
-            lastName: dto.attendees[i].lastName,
-            email: dto.attendees[i].email,
-            phone: dto.attendees[i].phone ?? null,
-            company: dto.attendees[i].company ?? null,
-            jobTitle: dto.attendees[i].jobTitle ?? null,
-            birthday: dto.attendees[i].birthday ? new Date(`${dto.attendees[i].birthday}T00:00:00.000Z`) : null,
-            gender: dto.attendees[i].gender || null,
-            city: dto.attendees[i].city?.trim() || null,
-          },
-        }),
-      ),
-      ...(dto.notes !== undefined
-        ? [this.prisma.registration.update({ where: { id }, data: { notes: dto.notes } })]
-        : []),
-    ]);
+    const attendeeData = (attendee: (typeof dto.attendees)[number], index: number) => ({
+      firstName: attendee.firstName,
+      lastName: attendee.lastName,
+      email: attendee.email,
+      phone: attendee.phone ?? null,
+      company: attendee.company ?? null,
+      jobTitle: attendee.jobTitle ?? null,
+      birthday: attendee.birthday ? new Date(`${attendee.birthday}T00:00:00.000Z`) : null,
+      gender: attendee.gender || null,
+      city: attendee.city?.trim() || null,
+      raceDistance: attendee.raceDistance?.trim() || null,
+      raceDivision: attendee.raceDivision?.trim() || null,
+      genderIdentity: attendee.genderIdentity?.trim() || null,
+      emergencyContactName: attendee.emergencyContactName?.trim() || null,
+      emergencyContactPhone: attendee.emergencyContactPhone?.trim() || null,
+      emergencyContactRelationship: attendee.emergencyContactRelationship?.trim() || null,
+      merchandiseSize: attendee.merchandiseSize?.trim() || null,
+      claimMethod: attendee.claimMethod ?? null,
+      deliveryAddress: attendee.deliveryAddress
+        ? (attendee.deliveryAddress as unknown as Prisma.InputJsonValue)
+        : Prisma.JsonNull,
+      isLead: index === 0,
+    });
+
+    await this.prisma.$transaction(async (tx) => {
+      if (reg.attendees.length === 0) {
+        await tx.attendee.createMany({
+          data: dto.attendees.map((attendee, index) => ({
+            ...attendeeData(attendee, index),
+            registrationId: reg.id,
+            eventId: reg.event.id,
+          })),
+        });
+      } else {
+        await Promise.all(
+          reg.attendees.map((attendee, index) =>
+            tx.attendee.update({
+              where: { id: attendee.id },
+              data: attendeeData(dto.attendees[index], index),
+            }),
+          ),
+        );
+      }
+      await tx.registration.update({
+        where: { id },
+        data: {
+          ...(dto.notes !== undefined ? { notes: dto.notes } : {}),
+          attendeesCompletedAt: new Date(),
+          ...(reg.status === 'proof_submitted' ? { status: 'pending_approval' } : {}),
+        },
+      });
+    });
 
     return { message: 'Attendees updated' };
   }
@@ -786,7 +1026,15 @@ export class RegistrationsService {
         proofs: { orderBy: { createdAt: 'desc' }, take: 1 },
         attendees: { orderBy: [{ isLead: 'desc' }, { createdAt: 'asc' }] },
         event: {
-          select: { id: true, title: true, startsAt: true, venue: true, maxCapacity: true },
+          select: {
+            id: true,
+            title: true,
+            startsAt: true,
+            venue: true,
+            maxCapacity: true,
+            eventType: true,
+            runningConfig: true,
+          },
         },
       },
     });
@@ -800,6 +1048,9 @@ export class RegistrationsService {
     const latestProof = reg.proofs[0];
     if (!isFreeRegistration && !latestProof) {
       throw new BadRequestException('No payment proof found on this registration');
+    }
+    if (reg.attendees.length !== reg.attendeeCount || !reg.attendeesCompletedAt) {
+      throw new BadRequestException('Attendee details must be completed before approval.');
     }
 
     const qrSecret = this.config.get<string>('qr.hmacSecret') ?? '';
@@ -815,36 +1066,84 @@ export class RegistrationsService {
       return { id: a.id, qrToken };
     });
 
-    await this.prisma.$transaction([
-      this.prisma.registration.update({
-        where: { id },
+    const bibAssignments: Array<{ attendeeId: string; bibNumber: string; distance: string }> = [];
+    await this.prisma.$transaction(async (tx) => {
+      const updated = await tx.registration.updateMany({
+        where: {
+          id,
+          status: { in: ['proof_submitted', 'pending_approval'] },
+        },
         data: {
           status: 'verified',
           verifiedById: adminUserId,
           verifiedAt: new Date(),
           rejectionReason: null,
         },
-      }),
-      ...(latestProof
-        ? [
-            this.prisma.paymentProof.update({
-              where: { id: latestProof.id },
-              data: {
-                status: 'approved',
-                reviewedById: adminUserId,
-                reviewedAt: new Date(),
-                rejectionReason: null,
+      });
+      if (updated.count !== 1) {
+        throw new BadRequestException('This registration was already reviewed by another administrator.');
+      }
+
+      if (latestProof) {
+        await tx.paymentProof.update({
+          where: { id: latestProof.id },
+          data: {
+            status: 'approved',
+            reviewedById: adminUserId,
+            reviewedAt: new Date(),
+            rejectionReason: null,
+          },
+        });
+      }
+
+      for (const attendee of reg.attendees) {
+        const qr = attendeeUpdates.find((item) => item.id === attendee.id)!;
+        let bibData: {
+          bibNumber?: string;
+          bibSequence?: number;
+          bibAssignedAt?: Date;
+        } = {};
+        if (
+          reg.event.eventType === 'running' &&
+          attendee.raceDistance &&
+          !attendee.bibNumber
+        ) {
+          await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${reg.event.id}), hashtext(${attendee.raceDistance}))`;
+          const counter = await tx.raceBibCounter.upsert({
+            where: {
+              eventId_distance: {
+                eventId: reg.event.id,
+                distance: attendee.raceDistance,
               },
-            }),
-          ]
-        : []),
-      ...attendeeUpdates.map((u) =>
-        this.prisma.attendee.update({
-          where: { id: u.id },
-          data: { qrToken: u.qrToken },
-        }),
-      ),
-    ]);
+            },
+            create: {
+              eventId: reg.event.id,
+              distance: attendee.raceDistance,
+              nextValue: 2,
+            },
+            update: { nextValue: { increment: 1 } },
+            select: { nextValue: true },
+          });
+          const allocated = counter.nextValue - 1;
+          const code = this.distanceCode(reg.event.runningConfig, attendee.raceDistance);
+          const bibNumber = `${code}-${String(allocated).padStart(4, '0')}`;
+          bibData = {
+            bibNumber,
+            bibSequence: allocated,
+            bibAssignedAt: new Date(),
+          };
+          bibAssignments.push({
+            attendeeId: attendee.id,
+            bibNumber,
+            distance: attendee.raceDistance,
+          });
+        }
+        await tx.attendee.update({
+          where: { id: attendee.id },
+          data: { qrToken: qr.qrToken, ...bibData },
+        });
+      }
+    });
 
     await this.audit.log({
       action: 'REGISTRATION_APPROVED',
@@ -855,6 +1154,23 @@ export class RegistrationsService {
       ipAddress: ip,
       metadata: { proofId: latestProof?.id ?? null, attendeeCount: reg.attendees.length, isFree: isFreeRegistration },
     });
+    await Promise.all(
+      bibAssignments.map((assignment) =>
+        this.audit.log({
+          action: 'BIB_ASSIGNED',
+          entityType: 'Attendee',
+          entityId: assignment.attendeeId,
+          registrationId: id,
+          performedById: adminUserId,
+          ipAddress: ip,
+          metadata: {
+            eventId: reg.event.id,
+            distance: assignment.distance,
+            bibNumber: assignment.bibNumber,
+          },
+        }),
+      ),
+    );
 
     await this.funnel.track({
       eventId: reg.event.id,

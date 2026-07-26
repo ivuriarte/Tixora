@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
+import { useParams, useSearchParams } from 'next/navigation';
 import axios from 'axios';
 import { ScreenSkeleton } from '@/components/ScreenState';
 
@@ -82,18 +83,10 @@ function statusLabel(status?: string) {
   return (status || '').replace(/_/g, ' ');
 }
 
-function firstSearchParam(value?: string | string[]) {
-  return Array.isArray(value) ? value[0] ?? '' : value ?? '';
-}
-
-export default function OnsiteRegistrationPage({
-  params,
-  searchParams,
-}: {
-  params: { slug: string };
-  searchParams?: { eventId?: string | string[] };
-}) {
-  const eventId = firstSearchParam(searchParams?.eventId).trim();
+export default function OnsiteRegistrationPage() {
+  const params = useParams<{ slug: string }>();
+  const searchParams = useSearchParams();
+  const eventId = (searchParams.get('eventId') ?? '').trim();
   const eventQuery = eventId ? `?eventId=${encodeURIComponent(eventId)}` : '';
   const [event, setEvent] = useState<EventData | null>(null);
   const [form, setForm] = useState(blankForm);

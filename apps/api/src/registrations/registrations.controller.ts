@@ -6,6 +6,7 @@ import {
   Body,
   Param,
   Query,
+  Headers,
   Req,
   UseGuards,
   HttpCode,
@@ -21,6 +22,7 @@ import { CreateRegistrationDto } from './dto/create-registration.dto';
 import { UpdateRegistrationAttendeesDto } from './dto/update-registration-attendees.dto';
 import { ValidateReferralCodeDto } from '../admin/dto/referral-code.dto';
 import { Throttle } from '@nestjs/throttler';
+import { Public } from '../common/decorators/public.decorator';
 
 @ApiTags('registrations')
 @Controller('registrations')
@@ -42,6 +44,42 @@ export class RegistrationsController {
       req.ip ??
       '';
     return this.registrationsService.create(dto, user.sub, ip);
+  }
+
+  @Public()
+  @Post('guest')
+  @Throttle({ default: { ttl: 60_000, limit: 10 } })
+  @ApiOperation({ summary: 'Create a consent-declined guest registration intent' })
+  createGuest(@Body() dto: CreateRegistrationDto, @Req() req: Request) {
+    const ip =
+      (req.headers['x-real-ip'] as string | undefined)?.trim() ??
+      (req.headers['x-forwarded-for'] as string | undefined)?.split(',').pop()?.trim() ??
+      req.ip ??
+      '';
+    return this.registrationsService.createGuest(dto, ip);
+  }
+
+  @Public()
+  @Get('guest/:id')
+  @Throttle({ default: { ttl: 60_000, limit: 30 } })
+  @ApiOperation({ summary: 'Get a guest-owned registration using its scoped access token' })
+  findGuest(
+    @Param('id') id: string,
+    @Headers('x-registration-token') token?: string,
+  ) {
+    return this.registrationsService.findGuestById(id, token);
+  }
+
+  @Public()
+  @Patch('guest/:id/attendees')
+  @Throttle({ default: { ttl: 60_000, limit: 15 } })
+  @ApiOperation({ summary: 'Complete guest attendee details using a scoped access token' })
+  updateGuestAttendees(
+    @Param('id') id: string,
+    @Body() dto: UpdateRegistrationAttendeesDto,
+    @Headers('x-registration-token') token?: string,
+  ) {
+    return this.registrationsService.updateGuestAttendees(id, token, dto);
   }
 
   @Post('validate-referral')

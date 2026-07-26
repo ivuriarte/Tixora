@@ -127,6 +127,10 @@ export default function AdminNewEventPage() {
       const payload: Record<string, unknown> = {
         title: draft.title.trim(),
         description: draft.description.trim(),
+        category: draft.category,
+        eventType: draft.eventType,
+        isOnline: draft.isOnline,
+        runningConfig: draft.eventType === 'running' ? draft.runningConfig : undefined,
         venue: draft.venue.trim(),
         address: draft.address.trim() || undefined,
         landmark: draft.landmark.trim() || undefined,

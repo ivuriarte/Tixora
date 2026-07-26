@@ -22,6 +22,13 @@ interface Attendee {
   paymentMethod: string | null;
   status: string;
   checkedInAt: string | null;
+  raceDistance: string | null;
+  raceDivision: string | null;
+  genderIdentity: string | null;
+  merchandiseSize: string | null;
+  bibNumber: string | null;
+  claimMethod: string | null;
+  claimedAt: string | null;
 }
 
 interface AttendeesResponse {
@@ -42,6 +49,15 @@ interface Event {
   slug: string;
 }
 
+interface MerchandiseSummary {
+  distance: string;
+  raceDivision: string;
+  size: string;
+  registered: number;
+  claimed: number;
+  remaining: number;
+}
+
 const PAYMENT_COLORS: Record<string, string> = {
   paid: 'bg-green-100 text-green-700',
   pending: 'bg-yellow-100 text-yellow-700',
@@ -58,6 +74,7 @@ export default function AdminAttendeesPage() {
   const [exporting, setExporting] = useState(false);
   const [printing, setPrinting] = useState(false);
   const [selectedAttendeeIds, setSelectedAttendeeIds] = useState<Set<string>>(() => new Set());
+  const [claimingId, setClaimingId] = useState<string | null>(null);
 
   useEffect(() => {
     if (initialEvent && initialEvent !== selectedEventId) {
@@ -75,7 +92,7 @@ export default function AdminAttendeesPage() {
       api.get<{ data: { data: Event[] } }>('/admin/events?limit=100').then((r) => r.data.data.data),
   });
 
-  const { data, isLoading } = useQuery<AttendeesResponse>({
+  const { data, isLoading, refetch } = useQuery<AttendeesResponse>({
     queryKey: ['admin-attendees', selectedEventId, searchQ, page],
     queryFn: () => {
       const params = new URLSearchParams({ page: String(page), limit: '50' });
@@ -84,6 +101,15 @@ export default function AdminAttendeesPage() {
         .get<{ data: AttendeesResponse }>(`/admin/events/${selectedEventId}/attendees?${params}`)
         .then((r) => r.data.data);
     },
+    enabled: !!selectedEventId,
+  });
+
+  const { data: merchandiseSummary, refetch: refetchMerchandise } = useQuery<MerchandiseSummary[]>({
+    queryKey: ['admin-merchandise-summary', selectedEventId],
+    queryFn: () =>
+      api
+        .get<{ data: MerchandiseSummary[] }>(`/admin/events/${selectedEventId}/merchandise-summary`)
+        .then((response) => response.data.data),
     enabled: !!selectedEventId,
   });
 
@@ -168,6 +194,22 @@ export default function AdminAttendeesPage() {
     }
   };
 
+  const handleClaim = async (attendee: Attendee) => {
+    setClaimingId(attendee.id);
+    try {
+      await api.patch(`/admin/events/${selectedEventId}/attendees/${attendee.id}/claim`, {
+        claimed: !attendee.claimedAt,
+      });
+      await Promise.all([refetch(), refetchMerchandise()]);
+      toast.success(attendee.claimedAt ? 'Claim status reversed.' : 'Merchandise marked as claimed.');
+    } catch (error: any) {
+      const message = error?.response?.data?.message ?? 'Claim status could not be updated.';
+      toast.error(Array.isArray(message) ? message.join(', ') : message);
+    } finally {
+      setClaimingId(null);
+    }
+  };
+
   return (
     <main className="max-w-7xl mx-auto px-4 py-10">
         <div className="flex items-center justify-between mb-8">
@@ -230,6 +272,36 @@ export default function AdminAttendeesPage() {
 
         {selectedEventId && !isLoading && (
           <>
+            {merchandiseSummary && merchandiseSummary.length > 0 && (
+              <section aria-labelledby="merchandise-summary-title" className="mb-6 rounded-2xl border border-violet-200 bg-violet-50/60 p-5">
+                <div className="flex flex-wrap items-end justify-between gap-2">
+                  <div>
+                    <p className="text-[10px] font-extrabold uppercase tracking-[0.1em] text-primary">Running event</p>
+                    <h2 id="merchandise-summary-title" className="mt-1 text-lg font-bold text-[#1a0533]">Merchandise claim summary</h2>
+                  </div>
+                  <p className="text-xs text-[#6b5b8a]">Grouped by distance, Race Division, and size</p>
+                </div>
+                <div className="mt-4 overflow-x-auto rounded-xl border border-violet-100 bg-white">
+                  <table className="w-full min-w-[620px] text-sm">
+                    <thead className="bg-violet-50 text-left text-[10px] uppercase tracking-wide text-[#756a92]">
+                      <tr><th className="px-3 py-2">Distance</th><th className="px-3 py-2">Race Division</th><th className="px-3 py-2">Size</th><th className="px-3 py-2">Registered</th><th className="px-3 py-2">Claimed</th><th className="px-3 py-2">Remaining</th></tr>
+                    </thead>
+                    <tbody className="divide-y divide-violet-50">
+                      {merchandiseSummary.map((row) => (
+                        <tr key={`${row.distance}-${row.raceDivision}-${row.size}`}>
+                          <td className="px-3 py-2 font-medium">{row.distance}</td>
+                          <td className="px-3 py-2">{row.raceDivision}</td>
+                          <td className="px-3 py-2">{row.size}</td>
+                          <td className="px-3 py-2 tabular-nums">{row.registered}</td>
+                          <td className="px-3 py-2 tabular-nums text-emerald-700">{row.claimed}</td>
+                          <td className="px-3 py-2 tabular-nums font-bold text-primary">{row.remaining}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </section>
+            )}
             {data && (
               <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
                 <p className="text-sm text-gray-500">{data.meta.total} attendees</p>
@@ -245,7 +317,7 @@ export default function AdminAttendeesPage() {
               </div>
             )}
             <div className="bg-white shadow rounded-2xl overflow-x-auto">
-              <table className="w-full text-sm min-w-[980px]">
+              <table className="w-full text-sm min-w-[1320px]">
                 <thead>
                   <tr className="bg-gray-50 text-left text-gray-500 text-xs uppercase tracking-wide">
                     <th className="px-4 py-3 w-12">
@@ -267,6 +339,9 @@ export default function AdminAttendeesPage() {
                     <th className="px-4 py-3">City</th>
                     <th className="px-4 py-3">Sub Events</th>
                     <th className="px-4 py-3">Tier</th>
+                    <th className="px-4 py-3">Race</th>
+                    <th className="px-4 py-3">Bib</th>
+                    <th className="px-4 py-3">Merchandise</th>
                     <th className="px-4 py-3">Payment</th>
                     <th className="px-4 py-3">Checked In</th>
                   </tr>
@@ -300,6 +375,31 @@ export default function AdminAttendeesPage() {
                           {a.tierName}
                         </span>
                       </td>
+                      <td className="px-4 py-3 text-xs text-gray-600">
+                        {a.raceDistance ? (
+                          <span>{a.raceDistance}<span className="block text-gray-400">{a.raceDivision ?? 'Open'}</span></span>
+                        ) : '—'}
+                      </td>
+                      <td className="px-4 py-3 font-mono text-xs font-bold text-[#1a0533]">{a.bibNumber ?? '—'}</td>
+                      <td className="px-4 py-3 text-xs">
+                        {a.merchandiseSize ? (
+                          <div className="flex items-center gap-2">
+                            <span className="font-semibold">{a.merchandiseSize}</span>
+                            <button
+                              type="button"
+                              disabled={claimingId === a.id}
+                              onClick={() => handleClaim(a)}
+                              className={`rounded-full px-2.5 py-1 text-[10px] font-bold ${
+                                a.claimedAt
+                                  ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200'
+                                  : 'bg-amber-100 text-amber-800 hover:bg-amber-200'
+                              } disabled:opacity-50`}
+                            >
+                              {claimingId === a.id ? 'Saving…' : a.claimedAt ? 'Claimed · Undo' : 'Mark claimed'}
+                            </button>
+                          </div>
+                        ) : '—'}
+                      </td>
                       <td className="px-4 py-3">
                         <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${PAYMENT_COLORS[a.orderStatus ?? ''] ?? 'bg-gray-100 text-gray-500'}`}>
                           {a.orderStatus ?? '—'}
@@ -316,7 +416,7 @@ export default function AdminAttendeesPage() {
                   ))}
                   {data?.data.length === 0 && (
                     <tr>
-                      <td colSpan={10} className="px-4 py-8 text-center text-gray-400">No attendees found</td>
+                      <td colSpan={13} className="px-4 py-8 text-center text-gray-400">No attendees found</td>
                     </tr>
                   )}
                 </tbody>

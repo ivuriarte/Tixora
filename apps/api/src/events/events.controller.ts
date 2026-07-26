@@ -27,16 +27,32 @@ export class EventsController {
   }
 
   @Public()
+  @Get('discovery')
+  @ApiOperation({ summary: 'Get event-first homepage sections, labels, and Hottest Right Now ranking' })
+  @ApiQuery({ name: 'category', required: false })
+  @ApiQuery({ name: 'q', required: false })
+  discovery(@Query('category') category?: string, @Query('q') q?: string) {
+    return this.eventsService.findDiscovery(category, q);
+  }
+
+  @Public()
   @Get()
   @ApiOperation({ summary: 'List published events' })
   @ApiQuery({ name: 'page', required: false })
   @ApiQuery({ name: 'limit', required: false })
   @ApiQuery({ name: 'q', required: false, description: 'Search event title, venue, or city' })
-  findAll(@Query('page') page?: string, @Query('limit') limit?: string, @Query('q') q?: string) {
+  @ApiQuery({ name: 'category', required: false })
+  findAll(
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+    @Query('q') q?: string,
+    @Query('category') category?: string,
+  ) {
     return this.eventsService.findAll(
       page ? parseInt(page, 10) : 1,
       limit ? Math.min(parseInt(limit, 10), 50) : 20,
       q,
+      category,
     );
   }
 

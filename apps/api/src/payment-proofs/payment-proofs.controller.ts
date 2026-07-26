@@ -7,6 +7,7 @@ import {
   UploadedFile,
   BadRequestException,
   Req,
+  Headers,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import {
@@ -21,6 +22,8 @@ import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { JwtPayload } from '@axon-tickets/types';
 import { PaymentProofsService } from './payment-proofs.service';
 import { CreateProofDto } from './dto/create-proof.dto';
+import { Public } from '../common/decorators/public.decorator';
+import { Throttle } from '@nestjs/throttler';
 
 @ApiTags('payment-proofs')
 @Controller('payment-proofs')
@@ -55,6 +58,42 @@ export class PaymentProofsController {
     return this.paymentProofsService.create(
       dto.registrationId,
       user.sub,
+      file.buffer,
+      file.mimetype,
+      req.ip,
+      req.headers['user-agent'] as string | undefined,
+      req.headers['referer'] as string | undefined,
+    );
+  }
+
+  @Public()
+  @Post('guest')
+  @Throttle({ default: { ttl: 60_000, limit: 10 } })
+  @ApiOperation({ summary: 'Upload guest payment proof with a registration-scoped token' })
+  @ApiConsumes('multipart/form-data')
+  @UseInterceptors(
+    FileInterceptor('file', {
+      limits: { fileSize: 5 * 1024 * 1024 },
+      fileFilter: (_req, file, cb) => {
+        const allowed = ['image/jpeg', 'image/png', 'image/webp'];
+        if (!allowed.includes(file.mimetype)) {
+          cb(new BadRequestException('Only JPG, PNG, WEBP allowed'), false);
+        } else {
+          cb(null, true);
+        }
+      },
+    }),
+  )
+  uploadGuest(
+    @Body() dto: CreateProofDto,
+    @UploadedFile() file: Express.Multer.File,
+    @Headers('x-registration-token') token: string | undefined,
+    @Req() req: Request,
+  ) {
+    if (!file) throw new BadRequestException('Proof image is required');
+    return this.paymentProofsService.createForGuest(
+      dto.registrationId,
+      token,
       file.buffer,
       file.mimetype,
       req.ip,

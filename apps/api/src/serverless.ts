@@ -34,7 +34,12 @@ async function buildApp(): Promise<Express> {
     origin: allowedOrigins,
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'X-Idempotency-Key'],
+    allowedHeaders: [
+      'Content-Type',
+      'Authorization',
+      'X-Idempotency-Key',
+      'X-Registration-Token',
+    ],
   });
 
   app.setGlobalPrefix('api/v1');

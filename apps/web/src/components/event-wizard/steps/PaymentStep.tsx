@@ -61,7 +61,7 @@ export default function PaymentStep({ paymentMethods, onAdd, onEdit, onRemove, o
               <p className="text-xs text-amber-700">
                 {isFree
                   ? 'This event is marked Free. No platform fee will be collected.'
-                  : <>A flat service fee is added to every order for this event. This overrides the platform default (₱50). Set to <strong>0</strong> for free events or events without a service fee.</>}
+                  : <>One flat processing fee is added to each registration transaction, regardless of the number of attendees. This overrides the platform default (₱50 per transaction). Set to <strong>0</strong> for free events or events without a processing fee.</>}
               </p>
               <div className="flex items-center gap-3">
                 <div className="relative flex-1 max-w-[160px]">
@@ -97,11 +97,11 @@ export default function PaymentStep({ paymentMethods, onAdd, onEdit, onRemove, o
           ) : (
             <div className="flex items-center justify-between gap-4">
               <div>
-                <p className="text-xs text-gray-500">{isFree ? 'This event is marked Free, so no service fee is charged.' : 'A platform service fee is charged per order. This is set by the platform administrator and cannot be changed here.'}</p>
+                <p className="text-xs text-gray-500">{isFree ? 'This event is marked Free, so no processing fee is charged.' : 'One flat processing fee is charged per registration transaction, regardless of attendee quantity. This is set by the platform administrator and cannot be changed here.'}</p>
               </div>
               <div className="shrink-0 text-right">
                 <p className="text-xl font-bold text-gray-800">₱{isFree ? '0' : platformFee != null ? platformFee.toLocaleString('en-PH', { minimumFractionDigits: 0, maximumFractionDigits: 2 }) : '50'}</p>
-                <p className="text-xs text-gray-400">per order</p>
+                <p className="text-xs text-gray-400">per transaction</p>
               </div>
             </div>
           )}

@@ -14,7 +14,7 @@ export interface CheckinResult {
 }
 
 export interface PopupConfig {
-  type: 'success' | 'error';
+  type: 'success' | 'warning' | 'error';
   /** Primary text — attendee name for success, error title for errors */
   title: string;
   /** Secondary body text, e.g. error instructions */
@@ -23,6 +23,8 @@ export interface PopupConfig {
   autoDismiss: boolean;
   /** Milliseconds before auto-dismiss. Defaults to 3000. */
   dismissMs?: number;
+  /** Clear action label for messages that require acknowledgement. */
+  dismissLabel?: string;
   /** Full check-in result to display on success. */
   result?: CheckinResult;
 }
@@ -48,6 +50,39 @@ export default function CheckinPopup({ popup, onClose }: Props) {
   if (!popup) return null;
 
   const isSuccess = popup.type === 'success';
+  const isWarning = popup.type === 'warning';
+  const theme = isSuccess
+    ? {
+        bar: 'bg-green-500',
+        circle: 'bg-green-100',
+        icon: 'text-green-700',
+        title: 'text-gray-900',
+        body: 'text-gray-700',
+        track: 'bg-green-100',
+        drain: 'bg-green-500',
+        button: 'bg-green-700 text-white hover:bg-green-800',
+      }
+    : isWarning
+      ? {
+          bar: 'bg-amber-500',
+          circle: 'bg-amber-100',
+          icon: 'text-amber-800',
+          title: 'text-amber-950',
+          body: 'text-gray-800',
+          track: 'bg-amber-100',
+          drain: 'bg-amber-500',
+          button: 'bg-amber-500 text-amber-950 hover:bg-amber-400',
+        }
+      : {
+          bar: 'bg-red-500',
+          circle: 'bg-red-100',
+          icon: 'text-red-700',
+          title: 'text-red-800',
+          body: 'text-gray-800',
+          track: 'bg-red-100',
+          drain: 'bg-red-400',
+          button: 'bg-red-700 text-white hover:bg-red-800',
+        };
 
   const orderStatusBadge =
     popup.result?.orderStatus ? (
@@ -83,35 +118,29 @@ export default function CheckinPopup({ popup, onClose }: Props) {
 
       {/* Card */}
       <div
-        className={`relative z-10 w-full max-w-xs overflow-hidden rounded-lg border border-[#e4dcf4] shadow-2xl animate-popup-enter ${
-          isSuccess ? 'bg-white' : 'bg-white'
-        }`}
+        className="relative z-10 w-full max-w-sm overflow-hidden rounded-lg border border-[#e4dcf4] bg-white shadow-2xl animate-popup-enter"
       >
         {/* Top colour bar */}
-        <div className={`h-1.5 ${isSuccess ? 'bg-green-500' : 'bg-red-500'}`} />
+        <div className={`h-1.5 ${theme.bar}`} />
 
         <div className="px-6 pt-6 pb-5 space-y-4 text-center">
           {/* Icon circle */}
           <div
-            className={`mx-auto flex h-16 w-16 items-center justify-center rounded-full ${
-              isSuccess ? 'bg-green-100' : 'bg-red-100'
-            }`}
+            className={`mx-auto flex h-16 w-16 items-center justify-center rounded-full ${theme.circle}`}
           >
-            <svg className={`h-8 w-8 ${isSuccess ? 'text-green-700' : 'text-red-700'}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><path strokeLinecap="round" strokeLinejoin="round" d={isSuccess ? 'm5 12 4 4L19 6' : 'M12 9v4m0 4h.01M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z'} /></svg>
+            <svg className={`h-8 w-8 ${theme.icon}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><path strokeLinecap="round" strokeLinejoin="round" d={isSuccess ? 'm5 12 4 4L19 6' : 'M12 9v4m0 4h.01M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z'} /></svg>
           </div>
 
           {/* Title */}
           <p
-            className={`text-xl font-bold leading-tight ${
-              isSuccess ? 'text-gray-900' : 'text-red-800'
-            }`}
+            className={`text-2xl font-bold leading-tight ${theme.title}`}
           >
             {popup.title}
           </p>
 
           {/* Body text */}
           {popup.body && (
-            <p className={`text-sm leading-relaxed ${isSuccess ? 'text-gray-600' : 'text-red-700'}`}>
+            <p className={`text-base leading-relaxed ${theme.body}`}>
               {popup.body}
             </p>
           )}
@@ -136,19 +165,19 @@ export default function CheckinPopup({ popup, onClose }: Props) {
             <button
               type="button"
               onClick={onClose}
-              className="axon-pill w-full bg-red-600 text-sm text-white transition-colors hover:bg-red-700"
+              className={`axon-pill w-full text-sm transition-colors ${theme.button}`}
             >
-              Dismiss message
+              {popup.dismissLabel ?? 'Close'}
             </button>
           )}
         </div>
 
         {/* Draining progress bar — auto-dismiss visual countdown */}
         {popup.autoDismiss && (
-          <div className={`h-1 ${isSuccess ? 'bg-green-100' : 'bg-red-100'}`}>
+          <div className={`h-1 ${theme.track}`}>
             <div
               key={animKey}
-              className={`h-full ${isSuccess ? 'bg-green-500' : 'bg-red-400'}`}
+              className={`h-full ${theme.drain}`}
               style={{
                 animation: `drain ${dismissMs}ms linear forwards`,
               }}

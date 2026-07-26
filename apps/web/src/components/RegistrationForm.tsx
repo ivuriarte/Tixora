@@ -23,25 +23,61 @@ interface AttendeeFields {
   firstName: string;
   lastName: string;
   email: string;
+  confirmEmail: string;
   phone: string;
   company: string;
   jobTitle: string;
   birthday: string;
   gender: string;
   city: string;
+  raceDistance: string;
+  raceDivision: string;
+  genderIdentity: string;
+  emergencyContactName: string;
+  emergencyContactPhone: string;
+  emergencyContactRelationship: string;
+  merchandiseSize: string;
+  claimMethod: string;
+  deliveryLine1: string;
+  deliveryLine2: string;
+  deliveryCity: string;
+  deliveryProvince: string;
+  deliveryPostalCode: string;
 }
 
 const emptyAttendee = (): AttendeeFields => ({
   firstName: '',
   lastName: '',
   email: '',
+  confirmEmail: '',
   phone: '',
   company: '',
   jobTitle: '',
   birthday: '',
   gender: '',
   city: '',
+  raceDistance: '',
+  raceDivision: '',
+  genderIdentity: '',
+  emergencyContactName: '',
+  emergencyContactPhone: '',
+  emergencyContactRelationship: '',
+  merchandiseSize: '',
+  claimMethod: '',
+  deliveryLine1: '',
+  deliveryLine2: '',
+  deliveryCity: '',
+  deliveryProvince: '',
+  deliveryPostalCode: '',
 });
+
+interface RunningConfig {
+  distances?: Array<{ name: string; code: string }>;
+  raceDivisions?: string[];
+  genderIdentityOptions?: string[];
+  merchandiseSizes?: string[];
+  claimMethods?: Array<'self_claim' | 'delivery'>;
+}
 
 interface PaymentMethod {
   name: string;
@@ -64,7 +100,7 @@ interface Props {
   tierName: string;
   unitPrice: number;
   qty: number;
-  /** Per-event flat service fee in pesos (defaults to 50). */
+  /** Flat processing fee per registration transaction in pesos (defaults to 50). */
   platformFee?: number;
   paymentMethods?: PaymentMethod[] | null;
   bankName?: string | null;
@@ -77,9 +113,13 @@ interface Props {
   /** Server-returned isFree for edit mode — used to decide post-submit routing. */
   initialIsFree?: boolean;
   /** Pre-filled attendee data for edit mode or post-OTP guest flow. */
-  initialAttendees?: AttendeeFields[];
+  initialAttendees?: Array<Partial<AttendeeFields>>;
   /** Pre-filled notes for edit mode or post-OTP guest flow. */
   initialNotes?: string;
+  eventType?: 'standard' | 'running';
+  runningConfig?: RunningConfig | null;
+  /** Scoped token for a consent-free guest registration. Never persisted outside sessionStorage. */
+  guestAccessToken?: string;
   /** True when a guest used "I'm new here" but the email matched an existing verified account. */
   existingAccountDetected?: boolean;
 }
@@ -102,12 +142,19 @@ export default function RegistrationForm({
   initialIsFree,
   initialAttendees,
   initialNotes,
+  eventType = 'standard',
+  runningConfig,
+  guestAccessToken,
   existingAccountDetected = false,
 }: Props) {
   const router = useRouter();
   const currentUser = useAuthStore((s) => s.user);
   const [attendees, setAttendees] = useState<AttendeeFields[]>(() =>
-    initialAttendees?.map((attendee) => ({ ...emptyAttendee(), ...attendee })) ?? Array.from({ length: qty }, emptyAttendee),
+    initialAttendees?.map((attendee) => ({
+      ...emptyAttendee(),
+      ...attendee,
+      confirmEmail: attendee.confirmEmail ?? attendee.email ?? '',
+    })) ?? Array.from({ length: qty }, emptyAttendee),
   );
   // Default ON unless we're in edit mode (initialAttendees already provides the data)
   const [useMyDetails, setUseMyDetails] = useState(!initialAttendees);
@@ -139,6 +186,8 @@ export default function RegistrationForm({
   const feesPesos = Number(platformFee) || 0;
   const totalPesos = Math.max(0, subtotalPesos - referralDiscount) + feesPesos;
   const isFreeRegistration = unitPrice === 0 && feesPesos === 0;
+  const isPaymentIntentStep = !registrationId && !isFreeRegistration;
+  const promoCodesEnabled = false; // Release 2.0 is manual-payment proof only.
   const requiresSubEvent = !registrationId && subEvents.length > 0;
   const allSubEventsSelected = subEvents.length > 0 && selectedSubEventIds.length === subEvents.length;
 
@@ -183,9 +232,11 @@ export default function RegistrationForm({
       setAttendees((prev) => {
         const next = [...prev];
         next[0] = {
+          ...emptyAttendee(),
           firstName: profile?.firstName ?? currentUser?.firstName ?? '',
           lastName: profile?.lastName ?? currentUser?.lastName ?? '',
           email: profile?.email ?? currentUser?.email ?? '',
+          confirmEmail: profile?.email ?? currentUser?.email ?? '',
           phone: profile?.phone ?? '',
           company: profile?.company ?? '',
           jobTitle: profile?.jobTitle ?? '',
@@ -248,6 +299,19 @@ export default function RegistrationForm({
     setLoading(true);
 
     try {
+      if (isPaymentIntentStep) {
+        const payload: CreateRegistrationDto = {
+          eventId,
+          tierId,
+          attendeeCount: qty,
+          accountConsent: true,
+        };
+        const res = await api.post('/registrations', payload);
+        const reg = res.data?.data ?? res.data;
+        router.push(`/events/${eventSlug}/register/payment/${reg.id}`);
+        return;
+      }
+
       if (requiresSubEvent && selectedSubEventIds.length === 0) {
         setError('Please choose at least one sub-event to attend.');
         return;
@@ -263,7 +327,32 @@ export default function RegistrationForm({
         ...(a.birthday && { birthday: a.birthday }),
         ...(a.gender && { gender: a.gender as 'female' | 'male' | 'non_binary' | 'prefer_not_to_say' | 'self_described' }),
         ...(a.city.trim() && { city: a.city.trim() }),
+        ...(a.raceDistance && { raceDistance: a.raceDistance }),
+        ...(a.raceDivision && { raceDivision: a.raceDivision }),
+        ...(a.genderIdentity && { genderIdentity: a.genderIdentity }),
+        ...(a.emergencyContactName.trim() && { emergencyContactName: a.emergencyContactName.trim() }),
+        ...(a.emergencyContactPhone.trim() && { emergencyContactPhone: a.emergencyContactPhone.trim() }),
+        ...(a.emergencyContactRelationship.trim() && { emergencyContactRelationship: a.emergencyContactRelationship.trim() }),
+        ...(a.merchandiseSize && { merchandiseSize: a.merchandiseSize }),
+        ...(a.claimMethod && { claimMethod: a.claimMethod as 'self_claim' | 'delivery' }),
+        ...(a.claimMethod === 'delivery' && {
+          deliveryAddress: {
+            line1: a.deliveryLine1.trim(),
+            ...(a.deliveryLine2.trim() && { line2: a.deliveryLine2.trim() }),
+            city: a.deliveryCity.trim(),
+            province: a.deliveryProvince.trim(),
+            postalCode: a.deliveryPostalCode.trim(),
+          },
+        }),
       }));
+
+      const emailMismatch = attendees.find((attendee) =>
+        attendee.email.trim().toLowerCase() !== attendee.confirmEmail.trim().toLowerCase(),
+      );
+      if (emailMismatch) {
+        setError('Email and Confirm Email must match for every attendee.');
+        return;
+      }
 
       // Sync any edited profile fields back to the user's account
       if (useMyDetails && profileData && currentUser && !registrationId) {
@@ -284,14 +373,18 @@ export default function RegistrationForm({
 
       if (registrationId) {
         // Edit mode: update existing registration attendee details
-        await api.patch(`/registrations/${registrationId}/attendees`, {
+        const attendeeUpdate = {
           attendees: attendeePayload,
           ...(notes.trim() && { notes: notes.trim() }),
-        });
-        if (initialIsFree) {
-          router.push(`/registrations/${registrationId}`);
+        };
+        if (guestAccessToken) {
+          await api.patch(`/registrations/guest/${registrationId}/attendees`, attendeeUpdate, {
+            headers: { 'x-registration-token': guestAccessToken },
+          });
+          router.push(`/events/${eventSlug}/register/complete`);
         } else {
-          router.push(`/events/${eventSlug}/register/payment/${registrationId}`);
+          await api.patch(`/registrations/${registrationId}/attendees`, attendeeUpdate);
+          router.push(`/registrations/${registrationId}`);
         }
       } else {
         const payload: CreateRegistrationDto = {
@@ -350,7 +443,7 @@ export default function RegistrationForm({
         </div>
       </div>
 
-      {!registrationId && (
+      {!registrationId && promoCodesEnabled && (
         <div className="rounded-2xl border border-emerald-200 bg-emerald-50/60 p-5">
           <label htmlFor="referral-code" className="block text-sm font-semibold text-gray-900">Have a referral code?</label>
           <p className="mt-1 text-xs text-gray-600">Apply it before confirming to preview your final total.</p>
@@ -467,8 +560,10 @@ export default function RegistrationForm({
         </div>
       )}
 
+      {!isPaymentIntentStep && (
+        <>
       {/* Autofill toggle */}
-      {currentUser && (
+      {currentUser && !guestAccessToken && (
         <div className="bg-white border border-gray-200 rounded-2xl p-4 flex items-center justify-between gap-3">
           <div>
             <p className="text-sm font-medium text-gray-900">Use my account details for Attendee 1</p>
@@ -579,16 +674,31 @@ export default function RegistrationForm({
                 </div>
 
                 <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Email *</label>
-                  <input
-                    type="email"
-                    required
-                    value={att.email}
-                    onChange={(e) => updateAttendee(i, 'email', e.target.value)}
-                    readOnly={auto}
-                    className={`w-full border rounded-lg px-3 py-2 text-sm ${auto ? 'border-gray-200 bg-gray-50 text-gray-500 cursor-not-allowed' : normalCls}`}
-                  />
-                  {auto && !att.email.trim() && <MissingHint />}
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 mb-1">Email *</label>
+                      <input
+                        type="email"
+                        required
+                        value={att.email}
+                        onChange={(e) => updateAttendee(i, 'email', e.target.value)}
+                        readOnly={auto}
+                        className={`w-full border rounded-lg px-3 py-2 text-sm ${auto ? 'border-gray-200 bg-gray-50 text-gray-500 cursor-not-allowed' : normalCls}`}
+                      />
+                      {auto && !att.email.trim() && <MissingHint />}
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 mb-1">Confirm Email *</label>
+                      <input
+                        type="email"
+                        required
+                        value={att.confirmEmail}
+                        onChange={(e) => updateAttendee(i, 'confirmEmail', e.target.value)}
+                        readOnly={auto}
+                        className={`w-full border rounded-lg px-3 py-2 text-sm ${auto ? 'border-gray-200 bg-gray-50 text-gray-500 cursor-not-allowed' : normalCls}`}
+                      />
+                    </div>
+                  </div>
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
@@ -645,6 +755,67 @@ export default function RegistrationForm({
                     <input value={att.city} onChange={(e) => updateAttendee(i, 'city', e.target.value)} placeholder="Davao City" className={`w-full border rounded-lg px-3 py-2 text-sm ${normalCls}`} />
                   </div>
                 </div>
+
+                {eventType === 'running' && (
+                  <div className="rounded-xl border border-violet-200 bg-violet-50/50 p-4 space-y-4">
+                    <div>
+                      <p className="text-sm font-semibold text-gray-900">Race details</p>
+                      <p className="text-xs text-gray-500">Race Division is used for results. Gender Identity is optional and stored separately.</p>
+                    </div>
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <label className="text-xs font-medium text-gray-600">
+                        Distance *
+                        <select required value={att.raceDistance} onChange={(e) => updateAttendee(i, 'raceDistance', e.target.value)} className={`mt-1 w-full border rounded-lg px-3 py-2 text-sm ${normalCls}`}>
+                          <option value="">Select distance</option>
+                          {runningConfig?.distances?.map((item) => <option key={item.code} value={item.code}>{item.name}</option>)}
+                        </select>
+                      </label>
+                      <label className="text-xs font-medium text-gray-600">
+                        Race Division *
+                        <select required value={att.raceDivision} onChange={(e) => updateAttendee(i, 'raceDivision', e.target.value)} className={`mt-1 w-full border rounded-lg px-3 py-2 text-sm ${normalCls}`}>
+                          <option value="">Select division</option>
+                          {runningConfig?.raceDivisions?.map((item) => <option key={item} value={item}>{item}</option>)}
+                        </select>
+                      </label>
+                      <label className="text-xs font-medium text-gray-600">
+                        Gender Identity <span className="font-normal text-gray-400">(optional)</span>
+                        <select value={att.genderIdentity} onChange={(e) => updateAttendee(i, 'genderIdentity', e.target.value)} className={`mt-1 w-full border rounded-lg px-3 py-2 text-sm ${normalCls}`}>
+                          <option value="">Prefer not to provide</option>
+                          {runningConfig?.genderIdentityOptions?.map((item) => <option key={item} value={item}>{item}</option>)}
+                        </select>
+                      </label>
+                      <label className="text-xs font-medium text-gray-600">
+                        Merchandise size *
+                        <select required value={att.merchandiseSize} onChange={(e) => updateAttendee(i, 'merchandiseSize', e.target.value)} className={`mt-1 w-full border rounded-lg px-3 py-2 text-sm ${normalCls}`}>
+                          <option value="">Select size</option>
+                          {runningConfig?.merchandiseSizes?.map((item) => <option key={item} value={item}>{item}</option>)}
+                        </select>
+                      </label>
+                    </div>
+                    <div className="grid gap-4 sm:grid-cols-3">
+                      <input required aria-label="Emergency contact name" placeholder="Emergency contact name" value={att.emergencyContactName} onChange={(e) => updateAttendee(i, 'emergencyContactName', e.target.value)} className={`border rounded-lg px-3 py-2 text-sm ${normalCls}`} />
+                      <input required type="tel" aria-label="Emergency contact phone" placeholder="Emergency contact phone" value={att.emergencyContactPhone} onChange={(e) => updateAttendee(i, 'emergencyContactPhone', e.target.value)} className={`border rounded-lg px-3 py-2 text-sm ${normalCls}`} />
+                      <input required aria-label="Emergency contact relationship" placeholder="Relationship" value={att.emergencyContactRelationship} onChange={(e) => updateAttendee(i, 'emergencyContactRelationship', e.target.value)} className={`border rounded-lg px-3 py-2 text-sm ${normalCls}`} />
+                    </div>
+                    <label className="block text-xs font-medium text-gray-600">
+                      Claim method *
+                      <select required value={att.claimMethod} onChange={(e) => updateAttendee(i, 'claimMethod', e.target.value)} className={`mt-1 w-full border rounded-lg px-3 py-2 text-sm ${normalCls}`}>
+                        <option value="">Select claim method</option>
+                        {runningConfig?.claimMethods?.includes('self_claim') && <option value="self_claim">Claim at event</option>}
+                        {runningConfig?.claimMethods?.includes('delivery') && <option value="delivery">Delivery (no logistics fee in Release 2.0)</option>}
+                      </select>
+                    </label>
+                    {att.claimMethod === 'delivery' && (
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        <input required aria-label="Delivery address line 1" placeholder="Address line 1" value={att.deliveryLine1} onChange={(e) => updateAttendee(i, 'deliveryLine1', e.target.value)} className={`border rounded-lg px-3 py-2 text-sm sm:col-span-2 ${normalCls}`} />
+                        <input aria-label="Delivery address line 2" placeholder="Address line 2 (optional)" value={att.deliveryLine2} onChange={(e) => updateAttendee(i, 'deliveryLine2', e.target.value)} className={`border rounded-lg px-3 py-2 text-sm sm:col-span-2 ${normalCls}`} />
+                        <input required aria-label="Delivery city" placeholder="City" value={att.deliveryCity} onChange={(e) => updateAttendee(i, 'deliveryCity', e.target.value)} className={`border rounded-lg px-3 py-2 text-sm ${normalCls}`} />
+                        <input required aria-label="Delivery province" placeholder="Province" value={att.deliveryProvince} onChange={(e) => updateAttendee(i, 'deliveryProvince', e.target.value)} className={`border rounded-lg px-3 py-2 text-sm ${normalCls}`} />
+                        <input required aria-label="Delivery postal code" placeholder="Postal code" value={att.deliveryPostalCode} onChange={(e) => updateAttendee(i, 'deliveryPostalCode', e.target.value)} className={`border rounded-lg px-3 py-2 text-sm ${normalCls}`} />
+                      </div>
+                    )}
+                  </div>
+                )}
               </>
             );
           })()}
@@ -714,6 +885,8 @@ export default function RegistrationForm({
           className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary resize-none"
         />
       </div>
+        </>
+      )}
 
       {error && (
         <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-xl px-4 py-3">
@@ -726,7 +899,13 @@ export default function RegistrationForm({
         disabled={loading}
         className="w-full py-3 rounded-xl bg-primary text-white font-semibold text-sm hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
       >
-        {loading ? 'Saving your spot…' : `Confirm My Registration — ${isFreeRegistration ? 'Free' : formatPHP(totalPesos)}`}
+        {loading
+          ? 'Saving your spot…'
+          : isPaymentIntentStep
+            ? `Continue to payment — ${formatPHP(totalPesos)}`
+            : registrationId
+              ? 'Submit attendee details for review'
+              : `Confirm My Registration — ${isFreeRegistration ? 'Free' : formatPHP(totalPesos)}`}
       </button>
     </form>
   );

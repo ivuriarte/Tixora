@@ -119,4 +119,15 @@ export class CronController {
     await this.schedulerService.cleanupExpiredOtpCodes();
     return { ok: true };
   }
+
+  @Post('enforce-attendee-retention')
+  @HttpCode(HttpStatus.OK)
+  async enforceAttendeeRetention(
+    @Headers('x-cron-secret') secret: string | undefined,
+  ) {
+    this.verifySecret(secret);
+    this.logger.log({ msg: 'External cron: enforce-attendee-retention triggered' });
+    const result = await this.schedulerService.enforceAttendeeRetention();
+    return { ok: true, ...result };
+  }
 }

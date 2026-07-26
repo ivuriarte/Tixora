@@ -5,7 +5,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import EventCoverFallback from '@/components/EventCoverFallback';
 
-const AUTO_ROTATE_MS = 8000;
+const AUTO_ROTATE_MS = 6000;
 const DARK_BLUR_DATA_URL =
   'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%2230%22 height=%2220%22%3E%3Crect width=%2230%22 height=%2220%22 fill=%22%230d021c%22/%3E%3C/svg%3E';
 
@@ -26,6 +26,7 @@ type FeaturedHeroEvent = {
   isFree?: boolean;
   totalAvailable?: number;
   primaryTierId?: string | null;
+  isOrganizerPromotion?: boolean;
 };
 
 function formatDate(value: string) {
@@ -75,13 +76,33 @@ function PinIcon() {
 }
 
 export default function FeaturedHeroCarousel({ events }: { events: FeaturedHeroEvent[] }) {
-  const slides = useMemo(() => events.slice(0, 3), [events]);
+  const slides = useMemo<FeaturedHeroEvent[]>(
+    () => [
+      ...events.slice(0, 3),
+      {
+        id: 'organizer-promotion',
+        slug: 'become-organizer',
+        title: 'Turn your next event into a sold-out experience.',
+        description:
+          'Publish an event page, collect verified registrations and payment proofs, issue QR tickets, and manage the gate from one focused workspace.',
+        speakerName: null,
+        venue: '',
+        city: '',
+        startsAt: new Date(0).toISOString(),
+        endsAt: null,
+        status: 'promotion',
+        isOrganizerPromotion: true,
+      },
+    ],
+    [events],
+  );
   const [activeIndex, setActiveIndex] = useState(0);
   const [paused, setPaused] = useState(false);
   const [interacting, setInteracting] = useState(false);
   const [reduceMotion, setReduceMotion] = useState(false);
   const [progress, setProgress] = useState(0);
   const elapsedRef = useRef(0);
+  const touchStartRef = useRef<number | null>(null);
 
   useEffect(() => {
     const media = window.matchMedia('(prefers-reduced-motion: reduce)');
@@ -138,6 +159,7 @@ export default function FeaturedHeroCarousel({ events }: { events: FeaturedHeroE
   }
 
   const event = slides[activeIndex];
+  const isOrganizerPromotion = event.isOrganizerPromotion === true;
   const soldOut = event.status === 'sold_out' || event.totalAvailable === 0;
   const capacity = event.totalAvailable == null
     ? null
@@ -145,13 +167,38 @@ export default function FeaturedHeroCarousel({ events }: { events: FeaturedHeroE
       ? 'Sold out'
       : `${event.totalAvailable.toLocaleString('en-PH')} ${event.isFree ? 'slots' : 'seats'} remaining`;
   const artwork = event.featuredImageUrl || event.imageUrl;
-  const primaryHref = event.isFree ? registrationUrl(event) : `/events/${event.slug}#ticket-panel`;
+  const primaryHref = isOrganizerPromotion
+    ? '/become-organizer'
+    : event.isFree
+      ? registrationUrl(event)
+      : `/events/${event.slug}#ticket-panel`;
 
   return (
     <section
       className="relative overflow-hidden bg-[#1a0533] text-white"
       aria-roledescription="carousel"
       aria-label="Featured events"
+      tabIndex={0}
+      onKeyDown={(keyboardEvent) => {
+        if (keyboardEvent.key === 'ArrowLeft') {
+          keyboardEvent.preventDefault();
+          showSlide(activeIndex - 1);
+        }
+        if (keyboardEvent.key === 'ArrowRight') {
+          keyboardEvent.preventDefault();
+          showSlide(activeIndex + 1);
+        }
+      }}
+      onTouchStart={(touchEvent) => {
+        touchStartRef.current = touchEvent.touches[0]?.clientX ?? null;
+      }}
+      onTouchEnd={(touchEvent) => {
+        const start = touchStartRef.current;
+        const end = touchEvent.changedTouches[0]?.clientX;
+        touchStartRef.current = null;
+        if (start == null || end == null || Math.abs(start - end) < 50) return;
+        showSlide(start > end ? activeIndex + 1 : activeIndex - 1);
+      }}
       onMouseEnter={() => setInteracting(true)}
       onMouseLeave={() => setInteracting(false)}
       onFocusCapture={() => setInteracting(true)}
@@ -161,31 +208,41 @@ export default function FeaturedHeroCarousel({ events }: { events: FeaturedHeroE
     >
       <div key={event.id} className="featured-hero-enter mx-auto grid min-h-[610px] max-w-[1440px] gap-9 px-4 pb-28 pt-9 sm:px-6 lg:grid-cols-[minmax(0,.88fr)_minmax(560px,1.12fr)] lg:items-center lg:gap-14 lg:px-10 lg:pb-28 lg:pt-14">
         <div className="order-2 min-w-0 lg:order-1" aria-live="polite" aria-atomic="true">
-          <p className="axon-label text-xs text-[#a78bfa]">Featured Event</p>
+          <p className="axon-label text-xs text-[#a78bfa]">
+            {isOrganizerPromotion ? 'For Event Organizers' : 'Featured Event'}
+          </p>
           <h1 className="mt-4 max-w-3xl text-balance text-[2rem] font-bold leading-[1.06] tracking-[-0.035em] text-white sm:text-5xl lg:text-[3.25rem]">{event.title}</h1>
           {event.speakerName && <p className="axon-label mt-3 text-xs text-[#a78bfa]">Featuring {event.speakerName}</p>}
           {event.description && <p className="mt-5 max-w-2xl text-base leading-7 text-[#c4b5fd] line-clamp-2 sm:line-clamp-3">{event.description}</p>}
 
-          <div className="mt-6 space-y-3 text-sm font-medium text-[#eee9fb]">
-            <p className="flex items-center gap-3 text-balance text-left"><span className="text-[#a78bfa]"><CalendarIcon /></span>{formatDate(event.startsAt)} · {formatTime(event.startsAt)}{event.endsAt ? ` – ${formatTime(event.endsAt)}` : ''}</p>
-            <p className="flex items-center gap-3 text-balance text-left"><span className="text-[#a78bfa]"><PinIcon /></span>{event.venue}, {event.city}</p>
-          </div>
+          {!isOrganizerPromotion && (
+            <div className="mt-6 space-y-3 text-sm font-medium text-[#eee9fb]">
+              <p className="flex items-center gap-3 text-balance text-left"><span className="text-[#a78bfa]"><CalendarIcon /></span>{formatDate(event.startsAt)} · {formatTime(event.startsAt)}{event.endsAt ? ` – ${formatTime(event.endsAt)}` : ''}</p>
+              <p className="flex items-center gap-3 text-balance text-left"><span className="text-[#a78bfa]"><PinIcon /></span>{event.venue}, {event.city}</p>
+            </div>
+          )}
 
-          {priceLabel(event) && (
+          {!isOrganizerPromotion && priceLabel(event) && (
             <p className="mt-5 text-base text-[#c4b5fd]">
               {event.isFree ? <><strong className="text-xl text-white">Free</strong> — registration required</> : <>Tickets from <strong className="text-xl text-white">{priceLabel(event)}</strong></>}
             </p>
           )}
 
           <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
-            {!soldOut && (
+            {isOrganizerPromotion ? (
+              <Link href="/become-organizer" className="axon-pill w-full bg-primary text-xs text-white hover:bg-primary-hover sm:w-auto">
+                Become an Organizer
+              </Link>
+            ) : !soldOut && (
               <Link href={primaryHref} className="axon-pill w-full bg-primary text-xs text-white hover:bg-primary-hover sm:w-auto">
                 {event.isFree ? 'Register Free' : 'Get Tickets'}
               </Link>
             )}
-            <Link href={`/events/${event.slug}`} className="axon-pill w-full border border-[#7c3aed] bg-transparent text-xs text-[#d8ccfa] hover:border-[#a78bfa] hover:bg-white/5 hover:text-white sm:w-auto">
-              View Event
-            </Link>
+            {!isOrganizerPromotion && (
+              <Link href={`/events/${event.slug}`} className="axon-pill w-full border border-[#7c3aed] bg-transparent text-xs text-[#d8ccfa] hover:border-[#a78bfa] hover:bg-white/5 hover:text-white sm:w-auto">
+                View Event
+              </Link>
+            )}
             {capacity && (
               <span className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-full border border-[#6d28d9] px-4 text-xs font-semibold text-[#c4b5fd] sm:w-auto">
                 <span className={`h-2 w-2 rounded-full ${soldOut ? 'bg-red-400' : 'bg-emerald-400'}`} aria-hidden="true" />
@@ -196,13 +253,26 @@ export default function FeaturedHeroCarousel({ events }: { events: FeaturedHeroE
 
           <p className="mt-5 flex items-center gap-2 text-xs text-[#a78bfa]">
             <svg aria-hidden="true" className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z" /><path d="m9 12 2 2 4-4" /></svg>
-            Secure checkout <span aria-hidden="true">·</span> Instant QR confirmation
+            {isOrganizerPromotion
+              ? 'Built for secure Philippine event operations'
+              : <>Secure checkout <span aria-hidden="true">·</span> Instant QR confirmation</>}
           </p>
         </div>
 
-        <Link href={`/events/${event.slug}`} className="group order-1 block lg:order-2" aria-label={`View ${event.title} event details`}>
+        <Link href={isOrganizerPromotion ? '/become-organizer' : `/events/${event.slug}`} className="group order-1 block lg:order-2" aria-label={isOrganizerPromotion ? 'Learn about organizing with Axon Tickets' : `View ${event.title} event details`}>
           <div className="relative aspect-[3/2] overflow-hidden rounded-2xl border border-white/10 bg-[#0d021c] shadow-2xl shadow-black/20">
-            {event.featuredImageUrl ? (
+            {isOrganizerPromotion ? (
+              <div className="absolute inset-0 overflow-hidden bg-[radial-gradient(circle_at_25%_15%,#7c3aed_0%,transparent_38%),linear-gradient(135deg,#2e1065_0%,#0d021c_75%)] p-8 sm:p-12">
+                <div className="grid h-full grid-cols-2 gap-4" aria-hidden="true">
+                  {['Create', 'Register', 'Approve', 'Check in'].map((step, index) => (
+                    <div key={step} className="flex flex-col justify-between rounded-2xl border border-white/15 bg-white/10 p-5 backdrop-blur-sm">
+                      <span className="font-mono text-xs text-[#c4b5fd]">0{index + 1}</span>
+                      <span className="text-lg font-bold text-white sm:text-2xl">{step}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : event.featuredImageUrl ? (
               <Image
                 src={event.featuredImageUrl}
                 alt={`${event.title} featured event artwork`}
@@ -237,7 +307,9 @@ export default function FeaturedHeroCarousel({ events }: { events: FeaturedHeroE
             ) : (
               <EventCoverFallback title={event.title} startsAt={event.startsAt} />
             )}
-            <span className="absolute bottom-4 right-4 z-20 rounded-full bg-[#0d021c]/85 px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.08em] text-[#d8ccfa] opacity-0 backdrop-blur-sm transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100">View event</span>
+            <span className="absolute bottom-4 right-4 z-20 rounded-full bg-[#0d021c]/85 px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.08em] text-[#d8ccfa] opacity-0 backdrop-blur-sm transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100">
+              {isOrganizerPromotion ? 'Start organizing' : 'View event'}
+            </span>
           </div>
         </Link>
       </div>
@@ -249,6 +321,20 @@ export default function FeaturedHeroCarousel({ events }: { events: FeaturedHeroE
           </p>
           <div className="h-[3px] flex-1 overflow-hidden rounded-full bg-white/15" aria-hidden="true">
             <div className="h-full rounded-full bg-primary transition-[width] duration-100 ease-linear" style={{ width: `${slides.length <= 1 ? 100 : progress * 100}%` }} />
+          </div>
+          <div className="hidden items-center gap-1.5 sm:flex" aria-label="Choose carousel slide">
+            {slides.map((slide, index) => (
+              <button
+                key={slide.id}
+                type="button"
+                onClick={() => showSlide(index)}
+                className={`h-2.5 rounded-full transition-all ${
+                  index === activeIndex ? 'w-7 bg-white' : 'w-2.5 bg-white/35 hover:bg-white/60'
+                }`}
+                aria-label={`Show slide ${index + 1}: ${slide.title}`}
+                aria-current={index === activeIndex ? 'true' : undefined}
+              />
+            ))}
           </div>
           {slides.length > 1 && (
             <div className="ml-auto flex gap-2 sm:gap-3">

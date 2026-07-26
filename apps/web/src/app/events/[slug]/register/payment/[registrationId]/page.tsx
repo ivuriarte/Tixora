@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import Image from 'next/image';
 import { useParams, useRouter } from 'next/navigation';
 import { getAccessToken } from '@/lib/auth';
 import api from '@/lib/api';
@@ -21,15 +22,22 @@ export default function PaymentStepPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState<string | null>(null);
+  const [guestAccessToken, setGuestAccessToken] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!getAccessToken()) {
+    const scopedGuestToken = window.sessionStorage.getItem(`axon_guest_registration_${registrationId}`);
+    setGuestAccessToken(scopedGuestToken);
+    if (!getAccessToken() && !scopedGuestToken) {
       router.replace(`/auth/access?redirect=/events/${slug}/register/payment/${registrationId}`);
       return;
     }
     (async () => {
       try {
-        const res = await api.get(`/registrations/${registrationId}`);
+        const res = scopedGuestToken
+          ? await api.get(`/registrations/guest/${registrationId}`, {
+              headers: { 'x-registration-token': scopedGuestToken },
+            })
+          : await api.get(`/registrations/${registrationId}`);
         const body = res.data?.data ?? res.data;
         setReg(body);
       } catch {
@@ -80,14 +88,17 @@ export default function PaymentStepPage() {
         currency: reg.currency || 'PHP',
         value: totalPesos,
       });
-      trackPixelCustomEvent('Registration_Submitted_For_Review', {
+      trackPixelCustomEvent('Payment_Proof_Submitted', {
         event_id: trackedEventId ?? null,
         event_name: reg.event.title,
         currency: reg.currency || 'PHP',
         value: totalPesos,
       });
     }
-    router.push('/account/tickets?tab=registrations');
+    const guestQuery = guestAccessToken ? '&guest=1' : '';
+    router.push(
+      `/events/${slug}/register?registrationId=${registrationId}&tierId=${reg?.tierId ?? ''}&qty=${reg?.attendeeCount ?? 1}${guestQuery}`,
+    );
   };
 
   const copy = async (label: string, value: string) => {
@@ -118,9 +129,16 @@ export default function PaymentStepPage() {
     );
   }
 
+  if (reg.status === 'proof_submitted') {
+    const guestQuery = guestAccessToken ? '&guest=1' : '';
+    router.replace(
+      `/events/${slug}/register?registrationId=${registrationId}&tierId=${reg.tierId ?? ''}&qty=${reg.attendeeCount}${guestQuery}`,
+    );
+    return null;
+  }
+
   if (reg.status !== 'pending_payment' && reg.status !== 'rejected') {
-    // Already submitted / verified / cancelled — send to status page.
-    router.replace(`/registrations/${registrationId}`);
+    router.replace(guestAccessToken ? `/events/${slug}` : `/registrations/${registrationId}`);
     return null;
   }
 
@@ -143,13 +161,7 @@ export default function PaymentStepPage() {
         {/* Back navigation */}
         {reg.status === 'pending_payment' && (
           <button
-            onClick={() =>
-              reg.tierId
-                ? router.push(
-                    `/events/${slug}/register?registrationId=${registrationId}&tierId=${reg.tierId}&qty=${reg.attendeeCount}`,
-                  )
-                : router.push(`/events/${slug}`)
-            }
+            onClick={() => router.push(`/events/${slug}`)}
             className="mt-4 mb-1 flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-800 transition-colors group"
           >
             <svg
@@ -164,7 +176,7 @@ export default function PaymentStepPage() {
                 clipRule="evenodd"
               />
             </svg>
-            {reg.tierId ? 'Back to Attendee Details' : 'Back to Event'}
+            Back to event
           </button>
         )}
 
@@ -254,9 +266,12 @@ export default function PaymentStepPage() {
                 {m.qrImageUrl && (
                   <div className="mt-3 flex justify-center">
                     <div className="inline-block rounded-lg border-2 border-gray-200 bg-white p-2 shadow-sm">
-                      <img
+                      <Image
                         src={m.qrImageUrl}
                         alt={`${m.name} QR Code`}
+                        width={192}
+                        height={192}
+                        unoptimized
                         className="h-48 w-48 object-contain"
                       />
                     </div>
@@ -365,13 +380,14 @@ export default function PaymentStepPage() {
           </header>
           <PaymentProofDropzone
             registrationId={registrationId}
+            guestAccessToken={guestAccessToken ?? undefined}
             onUploaded={handleUploaded}
           />
         </section>
 
         <div className="flex items-center justify-between text-xs text-gray-500">
           <button
-            onClick={() => router.push(`/registrations/${registrationId}`)}
+            onClick={() => router.push(guestAccessToken ? `/events/${slug}` : `/registrations/${registrationId}`)}
             className="min-h-[44px] font-medium hover:text-primary"
           >
             I will pay later

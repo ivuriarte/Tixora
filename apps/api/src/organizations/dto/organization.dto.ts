@@ -5,11 +5,40 @@ import {
   MaxLength,
   IsIn,
   Matches,
+  IsBoolean,
+  ValidateNested,
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { Type } from 'class-transformer';
 
 const ID_TYPES = ['passport', 'drivers_license', 'umid', 'sss', 'philsys', 'postal_id'] as const;
 const ORG_TYPES = ['individual', 'company', 'ngo', 'event_company'] as const;
+
+export class OrganizationSocialLinksDto {
+  @ApiPropertyOptional()
+  @IsOptional()
+  @Matches(/^https:\/\/(www\.)?instagram\.com\//i, {
+    message: 'Instagram URL must be a valid HTTPS instagram.com link',
+  })
+  @MaxLength(300)
+  instagram?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @Matches(/^https:\/\/(www\.)?linkedin\.com\//i, {
+    message: 'LinkedIn URL must be a valid HTTPS linkedin.com link',
+  })
+  @MaxLength(300)
+  linkedin?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @Matches(/^https:\/\/(www\.)?(x\.com|twitter\.com)\//i, {
+    message: 'X URL must be a valid HTTPS x.com or twitter.com link',
+  })
+  @MaxLength(300)
+  x?: string;
+}
 
 export class RegisterOrganizationDto {
   @ApiProperty({ example: 'Acme Events Inc.' })
@@ -63,15 +92,34 @@ export class RegisterOrganizationDto {
 
   @ApiPropertyOptional({ example: 'https://acme.com' })
   @IsOptional()
-  @IsString()
+  @Matches(/^https:\/\//i, { message: 'Website must use HTTPS' })
   @MaxLength(200)
   website?: string | null;
 
   @ApiPropertyOptional({ example: 'https://facebook.com/acmeevents' })
   @IsOptional()
-  @IsString()
+  @Matches(/^https:\/\/(www\.)?facebook\.com\//i, {
+    message: 'Facebook URL must be a valid HTTPS facebook.com link',
+  })
   @MaxLength(200)
   facebookUrl?: string | null;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @Matches(/^https:\/\//i, { message: 'Logo URL must use HTTPS' })
+  @MaxLength(500)
+  logoUrl?: string | null;
+
+  @ApiPropertyOptional({ type: OrganizationSocialLinksDto })
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => OrganizationSocialLinksDto)
+  socialLinks?: OrganizationSocialLinksDto;
+
+  @ApiPropertyOptional({ default: true })
+  @IsOptional()
+  @IsBoolean()
+  isPublic?: boolean;
 }
 
 export class UpdateOrganizationDto {
@@ -134,13 +182,32 @@ export class UpdateOrganizationDto {
 
   @ApiPropertyOptional({ example: 'https://acme.com' })
   @IsOptional()
-  @IsString()
+  @Matches(/^https:\/\//i, { message: 'Website must use HTTPS' })
   @MaxLength(200)
   website?: string | null;
 
   @ApiPropertyOptional({ example: 'https://facebook.com/acmeevents' })
   @IsOptional()
-  @IsString()
+  @Matches(/^https:\/\/(www\.)?facebook\.com\//i, {
+    message: 'Facebook URL must be a valid HTTPS facebook.com link',
+  })
   @MaxLength(200)
   facebookUrl?: string | null;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @Matches(/^https:\/\//i, { message: 'Logo URL must use HTTPS' })
+  @MaxLength(500)
+  logoUrl?: string | null;
+
+  @ApiPropertyOptional({ type: OrganizationSocialLinksDto })
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => OrganizationSocialLinksDto)
+  socialLinks?: OrganizationSocialLinksDto;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsBoolean()
+  isPublic?: boolean;
 }

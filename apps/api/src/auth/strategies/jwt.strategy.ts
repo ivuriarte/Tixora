@@ -7,10 +7,15 @@ import { JwtPayload } from '@axon-tickets/types';
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
   constructor(config: ConfigService) {
+    const publicKey = config.get<string>('jwt.publicKey');
+    if (!publicKey) {
+      throw new Error('JWT public key is not configured');
+    }
+
     super({
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
       ignoreExpiration: false,
-      secretOrKey: config.get<string>('jwt.publicKey'),
+      secretOrKey: publicKey,
       algorithms: ['RS256'],
     });
   }
