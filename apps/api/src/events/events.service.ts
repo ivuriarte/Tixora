@@ -1131,6 +1131,9 @@ export class EventsService {
         ...(dto.isFeatured !== undefined && { isFeatured: dto.isFeatured }),
         ...(dto.featuredOrder !== undefined && { featuredOrder: dto.featuredOrder }),
         ...(dto.featuredUntil !== undefined && { featuredUntil: dto.featuredUntil ? new Date(dto.featuredUntil) : null }),
+        // Disabling a featured event must also clear its stale carousel metadata.
+        // Otherwise a later re-enable can remain hidden because of an expired date.
+        ...(dto.isFeatured === false && { featuredOrder: null, featuredUntil: null }),
       },
     });
   }

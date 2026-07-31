@@ -630,7 +630,7 @@ export class UpdateEventDto {
   @IsOptional()
   @IsString()
   @MaxLength(100)
-  tagline?: string;
+  tagline?: string | null;
 
   @IsOptional()
   @IsBoolean()
@@ -640,11 +640,11 @@ export class UpdateEventDto {
   @IsInt()
   @Min(1)
   @Max(99)
-  featuredOrder?: number;
+  featuredOrder?: number | null;
 
   @IsOptional()
   @IsDateString()
-  featuredUntil?: string;
+  featuredUntil?: string | null;
 }
 
 export class OnsiteRegistrationDto {

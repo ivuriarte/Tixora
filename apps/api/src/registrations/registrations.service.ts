@@ -368,7 +368,7 @@ export class RegistrationsService {
       try {
         if (isFreeEvent) {
           await this.emailService.sendFreeRegistrationConfirmation(
-            lead.email,
+            lead.email ?? '',
             lead.firstName,
             referenceNumber,
             event.title,
@@ -376,7 +376,7 @@ export class RegistrationsService {
           );
         } else if (event.bankName && event.bankAccountNumber && event.bankAccountName) {
           await this.emailService.sendRegistrationConfirmation(
-            lead.email,
+            lead.email ?? '',
             lead.firstName,
             referenceNumber,
             event.title,
@@ -1413,7 +1413,7 @@ export class RegistrationsService {
         this.config.get<string>('webUrl') ?? 'https://axontickets.online';
       try {
         await this.emailService.sendCancellationEmail(
-          lead.email,
+          lead.email ?? '',
           lead.firstName,
           reg.referenceNumber,
           reg.event.title,
@@ -1738,7 +1738,7 @@ export class RegistrationsService {
         'https://axontickets.online';
       try {
         await this.emailService.sendRejectionEmail(
-          lead.email,
+          lead.email ?? '',
           lead.firstName,
           reg.referenceNumber,
           reg.event.title,
@@ -2003,12 +2003,12 @@ export class RegistrationsService {
         });
         if (!a.email) return undefined;
         return this.emailService.sendQrCodeEmail(
-          a.email,
+          a.email ?? '',
           a.firstName,
           reg.event.title,
           eventDate,
           reg.event.venue,
-          [{ firstName: a.firstName, lastName: a.lastName, email: a.email, qrToken }],
+          [{ firstName: a.firstName, lastName: a.lastName, email: a.email ?? '', qrToken }],
           receipt,
         );
       }),

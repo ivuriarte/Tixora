@@ -223,3 +223,32 @@ describe('EventsService.findFeatured()', () => {
     expect(mockEventUpdate).not.toHaveBeenCalled();
   });
 });
+
+describe('EventsService.update() featured settings', () => {
+  let service: EventsService;
+
+  beforeEach(() => {
+    mockFindUnique.mockReset();
+    mockEventUpdate.mockReset();
+    mockFindUnique.mockResolvedValue({ id: 'evt_1', imageUrl: '/featured/test.jpg' });
+    mockEventUpdate.mockImplementation(({ data }) => Promise.resolve({ id: 'evt_1', ...data }));
+    service = new EventsService(mockPrisma, mockRedis, { ensureWorkspace: jest.fn() } as any);
+  });
+
+  it('atomically clears ordering and expiry when featuring is disabled', async () => {
+    await service.update('evt_1', {
+      isFeatured: false,
+      featuredOrder: 3,
+      featuredUntil: '2026-12-31T15:59:59.000Z',
+    });
+
+    expect(mockEventUpdate).toHaveBeenCalledWith({
+      where: { id: 'evt_1' },
+      data: expect.objectContaining({
+        isFeatured: false,
+        featuredOrder: null,
+        featuredUntil: null,
+      }),
+    });
+  });
+});
