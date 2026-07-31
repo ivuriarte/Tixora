@@ -1015,11 +1015,15 @@ export default function RegistrationForm({
             );
 
             if (checkoutMode === 'guest') {
+              const guestEmailId = `attendee-${i + 1}-guest-email`;
+              const guestFirstNameId = `attendee-${i + 1}-guest-first-name`;
+              const guestLastNameId = `attendee-${i + 1}-guest-last-name`;
               return (
                 <>
                   <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1">Email *</label>
+                    <label htmlFor={guestEmailId} className="block text-xs font-medium text-gray-600 mb-1">Email *</label>
                     <input
+                      id={guestEmailId}
                       type="email"
                       required
                       autoFocus={i === 0}
@@ -1035,12 +1039,12 @@ export default function RegistrationForm({
                   </div>
                   <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-xs font-medium text-gray-600 mb-1">First Name *</label>
-                      <input required value={att.firstName} onChange={(e) => updateAttendee(i, 'firstName', e.target.value)} className={`w-full border rounded-lg px-3 py-2 text-sm ${normalCls}`} />
+                      <label htmlFor={guestFirstNameId} className="block text-xs font-medium text-gray-600 mb-1">First Name *</label>
+                      <input id={guestFirstNameId} required value={att.firstName} onChange={(e) => updateAttendee(i, 'firstName', e.target.value)} className={`w-full border rounded-lg px-3 py-2 text-sm ${normalCls}`} />
                     </div>
                     <div>
-                      <label className="block text-xs font-medium text-gray-600 mb-1">Last Name *</label>
-                      <input required value={att.lastName} onChange={(e) => updateAttendee(i, 'lastName', e.target.value)} className={`w-full border rounded-lg px-3 py-2 text-sm ${normalCls}`} />
+                      <label htmlFor={guestLastNameId} className="block text-xs font-medium text-gray-600 mb-1">Last Name *</label>
+                      <input id={guestLastNameId} required value={att.lastName} onChange={(e) => updateAttendee(i, 'lastName', e.target.value)} className={`w-full border rounded-lg px-3 py-2 text-sm ${normalCls}`} />
                     </div>
                   </div>
                   {eventType === 'running' && (

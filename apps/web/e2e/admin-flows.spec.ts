@@ -1,59 +1,139 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './support/admin-test';
+import {
+  ADMIN_EMAIL,
+  ADMIN_PASSWORD,
+  HAS_ADMIN_CREDENTIALS,
+} from './support/admin-auth';
+import { emptyDraft } from '../src/components/event-wizard/types';
+import type { Page } from '@playwright/test';
 
-/**
- * Admin dashboard tests — require admin credentials.
- * Set TEST_ADMIN_EMAIL and TEST_ADMIN_PASSWORD env vars to enable.
- */
+const EVENT_DRAFT_KEY = 'tixora:event-wizard:draft:v1';
 
-const ADMIN_EMAIL = process.env.TEST_ADMIN_EMAIL ?? '';
-const ADMIN_PASSWORD = process.env.TEST_ADMIN_PASSWORD ?? '';
+async function gotoAdmin(page: Page, path: string) {
+  await page.goto(path);
 
-async function loginAsAdmin(page: import('@playwright/test').Page) {
-  await page.goto('/auth/login');
-  await page.getByRole('textbox').first().fill(ADMIN_EMAIL);
-  await page.getByRole('textbox').nth(1).fill(ADMIN_PASSWORD);
-  await page.getByRole('button', { name: /log in/i }).click();
-  // Wait for redirect away from login
-  await page.waitForURL((url) => !url.pathname.includes('login'), { timeout: 10_000 });
+  const logoutButton = page.getByRole('button', { name: 'Log out' });
+  const signInHeading = page.getByRole('heading', { name: 'Admin sign-in' });
+  await expect(logoutButton.or(signInHeading)).toBeVisible();
+  if (await logoutButton.isVisible()) return;
+
+  const response = await fetch('https://api-uat.axontickets.online/api/v1/auth/login', {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      origin: 'https://uat.axontickets.online',
+    },
+    body: JSON.stringify({ email: ADMIN_EMAIL, password: ADMIN_PASSWORD }),
+  });
+  expect(response.status).toBe(200);
+  const payload = await response.json();
+  expect(payload?.data?.user?.isAdmin).toBe(true);
+  const refreshToken = payload?.data?.refreshToken;
+  expect(typeof refreshToken).toBe('string');
+
+  await page.evaluate(
+    ({ name, value }) => localStorage.setItem(name, value),
+    { name: 'axon_tickets_rt', value: refreshToken },
+  );
+  await page.goto(path);
+  await expect(logoutButton).toBeVisible();
 }
 
+async function openCreateWizardStep(
+  page: Page,
+  step: 'basics' | 'location' | 'details',
+) {
+  const persisted = {
+    draft: {
+      ...emptyDraft(),
+      title: 'QA Draft Event',
+      description: 'A local-only Playwright draft used to verify the event wizard.',
+      imageUrl: '/og-image.png',
+      venue: 'QA Convention Hall',
+      address: '123 QA Street',
+      city: 'Davao City',
+      startDate: '2030-01-10',
+      startTime: '10:00',
+      endDate: '2030-01-10',
+      endTime: '12:00',
+      maxCapacity: '10',
+      isFree: true,
+    },
+    tiers: [
+      {
+        key: 1,
+        name: 'General Admission',
+        description: '',
+        price: '0',
+        totalQuantity: '10',
+        maxPerOrder: '2',
+        isVisible: true,
+        inclusions: [],
+        sortOrder: 0,
+      },
+    ],
+    paymentMethods: [],
+    savedAt: Date.now(),
+  };
+
+  if (page.url() === 'about:blank') {
+    await gotoAdmin(page, '/admin');
+  }
+  await page.evaluate(
+    ({ key, value }) => localStorage.setItem(key, JSON.stringify(value)),
+    { key: EVENT_DRAFT_KEY, value: persisted },
+  );
+  await gotoAdmin(page, '/admin/events/new');
+  await page.getByRole('button', { name: 'Restore', exact: true }).click();
+
+  const advances = step === 'basics' ? 0 : step === 'location' ? 1 : 3;
+  for (let index = 0; index < advances; index += 1) {
+    await page.getByRole('button', { name: 'Next →', exact: true }).click();
+  }
+}
+
+async function advanceWizard(page: Page, count: number) {
+  for (let index = 0; index < count; index += 1) {
+    await page.getByRole('button', { name: 'Next →', exact: true }).click();
+  }
+}
+
+/**
+ * Admin dashboard tests reuse the authenticated state created by admin.setup.ts.
+ * Set TEST_ADMIN_EMAIL and TEST_ADMIN_PASSWORD for the isolated UAT admin identity.
+ */
+
 test.describe('Admin Dashboard', () => {
-  test.skip(!ADMIN_EMAIL, 'Set TEST_ADMIN_EMAIL and TEST_ADMIN_PASSWORD to run admin tests');
+  test.skip(!HAS_ADMIN_CREDENTIALS, 'Admin test identity is not configured.');
 
-  test('admin can view dashboard with event list', async ({ page }) => {
-    await loginAsAdmin(page);
-    await page.goto('/admin');
-    await expect(page.getByRole('heading', { name: /admin dashboard/i })).toBeVisible();
+  test('admin can view dashboard with event list', async ({ adminPage: page }) => {
+    await gotoAdmin(page, '/admin');
+    await expect(page.getByRole('heading', { name: 'Operations Overview' })).toBeVisible();
     await expect(page.getByRole('link', { name: /new event/i })).toBeVisible();
-    // Quick links visible
-    await expect(page.getByRole('link', { name: /check-in scanner/i })).toBeVisible();
-    await expect(page.getByRole('link', { name: /view orders/i })).toBeVisible();
+    await expect(page.getByRole('link', { name: /guest check-in/i })).toBeVisible();
+    await expect(page.getByRole('link', { name: /transactions/i })).toBeVisible();
   });
 
-  test('admin can navigate to orders page', async ({ page }) => {
-    await loginAsAdmin(page);
-    await page.goto('/admin/orders');
-    await expect(page.getByRole('heading', { name: /orders/i })).toBeVisible();
+  test('admin can navigate to orders page', async ({ adminPage: page }) => {
+    await gotoAdmin(page, '/admin/orders');
+    await expect(page.getByRole('heading', { name: /transactions/i })).toBeVisible();
   });
 
-  test('admin orders page has status filter', async ({ page }) => {
-    await loginAsAdmin(page);
-    await page.goto('/admin/orders');
-    const select = page.locator('select').first();
-    await expect(select).toBeVisible();
-    await select.selectOption('paid');
-    await expect(select).toHaveValue('paid');
+  test('admin orders page has status filter', async ({ adminPage: page }) => {
+    await gotoAdmin(page, '/admin/orders');
+    const statusSelect = page.locator('select').nth(1);
+    await expect(statusSelect).toBeVisible();
+    await statusSelect.selectOption('paid');
+    await expect(statusSelect).toHaveValue('paid');
   });
 
-  test('admin can navigate to create event page', async ({ page }) => {
-    await loginAsAdmin(page);
-    await page.goto('/admin/events/new');
+  test('admin can navigate to create event page', async ({ adminPage: page }) => {
+    await gotoAdmin(page, '/admin/events/new');
     await expect(page.getByRole('heading', { name: /new event/i })).toBeVisible();
   });
 
-  test('admin check-in page loads scanner UI', async ({ page }) => {
-    await loginAsAdmin(page);
-    await page.goto('/admin/checkin');
+  test('admin check-in page loads scanner UI', async ({ adminPage: page }) => {
+    await gotoAdmin(page, '/admin/checkin');
     // Should show some scanner UI
     const heading = page.getByRole('heading').first();
     await expect(heading).toBeVisible();
@@ -63,80 +143,68 @@ test.describe('Admin Dashboard', () => {
 // ── Admin Create Event — Form Fields (regression for recent changes) ─────────
 
 test.describe('Admin Create Event — Form Fields', () => {
-  test.skip(!ADMIN_EMAIL, 'Set TEST_ADMIN_EMAIL and TEST_ADMIN_PASSWORD to run admin tests');
+  test.skip(!HAS_ADMIN_CREDENTIALS, 'Admin test identity is not configured.');
 
-  test('form renders all required fields with asterisks', async ({ page }) => {
-    await loginAsAdmin(page);
-    await page.goto('/admin/events/new');
-
-    // Core required fields — use name attribute since labels lack htmlFor
-    await expect(page.locator('[name="title"]')).toBeVisible();
-    await expect(page.locator('[name="venue"]')).toBeVisible();
-    await expect(page.locator('[name="city"]')).toBeVisible();
+  test('basics step renders its required fields', async ({ adminPage: page }) => {
+    await openCreateWizardStep(page, 'basics');
+    await expect(page.getByPlaceholder(/my awesome concert/i)).toBeVisible();
+    await expect(page.getByPlaceholder(/describe your event/i)).toBeVisible();
+    await expect(page.getByRole('combobox', { name: /category/i })).toBeVisible();
+    await expect(page.getByRole('combobox', { name: /event format/i })).toBeVisible();
   });
 
-  test('form has date + time inputs as separate fields', async ({ page }) => {
-    await loginAsAdmin(page);
-    await page.goto('/admin/events/new');
-
-    // Separate date / time inputs (regression: was a single datetime-local)
+  test('location step has separate date and time controls', async ({ adminPage: page }) => {
+    await openCreateWizardStep(page, 'location');
     const dateInputs = page.locator('input[type="date"]');
-    const timeInputs = page.locator('input[type="time"]');
     await expect(dateInputs.first()).toBeVisible();
-    await expect(timeInputs.first()).toBeVisible();
+    await expect(dateInputs).toHaveCount(2);
+    await expect(page.locator('select')).toHaveCount(6);
   });
 
-  test('form has address field', async ({ page }) => {
-    await loginAsAdmin(page);
-    await page.goto('/admin/events/new');
-    await expect(page.locator('[name="address"]')).toBeVisible();
+  test('location step has address field', async ({ adminPage: page }) => {
+    await openCreateWizardStep(page, 'location');
+    await expect(page.getByPlaceholder(/jp laurel ave/i)).toBeVisible();
   });
 
-  test('empty submit shows validation — does not navigate away', async ({ page }) => {
-    await loginAsAdmin(page);
-    await page.goto('/admin/events/new');
-    await page.getByRole('button', { name: /create event/i }).click();
-    // Page should stay on /new
+  test('invalid basics cannot advance to the next step', async ({ adminPage: page }) => {
+    await page.evaluate((key) => localStorage.removeItem(key), EVENT_DRAFT_KEY);
+    await gotoAdmin(page, '/admin/events/new');
+    await expect(page.getByRole('button', { name: 'Next →', exact: true })).toBeDisabled();
+    await expect(page.getByRole('heading', { name: 'Basics' })).toBeVisible();
     await expect(page).toHaveURL(/events\/new/);
   });
 
-  test('end-before-start shows banner warning', async ({ page }) => {
-    await loginAsAdmin(page);
-    await page.goto('/admin/events/new');
-
-    // Fill start date in the future, then set end before start
+  test('end-before-start shows banner warning', async ({ adminPage: page }) => {
+    await openCreateWizardStep(page, 'location');
     const dateInputs = page.locator('input[type="date"]');
-    const timeInputs = page.locator('input[type="time"]');
+    const timeSelects = page.locator('select');
 
-    await dateInputs.nth(0).fill('2030-01-10'); // starts
-    await timeInputs.nth(0).fill('10:00');
-    await dateInputs.nth(1).fill('2030-01-09'); // ends BEFORE start
-    await timeInputs.nth(1).fill('10:00');
+    await dateInputs.nth(0).fill('2030-01-10');
+    await timeSelects.nth(0).selectOption('10');
+    await dateInputs.nth(1).fill('2030-01-10');
+    await timeSelects.nth(3).selectOption('9');
+    await timeSelects.nth(5).selectOption('AM');
 
-    // Banner should appear
     await expect(page.getByText(/end.*before.*start|end.*must be after/i)).toBeVisible();
   });
 
-  test('Conference Details section renders sponsors manager', async ({ page }) => {
-    await loginAsAdmin(page);
-    await page.goto('/admin/events/new');
+  test('Conference Details section renders sponsors manager', async ({ adminPage: page }) => {
+    await openCreateWizardStep(page, 'details');
 
     // Sponsors section
     await expect(page.getByText(/sponsors/i).first()).toBeVisible();
     await expect(page.getByRole('button', { name: /add sponsor/i })).toBeVisible();
   });
 
-  test('Conference Details section renders FAQ manager', async ({ page }) => {
-    await loginAsAdmin(page);
-    await page.goto('/admin/events/new');
+  test('Conference Details section renders FAQ manager', async ({ adminPage: page }) => {
+    await openCreateWizardStep(page, 'details');
 
     await expect(page.getByText(/faqs|frequently asked/i).first()).toBeVisible();
     await expect(page.getByRole('button', { name: /add faq|add question/i })).toBeVisible();
   });
 
-  test('can add and remove a sponsor entry', async ({ page }) => {
-    await loginAsAdmin(page);
-    await page.goto('/admin/events/new');
+  test('can add and remove a sponsor entry', async ({ adminPage: page }) => {
+    await openCreateWizardStep(page, 'details');
 
     await page.getByRole('button', { name: /add sponsor/i }).click();
 
@@ -149,18 +217,18 @@ test.describe('Admin Create Event — Form Fields', () => {
     await page.getByRole('button', { name: /^add sponsor$/i }).click();
 
     // Sponsor appears in list
-    await expect(page.getByText('ACME Corp')).toBeVisible();
+    const sponsorName = page.getByText('ACME Corp', { exact: true });
+    await expect(sponsorName.first()).toBeVisible();
 
     // Delete the sponsor
     await page.getByRole('button', { name: /^delete$/i }).first().click();
 
     // Sponsor should be gone
-    await expect(page.getByText('ACME Corp')).not.toBeVisible();
+    await expect(sponsorName).toHaveCount(0);
   });
 
-  test('can add and remove a FAQ entry', async ({ page }) => {
-    await loginAsAdmin(page);
-    await page.goto('/admin/events/new');
+  test('can add and remove a FAQ entry', async ({ adminPage: page }) => {
+    await openCreateWizardStep(page, 'details');
 
     await page.getByRole('button', { name: /add faq/i }).click();
 
@@ -177,61 +245,69 @@ test.describe('Admin Create Event — Form Fields', () => {
     await page.getByRole('button', { name: /^add faq$/i }).click();
 
     // FAQ appears in list
-    await expect(page.getByText('What time does it start?')).toBeVisible();
+    const faqQuestion = page.getByText('What time does it start?', { exact: true });
+    await expect(faqQuestion.first()).toBeVisible();
 
     // Delete the FAQ
     await page.getByRole('button', { name: /^delete$/i }).first().click();
 
     // FAQ should be gone
-    await expect(page.getByText('What time does it start?')).not.toBeVisible();
+    await expect(faqQuestion).toHaveCount(0);
   });
 });
 
 // ── Admin Edit Event — Pre-population Regression ────────────────────────────
 
 test.describe('Admin Edit Event — Pre-population', () => {
-  test.skip(!ADMIN_EMAIL, 'Set TEST_ADMIN_EMAIL and TEST_ADMIN_PASSWORD to run admin tests');
+  test.skip(!HAS_ADMIN_CREDENTIALS, 'Admin test identity is not configured.');
 
-  test('navigating to an existing event populates the title field', async ({ page }) => {
-    await loginAsAdmin(page);
-    await page.goto('/admin');
+  test('navigating to an existing event populates the title field', async ({ adminPage: page }) => {
+    await gotoAdmin(page, '/admin');
 
     // Find first Edit link in the event list
     const editLink = page.getByRole('link', { name: /edit/i }).first();
-    const count = await editLink.count();
-    if (count === 0) return; // No events yet — skip
+    await expect.poll(
+      () => editLink.count(),
+      { message: 'UAT should provide at least one editable event.' },
+    ).toBeGreaterThan(0);
 
     await editLink.click();
     await page.waitForURL(/events\/[^/]+$/, { timeout: 8000 });
 
     // Title must be pre-populated (not empty)
-    const titleInput = page.getByLabel(/title\s*\*/i).first();
+    const titleInput = page.getByPlaceholder(/my awesome concert/i).first();
     await expect(titleInput).not.toHaveValue('');
   });
 
-  test('edit form address field is rendered', async ({ page }) => {
-    await loginAsAdmin(page);
-    await page.goto('/admin');
+  test('edit form address field is rendered', async ({ adminPage: page }) => {
+    await gotoAdmin(page, '/admin');
 
     const editLink = page.getByRole('link', { name: /edit/i }).first();
-    if ((await editLink.count()) === 0) return;
+    await expect.poll(
+      () => editLink.count(),
+      { message: 'UAT should provide at least one editable event.' },
+    ).toBeGreaterThan(0);
 
     await editLink.click();
     await page.waitForURL(/events\/[^/]+$/, { timeout: 8000 });
 
-    await expect(page.getByLabel(/address/i)).toBeVisible();
+    await advanceWizard(page, 1);
+    await expect(page.getByPlaceholder(/jp laurel ave/i)).toBeVisible();
   });
 
-  test('edit form has sponsors and FAQ managers', async ({ page }) => {
-    await loginAsAdmin(page);
-    await page.goto('/admin');
+  test('edit form has sponsors and FAQ managers', async ({ adminPage: page }) => {
+    await gotoAdmin(page, '/admin');
 
     const editLink = page.getByRole('link', { name: /edit/i }).first();
-    if ((await editLink.count()) === 0) return;
+    await expect.poll(
+      () => editLink.count(),
+      { message: 'UAT should provide at least one editable event.' },
+    ).toBeGreaterThan(0);
 
     await editLink.click();
     await page.waitForURL(/events\/[^/]+$/, { timeout: 8000 });
 
+    await advanceWizard(page, 3);
     await expect(page.getByRole('button', { name: /add sponsor/i })).toBeVisible();
     await expect(page.getByRole('button', { name: /add faq|add question/i })).toBeVisible();
   });
@@ -240,77 +316,78 @@ test.describe('Admin Edit Event — Pre-population', () => {
 // ── E-07: Admin Check-in & Analytics (Phase 6 + Phase 7) ────────────────────
 
 test.describe('Admin Check-in', () => {
-  test.skip(!ADMIN_EMAIL, 'Set TEST_ADMIN_EMAIL and TEST_ADMIN_PASSWORD to run admin tests');
+  test.skip(!HAS_ADMIN_CREDENTIALS, 'Admin test identity is not configured.');
 
-  test('check-in page renders two tabs', async ({ page }) => {
-    await loginAsAdmin(page);
-    await page.goto('/admin/checkin');
+  test('check-in page renders two tabs', async ({ adminPage: page }) => {
+    await gotoAdmin(page, '/admin/checkin');
     // /camera/i matches both the tab button and "Start Camera" — use .first()
     await expect(page.getByRole('button', { name: /camera/i }).first()).toBeVisible();
     await expect(page.getByRole('button', { name: /search/i })).toBeVisible();
     await expect(page.getByRole('button', { name: /manual/i })).not.toBeVisible();
   });
 
-  test('check-in page has event selector', async ({ page }) => {
-    await loginAsAdmin(page);
-    await page.goto('/admin/checkin');
+  test('check-in page has event selector', async ({ adminPage: page }) => {
+    await gotoAdmin(page, '/admin/checkin');
     // Event selector is a <select> element
     const eventSelect = page.locator('select').first();
     await expect(eventSelect).toBeVisible();
   });
 
-  test('search tab: entering a query shows a results section', async ({ page }) => {
-    await loginAsAdmin(page);
-    await page.goto('/admin/checkin');
+  test('search tab submits an attendee query successfully', async ({ adminPage: page }) => {
+    await gotoAdmin(page, '/admin/checkin');
 
     // Switch to Search tab
     await page.getByRole('button', { name: /search/i }).click();
 
-    // Input should be visible
+    const eventSelect = page.locator('select').first();
+    await expect.poll(
+      () => eventSelect.locator('option:not([value=""])').count(),
+      { message: 'UAT should provide at least one event for check-in search.' },
+    ).toBeGreaterThan(0);
+    await eventSelect.selectOption({ index: 1 });
+
     const searchInput = page.locator('input[type="text"], input[type="search"]').first();
     await expect(searchInput).toBeVisible();
-
-    // Type a query — if events exist the results section appears; if not, no crash
     await searchInput.fill('test');
-    // Wait briefly for the debounced search
-    await page.waitForTimeout(600);
 
-    // Page must not have an unhandled error banner
+    const searchResponse = page.waitForResponse(
+      (response) =>
+        response.url().includes('/admin/checkin/search?') &&
+        response.request().method() === 'GET',
+    );
+    await page.getByRole('button', { name: /^search$/i }).last().click();
+    expect((await searchResponse).ok()).toBe(true);
+
     await expect(page.getByText(/something went wrong|unhandled/i)).not.toBeVisible();
   });
 
 });
 
 test.describe('Admin Analytics', () => {
-  test.skip(!ADMIN_EMAIL, 'Set TEST_ADMIN_EMAIL and TEST_ADMIN_PASSWORD to run admin tests');
+  test.skip(!HAS_ADMIN_CREDENTIALS, 'Admin test identity is not configured.');
 
-  test('analytics page loads and shows stat cards', async ({ page }) => {
-    await loginAsAdmin(page);
-    await page.goto('/admin/analytics');
+  test('analytics page loads and shows stat cards', async ({ adminPage: page }) => {
+    await gotoAdmin(page, '/admin/analytics');
     // Page must render at least one heading
     const heading = page.getByRole('heading').first();
     await expect(heading).toBeVisible();
   });
 
-  test('analytics page has event selector', async ({ page }) => {
-    await loginAsAdmin(page);
-    await page.goto('/admin/analytics');
+  test('analytics page has event selector', async ({ adminPage: page }) => {
+    await gotoAdmin(page, '/admin/analytics');
     const eventSelect = page.locator('select').first();
     await expect(eventSelect).toBeVisible();
   });
 
-  test('analytics page has time-range toggle buttons (7d, 14d, 30d)', async ({ page }) => {
-    await loginAsAdmin(page);
-    await page.goto('/admin/analytics');
+  test('analytics page has time-range toggle buttons (7d, 14d, 30d)', async ({ adminPage: page }) => {
+    await gotoAdmin(page, '/admin/analytics');
     await expect(page.getByRole('button', { name: /7d/i })).toBeVisible();
     await expect(page.getByRole('button', { name: /14d/i })).toBeVisible();
     await expect(page.getByRole('button', { name: /30d/i })).toBeVisible();
   });
 
-  test('admin dashboard has Analytics quick-link', async ({ page }) => {
-    await loginAsAdmin(page);
-    await page.goto('/admin');
+  test('admin dashboard has Analytics quick-link', async ({ adminPage: page }) => {
+    await gotoAdmin(page, '/admin');
     await expect(page.getByRole('link', { name: /analytics/i })).toBeVisible();
   });
 });
-

@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, test } from './support/qa-test';
 
 type NavigationSample = {
   ttfbMs: number;

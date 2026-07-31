@@ -1,6 +1,4 @@
-import { expect, test, type Page } from '@playwright/test';
-
-const API_URL = process.env.API_URL ?? 'https://api-uat.axontickets.online';
+import { expect, test, type Page } from './support/qa-test';
 
 async function expectNoStructuralAccessibilityIssues(page: Page) {
   const issues = await page.evaluate(() => {
@@ -56,33 +54,13 @@ test.describe('Release 2.0 accessibility and responsive layout', () => {
     expect(dimensions.content).toBeLessThanOrEqual(dimensions.viewport + 1);
   });
 
-  test('mobile discovery and guest choice remain usable without overflow', async ({
+  test('mobile discovery and merged customer access remain usable without overflow', async ({
     page,
-    request,
   }) => {
     await page.setViewportSize({ width: 375, height: 812 });
-    await page.route(`${API_URL}/**`, async (route) => {
-      const upstream = await request.fetch(route.request());
-      await route.fulfill({
-        response: upstream,
-        headers: {
-          ...upstream.headers(),
-          'access-control-allow-origin': 'http://localhost:3100',
-          'access-control-allow-credentials': 'true',
-        },
-      });
-    });
-
-    const eventsResponse = await request.get(`${API_URL}/api/v1/events?page=1&limit=1`);
-    const eventsJson = await eventsResponse.json();
-    const list = eventsJson.data ?? eventsJson;
-    const summary = list.data[0];
-    const eventResponse = await request.get(`${API_URL}/api/v1/events/${summary.slug}`);
-    const eventJson = await eventResponse.json();
-    const event = eventJson.data ?? eventJson;
-
-    await page.goto(`/events/${event.slug}/register?tierId=${event.tiers[0].id}&qty=1`);
-    await expect(page.getByRole('heading', { name: 'Choose how to continue' })).toBeVisible();
+    await page.goto('/auth/login');
+    await expect(page.getByRole('heading', { name: 'Enter Email' })).toBeVisible();
+    await expect(page.getByLabel('Email address')).toBeVisible();
     await expectNoStructuralAccessibilityIssues(page);
     const dimensions = await page.evaluate(() => ({
       viewport: document.documentElement.clientWidth,
