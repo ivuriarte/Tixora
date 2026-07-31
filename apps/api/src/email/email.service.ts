@@ -46,6 +46,12 @@ export class EmailService implements OnModuleDestroy {
     this.transporter?.close();
   }
 
+  private redactRecipient(value: string): string {
+    const [local = '', domain = ''] = value.split('@');
+    if (!domain) return '[redacted]';
+    return `${local.slice(0, 1)}***@${domain}`;
+  }
+
   /**
    * Send a raw email with optional attachments.
    * Supports inline CID attachments (set cid to reference from HTML as cid:...).
@@ -57,8 +63,9 @@ export class EmailService implements OnModuleDestroy {
     html: string,
     attachments?: { content: string | Buffer; filename: string; content_type: string; cid?: string }[],
   ): Promise<void> {
+    const recipient = this.redactRecipient(to);
     if (!this.transporter) {
-      this.logger.warn({ msg: 'Email skipped (SMTP disabled)', to, subject });
+      this.logger.warn({ msg: 'Email skipped (SMTP disabled)', recipient, subject });
       return;
     }
     const mailOptions: Mail.Options = {
@@ -80,7 +87,7 @@ export class EmailService implements OnModuleDestroy {
       const message = err instanceof Error ? err.message : String(err);
       this.logger.warn({
         msg: 'Failed to send email',
-        to,
+        recipient,
         subject,
         from: this.fromEmail,
         errorMessage: message,
@@ -98,8 +105,9 @@ export class EmailService implements OnModuleDestroy {
     html: string,
     maxRetries = 3,
   ): Promise<boolean> {
+    const recipient = this.redactRecipient(to);
     if (!this.transporter) {
-      this.logger.warn({ msg: 'OTP/critical email skipped (SMTP disabled)', to, subject });
+      this.logger.warn({ msg: 'OTP/critical email skipped (SMTP disabled)', recipient, subject });
       return false;
     }
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
@@ -113,7 +121,7 @@ export class EmailService implements OnModuleDestroy {
 
         this.logger.log({
           msg: 'Email sent successfully',
-          to,
+          recipient,
           subject,
           messageId: info.messageId,
           attempt,
@@ -126,7 +134,7 @@ export class EmailService implements OnModuleDestroy {
         if (isLastAttempt) {
           this.logger.error({
             msg: 'Failed to send email after all retries',
-            to,
+            recipient,
             subject,
             from: this.fromEmail,
             attempts: maxRetries,
@@ -139,7 +147,7 @@ export class EmailService implements OnModuleDestroy {
         const delay = 1000 * Math.pow(2, attempt - 1);
         this.logger.warn({
           msg: 'Email send failed, retrying',
-          to,
+          recipient,
           subject,
           attempt,
           nextRetryIn: `${delay}ms`,

@@ -87,6 +87,7 @@ describe('RegistrationsService running-event bib assignment', () => {
       audit as any,
       config as any,
       funnel as any,
+      {} as any,
     );
 
     await service.approve('registration-1', 'admin-1');

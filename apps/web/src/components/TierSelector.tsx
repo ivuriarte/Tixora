@@ -163,7 +163,11 @@ export default function TierSelector({ eventId, eventSlug, tiers, disabled }: Pr
         className="w-full"
         size="lg"
       >
-        {disabled ? 'Unavailable' : 'Reserve Tickets'}
+        {disabled
+          ? 'Unavailable'
+          : selectedTier?.price === 0
+            ? 'Register Free'
+            : 'Proceed to Payment'}
       </Button>
 
       <p className="text-xs text-gray-400 text-center">

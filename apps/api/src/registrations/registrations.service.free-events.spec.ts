@@ -124,6 +124,7 @@ function makeService(opts: {
     mockAudit as any,
     mockConfig as any,
     mockFunnel as any,
+    {} as any,
   );
 
   return { service, mockTx, mockPrisma, mockEmail };
@@ -261,6 +262,7 @@ describe('RegistrationsService — approve()', () => {
       mockAudit as any,
       mockConfig as any,
       mockFunnel as any,
+      {} as any,
     );
     return { service, mockPrisma };
   }
@@ -292,7 +294,7 @@ describe('RegistrationsService — approve()', () => {
 
   it('throws NotFoundException when registration does not exist', async () => {
     const mockPrisma = { registration: { findUnique: jest.fn().mockResolvedValue(null) } };
-    const service = new RegistrationsService(mockPrisma as any, {} as any, {} as any, {} as any, {} as any);
+    const service = new RegistrationsService(mockPrisma as any, {} as any, {} as any, {} as any, {} as any, {} as any);
 
     await expect(service.approve('missing', 'admin_1'))
       .rejects.toBeInstanceOf(NotFoundException);

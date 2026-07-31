@@ -4,7 +4,7 @@ import { RegistrationsService } from './registrations.service';
 
 function makeService(usageCount = 0) {
   const prisma = { referralCodeUsage: { count: jest.fn().mockResolvedValue(usageCount) } };
-  const service = new RegistrationsService(prisma as any, {} as any, {} as any, {} as any, {} as any);
+  const service = new RegistrationsService(prisma as any, {} as any, {} as any, {} as any, {} as any, {} as any);
   return { service, prisma };
 }
 

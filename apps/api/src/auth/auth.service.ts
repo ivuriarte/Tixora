@@ -279,7 +279,11 @@ export class AuthService {
     const userAgent = req?.headers['user-agent'] as string | undefined;
     const referrer = (req?.headers['referer'] as string | undefined) ?? undefined;
 
-    this.logger.log({ msg: 'OTP send requested', email, eventId: dto.eventId ?? null });
+    this.logger.log({
+      msg: 'OTP send requested',
+      emailHash: createHash('sha256').update(email).digest('hex').slice(0, 12),
+      eventId: dto.eventId ?? null,
+    });
 
     let user = await this.prisma.user.findUnique({ where: { email } });
 

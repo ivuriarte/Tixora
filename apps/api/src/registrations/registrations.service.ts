@@ -6,17 +6,20 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Prisma } from '@prisma/client';
+import * as bcrypt from 'bcryptjs';
 import { PrismaService } from '../prisma/prisma.service';
 import { EmailService } from '../email/email.service';
 import { AuditService } from '../audit/audit.service';
 import { FunnelService } from '../funnel/funnel.service';
+import { RedisService } from '../redis/redis.service';
 import {
   generateReferenceNumber,
   generateAttendeeQrToken,
 } from '@axon-tickets/utils';
-import { createHash, randomBytes, timingSafeEqual } from 'crypto';
-import { CreateRegistrationDto } from './dto/create-registration.dto';
+import { createHash, randomBytes, randomInt, timingSafeEqual } from 'crypto';
+import { AttendeeDto, CreateRegistrationDto } from './dto/create-registration.dto';
 import { UpdateRegistrationAttendeesDto } from './dto/update-registration-attendees.dto';
+import { ConfirmGuestCheckoutDto } from './dto/checkout-confirmation.dto';
 import { ValidateReferralCodeDto } from '../admin/dto/referral-code.dto';
 import { getAgendaSubEvents, resolveAgendaSubEvent } from '../events/agenda-sub-events';
 
@@ -24,6 +27,8 @@ const ACTIVE_REGISTRATION_STATUSES = ['pending_payment', 'proof_submitted', 'pen
 const VALID_TICKET_STATUSES = ['valid', 'used'] as const;
 const DUPLICATE_SUCCESSFUL_REGISTRATION_MESSAGE =
   'You have already successfully registered for this event. You cannot register twice for the same event.';
+const GUEST_CHECKOUT_OTP_TTL_SECONDS = 300;
+const GUEST_CHECKOUT_OTP_MAX_ATTEMPTS = 5;
 
 type SelectedSubEvent = {
   id: string;
@@ -41,6 +46,7 @@ export class RegistrationsService {
     private readonly audit: AuditService,
     private readonly config: ConfigService,
     private readonly funnel: FunnelService,
+    private readonly redis: RedisService,
   ) {}
 
   async create(dto: CreateRegistrationDto, userId: string, ip?: string) {
@@ -76,12 +82,34 @@ export class RegistrationsService {
     return { ...registration, guestAccessToken };
   }
 
+  async createGuestIntent(dto: CreateRegistrationDto, ip?: string) {
+    if (dto.guestEmail || dto.attendees?.length) {
+      throw new BadRequestException('Guest contact and attendee details are collected after payment proof.');
+    }
+    if (dto.accountConsent === true) {
+      throw new BadRequestException('Account consent is collected after payment proof.');
+    }
+
+    const guestAccessToken = randomBytes(32).toString('base64url');
+    const guestAccessTokenHash = createHash('sha256').update(guestAccessToken).digest('hex');
+    const registration = await this.createImpl(
+      { ...dto, accountConsent: false },
+      null,
+      ip,
+      undefined,
+      guestAccessTokenHash,
+      true,
+    );
+    return { ...registration, guestAccessToken };
+  }
+
   private async createImpl(
     dto: CreateRegistrationDto,
     userId: string | null,
     ip?: string,
     guestEmail?: string,
     guestAccessTokenHash?: string,
+    requirePaid = false,
   ) {
     const attendees = dto.attendees ?? [];
     this.validateAttendeeDemographics(attendees);
@@ -118,6 +146,9 @@ export class RegistrationsService {
     const isFreeEvent = event.isFree || (unitPrice === 0 && Number(event.platformFee ?? 50) === 0);
     const fees = isFreeEvent ? 0 : Number(event.platformFee ?? 50);
 
+    if (requirePaid && isFreeEvent) {
+      throw new BadRequestException('Use the free-event registration flow for this ticket.');
+    }
     if (!isFreeEvent && !event.allowManualPayment) {
       throw new BadRequestException('Manual payment is not enabled for this event');
     }
@@ -131,23 +162,26 @@ export class RegistrationsService {
         // click, auto-submit firing twice, network retry) could both pass the
         // duplicate-registration check below before either one commits.
         // pg_advisory_xact_lock auto-releases when this transaction ends.
-        const ownerKey = userId ?? guestEmail!;
+        const ownerKey = userId ?? guestEmail ?? guestAccessTokenHash!;
         await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${ownerKey}), hashtext(${dto.eventId}))`;
 
         // Duplicate registration guard: block if user already has an active
         // registration for this event.
         // Now inside the lock above, so a concurrent request can't slip
         // through before this one commits.
-        const activeRegistration = await tx.registration.findFirst({
-          where: {
-            ...(userId
-              ? { userId }
-              : { guestEmail: { equals: guestEmail, mode: 'insensitive' as const } }),
-            eventId: dto.eventId,
-            status: { in: [...ACTIVE_REGISTRATION_STATUSES] as any[] },
-          },
-          select: { id: true, status: true },
-        });
+        const activeRegistration =
+          userId || guestEmail
+            ? await tx.registration.findFirst({
+                where: {
+                  ...(userId
+                    ? { userId }
+                    : { guestEmail: { equals: guestEmail!, mode: 'insensitive' as const } }),
+                  eventId: dto.eventId,
+                  status: { in: [...ACTIVE_REGISTRATION_STATUSES] as any[] },
+                },
+                select: { id: true, status: true },
+              })
+            : null;
         if (activeRegistration) {
           throw new BadRequestException(
             activeRegistration.status === 'verified'
@@ -163,12 +197,12 @@ export class RegistrationsService {
         // Anti-scalper #1: per-account cap across the WHOLE event (not just
         // this registration). Sums attendees from all non-cancelled /
         // non-rejected registrations this user already has for the event.
-        if (maxPerUser > 0) {
+        if (maxPerUser > 0 && (userId || guestEmail)) {
           const existing = await tx.registration.aggregate({
             where: {
               ...(userId
                 ? { userId }
-                : { guestEmail: { equals: guestEmail, mode: 'insensitive' as const } }),
+                : { guestEmail: { equals: guestEmail!, mode: 'insensitive' as const } }),
               eventId: dto.eventId,
               status: { notIn: ['cancelled', 'rejected'] },
             },
@@ -459,7 +493,266 @@ export class RegistrationsService {
     dto: UpdateRegistrationAttendeesDto,
   ) {
     await this.assertGuestAccess(id, token);
+    const registration = await this.prisma.registration.findUnique({
+      where: { id },
+      select: { guestEmail: true, total: true },
+    });
+    if (registration && !registration.guestEmail && Number(registration.total) > 0) {
+      throw new BadRequestException(
+        'Paid guest checkout must be finalized with the email confirmation code.',
+      );
+    }
     return this.updateAttendeesForRegistration(id, null, dto);
+  }
+
+  async requestGuestConfirmationCode(
+    id: string,
+    token: string | undefined,
+    email: string,
+  ) {
+    await this.assertGuestAccess(id, token);
+    const registration = await this.prisma.registration.findUnique({
+      where: { id },
+      select: {
+        status: true,
+        total: true,
+        attendeesCompletedAt: true,
+      },
+    });
+    if (
+      !registration ||
+      registration.status !== 'proof_submitted' ||
+      Number(registration.total) <= 0 ||
+      registration.attendeesCompletedAt
+    ) {
+      throw new BadRequestException('This checkout is not ready for guest confirmation.');
+    }
+
+    const normalizedEmail = email.trim().toLowerCase();
+    const cooldownKey = `guest-checkout-otp-cooldown:${id}`;
+    const accepted = await this.redis.setIfNotExists(cooldownKey, '1', 60);
+    if (!accepted) {
+      throw new BadRequestException('Please wait 60 seconds before requesting a new code.');
+    }
+
+    const code = randomInt(0, 1_000_000).toString().padStart(6, '0');
+    const codeHash = await bcrypt.hash(code, 10);
+    const record = JSON.stringify({
+      codeHash,
+      emailHash: this.hashGuestEmail(normalizedEmail),
+    });
+    const otpKey = `guest-checkout-otp:${id}`;
+    await this.redis.set(otpKey, record, GUEST_CHECKOUT_OTP_TTL_SECONDS);
+
+    const sent = await this.emailService.sendOtpEmail(normalizedEmail, code);
+    if (!sent) {
+      await Promise.all([this.redis.del(otpKey), this.redis.del(cooldownKey)]);
+      throw new BadRequestException('Could not send code right now. Please try again.');
+    }
+
+    return { message: 'If the address is valid, a confirmation code has been sent.' };
+  }
+
+  async confirmGuestCheckout(
+    id: string,
+    token: string | undefined,
+    dto: ConfirmGuestCheckoutDto,
+  ) {
+    await this.assertGuestAccess(id, token);
+    const normalizedEmail = dto.email.trim().toLowerCase();
+    const otpKey = `guest-checkout-otp:${id}`;
+    const attemptsKey = `guest-checkout-otp-attempts:${id}`;
+    const rawRecord = await this.redis.get(otpKey);
+    if (!rawRecord) {
+      throw new BadRequestException('Code expired or invalid. Request a new one.');
+    }
+
+    let record: { codeHash: string; emailHash: string };
+    try {
+      record = JSON.parse(rawRecord) as { codeHash: string; emailHash: string };
+    } catch {
+      await this.redis.del(otpKey);
+      throw new BadRequestException('Code expired or invalid. Request a new one.');
+    }
+
+    const attempts = Number.parseInt((await this.redis.get(attemptsKey)) ?? '0', 10);
+    if (attempts >= GUEST_CHECKOUT_OTP_MAX_ATTEMPTS) {
+      throw new BadRequestException('Too many failed attempts. Request a new code.');
+    }
+
+    const emailMatches = this.safeHashEquals(
+      record.emailHash,
+      this.hashGuestEmail(normalizedEmail),
+    );
+    const codeMatches = emailMatches && (await bcrypt.compare(dto.otp, record.codeHash));
+    if (!codeMatches) {
+      const next = await this.redis.incrementWithTtl(
+        attemptsKey,
+        GUEST_CHECKOUT_OTP_TTL_SECONDS,
+      );
+      if (next.count >= GUEST_CHECKOUT_OTP_MAX_ATTEMPTS) {
+        await this.redis.del(otpKey);
+        throw new BadRequestException('Too many failed attempts. Request a new code.');
+      }
+      throw new BadRequestException('Incorrect code. Please try again.');
+    }
+
+    const leadEmail = dto.attendees[0]?.email?.trim().toLowerCase();
+    if (!leadEmail || leadEmail !== normalizedEmail) {
+      throw new BadRequestException('The confirmation email must match Attendee 1.');
+    }
+
+    const result = await this.updateAttendeesForRegistration(id, null, dto);
+    await Promise.all([
+      this.redis.del(otpKey),
+      this.redis.del(attemptsKey),
+      this.redis.del(`guest-checkout-otp-cooldown:${id}`),
+    ]);
+    await this.audit.log({
+      action: 'GUEST_REGISTRATION_CONFIRMED',
+      entityType: 'Registration',
+      entityId: id,
+      registrationId: id,
+      metadata: { emailStoredAsAttendeeContactOnly: true },
+    });
+    return result;
+  }
+
+  async claimAndComplete(
+    id: string,
+    token: string | undefined,
+    userId: string,
+    dto: UpdateRegistrationAttendeesDto,
+  ) {
+    await this.assertGuestAccess(id, token);
+    this.validateAttendeeDemographics(dto.attendees);
+
+    const [registration, user] = await Promise.all([
+      this.prisma.registration.findUnique({
+        where: { id },
+        include: {
+          attendees: { orderBy: { isLead: 'desc' } },
+          event: { select: { id: true, eventType: true, runningConfig: true } },
+        },
+      }),
+      this.prisma.user.findUnique({ where: { id: userId } }),
+    ]);
+    if (!registration || !user) throw new NotFoundException('Registration not found');
+    if (
+      registration.userId !== null ||
+      registration.status !== 'proof_submitted' ||
+      registration.attendeesCompletedAt
+    ) {
+      throw new BadRequestException('This checkout can no longer be linked to an account.');
+    }
+    if (dto.attendees.length !== registration.attendeeCount) {
+      throw new BadRequestException(
+        `Expected ${registration.attendeeCount} attendee(s) — cannot change quantity`,
+      );
+    }
+    const lead = dto.attendees[0];
+    if (lead.email.trim().toLowerCase() !== user.email.toLowerCase()) {
+      throw new BadRequestException('Attendee 1 email must match the verified account email.');
+    }
+    this.validateRunningAttendees(registration.event, dto.attendees);
+
+    const duplicate = await this.prisma.registration.findFirst({
+      where: {
+        id: { not: id },
+        userId,
+        eventId: registration.eventId,
+        status: { in: [...ACTIVE_REGISTRATION_STATUSES] as any[] },
+      },
+      select: { id: true },
+    });
+    if (duplicate) {
+      throw new BadRequestException(
+        'This account already has an active registration for the event.',
+      );
+    }
+
+    const profileUpdate: Prisma.UserUpdateInput = {
+      firstName: lead.firstName.trim(),
+      lastName: lead.lastName.trim(),
+      phone: lead.phone.trim(),
+      company: lead.company?.trim() || null,
+      jobTitle: lead.jobTitle?.trim() || null,
+      city: lead.city?.trim() || null,
+      birthday: lead.birthday ? new Date(`${lead.birthday}T00:00:00.000Z`) : null,
+      gender: lead.gender || null,
+    };
+
+    await this.prisma.$transaction(async (tx) => {
+      if (registration.attendees.length > 0) {
+        await tx.attendee.deleteMany({ where: { registrationId: id } });
+      }
+      await tx.attendee.createMany({
+        data: dto.attendees.map((attendee, index) => ({
+          ...this.toAttendeeData(attendee, index),
+          registrationId: id,
+          eventId: registration.eventId,
+        })),
+      });
+      await tx.registration.update({
+        where: { id },
+        data: {
+          userId,
+          guestEmail: null,
+          guestAccessTokenHash: null,
+          accountConsent: true,
+          accountConsentAt: new Date(),
+          attendeesCompletedAt: new Date(),
+          status: 'pending_approval',
+          ...(dto.notes !== undefined ? { notes: dto.notes } : {}),
+        },
+      });
+      await tx.user.update({ where: { id: userId }, data: profileUpdate });
+    });
+
+    await this.audit.log({
+      action: 'REGISTRATION_LINKED_TO_VERIFIED_ACCOUNT',
+      entityType: 'Registration',
+      entityId: id,
+      registrationId: id,
+      performedById: userId,
+    });
+    return { message: 'Registration confirmed and account updated.' };
+  }
+
+  private hashGuestEmail(email: string) {
+    return createHash('sha256').update(email).digest('hex');
+  }
+
+  private safeHashEquals(left: string, right: string) {
+    const leftBuffer = Buffer.from(left);
+    const rightBuffer = Buffer.from(right);
+    return leftBuffer.length === rightBuffer.length && timingSafeEqual(leftBuffer, rightBuffer);
+  }
+
+  private toAttendeeData(attendee: AttendeeDto, index: number) {
+    return {
+      firstName: attendee.firstName.trim(),
+      lastName: attendee.lastName.trim(),
+      email: attendee.email.trim().toLowerCase(),
+      phone: attendee.phone.trim(),
+      company: attendee.company?.trim() || null,
+      jobTitle: attendee.jobTitle?.trim() || null,
+      birthday: attendee.birthday ? new Date(`${attendee.birthday}T00:00:00.000Z`) : null,
+      gender: attendee.gender || null,
+      city: attendee.city?.trim() || null,
+      raceDistance: attendee.raceDistance?.trim() || null,
+      raceDivision: attendee.raceDivision?.trim() || null,
+      genderIdentity: attendee.genderIdentity?.trim() || null,
+      emergencyContactName: attendee.emergencyContactName?.trim() || null,
+      emergencyContactPhone: attendee.emergencyContactPhone?.trim() || null,
+      emergencyContactRelationship: attendee.emergencyContactRelationship?.trim() || null,
+      merchandiseSize: attendee.merchandiseSize?.trim() || null,
+      claimMethod: attendee.claimMethod ?? null,
+      deliveryAddress: attendee.deliveryAddress
+        ? (attendee.deliveryAddress as unknown as Prisma.InputJsonValue)
+        : Prisma.JsonNull,
+      isLead: index === 0,
+    };
   }
 
   private selectedSubEventsFromAgenda(agenda: Prisma.JsonValue, ids?: string[], fallbackId?: string): SelectedSubEvent[] {
@@ -840,35 +1133,11 @@ export class RegistrationsService {
       );
     }
 
-    const attendeeData = (attendee: (typeof dto.attendees)[number], index: number) => ({
-      firstName: attendee.firstName,
-      lastName: attendee.lastName,
-      email: attendee.email,
-      phone: attendee.phone ?? null,
-      company: attendee.company ?? null,
-      jobTitle: attendee.jobTitle ?? null,
-      birthday: attendee.birthday ? new Date(`${attendee.birthday}T00:00:00.000Z`) : null,
-      gender: attendee.gender || null,
-      city: attendee.city?.trim() || null,
-      raceDistance: attendee.raceDistance?.trim() || null,
-      raceDivision: attendee.raceDivision?.trim() || null,
-      genderIdentity: attendee.genderIdentity?.trim() || null,
-      emergencyContactName: attendee.emergencyContactName?.trim() || null,
-      emergencyContactPhone: attendee.emergencyContactPhone?.trim() || null,
-      emergencyContactRelationship: attendee.emergencyContactRelationship?.trim() || null,
-      merchandiseSize: attendee.merchandiseSize?.trim() || null,
-      claimMethod: attendee.claimMethod ?? null,
-      deliveryAddress: attendee.deliveryAddress
-        ? (attendee.deliveryAddress as unknown as Prisma.InputJsonValue)
-        : Prisma.JsonNull,
-      isLead: index === 0,
-    });
-
     await this.prisma.$transaction(async (tx) => {
       if (reg.attendees.length === 0) {
         await tx.attendee.createMany({
           data: dto.attendees.map((attendee, index) => ({
-            ...attendeeData(attendee, index),
+            ...this.toAttendeeData(attendee, index),
             registrationId: reg.id,
             eventId: reg.event.id,
           })),
@@ -878,7 +1147,7 @@ export class RegistrationsService {
           reg.attendees.map((attendee, index) =>
             tx.attendee.update({
               where: { id: attendee.id },
-              data: attendeeData(dto.attendees[index], index),
+              data: this.toAttendeeData(dto.attendees[index], index),
             }),
           ),
         );

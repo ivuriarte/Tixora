@@ -86,7 +86,7 @@ export default function Navbar({ initialSearchQuery = '' }: { initialSearchQuery
   return (
     <nav className="sticky top-0 z-50 border-b border-[#e4dcf4] bg-white/95 backdrop-blur" aria-label="Primary navigation">
       <div className="mx-auto flex min-h-[72px] max-w-7xl items-center gap-5 px-4 sm:px-6 lg:px-8">
-        <Link href="/" className="flex shrink-0 flex-col justify-center rounded-sm">
+        <Link href="/" className="flex shrink-0 items-center rounded-sm">
           <Image
             src="/axon-tickets-logo.png"
             alt="Axon Tickets"
@@ -95,9 +95,6 @@ export default function Navbar({ initialSearchQuery = '' }: { initialSearchQuery
             priority
             className="h-auto w-[148px] sm:w-[166px]"
           />
-          <span className="mt-0.5 text-[9px] font-bold uppercase tracking-[0.14em] text-[#756a92]">
-            Philippine Event Ticketing
-          </span>
         </Link>
 
         <form role="search" onSubmit={handleSearch} className="hidden min-w-0 max-w-md flex-1 md:block">
@@ -191,7 +188,7 @@ export default function Navbar({ initialSearchQuery = '' }: { initialSearchQuery
                 {isLoginOpen && (
                   <div className="absolute right-0 mt-2 w-52 bg-white border border-gray-200 rounded-xl shadow-lg py-1.5 z-50">
                     <Link
-                      href="/auth/login"
+                      href="/auth/access"
                       className="flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
                     >
                       <svg className="w-4 h-4 text-gray-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
@@ -305,7 +302,7 @@ export default function Navbar({ initialSearchQuery = '' }: { initialSearchQuery
                 Become Organizer
               </Link>
               <p className="px-4 pb-1 pt-5 text-[11px] font-bold uppercase tracking-[0.18em] text-[#a78bfa]">Log in as</p>
-              <Link href="/auth/login" className="flex min-h-[56px] items-center border-b border-white/10 px-4 text-sm font-bold text-white transition-colors hover:bg-white/10">
+              <Link href="/auth/access" className="flex min-h-[56px] items-center border-b border-white/10 px-4 text-sm font-bold text-white transition-colors hover:bg-white/10">
                 Customer
               </Link>
               <Link href="/auth/organizer?redirect=/become-organizer" className="flex min-h-[56px] items-center justify-between border-b border-white/10 px-4 text-sm font-bold text-white transition-colors hover:bg-white/10">

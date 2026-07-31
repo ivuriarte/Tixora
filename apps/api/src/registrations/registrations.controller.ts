@@ -20,6 +20,11 @@ import { JwtPayload } from '@axon-tickets/types';
 import { RegistrationsService } from './registrations.service';
 import { CreateRegistrationDto } from './dto/create-registration.dto';
 import { UpdateRegistrationAttendeesDto } from './dto/update-registration-attendees.dto';
+import {
+  ClaimRegistrationDto,
+  ConfirmGuestCheckoutDto,
+  RequestGuestCheckoutCodeDto,
+} from './dto/checkout-confirmation.dto';
 import { ValidateReferralCodeDto } from '../admin/dto/referral-code.dto';
 import { Throttle } from '@nestjs/throttler';
 import { Public } from '../common/decorators/public.decorator';
@@ -60,6 +65,19 @@ export class RegistrationsController {
   }
 
   @Public()
+  @Post('guest-intent')
+  @Throttle({ default: { ttl: 60_000, limit: 10 } })
+  @ApiOperation({ summary: 'Create an anonymous paid checkout intent' })
+  createGuestIntent(@Body() dto: CreateRegistrationDto, @Req() req: Request) {
+    const ip =
+      (req.headers['x-real-ip'] as string | undefined)?.trim() ??
+      (req.headers['x-forwarded-for'] as string | undefined)?.split(',').pop()?.trim() ??
+      req.ip ??
+      '';
+    return this.registrationsService.createGuestIntent(dto, ip);
+  }
+
+  @Public()
   @Get('guest/:id')
   @Throttle({ default: { ttl: 60_000, limit: 30 } })
   @ApiOperation({ summary: 'Get a guest-owned registration using its scoped access token' })
@@ -80,6 +98,32 @@ export class RegistrationsController {
     @Headers('x-registration-token') token?: string,
   ) {
     return this.registrationsService.updateGuestAttendees(id, token, dto);
+  }
+
+  @Public()
+  @Post('guest/:id/request-confirmation-code')
+  @Throttle({ default: { ttl: 60_000, limit: 5 } })
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Send a confirmation code without creating an account' })
+  requestGuestConfirmationCode(
+    @Param('id') id: string,
+    @Body() dto: RequestGuestCheckoutCodeDto,
+    @Headers('x-registration-token') token?: string,
+  ) {
+    return this.registrationsService.requestGuestConfirmationCode(id, token, dto.email);
+  }
+
+  @Public()
+  @Post('guest/:id/confirm')
+  @Throttle({ default: { ttl: 60_000, limit: 10 } })
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Verify guest email ownership and finalize attendee details' })
+  confirmGuestCheckout(
+    @Param('id') id: string,
+    @Body() dto: ConfirmGuestCheckoutDto,
+    @Headers('x-registration-token') token?: string,
+  ) {
+    return this.registrationsService.confirmGuestCheckout(id, token, dto);
   }
 
   @Post('validate-referral')
@@ -128,6 +172,18 @@ export class RegistrationsController {
     @CurrentUser() user: JwtPayload,
   ) {
     return this.registrationsService.updateAttendees(id, user.sub, dto);
+  }
+
+  @Patch(':id/claim-and-complete')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Claim a guest checkout after OTP and finalize attendee details' })
+  claimAndComplete(
+    @Param('id') id: string,
+    @Body() dto: ClaimRegistrationDto,
+    @CurrentUser() user: JwtPayload,
+    @Headers('x-registration-token') token?: string,
+  ) {
+    return this.registrationsService.claimAndComplete(id, token, user.sub, dto);
   }
 
   @Patch(':id/cancel')

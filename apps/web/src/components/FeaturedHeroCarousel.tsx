@@ -96,6 +96,7 @@ export default function FeaturedHeroCarousel({ events }: { events: FeaturedHeroE
     [events],
   );
   const [activeIndex, setActiveIndex] = useState(0);
+  const [isInteractionPaused, setIsInteractionPaused] = useState(false);
   const touchStartRef = useRef<number | null>(null);
 
   useEffect(() => {
@@ -103,6 +104,17 @@ export default function FeaturedHeroCarousel({ events }: { events: FeaturedHeroE
       setActiveIndex(0);
     }
   }, [activeIndex, slides.length]);
+
+  useEffect(() => {
+    if (slides.length < 2 || isInteractionPaused) return;
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+
+    const timer = window.setTimeout(() => {
+      setActiveIndex((current) => (current + 1) % slides.length);
+    }, 5_000);
+
+    return () => window.clearTimeout(timer);
+  }, [activeIndex, isInteractionPaused, slides.length]);
 
   function showSlide(index: number) {
     const normalized = (index + slides.length) % slides.length;
@@ -138,6 +150,14 @@ export default function FeaturedHeroCarousel({ events }: { events: FeaturedHeroE
       aria-roledescription="carousel"
       aria-label="Featured events"
       tabIndex={0}
+      onMouseEnter={() => setIsInteractionPaused(true)}
+      onMouseLeave={() => setIsInteractionPaused(false)}
+      onFocusCapture={() => setIsInteractionPaused(true)}
+      onBlurCapture={(focusEvent) => {
+        if (!focusEvent.currentTarget.contains(focusEvent.relatedTarget as Node | null)) {
+          setIsInteractionPaused(false);
+        }
+      }}
       onKeyDown={(keyboardEvent) => {
         if (keyboardEvent.key === 'ArrowLeft') {
           keyboardEvent.preventDefault();
@@ -266,7 +286,7 @@ export default function FeaturedHeroCarousel({ events }: { events: FeaturedHeroE
           <div
             className="flex items-center gap-0.5 rounded-full border border-white/10 bg-[#0d021c]/50 px-1.5 py-1 shadow-lg shadow-black/15 backdrop-blur-md"
             role="group"
-            aria-label="Choose carousel slide"
+            aria-label="Choose carousel slide. Slides advance every 5 seconds and pause while you interact with the carousel."
           >
             {slides.map((slide, index) => (
               <button

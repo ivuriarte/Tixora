@@ -9,6 +9,8 @@ import { SkeletonBlock } from '@/components/Skeleton';
 import api from '@/lib/api';
 import { setLoginPortal } from '@/lib/auth';
 import { useAuthStore } from '@/store/auth.store';
+import LegalModal from '@/components/LegalModal';
+import { USER_TERMS, PRIVACY_POLICY } from '@/lib/legal';
 
 const RESEND_COOLDOWN = 60;
 
@@ -33,6 +35,7 @@ function OrganizerSignInForm() {
   const [loading, setLoading] = useState(false);
   const [secondsLeft, setSecondsLeft] = useState(0);
   const [error, setError] = useState('');
+  const [legalModal, setLegalModal] = useState<'terms' | 'privacy' | null>(null);
 
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const otpRef = useRef<HTMLInputElement>(null);
@@ -317,8 +320,32 @@ function OrganizerSignInForm() {
                   </>
                 )}
               </button>
-              <p className="text-xs text-gray-400 text-center">
-                We&apos;ll email you a one-time code. No password required.
+
+              <p className="text-center text-sm text-[#6b5b8a]">
+                No organizer account?{' '}
+                <Link href="/become-organizer" className="font-semibold text-primary hover:underline">
+                  Join free
+                </Link>
+              </p>
+
+              <div className="rounded-xl border border-gray-100 bg-gray-50 px-4 py-3 text-xs text-gray-600">
+                <ul className="list-disc space-y-1.5 pl-4">
+                  <li>We send a 6-digit sign-in code to your email—no password required.</li>
+                  <li>New organizers can create an account and submit an application after verification.</li>
+                  <li>No code in your inbox? Check your spam or promotions folder.</li>
+                </ul>
+              </div>
+
+              <p className="text-center text-xs leading-relaxed text-gray-400">
+                By continuing, you agree to our{' '}
+                <button type="button" onClick={() => setLegalModal('terms')} className="text-primary underline underline-offset-2 hover:text-primary/80">
+                  Terms &amp; Conditions
+                </button>{' '}
+                and{' '}
+                <button type="button" onClick={() => setLegalModal('privacy')} className="text-primary underline underline-offset-2 hover:text-primary/80">
+                  Privacy Policy
+                </button>
+                .
               </p>
             </form>
           )}
@@ -444,6 +471,19 @@ function OrganizerSignInForm() {
             ← Back to homepage
           </Link>
         </p>
+
+        <LegalModal
+          open={legalModal === 'terms'}
+          onClose={() => setLegalModal(null)}
+          title="Axon Tickets – End-User Terms & Conditions"
+          content={USER_TERMS}
+        />
+        <LegalModal
+          open={legalModal === 'privacy'}
+          onClose={() => setLegalModal(null)}
+          title="Axon Tickets – Privacy Policy"
+          content={PRIVACY_POLICY}
+        />
 
       </div>
     </div>

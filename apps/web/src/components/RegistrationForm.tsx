@@ -122,6 +122,9 @@ interface Props {
   guestAccessToken?: string;
   /** True when a guest used "I'm new here" but the email matched an existing verified account. */
   existingAccountDetected?: boolean;
+  /** Paid checkout identity selected after payment proof. */
+  checkoutMode?: 'authenticated' | 'guest' | 'account';
+  onCheckoutStageChange?: (stage: 'details' | 'confirmation' | 'otp') => void;
 }
 
 export default function RegistrationForm({
@@ -146,9 +149,12 @@ export default function RegistrationForm({
   runningConfig,
   guestAccessToken,
   existingAccountDetected = false,
+  checkoutMode,
+  onCheckoutStageChange,
 }: Props) {
   const router = useRouter();
   const currentUser = useAuthStore((s) => s.user);
+  const setAuth = useAuthStore((s) => s.setAuth);
   const [attendees, setAttendees] = useState<AttendeeFields[]>(() =>
     initialAttendees?.map((attendee) => ({
       ...emptyAttendee(),
@@ -157,7 +163,7 @@ export default function RegistrationForm({
     })) ?? Array.from({ length: qty }, emptyAttendee),
   );
   // Default ON unless we're in edit mode (initialAttendees already provides the data)
-  const [useMyDetails, setUseMyDetails] = useState(!initialAttendees);
+  const [useMyDetails, setUseMyDetails] = useState(Boolean(currentUser && !initialAttendees));
   const [profileData, setProfileData] = useState<ProfileData | null>(null);
   const [profileLoading, setProfileLoading] = useState(false);
   const [notes, setNotes] = useState(initialNotes ?? '');
@@ -169,6 +175,10 @@ export default function RegistrationForm({
   const [referralMessage, setReferralMessage] = useState<string | null>(null);
   const [referralError, setReferralError] = useState<string | null>(null);
   const [checkingReferral, setCheckingReferral] = useState(false);
+  const [checkoutStage, setCheckoutStage] = useState<'details' | 'confirmation' | 'otp'>('details');
+  const [checkoutOtp, setCheckoutOtp] = useState('');
+  const [pendingUserId, setPendingUserId] = useState('');
+  const otpVerificationRef = useRef(false);
   // Synchronous guard — prevents duplicate submissions during the async gap
   // between the first click and React flushing the loading state update.
   const submittingRef = useRef(false);
@@ -190,6 +200,13 @@ export default function RegistrationForm({
   const promoCodesEnabled = false; // Release 2.0 is manual-payment proof only.
   const requiresSubEvent = !registrationId && subEvents.length > 0;
   const allSubEventsSelected = subEvents.length > 0 && selectedSubEventIds.length === subEvents.length;
+  const isPaidCompletionFlow = Boolean(registrationId && checkoutMode && !isFreeRegistration);
+
+  const changeCheckoutStage = (stage: 'details' | 'confirmation' | 'otp') => {
+    setCheckoutStage(stage);
+    onCheckoutStageChange?.(stage);
+    setError(null);
+  };
 
   useEffect(() => {
     if (registrationId || subEvents.length === 0) return;
@@ -289,6 +306,180 @@ export default function RegistrationForm({
     bankAccountNumber ||
     paymentInstructions;
 
+  const buildAttendeePayload = () => attendees.map((a) => ({
+    firstName: a.firstName.trim(),
+    lastName: a.lastName.trim(),
+    email: a.email.trim().toLowerCase(),
+    ...(a.phone.trim() && { phone: a.phone.trim() }),
+    ...(a.company.trim() && { company: a.company.trim() }),
+    ...(a.jobTitle.trim() && { jobTitle: a.jobTitle.trim() }),
+    ...(a.birthday && { birthday: a.birthday }),
+    ...(a.gender && { gender: a.gender as 'female' | 'male' | 'non_binary' | 'prefer_not_to_say' | 'self_described' }),
+    ...(a.city.trim() && { city: a.city.trim() }),
+    ...(a.raceDistance && { raceDistance: a.raceDistance }),
+    ...(a.raceDivision && { raceDivision: a.raceDivision }),
+    ...(a.genderIdentity && { genderIdentity: a.genderIdentity }),
+    ...(a.emergencyContactName.trim() && { emergencyContactName: a.emergencyContactName.trim() }),
+    ...(a.emergencyContactPhone.trim() && { emergencyContactPhone: a.emergencyContactPhone.trim() }),
+    ...(a.emergencyContactRelationship.trim() && { emergencyContactRelationship: a.emergencyContactRelationship.trim() }),
+    ...(a.merchandiseSize && { merchandiseSize: a.merchandiseSize }),
+    ...(a.claimMethod && { claimMethod: a.claimMethod as 'self_claim' | 'delivery' }),
+    ...(a.claimMethod === 'delivery' && {
+      deliveryAddress: {
+        line1: a.deliveryLine1.trim(),
+        ...(a.deliveryLine2.trim() && { line2: a.deliveryLine2.trim() }),
+        city: a.deliveryCity.trim(),
+        province: a.deliveryProvince.trim(),
+        postalCode: a.deliveryPostalCode.trim(),
+      },
+    }),
+  }));
+
+  const attendeeUpdatePayload = () => ({
+    attendees: buildAttendeePayload(),
+    ...(notes.trim() && { notes: notes.trim() }),
+  });
+
+  async function syncAuthenticatedProfile() {
+    if (!currentUser) return;
+    const lead = attendees[0];
+    const profilePatch = {
+      firstName: lead.firstName.trim(),
+      lastName: lead.lastName.trim(),
+      phone: lead.phone.trim(),
+      company: lead.company.trim(),
+      jobTitle: lead.jobTitle.trim(),
+      city: lead.city.trim(),
+      ...(lead.birthday && { birthday: lead.birthday }),
+      ...(lead.gender && { gender: lead.gender }),
+    };
+    try {
+      await api.patch('/users/me', profilePatch);
+    } catch {
+      // The registration remains valid if an optional profile sync fails.
+    }
+  }
+
+  async function confirmPaidCheckout() {
+    if (!registrationId || !checkoutMode || !guestAccessToken && checkoutMode !== 'authenticated') return;
+    setLoading(true);
+    setError(null);
+    try {
+      if (checkoutMode === 'authenticated') {
+        await api.patch(`/registrations/${registrationId}/attendees`, attendeeUpdatePayload());
+        await syncAuthenticatedProfile();
+        router.push(`/registrations/${registrationId}`);
+        return;
+      }
+
+      const leadEmail = attendees[0]?.email.trim().toLowerCase();
+      if (checkoutMode === 'guest') {
+        await api.post(
+          `/registrations/guest/${registrationId}/request-confirmation-code`,
+          { email: leadEmail },
+          { headers: { 'x-registration-token': guestAccessToken } },
+        );
+      } else {
+        const response = await api.post<{ data: { userId: string } }>('/auth/request-access', {
+          email: leadEmail,
+          eventId,
+          eventSlug,
+        });
+        setPendingUserId(response.data.data.userId);
+      }
+      setCheckoutOtp('');
+      changeCheckoutStage('otp');
+    } catch (err: unknown) {
+      const message =
+        (err as { response?: { data?: { message?: string | string[] } } })?.response?.data?.message ??
+        'We could not send the confirmation code.';
+      setError(Array.isArray(message) ? message.join(' ') : message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function verifyPaidCheckout() {
+    if (
+      !registrationId ||
+      !checkoutMode ||
+      checkoutMode === 'authenticated' ||
+      checkoutOtp.length !== 6 ||
+      !guestAccessToken ||
+      otpVerificationRef.current
+    ) return;
+    otpVerificationRef.current = true;
+    setLoading(true);
+    setError(null);
+    try {
+      const leadEmail = attendees[0].email.trim().toLowerCase();
+      if (checkoutMode === 'guest') {
+        await api.post(
+          `/registrations/guest/${registrationId}/confirm`,
+          { email: leadEmail, otp: checkoutOtp, ...attendeeUpdatePayload() },
+          { headers: { 'x-registration-token': guestAccessToken } },
+        );
+        window.sessionStorage.removeItem(`axon_guest_registration_${registrationId}`);
+        router.push(`/events/${eventSlug}/register/complete`);
+        return;
+      }
+
+      const verification = await api.post<{
+        data: {
+          user: {
+            id: string;
+            email: string;
+            firstName: string | null;
+            lastName: string | null;
+            isAdmin: boolean;
+            isOrganizer?: boolean;
+            isVerified: boolean;
+          };
+          accessToken: string;
+          refreshToken: string;
+        };
+      }>('/auth/verify-access', { userId: pendingUserId, otp: checkoutOtp, eventId, eventSlug });
+      const { user, accessToken, refreshToken } = verification.data.data;
+      setAuth(
+        {
+          id: user.id,
+          email: user.email,
+          firstName: user.firstName ?? '',
+          lastName: user.lastName ?? '',
+          isAdmin: user.isAdmin,
+          isOrganizer: Boolean(user.isOrganizer),
+          isVerified: user.isVerified,
+          loginPortal: 'customer',
+        },
+        accessToken,
+        refreshToken,
+      );
+      await api.patch(
+        `/registrations/${registrationId}/claim-and-complete`,
+        attendeeUpdatePayload(),
+        { headers: { 'x-registration-token': guestAccessToken } },
+      );
+      window.sessionStorage.removeItem(`axon_guest_registration_${registrationId}`);
+      router.push(`/registrations/${registrationId}`);
+    } catch (err: unknown) {
+      const message =
+        (err as { response?: { data?: { message?: string | string[] } } })?.response?.data?.message ??
+        'The code could not be verified.';
+      setError(Array.isArray(message) ? message.join(' ') : message);
+      setCheckoutOtp('');
+      otpVerificationRef.current = false;
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    if (checkoutStage === 'otp' && checkoutOtp.length === 6) {
+      void verifyPaidCheckout();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [checkoutOtp, checkoutStage]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     // Synchronous guard — blocks any duplicate event fired before React
@@ -317,40 +508,18 @@ export default function RegistrationForm({
         return;
       }
 
-      const attendeePayload = attendees.map((a) => ({
-        firstName: a.firstName.trim(),
-        lastName: a.lastName.trim(),
-        email: a.email.trim(),
-        ...(a.phone.trim() && { phone: a.phone.trim() }),
-        ...(a.company.trim() && { company: a.company.trim() }),
-        ...(a.jobTitle.trim() && { jobTitle: a.jobTitle.trim() }),
-        ...(a.birthday && { birthday: a.birthday }),
-        ...(a.gender && { gender: a.gender as 'female' | 'male' | 'non_binary' | 'prefer_not_to_say' | 'self_described' }),
-        ...(a.city.trim() && { city: a.city.trim() }),
-        ...(a.raceDistance && { raceDistance: a.raceDistance }),
-        ...(a.raceDivision && { raceDivision: a.raceDivision }),
-        ...(a.genderIdentity && { genderIdentity: a.genderIdentity }),
-        ...(a.emergencyContactName.trim() && { emergencyContactName: a.emergencyContactName.trim() }),
-        ...(a.emergencyContactPhone.trim() && { emergencyContactPhone: a.emergencyContactPhone.trim() }),
-        ...(a.emergencyContactRelationship.trim() && { emergencyContactRelationship: a.emergencyContactRelationship.trim() }),
-        ...(a.merchandiseSize && { merchandiseSize: a.merchandiseSize }),
-        ...(a.claimMethod && { claimMethod: a.claimMethod as 'self_claim' | 'delivery' }),
-        ...(a.claimMethod === 'delivery' && {
-          deliveryAddress: {
-            line1: a.deliveryLine1.trim(),
-            ...(a.deliveryLine2.trim() && { line2: a.deliveryLine2.trim() }),
-            city: a.deliveryCity.trim(),
-            province: a.deliveryProvince.trim(),
-            postalCode: a.deliveryPostalCode.trim(),
-          },
-        }),
-      }));
+      const attendeePayload = buildAttendeePayload();
 
       const emailMismatch = attendees.find((attendee) =>
         attendee.email.trim().toLowerCase() !== attendee.confirmEmail.trim().toLowerCase(),
       );
       if (emailMismatch) {
         setError('Email and Confirm Email must match for every attendee.');
+        return;
+      }
+
+      if (isPaidCompletionFlow && checkoutStage === 'details') {
+        changeCheckoutStage('confirmation');
         return;
       }
 
@@ -413,6 +582,142 @@ export default function RegistrationForm({
       submittingRef.current = false;
     }
   };
+
+  if (isPaidCompletionFlow && checkoutStage === 'confirmation') {
+    return (
+      <div className="space-y-5">
+        <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-5">
+          <p className="text-xs font-semibold uppercase tracking-wide text-emerald-700">Payment & Proof</p>
+          <h2 className="mt-1 font-semibold text-emerald-950">Proof uploaded successfully</h2>
+          <p className="mt-1 text-sm text-emerald-800">
+            Review the complete order below. Nothing is finalized until you confirm.
+          </p>
+        </div>
+
+        <section className="rounded-2xl border border-gray-200 bg-white p-5">
+          <h2 className="font-semibold text-gray-900">Order Summary</h2>
+          <div className="mt-3 flex justify-between text-sm text-gray-600">
+            <span>{tierName} × {qty}</span>
+            <span>{formatPHP(subtotalPesos)}</span>
+          </div>
+          <div className="mt-1 flex justify-between text-sm text-gray-600">
+            <span>Service fee</span>
+            <span>{formatPHP(feesPesos)}</span>
+          </div>
+          <div className="mt-3 flex justify-between border-t border-gray-100 pt-3 font-semibold text-gray-900">
+            <span>Total</span>
+            <span className="text-primary">{formatPHP(totalPesos)}</span>
+          </div>
+        </section>
+
+        <section className="rounded-2xl border border-gray-200 bg-white p-5">
+          <div className="flex items-center justify-between">
+            <h2 className="font-semibold text-gray-900">Attendee Details</h2>
+            <button
+              type="button"
+              onClick={() => changeCheckoutStage('details')}
+              className="min-h-[44px] text-sm font-semibold text-primary hover:underline"
+            >
+              Edit details
+            </button>
+          </div>
+          <div className="mt-3 divide-y divide-gray-100">
+            {attendees.map((attendee, index) => (
+              <div key={`${attendee.email}-${index}`} className="py-3 text-sm">
+                <p className="font-medium text-gray-900">
+                  {index + 1}. {attendee.firstName} {attendee.lastName}
+                </p>
+                <p className="mt-0.5 text-gray-500">{attendee.email} · {attendee.phone}</p>
+                {eventType === 'running' && (
+                  <p className="mt-0.5 text-gray-500">
+                    {attendee.raceDistance} · {attendee.raceDivision} · {attendee.claimMethod.replace('_', ' ')}
+                  </p>
+                )}
+              </div>
+            ))}
+          </div>
+          {notes.trim() && <p className="mt-3 text-sm text-gray-600"><span className="font-medium">Notes:</span> {notes}</p>}
+        </section>
+
+        {checkoutMode !== 'authenticated' && (
+          <div className="rounded-xl border border-primary/20 bg-primary/5 px-4 py-3 text-sm text-gray-700">
+            {checkoutMode === 'guest'
+              ? 'After you confirm, Axon will send a one-time code to the lead attendee email. The code locks this transaction without creating an account.'
+              : 'After you confirm, Axon will send a one-time code to the lead attendee email. Only after verification will the order be linked and the profile created or updated.'}
+          </div>
+        )}
+
+        {error && <div role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>}
+
+        <button
+          type="button"
+          disabled={loading}
+          onClick={() => void confirmPaidCheckout()}
+          className="w-full rounded-xl bg-primary py-3 text-sm font-semibold text-white transition hover:bg-primary/90 disabled:opacity-50"
+        >
+          {loading
+            ? checkoutMode === 'authenticated' ? 'Confirming transaction…' : 'Sending confirmation code…'
+            : checkoutMode === 'authenticated' ? 'Confirm Transaction' : 'Confirm and Send My Code'}
+        </button>
+      </div>
+    );
+  }
+
+  if (isPaidCompletionFlow && checkoutStage === 'otp') {
+    return (
+      <div className="space-y-5 rounded-2xl border border-gray-200 bg-white p-6">
+        <div className="text-center">
+          <h2 className="text-xl font-bold text-gray-900">Confirm your email</h2>
+          <p className="mt-1 text-sm text-gray-500">
+            Enter the 6-digit code sent to <span className="font-semibold text-gray-700">{attendees[0]?.email}</span>.
+          </p>
+          <p className="mt-1 text-xs text-gray-400">
+            The order is not locked until this code is verified.
+          </p>
+        </div>
+        <input
+          type="text"
+          inputMode="numeric"
+          pattern="\d{6}"
+          maxLength={6}
+          autoFocus
+          autoComplete="one-time-code"
+          value={checkoutOtp}
+          onChange={(event) => {
+            otpVerificationRef.current = false;
+            setCheckoutOtp(event.target.value.replace(/\D/g, '').slice(0, 6));
+          }}
+          disabled={loading}
+          aria-label="Six-digit confirmation code"
+          placeholder="000000"
+          className="w-full rounded-xl border border-gray-300 px-4 py-4 text-center font-mono text-3xl tracking-[0.45em] focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/30 disabled:opacity-50"
+        />
+        {loading && <p className="text-center text-sm text-gray-500">Verifying and locking your transaction…</p>}
+        {error && <div role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-center text-sm text-red-700">{error}</div>}
+        <div className="flex flex-col items-center gap-1">
+          <button
+            type="button"
+            disabled={loading}
+            onClick={() => void confirmPaidCheckout()}
+            className="min-h-[44px] text-sm font-semibold text-primary hover:underline disabled:opacity-50"
+          >
+            Send a new code
+          </button>
+          <button
+            type="button"
+            disabled={loading}
+            onClick={() => {
+              setCheckoutOtp('');
+              changeCheckoutStage('confirmation');
+            }}
+            className="min-h-[44px] text-sm text-gray-500 hover:text-gray-800"
+          >
+            ← Back to review
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
@@ -650,6 +955,41 @@ export default function RegistrationForm({
 
             return (
               <>
+                {i === 0 && (checkoutMode === 'guest' || checkoutMode === 'account') && (
+                  <div>
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <div>
+                        <label className="block text-xs font-medium text-gray-600 mb-1">Email *</label>
+                        <input
+                          type="email"
+                          required
+                          autoFocus
+                          autoComplete="email"
+                          value={att.email}
+                          onChange={(e) => updateAttendee(i, 'email', e.target.value)}
+                          className={`w-full border rounded-lg px-3 py-2 text-sm ${normalCls}`}
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-gray-600 mb-1">Confirm Email *</label>
+                        <input
+                          type="email"
+                          required
+                          autoComplete="email"
+                          value={att.confirmEmail}
+                          onChange={(e) => updateAttendee(i, 'confirmEmail', e.target.value)}
+                          className={`w-full border rounded-lg px-3 py-2 text-sm ${normalCls}`}
+                        />
+                      </div>
+                    </div>
+                    <p className="mt-1 text-[11px] text-gray-500">
+                      {checkoutMode === 'guest'
+                        ? 'Used only as the contact for this confirmed transaction. No account or profile is created.'
+                        : 'Axon checks and links this email only after you verify the final one-time code.'}
+                    </p>
+                  </div>
+                )}
+
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="block text-xs font-medium text-gray-600 mb-1">First Name *</label>
@@ -673,7 +1013,7 @@ export default function RegistrationForm({
                   </div>
                 </div>
 
-                <div>
+                {!(i === 0 && (checkoutMode === 'guest' || checkoutMode === 'account')) && <div>
                   <div className="grid gap-4 sm:grid-cols-2">
                     <div>
                       <label className="block text-xs font-medium text-gray-600 mb-1">Email *</label>
@@ -699,7 +1039,7 @@ export default function RegistrationForm({
                       />
                     </div>
                   </div>
-                </div>
+                </div>}
 
                 <div className="grid grid-cols-2 gap-4">
                   <div>
@@ -904,7 +1244,7 @@ export default function RegistrationForm({
           : isPaymentIntentStep
             ? `Continue to payment — ${formatPHP(totalPesos)}`
             : registrationId
-              ? 'Submit attendee details for review'
+              ? isPaidCompletionFlow ? 'Review Attendee Details' : 'Submit attendee details for review'
               : `Confirm My Registration — ${isFreeRegistration ? 'Free' : formatPHP(totalPesos)}`}
       </button>
     </form>

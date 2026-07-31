@@ -156,7 +156,7 @@ export default function PaymentStepPage() {
   return (
     <main className="min-h-screen bg-gray-50 py-10">
       <div className="max-w-2xl mx-auto px-4 sm:px-6">
-        <CheckoutStepper current={2} />
+        <CheckoutStepper current={1} flow="paid-payment-first" />
 
         {/* Back navigation */}
         {reg.status === 'pending_payment' && (
@@ -384,6 +384,14 @@ export default function PaymentStepPage() {
             onUploaded={handleUploaded}
           />
         </section>
+
+        <aside className="mb-5 rounded-xl border border-primary/20 bg-primary/5 px-4 py-3 text-sm text-gray-700">
+          <p className="font-semibold text-gray-900">What happens next?</p>
+          <p className="mt-1">
+            After your proof uploads, we will ask for the attendee details. You can review the
+            payment, attendees, and order total before final confirmation.
+          </p>
+        </aside>
 
         <div className="flex items-center justify-between text-xs text-gray-500">
           <button

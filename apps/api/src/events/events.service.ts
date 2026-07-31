@@ -1044,6 +1044,37 @@ export class EventsService {
     if (dto.status === 'on_sale' && !(dto.imageUrl?.trim() || existing.imageUrl)) {
       throw new BadRequestException('Upload an event cover image before publishing.');
     }
+    const resultingStatus = dto.status ?? existing.status;
+    const resultingIsFree = dto.isFree ?? existing.isFree;
+    if (['published', 'on_sale'].includes(resultingStatus) && !resultingIsFree) {
+      const manualPaymentEnabled = dto.allowManualPayment ?? existing.allowManualPayment;
+      const methods = dto.paymentMethods !== undefined ? dto.paymentMethods : existing.paymentMethods;
+      const bankName = dto.bankName !== undefined ? dto.bankName : existing.bankName;
+      const bankAccountNumber =
+        dto.bankAccountNumber !== undefined ? dto.bankAccountNumber : existing.bankAccountNumber;
+      const gcashNumber = dto.gcashNumber !== undefined ? dto.gcashNumber : existing.gcashNumber;
+      const hasConfiguredMethod =
+        (Array.isArray(methods) &&
+          methods.some((method) => {
+            if (!method || typeof method !== 'object' || Array.isArray(method)) return false;
+            const item = method as Record<string, unknown>;
+            return Boolean(
+              String(item.name ?? '').trim() &&
+                (
+                  String(item.accountNumber ?? '').trim() ||
+                  String(item.qrImageUrl ?? '').trim() ||
+                  String(item.instructions ?? '').trim()
+                ),
+            );
+          })) ||
+        Boolean(bankName?.trim() && bankAccountNumber?.trim()) ||
+        Boolean(gcashNumber?.trim());
+      if (!manualPaymentEnabled || !hasConfiguredMethod) {
+        throw new BadRequestException(
+          'Configure at least one manual payment method before publishing a paid event.',
+        );
+      }
+    }
     if (dto.isFeatured === true && !existing.isFeatured) {
       const activeFeaturedCount = await this.prisma.event.count({
         where: {

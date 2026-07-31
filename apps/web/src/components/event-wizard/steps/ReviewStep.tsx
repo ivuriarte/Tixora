@@ -106,9 +106,11 @@ export default function ReviewStep({ draft, tiers, paymentMethods, onJump }: Rev
           )}
         </Section>
 
-        <Section title="Payment Methods (optional)" onEdit={() => onJump('payment')}>
+        <Section title={draft.isFree ? 'Payment Methods (not required)' : 'Payment Methods (required)'} onEdit={() => onJump('payment')}>
           {paymentMethods.length === 0 ? (
-            <em className="text-gray-400 text-xs">Skipped</em>
+            <em className={draft.isFree ? 'text-gray-400 text-xs' : 'text-xs font-semibold text-red-600'}>
+              {draft.isFree ? 'Not required for this free event' : 'Add a payment method before publishing'}
+            </em>
           ) : (
             <ul className="text-xs space-y-0.5">
               {paymentMethods.map((pm) => (
