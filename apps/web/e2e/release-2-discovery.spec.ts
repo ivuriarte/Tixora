@@ -27,15 +27,29 @@ test.describe('Release 2.0 discovery', () => {
     expect(await mobileArtwork.evaluate((image) => getComputedStyle(image).objectFit)).toBe('contain');
   });
 
-  test('advances the featured carousel automatically after five seconds', async ({ page }) => {
+  test('advances the mobile featured carousel automatically after five seconds', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
     await page.goto('/');
-    const dots = page
-      .getByRole('region', { name: 'Featured events' })
+    const carousel = page.getByRole('region', { name: 'Featured events' });
+    const dots = carousel
       .getByRole('group', { name: 'Choose carousel slide' })
       .getByRole('button');
+    await expect.poll(() => dots.count()).toBeGreaterThan(1);
     const initiallyActive = await dots.evaluateAll((buttons) =>
       buttons.findIndex((button) => button.getAttribute('aria-current') === 'true'),
     );
+    expect(initiallyActive).toBeGreaterThanOrEqual(0);
+
+    const resetIndex = (initiallyActive + 1) % (await dots.count());
+    await dots.nth(resetIndex).evaluate((button: HTMLButtonElement) => button.click());
+    await expect(dots.nth(resetIndex)).toHaveAttribute('aria-current', 'true');
+
+    // Mobile browsers may emit pointer-enter compatibility events after a
+    // touch. They must not engage the desktop hover-pause behavior.
+    await carousel.dispatchEvent('pointerover', { pointerType: 'touch' });
+
+    await page.waitForTimeout(4_500);
+    await expect(dots.nth(resetIndex)).toHaveAttribute('aria-current', 'true');
 
     await expect
       .poll(
@@ -45,7 +59,24 @@ test.describe('Release 2.0 discovery', () => {
           ),
         { timeout: 7_000 },
       )
-      .not.toBe(initiallyActive);
+      .not.toBe(resetIndex);
+  });
+
+  test('keeps desktop featured and organizer slides at the same hero height', async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto('/');
+
+    const carousel = page.getByRole('region', { name: 'Featured events' });
+    const dots = carousel
+      .getByRole('group', { name: 'Choose carousel slide' })
+      .getByRole('button');
+    const featuredHeight = await carousel.evaluate((element) => element.getBoundingClientRect().height);
+
+    await dots.last().click();
+    await expect(dots.last()).toHaveAttribute('aria-current', 'true');
+    const organizerHeight = await carousel.evaluate((element) => element.getBoundingClientRect().height);
+
+    expect(Math.abs(featuredHeight - organizerHeight)).toBeLessThanOrEqual(1);
   });
 
   test('renders all approved time-based sections and category filters', async ({ page }) => {

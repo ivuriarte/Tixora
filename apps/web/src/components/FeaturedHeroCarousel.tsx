@@ -132,9 +132,21 @@ export default function FeaturedHeroCarousel({ events }: { events: FeaturedHeroE
       aria-roledescription="carousel"
       aria-label="Featured events"
       tabIndex={0}
-      onMouseEnter={() => setIsInteractionPaused(true)}
-      onMouseLeave={() => setIsInteractionPaused(false)}
-      onFocusCapture={() => setIsInteractionPaused(true)}
+      onPointerEnter={(pointerEvent) => {
+        if (pointerEvent.pointerType === 'mouse') {
+          setIsInteractionPaused(true);
+        }
+      }}
+      onPointerLeave={(pointerEvent) => {
+        if (pointerEvent.pointerType === 'mouse') {
+          setIsInteractionPaused(false);
+        }
+      }}
+      onFocusCapture={(focusEvent) => {
+        if ((focusEvent.target as HTMLElement).matches(':focus-visible')) {
+          setIsInteractionPaused(true);
+        }
+      }}
       onBlurCapture={(focusEvent) => {
         if (!focusEvent.currentTarget.contains(focusEvent.relatedTarget as Node | null)) {
           setIsInteractionPaused(false);
@@ -208,7 +220,7 @@ export default function FeaturedHeroCarousel({ events }: { events: FeaturedHeroE
         key={`${event.id}-mobile`}
         className={`featured-hero-enter mx-auto grid min-h-[610px] max-w-[1600px] gap-9 px-4 pb-24 pt-9 sm:px-6 ${
           isOrganizerPromotion
-            ? 'lg:min-h-[560px] lg:grid-cols-[minmax(360px,5fr)_minmax(640px,7fr)] lg:items-center lg:gap-16 lg:px-12 lg:pb-24 lg:pt-12 xl:px-16'
+            ? 'lg:h-[calc(100svh-93px)] lg:max-h-[920px] lg:min-h-[620px] lg:grid-cols-[minmax(360px,5fr)_minmax(640px,7fr)] lg:items-center lg:gap-16 lg:px-12 lg:pb-24 lg:pt-12 xl:px-16'
             : 'lg:hidden'
         }`}
       >
