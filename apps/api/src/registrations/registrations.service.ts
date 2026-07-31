@@ -3,6 +3,7 @@ import {
   Logger,
   NotFoundException,
   BadRequestException,
+  ConflictException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Prisma } from '@prisma/client';
@@ -529,6 +530,13 @@ export class RegistrationsService {
     }
 
     const normalizedEmail = email.trim().toLowerCase();
+    const conflicts = await this.findGuestDuplicateConflicts(id, [normalizedEmail]);
+    if (conflicts.length > 0) {
+      throw new ConflictException({
+        message: 'This guest transaction is blocked because the email already has an active registration for this event.',
+        conflicts,
+      });
+    }
     const cooldownKey = `guest-checkout-otp-cooldown:${id}`;
     const accepted = await this.redis.setIfNotExists(cooldownKey, '1', 60);
     if (!accepted) {
@@ -602,7 +610,18 @@ export class RegistrationsService {
       throw new BadRequestException('The confirmation email must match Attendee 1.');
     }
 
-    const result = await this.updateAttendeesForRegistration(id, null, dto);
+    const conflicts = await this.findGuestDuplicateConflicts(
+      id,
+      dto.attendees.map((attendee) => attendee.email),
+    );
+    if (conflicts.length > 0) {
+      throw new ConflictException({
+        message: 'This guest transaction is blocked because one or more attendee emails already have an active registration for this event.',
+        conflicts,
+      });
+    }
+
+    const result = await this.updateAttendeesForRegistration(id, null, dto, true);
     await Promise.all([
       this.redis.del(otpKey),
       this.redis.del(attemptsKey),
@@ -632,7 +651,7 @@ export class RegistrationsService {
         where: { id },
         include: {
           attendees: { orderBy: { isLead: 'desc' } },
-          event: { select: { id: true, eventType: true, runningConfig: true } },
+          event: { select: { id: true, title: true, slug: true, eventType: true, runningConfig: true } },
         },
       }),
       this.prisma.user.findUnique({ where: { id: userId } }),
@@ -674,7 +693,7 @@ export class RegistrationsService {
     const profileUpdate: Prisma.UserUpdateInput = {
       firstName: lead.firstName.trim(),
       lastName: lead.lastName.trim(),
-      phone: lead.phone.trim(),
+      phone: lead.phone?.trim() || null,
       company: lead.company?.trim() || null,
       jobTitle: lead.jobTitle?.trim() || null,
       city: lead.city?.trim() || null,
@@ -716,7 +735,129 @@ export class RegistrationsService {
       registrationId: id,
       performedById: userId,
     });
-    return { message: 'Registration confirmed and account updated.' };
+    await this.sendSubmissionEmails(
+      registration.referenceNumber,
+      registration.event.title,
+      registration.event.slug,
+      dto.attendees,
+      id,
+      'activated',
+    );
+    return {
+      message: 'Registration confirmed and account updated.',
+      registrationId: id,
+      referenceNumber: registration.referenceNumber,
+      status: 'pending_approval',
+    };
+  }
+
+  async checkGuestDuplicates(
+    id: string,
+    token: string | undefined,
+    emails: string[],
+  ) {
+    await this.assertGuestAccess(id, token);
+    return { conflicts: await this.findGuestDuplicateConflicts(id, emails) };
+  }
+
+  async claimCompletedGuest(id: string, token: string | undefined, userId: string) {
+    await this.assertGuestAccess(id, token);
+    const [registration, user] = await Promise.all([
+      this.prisma.registration.findUnique({
+        where: { id },
+        include: { attendees: { where: { isLead: true }, take: 1 } },
+      }),
+      this.prisma.user.findUnique({ where: { id: userId } }),
+    ]);
+    if (!registration || !user) throw new NotFoundException('Registration not found');
+    if (
+      registration.userId !== null
+      || registration.status !== 'pending_approval'
+      || !registration.attendeesCompletedAt
+    ) {
+      throw new BadRequestException('This guest registration can no longer be linked.');
+    }
+    const leadEmail = registration.attendees[0]?.email?.toLowerCase();
+    if (!leadEmail || leadEmail !== user.email.toLowerCase()) {
+      throw new BadRequestException('Verify the lead registrant email before linking this registration.');
+    }
+    const duplicate = await this.prisma.registration.findFirst({
+      where: {
+        id: { not: id },
+        userId,
+        eventId: registration.eventId,
+        status: { in: [...ACTIVE_REGISTRATION_STATUSES] as any[] },
+      },
+      select: { id: true },
+    });
+    if (duplicate) throw new ConflictException('This account already has an active registration for the event.');
+
+    await this.prisma.registration.update({
+      where: { id },
+      data: {
+        userId,
+        guestEmail: null,
+        guestAccessTokenHash: null,
+        accountConsent: true,
+        accountConsentAt: new Date(),
+      },
+    });
+    await this.audit.log({
+      action: 'COMPLETED_GUEST_REGISTRATION_LINKED',
+      entityType: 'Registration',
+      entityId: id,
+      registrationId: id,
+      performedById: userId,
+    });
+    return { registrationId: id, referenceNumber: registration.referenceNumber };
+  }
+
+  private async findGuestDuplicateConflicts(id: string, emails: string[]) {
+    const normalizedEmails = [...new Set(emails.map((email) => email.trim().toLowerCase()).filter(Boolean))];
+    if (normalizedEmails.length === 0) return [];
+    const current = await this.prisma.registration.findUnique({
+      where: { id },
+      select: { eventId: true },
+    });
+    if (!current) throw new NotFoundException('Registration not found');
+    const matches = await this.prisma.registration.findMany({
+      where: {
+        id: { not: id },
+        eventId: current.eventId,
+        status: { in: [...ACTIVE_REGISTRATION_STATUSES] as any[] },
+        OR: [
+          { guestEmail: { in: normalizedEmails, mode: 'insensitive' } },
+          { attendees: { some: { email: { in: normalizedEmails, mode: 'insensitive' } } } },
+        ],
+      },
+      select: {
+        referenceNumber: true,
+        createdAt: true,
+        guestEmail: true,
+        attendees: {
+          where: { email: { in: normalizedEmails, mode: 'insensitive' } },
+          select: { firstName: true, lastName: true, email: true },
+          take: 10,
+        },
+      },
+      take: 10,
+    });
+    return matches.flatMap((registration) => {
+      if (registration.attendees.length > 0) {
+        return registration.attendees.map((attendee) => ({
+          email: attendee.email ?? '',
+          attendeeName: `${attendee.firstName.slice(0, 1)}*** ${attendee.lastName.slice(0, 1)}***`,
+          transactionDate: registration.createdAt.toISOString(),
+          referenceNumber: `••••${registration.referenceNumber.slice(-4)}`,
+        }));
+      }
+      return [{
+        email: registration.guestEmail ?? '',
+        attendeeName: 'Previous guest registrant',
+        transactionDate: registration.createdAt.toISOString(),
+        referenceNumber: `••••${registration.referenceNumber.slice(-4)}`,
+      }];
+    });
   }
 
   private hashGuestEmail(email: string) {
@@ -734,7 +875,7 @@ export class RegistrationsService {
       firstName: attendee.firstName.trim(),
       lastName: attendee.lastName.trim(),
       email: attendee.email.trim().toLowerCase(),
-      phone: attendee.phone.trim(),
+      phone: attendee.phone?.trim() || null,
       company: attendee.company?.trim() || null,
       jobTitle: attendee.jobTitle?.trim() || null,
       birthday: attendee.birthday ? new Date(`${attendee.birthday}T00:00:00.000Z`) : null,
@@ -1106,13 +1247,14 @@ export class RegistrationsService {
     id: string,
     userId: string | null,
     dto: UpdateRegistrationAttendeesDto,
+    claimGuestEmails = false,
   ) {
     this.validateAttendeeDemographics(dto.attendees);
     const reg = await this.prisma.registration.findFirst({
       where: { id, userId },
       include: {
         attendees: { orderBy: { isLead: 'desc' } },
-        event: { select: { id: true, eventType: true, runningConfig: true } },
+        event: { select: { id: true, title: true, slug: true, eventType: true, runningConfig: true } },
       },
     });
     if (!reg) throw new NotFoundException('Registration not found');
@@ -1133,36 +1275,97 @@ export class RegistrationsService {
       );
     }
 
-    await this.prisma.$transaction(async (tx) => {
-      if (reg.attendees.length === 0) {
-        await tx.attendee.createMany({
-          data: dto.attendees.map((attendee, index) => ({
-            ...this.toAttendeeData(attendee, index),
-            registrationId: reg.id,
-            eventId: reg.event.id,
-          })),
+    try {
+      await this.prisma.$transaction(async (tx) => {
+        if (claimGuestEmails) {
+          await tx.guestRegistrationEmailClaim.createMany({
+            data: [...new Set(dto.attendees.map((attendee) => attendee.email.trim().toLowerCase()))]
+              .map((email) => ({
+                eventId: reg.event.id,
+                registrationId: reg.id,
+                emailHash: this.hashGuestEmail(email),
+              })),
+          });
+        }
+        if (reg.attendees.length === 0) {
+          await tx.attendee.createMany({
+            data: dto.attendees.map((attendee, index) => ({
+              ...this.toAttendeeData(attendee, index),
+              registrationId: reg.id,
+              eventId: reg.event.id,
+            })),
+          });
+        } else {
+          await Promise.all(
+            reg.attendees.map((attendee, index) =>
+              tx.attendee.update({
+                where: { id: attendee.id },
+                data: this.toAttendeeData(dto.attendees[index], index),
+              }),
+            ),
+          );
+        }
+        await tx.registration.update({
+          where: { id },
+          data: {
+            ...(dto.notes !== undefined ? { notes: dto.notes } : {}),
+            attendeesCompletedAt: new Date(),
+            ...(reg.status === 'proof_submitted' ? { status: 'pending_approval' } : {}),
+          },
         });
-      } else {
-        await Promise.all(
-          reg.attendees.map((attendee, index) =>
-            tx.attendee.update({
-              where: { id: attendee.id },
-              data: this.toAttendeeData(dto.attendees[index], index),
-            }),
-          ),
-        );
-      }
-      await tx.registration.update({
-        where: { id },
-        data: {
-          ...(dto.notes !== undefined ? { notes: dto.notes } : {}),
-          attendeesCompletedAt: new Date(),
-          ...(reg.status === 'proof_submitted' ? { status: 'pending_approval' } : {}),
-        },
       });
-    });
+    } catch (transactionError: unknown) {
+      if (transactionError instanceof Prisma.PrismaClientKnownRequestError && transactionError.code === 'P2002' && claimGuestEmails) {
+        throw new ConflictException('This guest transaction is blocked because an attendee email was just used for another active registration.');
+      }
+      throw transactionError;
+    }
 
-    return { message: 'Attendees updated' };
+    await this.sendSubmissionEmails(
+      reg.referenceNumber,
+      reg.event.title,
+      reg.event.slug,
+      dto.attendees,
+      userId ? id : undefined,
+      userId ? 'authenticated' : 'guest',
+    );
+    return {
+      message: 'Attendees updated',
+      registrationId: id,
+      referenceNumber: reg.referenceNumber,
+      status: reg.status === 'proof_submitted' ? 'pending_approval' : reg.status,
+    };
+  }
+
+  private async sendSubmissionEmails(
+    referenceNumber: string,
+    eventTitle: string,
+    eventSlug: string,
+    attendees: AttendeeDto[],
+    registrationId?: string,
+    scenario: 'guest' | 'authenticated' | 'activated' = 'guest',
+  ) {
+    const webBase = this.config.get<string>('webUrl') ?? 'https://axontickets.online';
+    const registrationUrl = registrationId
+      ? `${webBase}/registrations/${registrationId}`
+      : undefined;
+    const recipients = new Map<string, string>();
+    for (const attendee of attendees) {
+      const email = attendee.email.trim().toLowerCase();
+      if (!recipients.has(email)) recipients.set(email, `${attendee.firstName} ${attendee.lastName}`.trim());
+    }
+    await Promise.all(
+      [...recipients.entries()].map(([email, name]) =>
+        this.emailService.sendRegistrationSubmittedEmail(
+          email,
+          name,
+          eventTitle,
+          referenceNumber,
+          scenario,
+          registrationUrl,
+        ),
+      ),
+    );
   }
 
   async cancel(id: string, userId: string) {

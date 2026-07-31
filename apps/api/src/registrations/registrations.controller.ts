@@ -22,6 +22,7 @@ import { CreateRegistrationDto } from './dto/create-registration.dto';
 import { UpdateRegistrationAttendeesDto } from './dto/update-registration-attendees.dto';
 import {
   ClaimRegistrationDto,
+  CheckGuestDuplicatesDto,
   ConfirmGuestCheckoutDto,
   RequestGuestCheckoutCodeDto,
 } from './dto/checkout-confirmation.dto';
@@ -126,6 +127,19 @@ export class RegistrationsController {
     return this.registrationsService.confirmGuestCheckout(id, token, dto);
   }
 
+  @Public()
+  @Post('guest/:id/check-duplicates')
+  @Throttle({ default: { ttl: 60_000, limit: 10 } })
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Check guest attendee emails for an existing active event registration' })
+  checkGuestDuplicates(
+    @Param('id') id: string,
+    @Body() dto: CheckGuestDuplicatesDto,
+    @Headers('x-registration-token') token?: string,
+  ) {
+    return this.registrationsService.checkGuestDuplicates(id, token, dto.emails);
+  }
+
   @Post('validate-referral')
   @Throttle({ default: { ttl: 60_000, limit: 10 } })
   @HttpCode(HttpStatus.OK)
@@ -184,6 +198,17 @@ export class RegistrationsController {
     @Headers('x-registration-token') token?: string,
   ) {
     return this.registrationsService.claimAndComplete(id, token, user.sub, dto);
+  }
+
+  @Patch(':id/claim-completed-guest')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Link an already-confirmed guest registration after account OTP verification' })
+  claimCompletedGuest(
+    @Param('id') id: string,
+    @CurrentUser() user: JwtPayload,
+    @Headers('x-registration-token') token?: string,
+  ) {
+    return this.registrationsService.claimCompletedGuest(id, token, user.sub);
   }
 
   @Patch(':id/cancel')

@@ -36,15 +36,17 @@ test.describe('Homepage', () => {
     await expect(page).toHaveURL(/auth\/register/);
   });
 
-  test('featured hero exposes event details without unsupported payment copy', async ({ page }) => {
+  test('featured hero exposes an accessible event action without unsupported payment copy', async ({ page }) => {
     await page.goto('/');
     const carousel = page.getByRole('region', { name: 'Featured events' });
     if ((await carousel.count()) === 0) return;
 
-    await expect(carousel.getByText('Featured Event', { exact: true })).toBeVisible();
+    await expect(
+      carousel.locator('p:visible').filter({ hasText: /^Featured Event$/ }),
+    ).toBeVisible();
     await expect(carousel.getByText(/GCash accepted/i)).toHaveCount(0);
 
-    const viewEvent = carousel.getByRole('link', { name: 'View Event', exact: true });
+    const viewEvent = carousel.getByRole('link', { name: /View Event/i }).first();
     await expect(viewEvent).toBeVisible();
     const href = await viewEvent.getAttribute('href');
     expect(href).toMatch(/^\/events\/[a-z0-9-]+$/);

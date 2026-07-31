@@ -768,6 +768,7 @@ export default function AdminEventEditPage() {
         title="Edit Event"
         draft={draft}
         tiers={tiers}
+        paymentMethods={paymentMethods}
         submitLabel={updateMutation.isPending ? 'Saving…' : 'Save Changes'}
         submitting={updateMutation.isPending}
         onSubmit={handleSubmit}

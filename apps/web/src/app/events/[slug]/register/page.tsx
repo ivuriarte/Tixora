@@ -1028,6 +1028,9 @@ export default function RegisterPage() {
     runningConfig: event.runningConfig ?? null,
   };
   const isPaidEvent = !event.isFree;
+  const isLoggedInSinglePaidCheckout = Boolean(
+    isPaidEvent && existingRegistrationId && isAuthenticated && qty === 1,
+  );
 
   return (
     <main className="min-h-screen bg-gray-50 py-10">
@@ -1035,8 +1038,8 @@ export default function RegisterPage() {
 
       <div className="max-w-2xl mx-auto px-4 sm:px-6">
         <CheckoutStepper
-          current={isPaidEvent ? (paidCheckoutStage === 'details' ? 2 : 3) : 1}
-          flow={isPaidEvent ? 'paid-payment-first' : 'legacy'}
+          current={isLoggedInSinglePaidCheckout ? 2 : isPaidEvent ? (paidCheckoutStage === 'details' ? 2 : 3) : 1}
+          flow={isLoggedInSinglePaidCheckout ? 'paid-single' : isPaidEvent ? 'paid-payment-first' : 'legacy'}
         />
 
         <div className="mb-6">
@@ -1107,7 +1110,16 @@ export default function RegisterPage() {
             />
           )
         ) : isAuthenticated ? (
-          dupCheck === 'duplicate' ? (
+          existingRegistrationId ? (
+            <RegistrationForm
+              {...registrationFormProps}
+              initialAttendees={pendingGuestData.current?.attendees ?? initialAttendees}
+              initialNotes={pendingGuestData.current?.notes ?? initialNotes}
+              existingAccountDetected={pendingGuestData.current?.existingAccountDetected ?? false}
+              checkoutMode={isPaidEvent ? 'authenticated' : undefined}
+              onCheckoutStageChange={setPaidCheckoutStage}
+            />
+          ) : dupCheck === 'duplicate' ? (
             <div className="rounded-2xl border border-red-200 bg-red-50 p-5 flex items-start gap-3">
               <svg className="mt-0.5 h-5 w-5 shrink-0 text-red-500" viewBox="0 0 20 20" fill="currentColor">
                 <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />

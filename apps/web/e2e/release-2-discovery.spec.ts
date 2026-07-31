@@ -3,6 +3,51 @@ import { expect, test } from '@playwright/test';
 const API_URL = process.env.API_URL ?? 'https://api-uat.axontickets.online';
 
 test.describe('Release 2.0 discovery', () => {
+  test('uses the approved desktop full-bleed hero and preserves mobile event details', async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto('/');
+
+    const desktopCarousel = page.getByRole('region', { name: 'Featured events' });
+    await expect(desktopCarousel.getByRole('link', { name: /View Event:/i })).toBeVisible();
+    await expect(desktopCarousel.getByText(/Tickets from|registration required/i)).toBeHidden();
+    const desktopArtwork = desktopCarousel.locator('img[alt$="featured event artwork"]:visible');
+    await expect(desktopArtwork).toBeVisible();
+    expect(await desktopArtwork.evaluate((image) => getComputedStyle(image).objectFit)).toBe('cover');
+
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.reload();
+
+    const mobileCarousel = page.getByRole('region', { name: 'Featured events' });
+    await expect(mobileCarousel.getByRole('heading', { level: 1 })).toBeVisible();
+    await expect(mobileCarousel.getByText(/Tickets from|registration required/i)).toBeVisible();
+    const mobileArtwork = mobileCarousel.locator('img[alt$="featured event artwork"]:visible');
+    await expect(mobileArtwork).toBeVisible();
+    expect(await mobileArtwork.evaluate((image) => getComputedStyle(image).objectFit)).toBe('contain');
+  });
+
+  test('advances the featured carousel automatically after five seconds', async ({ page }) => {
+    await page.goto('/');
+    const dots = page
+      .getByRole('region', { name: 'Featured events' })
+      .getByRole('group', { name: 'Choose carousel slide' })
+      .getByRole('button');
+    const initiallyActive = await dots.evaluateAll((buttons) =>
+      buttons.findIndex((button) => button.getAttribute('aria-current') === 'true'),
+    );
+
+    await expect
+      .poll(
+        () =>
+          dots.evaluateAll((buttons) =>
+            buttons.findIndex((button) => button.getAttribute('aria-current') === 'true'),
+          ),
+        { timeout: 7_000 },
+      )
+      .not.toBe(initiallyActive);
+  });
+
   test('renders all approved time-based sections and category filters', async ({ page }) => {
     await page.goto('/');
 

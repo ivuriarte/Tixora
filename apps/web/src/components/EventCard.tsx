@@ -36,26 +36,16 @@ export default function EventCard({ event }: Props) {
     'Event Concluded': 'bg-slate-800 text-white',
   };
   return (
-    <Link href={`/events/${event.slug}`} className="group axon-card block overflow-hidden transition-colors hover:border-primary">
-      <div className="relative aspect-video bg-[#ede9fe]">
+    <Link href={`/events/${event.slug}`} className="group axon-card block overflow-hidden !rounded-none transition-colors hover:border-primary">
+      <div className="relative aspect-video bg-white">
         {event.imageUrl ? (
-          <>
-            <Image
-              src={event.imageUrl}
-              alt=""
-              fill
-              aria-hidden="true"
-              className="scale-110 object-cover opacity-30 blur-xl"
-              sizes="(max-width: 640px) 50vw, (max-width: 1280px) 33vw, 25vw"
-            />
-            <Image
-              src={event.imageUrl}
-              alt={event.title}
-              fill
-              className="z-10 object-contain"
-              sizes="(max-width: 640px) 50vw, (max-width: 1280px) 33vw, 25vw"
-            />
-          </>
+          <Image
+            src={event.imageUrl}
+            alt={event.title}
+            fill
+            className="object-contain"
+            sizes="(max-width: 640px) 50vw, (max-width: 1280px) 33vw, 25vw"
+          />
         ) : (
           <EventCoverFallback title={event.title} startsAt={event.startsAt} className="select-none" />
         )}

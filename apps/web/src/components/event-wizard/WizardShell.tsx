@@ -1,14 +1,15 @@
 'use client';
 
-import { useState, type ReactNode } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 import Stepper from './Stepper';
 import EventPreview from './EventPreview';
-import { STEPS, type StepId, type EventDraft, type LocalTier, validateStep } from './types';
+import { STEPS, type StepId, type EventDraft, type LocalPaymentMethod, type LocalTier, validateStep } from './types';
 
 export interface WizardShellProps {
   title: string;
   draft: EventDraft;
   tiers: LocalTier[];
+  paymentMethods: LocalPaymentMethod[];
   /** rendered for the active step. `jump` lets the Review step navigate back. */
   renderStep: (step: StepId, jump: (s: StepId) => void) => ReactNode;
   /** label of the final action button (e.g. "Create Event" or "Save Changes") */
@@ -28,6 +29,7 @@ export default function WizardShell({
   title,
   draft,
   tiers,
+  paymentMethods,
   renderStep,
   submitLabel,
   onSubmit,
@@ -41,11 +43,16 @@ export default function WizardShell({
   const [attemptedNext, setAttemptedNext] = useState(false);
   const [showPreviewMobile, setShowPreviewMobile] = useState(false);
 
-  const currentIdx = STEPS.findIndex((s) => s.id === step);
-  const currentStep = STEPS[currentIdx];
-  const isLast = step === 'review';
+  const activeSteps = useMemo(
+    () => draft.isFree ? STEPS.filter((item) => item.id !== 'payment') : [...STEPS],
+    [draft.isFree],
+  );
+  const safeStep = activeSteps.some((item) => item.id === step) ? step : 'review';
+  const currentIdx = activeSteps.findIndex((s) => s.id === safeStep);
+  const currentStep = activeSteps[currentIdx];
+  const isLast = safeStep === 'review';
 
-  const validationError = validateStep(step, draft, tiers);
+  const validationError = validateStep(safeStep, draft, tiers, paymentMethods);
   const optionalStep = !!currentStep.optional;
   // Optional steps can always advance. Required steps need to validate.
   const canAdvance = optionalStep || !validationError;
@@ -54,12 +61,12 @@ export default function WizardShell({
     setAttemptedNext(true);
     if (!canAdvance) return;
     if (!optionalStep) {
-      setCompleted((prev) => new Set(prev).add(step));
+      setCompleted((prev) => new Set(prev).add(safeStep));
     } else {
-      setCompleted((prev) => new Set(prev).add(step));
+      setCompleted((prev) => new Set(prev).add(safeStep));
     }
     if (!isLast) {
-      setStep(STEPS[currentIdx + 1].id);
+      setStep(activeSteps[currentIdx + 1].id);
       setAttemptedNext(false);
       // Scroll form to top on step change
       if (typeof window !== 'undefined') window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -68,7 +75,7 @@ export default function WizardShell({
 
   function handleBack() {
     if (currentIdx === 0) return;
-    setStep(STEPS[currentIdx - 1].id);
+    setStep(activeSteps[currentIdx - 1].id);
     setAttemptedNext(false);
     if (typeof window !== 'undefined') window.scrollTo({ top: 0, behavior: 'smooth' });
   }
@@ -81,9 +88,9 @@ export default function WizardShell({
 
   function handleSubmit() {
     // Re-validate all required steps before final submit
-    for (const s of STEPS) {
+    for (const s of activeSteps) {
       if (s.optional) continue;
-      const err = validateStep(s.id, draft, tiers);
+      const err = validateStep(s.id, draft, tiers, paymentMethods);
       if (err) {
         setStep(s.id);
         setAttemptedNext(true);
@@ -115,7 +122,7 @@ export default function WizardShell({
 
         {/* Stepper */}
         <div className="mb-4 rounded-lg border border-[#e4dcf4] bg-white p-4 sm:p-6">
-          <Stepper currentStep={step} completedSteps={completed} onJump={handleJump} />
+          <Stepper steps={activeSteps} currentStep={safeStep} completedSteps={completed} onJump={handleJump} />
         </div>
 
         {/* Mobile preview drawer */}
@@ -132,15 +139,15 @@ export default function WizardShell({
             {/* Step header */}
             <div className="mb-6 pb-4 border-b border-gray-100">
               <p className="text-xs font-medium text-primary uppercase tracking-wider">
-                Step {currentIdx + 1} of {STEPS.length}
+                Step {currentIdx + 1} of {activeSteps.length}
                 {currentStep.optional && <span className="ml-2 text-gray-400 normal-case">(optional)</span>}
               </p>
               <h2 className="axon-section-title mt-2 text-lg">{currentStep.label}</h2>
             </div>
 
             {/* Animated step content */}
-            <div key={step} className="animate-fade-in space-y-5">
-              {renderStep(step, handleJump)}
+            <div key={safeStep} className="animate-fade-in space-y-5">
+              {renderStep(safeStep, handleJump)}
             </div>
 
             {/* Inline validation error */}

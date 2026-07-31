@@ -195,6 +195,45 @@ export class EmailService implements OnModuleDestroy {
     );
   }
 
+  async sendRegistrationSubmittedEmail(
+    to: string,
+    attendeeName: string,
+    eventTitle: string,
+    referenceNumber: string,
+    scenario: 'guest' | 'authenticated' | 'activated',
+    registrationUrl?: string,
+  ): Promise<void> {
+    const safeName = this.escapeHtml(attendeeName || 'Registrant');
+    const safeEvent = this.escapeHtml(eventTitle);
+    const safeReference = this.escapeHtml(referenceNumber);
+    const action = registrationUrl
+      ? `<p style="margin:24px 0"><a href="${registrationUrl}" style="background:#7C3AED;color:#fff;padding:12px 22px;text-decoration:none;border-radius:8px;display:inline-block;font-weight:600">View My Registration</a></p>`
+      : '';
+    const scenarioMessage = scenario === 'guest'
+      ? 'You completed checkout as a guest. No customer profile was created, and your email is used only for this transaction and its event updates.'
+      : scenario === 'activated'
+        ? 'Your verified Axon account is now connected to this transaction, so you can monitor it from My Registrations.'
+        : 'Because you submitted while signed in, you can monitor the review from My Registrations without another verification code.';
+    await this.send(
+      to,
+      `We received your transaction — ${safeEvent}`,
+      `<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;max-width:600px;margin:0 auto;padding:24px">
+        <h1 style="color:#1a0533;margin-bottom:8px">Your transaction was submitted</h1>
+        <p style="color:#374151">Hi ${safeName}, we received your payment proof and attendee details for <strong>${safeEvent}</strong>.</p>
+        <div style="background:#f5f3ff;border-left:4px solid #7C3AED;padding:16px;margin:20px 0;color:#4c1d95">
+          <strong>Reference:</strong> ${safeReference}<br />
+          <strong>Status:</strong> Under review<br />
+          <strong>Review time:</strong> 1–2 business days
+        </div>
+        <p style="color:#374151">The organizer will verify the payment proof. We will email you again when it is approved or if changes are needed. Approved attendees will receive their ticket and QR details by email.</p>
+        <p style="color:#374151">${scenarioMessage}</p>
+        ${action}
+        <p style="color:#64748b;font-size:13px">You do not need to submit another transaction while this one is under review.</p>
+        <p style="margin-top:24px;color:#9ca3af;font-size:12px">Axon Tickets · Online Ticketing Platform</p>
+      </div>`,
+    );
+  }
+
   // ── Organizer application emails ───────────────────────────────────────────
 
   async sendOrganizerApplicationReceived(

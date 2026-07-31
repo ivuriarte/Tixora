@@ -46,18 +46,6 @@ function priceLabel(event: FeaturedHeroEvent) {
   return `₱${event.lowestPrice.toLocaleString('en-PH')}`;
 }
 
-function registrationUrl(event: FeaturedHeroEvent) {
-  if (!event.primaryTierId) return `/events/${event.slug}#ticket-panel`;
-  const params = new URLSearchParams({
-    tierId: event.primaryTierId,
-    qty: '1',
-    eventId: event.id,
-    eventSlug: event.slug,
-    eventName: event.title,
-  });
-  return `/events/${event.slug}/register?${params.toString()}`;
-}
-
 function CalendarIcon() {
   return (
     <svg aria-hidden="true" className="h-[18px] w-[18px] shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -136,13 +124,7 @@ export default function FeaturedHeroCarousel({ events }: { events: FeaturedHeroE
 
   const event = slides[activeIndex];
   const isOrganizerPromotion = event.isOrganizerPromotion === true;
-  const soldOut = event.status === 'sold_out' || event.totalAvailable === 0;
   const artwork = event.featuredImageUrl || event.imageUrl;
-  const primaryHref = isOrganizerPromotion
-    ? '/become-organizer'
-    : event.isFree
-      ? registrationUrl(event)
-      : `/events/${event.slug}#ticket-panel`;
 
   return (
     <section
@@ -179,7 +161,57 @@ export default function FeaturedHeroCarousel({ events }: { events: FeaturedHeroE
         showSlide(start > end ? activeIndex + 1 : activeIndex - 1);
       }}
     >
-      <div key={event.id} className="featured-hero-enter mx-auto grid min-h-[610px] max-w-[1440px] gap-9 px-4 pb-24 pt-9 sm:px-6 lg:grid-cols-[minmax(0,.88fr)_minmax(560px,1.12fr)] lg:items-center lg:gap-14 lg:px-10 lg:pb-24 lg:pt-14">
+      {!isOrganizerPromotion && (
+        <div key={`${event.id}-desktop`} className="featured-hero-enter relative hidden h-[calc(100svh-93px)] max-h-[920px] min-h-[620px] lg:block">
+          <Link
+            href={`/events/${event.slug}`}
+            className="group absolute inset-0 block focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-inset focus-visible:ring-white"
+            aria-label={`View ${event.title} event details`}
+          >
+            {artwork ? (
+              <Image
+                src={artwork}
+                alt={`${event.title} featured event artwork`}
+                fill
+                priority={activeIndex === 0}
+                placeholder="blur"
+                blurDataURL={DARK_BLUR_DATA_URL}
+                sizes="100vw"
+                className="object-cover object-center transition-transform duration-700 ease-out group-hover:scale-[1.012]"
+              />
+            ) : (
+              <EventCoverFallback title={event.title} startsAt={event.startsAt} />
+            )}
+            <span aria-hidden="true" className="absolute inset-0 bg-[linear-gradient(180deg,rgba(7,0,20,0.26)_0%,transparent_30%,transparent_55%,rgba(8,0,21,0.76)_100%)]" />
+            <span aria-hidden="true" className="absolute inset-0 bg-[linear-gradient(90deg,rgba(13,0,31,0.14),transparent_38%,rgba(13,0,31,0.08))]" />
+          </Link>
+
+          <p className="axon-label pointer-events-none absolute left-[5.5vw] top-11 z-10 flex items-center gap-3 text-xs text-white drop-shadow-[0_2px_16px_rgba(0,0,0,0.75)] before:h-0.5 before:w-7 before:bg-[#a78bfa] before:content-['']">
+            Featured Event
+          </p>
+          <h1 className="sr-only">{event.title}</h1>
+
+          <Link
+            href={`/events/${event.slug}`}
+            className="group absolute bottom-[4.5rem] right-[5.5vw] z-20 inline-flex h-[62px] min-w-[214px] items-center justify-between gap-6 rounded-full border border-white/50 bg-white/95 py-2 pl-7 pr-2.5 text-xs font-extrabold uppercase tracking-[0.12em] text-[#17002f] shadow-[0_18px_48px_rgba(11,0,30,0.36)] backdrop-blur-md transition duration-200 hover:-translate-y-0.5 hover:bg-white focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#a78bfa]"
+            aria-label={`View Event: ${event.title}`}
+          >
+            View Event
+            <span aria-hidden="true" className="grid h-10 w-10 place-items-center rounded-full bg-primary text-xl font-normal leading-none text-white transition-transform duration-200 group-hover:rotate-6 group-hover:scale-105">
+              ↗
+            </span>
+          </Link>
+        </div>
+      )}
+
+      <div
+        key={`${event.id}-mobile`}
+        className={`featured-hero-enter mx-auto grid min-h-[610px] max-w-[1600px] gap-9 px-4 pb-24 pt-9 sm:px-6 ${
+          isOrganizerPromotion
+            ? 'lg:min-h-[560px] lg:grid-cols-[minmax(360px,5fr)_minmax(640px,7fr)] lg:items-center lg:gap-16 lg:px-12 lg:pb-24 lg:pt-12 xl:px-16'
+            : 'lg:hidden'
+        }`}
+      >
         <div className="order-2 min-w-0 lg:order-1" aria-live="polite" aria-atomic="true">
           <p className="axon-label text-xs text-[#a78bfa]">
             {isOrganizerPromotion ? 'For Event Organizers' : 'Featured Event'}
@@ -206,12 +238,7 @@ export default function FeaturedHeroCarousel({ events }: { events: FeaturedHeroE
               <Link href="/become-organizer" className="axon-pill w-full bg-primary text-xs text-white hover:bg-primary-hover sm:w-auto">
                 Become an Organizer
               </Link>
-            ) : !soldOut && (
-              <Link href={primaryHref} className="axon-pill w-full bg-primary text-xs text-white hover:bg-primary-hover sm:w-auto">
-                {event.isFree ? 'Register Free' : 'Get Tickets'}
-              </Link>
-            )}
-            {!isOrganizerPromotion && (
+            ) : (
               <Link href={`/events/${event.slug}`} className="axon-pill w-full border border-[#7c3aed] bg-transparent text-xs text-[#d8ccfa] hover:border-[#a78bfa] hover:bg-white/5 hover:text-white sm:w-auto">
                 View Event
               </Link>
@@ -227,7 +254,7 @@ export default function FeaturedHeroCarousel({ events }: { events: FeaturedHeroE
         </div>
 
         <Link href={isOrganizerPromotion ? '/become-organizer' : `/events/${event.slug}`} className="group order-1 block lg:order-2" aria-label={isOrganizerPromotion ? 'Learn about organizing with Axon Tickets' : `View ${event.title} event details`}>
-          <div className="relative aspect-[3/2] overflow-hidden rounded-2xl border border-white/10 bg-[#0d021c] shadow-2xl shadow-black/20">
+          <div className="relative aspect-[3/2] overflow-hidden rounded-xl border border-white/10 bg-[#0d021c] shadow-2xl shadow-black/20 lg:aspect-video lg:rounded-2xl">
             {isOrganizerPromotion ? (
               <div className="absolute inset-0 overflow-hidden bg-[radial-gradient(circle_at_25%_15%,#7c3aed_0%,transparent_38%),linear-gradient(135deg,#2e1065_0%,#0d021c_75%)] p-8 sm:p-12">
                 <div className="grid h-full grid-cols-2 gap-4" aria-hidden="true">
@@ -251,26 +278,16 @@ export default function FeaturedHeroCarousel({ events }: { events: FeaturedHeroE
                 className="object-cover transition-transform duration-500 ease-out group-hover:scale-[1.025]"
               />
             ) : artwork ? (
-              <>
-                <Image
-                  src={artwork}
-                  alt=""
-                  fill
-                  aria-hidden="true"
-                  sizes="(max-width: 1024px) 100vw, 56vw"
-                  className="scale-110 object-cover opacity-35 blur-xl"
-                />
-                <Image
-                  src={artwork}
-                  alt={`${event.title} featured event artwork`}
-                  fill
-                  priority={activeIndex === 0}
-                  placeholder="blur"
-                  blurDataURL={DARK_BLUR_DATA_URL}
-                  sizes="(max-width: 1024px) 100vw, 56vw"
-                  className="z-10 object-contain transition-transform duration-500 ease-out group-hover:scale-[1.015]"
-                />
-              </>
+              <Image
+                src={artwork}
+                alt={`${event.title} featured event artwork`}
+                fill
+                priority={activeIndex === 0}
+                placeholder="blur"
+                blurDataURL={DARK_BLUR_DATA_URL}
+                sizes="(max-width: 1024px) 100vw, 60vw"
+                className="object-contain transition-transform duration-500 ease-out group-hover:scale-[1.015]"
+              />
             ) : (
               <EventCoverFallback title={event.title} startsAt={event.startsAt} />
             )}

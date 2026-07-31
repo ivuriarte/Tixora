@@ -7,6 +7,7 @@ function makeService() {
     registration: {
       findFirst: jest.fn(),
       findUnique: jest.fn(),
+      findMany: jest.fn().mockResolvedValue([]),
     },
   };
   const email = { sendOtpEmail: jest.fn().mockResolvedValue(true) };
@@ -192,5 +193,40 @@ describe('RegistrationsService guest access', () => {
       emailHash: createHash('sha256').update('guest@example.com').digest('hex'),
     });
     expect(prisma).not.toHaveProperty('user');
+  });
+
+  it('returns only masked duplicate details to a scoped guest checkout', async () => {
+    const { service, prisma } = makeService();
+    const token = 'valid-registration-scoped-token';
+    prisma.registration.findFirst.mockResolvedValue({
+      id: 'registration-1',
+      guestAccessTokenHash: createHash('sha256').update(token).digest('hex'),
+    });
+    prisma.registration.findUnique.mockResolvedValue({ eventId: 'event-1' });
+    prisma.registration.findMany.mockResolvedValue([
+      {
+        referenceNumber: 'AXN-2026-SECRET',
+        guestEmail: null,
+        createdAt: new Date('2026-07-30T00:00:00.000Z'),
+        attendees: [{ firstName: 'Maria', lastName: 'Santos', email: 'guest@example.com' }],
+      },
+    ]);
+
+    const result = await service.checkGuestDuplicates(
+      'registration-1',
+      token,
+      [' Guest@Example.com '],
+    );
+
+    expect(result.conflicts).toEqual([
+      {
+        email: 'guest@example.com',
+        attendeeName: 'M*** S***',
+        transactionDate: '2026-07-30T00:00:00.000Z',
+        referenceNumber: '••••CRET',
+      },
+    ]);
+    expect(result.conflicts[0].attendeeName).not.toContain('Maria');
+    expect(result.conflicts[0].referenceNumber).not.toContain('AXN-2026');
   });
 });

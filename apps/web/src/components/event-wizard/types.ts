@@ -111,7 +111,7 @@ export const STEPS: readonly StepMeta[] = [
   { id: 'location', label: 'Location & Schedule', short: '2' },
   { id: 'capacity', label: 'Capacity & Tiers', short: '3' },
   { id: 'details', label: 'Event Program & Details', short: '4', optional: true },
-  { id: 'payment', label: 'Payment', short: '5', optional: true },
+  { id: 'payment', label: 'Payment', short: '5' },
   { id: 'review', label: 'Review', short: '6' },
 ];
 
@@ -216,6 +216,7 @@ export function validateStep(
   step: StepId,
   draft: EventDraft,
   tiers: LocalTier[],
+  paymentMethods: LocalPaymentMethod[] = [],
 ): string | null {
   switch (step) {
     case 'basics': return validateBasics(draft);
@@ -232,7 +233,20 @@ export function validateStep(
         if (draft.runningConfig.merchandiseSizes.length === 0) return 'Add at least one merchandise size';
       }
       return null;
-    case 'payment':
+    case 'payment': {
+      if (draft.isFree) return null;
+      if (paymentMethods.length === 0) return 'Add at least one payment method for this paid event';
+      const incomplete = paymentMethods.find((method) =>
+        !method.name.trim()
+        || !method.accountName.trim()
+        || !method.accountNumber.trim()
+        || !(method.qrFile || method.qrPreview || method.qrImageUrl),
+      );
+      if (incomplete) {
+        return `Complete every required field, including the QR code, for ${incomplete.name.trim() || 'the payment method'}`;
+      }
+      return null;
+    }
     case 'review':
       return null;
   }

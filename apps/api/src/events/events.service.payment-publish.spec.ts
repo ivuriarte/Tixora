@@ -55,10 +55,43 @@ describe('EventsService paid event publishing', () => {
         status: 'on_sale',
         allowManualPayment: true,
         paymentMethods: [
-          { name: 'GCash', type: 'gcash', accountNumber: '09171234567' },
+          {
+            name: 'GCash',
+            type: 'ewallet',
+            accountName: 'Axon Events Inc.',
+            accountNumber: '09171234567',
+            qrImageUrl: 'https://cdn.example.com/gcash-qr.png',
+          },
         ],
       } as any),
     ).resolves.toEqual({ id: 'event-paid', status: 'on_sale' });
+  });
+
+  it('blocks publishing when any configured payment method is incomplete', async () => {
+    const prisma = {
+      event: {
+        findUnique: jest.fn().mockResolvedValue(makePaidEvent()),
+        update: jest.fn(),
+      },
+    };
+    const service = new EventsService(prisma as any, {} as any, {} as any);
+    jest.spyOn(service, 'findById').mockResolvedValue(makePaidEvent() as any);
+
+    await expect(
+      service.update('event-paid', {
+        status: 'on_sale',
+        allowManualPayment: true,
+        paymentMethods: [
+          {
+            name: 'GCash',
+            type: 'ewallet',
+            accountName: 'Axon Events Inc.',
+            accountNumber: '09171234567',
+          },
+        ],
+      } as any),
+    ).rejects.toThrow('QR code');
+    expect(prisma.event.update).not.toHaveBeenCalled();
   });
 
   it('does not impose the paid-method rule on free events', async () => {

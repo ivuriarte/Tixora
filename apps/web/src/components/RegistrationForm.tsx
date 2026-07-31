@@ -93,6 +93,13 @@ interface AgendaSubEventOption {
   time?: string;
 }
 
+interface GuestDuplicateConflict {
+  email: string;
+  attendeeName: string;
+  transactionDate: string;
+  referenceNumber: string;
+}
+
 interface Props {
   eventId: string;
   eventSlug: string;
@@ -155,6 +162,9 @@ export default function RegistrationForm({
   const router = useRouter();
   const currentUser = useAuthStore((s) => s.user);
   const setAuth = useAuthStore((s) => s.setAuth);
+  const skipDetailsForAuthenticatedSingle = Boolean(
+    registrationId && checkoutMode === 'authenticated' && qty === 1,
+  );
   const [attendees, setAttendees] = useState<AttendeeFields[]>(() =>
     initialAttendees?.map((attendee) => ({
       ...emptyAttendee(),
@@ -175,9 +185,12 @@ export default function RegistrationForm({
   const [referralMessage, setReferralMessage] = useState<string | null>(null);
   const [referralError, setReferralError] = useState<string | null>(null);
   const [checkingReferral, setCheckingReferral] = useState(false);
-  const [checkoutStage, setCheckoutStage] = useState<'details' | 'confirmation' | 'otp'>('details');
+  const [checkoutStage, setCheckoutStage] = useState<'details' | 'confirmation' | 'otp'>(
+    skipDetailsForAuthenticatedSingle ? 'confirmation' : 'details',
+  );
   const [checkoutOtp, setCheckoutOtp] = useState('');
   const [pendingUserId, setPendingUserId] = useState('');
+  const [duplicateConflicts, setDuplicateConflicts] = useState<GuestDuplicateConflict[]>([]);
   const otpVerificationRef = useRef(false);
   // Synchronous guard — prevents duplicate submissions during the async gap
   // between the first click and React flushing the loading state update.
@@ -201,6 +214,9 @@ export default function RegistrationForm({
   const requiresSubEvent = !registrationId && subEvents.length > 0;
   const allSubEventsSelected = subEvents.length > 0 && selectedSubEventIds.length === subEvents.length;
   const isPaidCompletionFlow = Boolean(registrationId && checkoutMode && !isFreeRegistration);
+  const confirmationReady = attendees.every((attendee) =>
+    attendee.firstName.trim() && attendee.lastName.trim() && attendee.email.trim(),
+  );
 
   const changeCheckoutStage = (stage: 'details' | 'confirmation' | 'otp') => {
     setCheckoutStage(stage);
@@ -368,12 +384,22 @@ export default function RegistrationForm({
       if (checkoutMode === 'authenticated') {
         await api.patch(`/registrations/${registrationId}/attendees`, attendeeUpdatePayload());
         await syncAuthenticatedProfile();
-        router.push(`/registrations/${registrationId}`);
+        router.push(`/events/${eventSlug}/register/complete?registrationId=${registrationId}&scenario=authenticated`);
         return;
       }
 
       const leadEmail = attendees[0]?.email.trim().toLowerCase();
       if (checkoutMode === 'guest') {
+        const duplicateResponse = await api.post<{ data?: { conflicts: GuestDuplicateConflict[] }; conflicts?: GuestDuplicateConflict[] }>(
+          `/registrations/guest/${registrationId}/check-duplicates`,
+          { emails: attendees.map((attendee) => attendee.email.trim().toLowerCase()) },
+          { headers: { 'x-registration-token': guestAccessToken } },
+        );
+        const conflicts = duplicateResponse.data.data?.conflicts ?? duplicateResponse.data.conflicts ?? [];
+        if (conflicts.length > 0) {
+          setDuplicateConflicts(conflicts);
+          return;
+        }
         await api.post(
           `/registrations/guest/${registrationId}/request-confirmation-code`,
           { email: leadEmail },
@@ -390,8 +416,10 @@ export default function RegistrationForm({
       setCheckoutOtp('');
       changeCheckoutStage('otp');
     } catch (err: unknown) {
+      const responseData = (err as { response?: { data?: { message?: string | string[]; conflicts?: GuestDuplicateConflict[] } } })?.response?.data;
+      if (responseData?.conflicts?.length) setDuplicateConflicts(responseData.conflicts);
       const message =
-        (err as { response?: { data?: { message?: string | string[] } } })?.response?.data?.message ??
+        responseData?.message ??
         'We could not send the confirmation code.';
       setError(Array.isArray(message) ? message.join(' ') : message);
     } finally {
@@ -414,13 +442,13 @@ export default function RegistrationForm({
     try {
       const leadEmail = attendees[0].email.trim().toLowerCase();
       if (checkoutMode === 'guest') {
-        await api.post(
+        const response = await api.post<{ data?: { referenceNumber?: string }; referenceNumber?: string }>(
           `/registrations/guest/${registrationId}/confirm`,
           { email: leadEmail, otp: checkoutOtp, ...attendeeUpdatePayload() },
           { headers: { 'x-registration-token': guestAccessToken } },
         );
-        window.sessionStorage.removeItem(`axon_guest_registration_${registrationId}`);
-        router.push(`/events/${eventSlug}/register/complete`);
+        const referenceNumber = response.data.data?.referenceNumber ?? response.data.referenceNumber ?? '';
+        router.push(`/events/${eventSlug}/register/complete?registrationId=${registrationId}&scenario=guest&reference=${encodeURIComponent(referenceNumber)}`);
         return;
       }
 
@@ -454,13 +482,14 @@ export default function RegistrationForm({
         accessToken,
         refreshToken,
       );
-      await api.patch(
+      const completion = await api.patch<{ data?: { referenceNumber?: string }; referenceNumber?: string }>(
         `/registrations/${registrationId}/claim-and-complete`,
         attendeeUpdatePayload(),
         { headers: { 'x-registration-token': guestAccessToken } },
       );
+      const referenceNumber = completion.data.data?.referenceNumber ?? completion.data.referenceNumber ?? '';
       window.sessionStorage.removeItem(`axon_guest_registration_${registrationId}`);
-      router.push(`/registrations/${registrationId}`);
+      router.push(`/events/${eventSlug}/register/complete?registrationId=${registrationId}&scenario=account&reference=${encodeURIComponent(referenceNumber)}`);
     } catch (err: unknown) {
       const message =
         (err as { response?: { data?: { message?: string | string[] } } })?.response?.data?.message ??
@@ -510,7 +539,7 @@ export default function RegistrationForm({
 
       const attendeePayload = buildAttendeePayload();
 
-      const emailMismatch = attendees.find((attendee) =>
+      const emailMismatch = checkoutMode === 'guest' ? undefined : attendees.find((attendee) =>
         attendee.email.trim().toLowerCase() !== attendee.confirmEmail.trim().toLowerCase(),
       );
       if (emailMismatch) {
@@ -612,14 +641,16 @@ export default function RegistrationForm({
 
         <section className="rounded-2xl border border-gray-200 bg-white p-5">
           <div className="flex items-center justify-between">
-            <h2 className="font-semibold text-gray-900">Attendee Details</h2>
-            <button
-              type="button"
-              onClick={() => changeCheckoutStage('details')}
-              className="min-h-[44px] text-sm font-semibold text-primary hover:underline"
-            >
-              Edit details
-            </button>
+            <h2 className="font-semibold text-gray-900">{skipDetailsForAuthenticatedSingle ? 'Registrant Details' : 'Attendee Details'}</h2>
+            {!skipDetailsForAuthenticatedSingle && (
+              <button
+                type="button"
+                onClick={() => changeCheckoutStage('details')}
+                className="min-h-[44px] text-sm font-semibold text-primary hover:underline"
+              >
+                Edit details
+              </button>
+            )}
           </div>
           <div className="mt-3 divide-y divide-gray-100">
             {attendees.map((attendee, index) => (
@@ -627,7 +658,7 @@ export default function RegistrationForm({
                 <p className="font-medium text-gray-900">
                   {index + 1}. {attendee.firstName} {attendee.lastName}
                 </p>
-                <p className="mt-0.5 text-gray-500">{attendee.email} · {attendee.phone}</p>
+                <p className="mt-0.5 text-gray-500">{attendee.email}{attendee.phone ? ` · ${attendee.phone}` : ''}</p>
                 {eventType === 'running' && (
                   <p className="mt-0.5 text-gray-500">
                     {attendee.raceDistance} · {attendee.raceDivision} · {attendee.claimMethod.replace('_', ' ')}
@@ -648,10 +679,35 @@ export default function RegistrationForm({
         )}
 
         {error && <div role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>}
+        {!confirmationReady && skipDetailsForAuthenticatedSingle && (
+          <div role="status" className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">Loading the registrant details from your verified profile…</div>
+        )}
+
+        {duplicateConflicts.length > 0 && (
+          <div role="dialog" aria-modal="true" aria-labelledby="duplicate-title" className="fixed inset-0 z-50 flex items-center justify-center bg-[#0d021c]/70 p-4 backdrop-blur-sm">
+            <div className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl">
+              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-amber-100 text-xl text-amber-700">!</div>
+              <h2 id="duplicate-title" className="mt-4 text-xl font-bold text-gray-900">Registration protected from duplicate purchases</h2>
+              <p className="mt-2 text-sm leading-6 text-gray-600">
+                This guest transaction is blocked because an attendee email already has an active registration for this event. This protection limits bulk purchasing by scalpers and keeps tickets available to more genuine attendees.
+              </p>
+              <div className="mt-4 space-y-2">
+                {duplicateConflicts.map((conflict) => (
+                  <div key={`${conflict.email}-${conflict.referenceNumber}`} className="rounded-xl bg-gray-50 p-3 text-sm text-gray-600">
+                    <p className="font-semibold text-gray-900">{conflict.attendeeName}</p>
+                    <p>{new Date(conflict.transactionDate).toLocaleDateString('en-PH')} · Ref {conflict.referenceNumber}</p>
+                  </div>
+                ))}
+              </div>
+              <p className="mt-3 text-xs text-gray-500">Details are partially masked until email ownership is verified.</p>
+              <button type="button" onClick={() => setDuplicateConflicts([])} className="mt-5 w-full rounded-xl bg-primary py-3 text-sm font-semibold text-white">Return to attendee details</button>
+            </div>
+          </div>
+        )}
 
         <button
           type="button"
-          disabled={loading}
+          disabled={loading || !confirmationReady}
           onClick={() => void confirmPaidCheckout()}
           className="w-full rounded-xl bg-primary py-3 text-sm font-semibold text-white transition hover:bg-primary/90 disabled:opacity-50"
         >
@@ -921,6 +977,11 @@ export default function RegistrationForm({
       )}
 
       {/* Attendee forms */}
+      {qty > 1 && (
+        <div className="rounded-2xl border border-violet-200 bg-violet-50 p-4 text-sm leading-6 text-violet-900">
+          <strong>Why we need each attendee’s details:</strong> every ticket receives its own named QR code. Enter the correct name and email for each recipient so their ticket and status updates reach the right person.
+        </div>
+      )}
       {attendees.map((att, i) => (
         <div
           key={i}
@@ -953,9 +1014,71 @@ export default function RegistrationForm({
               </p>
             );
 
+            if (checkoutMode === 'guest') {
+              return (
+                <>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">Email *</label>
+                    <input
+                      type="email"
+                      required
+                      autoFocus={i === 0}
+                      autoComplete={i === 0 ? 'email' : 'off'}
+                      value={att.email}
+                      onChange={(e) => {
+                        updateAttendee(i, 'email', e.target.value);
+                        updateAttendee(i, 'confirmEmail', e.target.value);
+                      }}
+                      className={`w-full border rounded-lg px-3 py-2 text-sm ${normalCls}`}
+                    />
+                    {i === 0 && <p className="mt-1 text-[11px] text-gray-500">Used only for this transaction, review updates, and ticket delivery. No account or customer profile is created.</p>}
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 mb-1">First Name *</label>
+                      <input required value={att.firstName} onChange={(e) => updateAttendee(i, 'firstName', e.target.value)} className={`w-full border rounded-lg px-3 py-2 text-sm ${normalCls}`} />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 mb-1">Last Name *</label>
+                      <input required value={att.lastName} onChange={(e) => updateAttendee(i, 'lastName', e.target.value)} className={`w-full border rounded-lg px-3 py-2 text-sm ${normalCls}`} />
+                    </div>
+                  </div>
+                  {eventType === 'running' && (
+                    <div className="space-y-4 rounded-xl border border-violet-200 bg-violet-50/60 p-4">
+                      <div>
+                        <p className="text-sm font-semibold text-violet-950">Race-required details</p>
+                        <p className="mt-1 text-xs leading-5 text-violet-800">These event-specific fields are needed for race assignment, safety, merchandise, and claiming. Axon does not use them to create a guest profile.</p>
+                      </div>
+                      <div className="grid gap-4 sm:grid-cols-2">
+                        <label className="text-xs font-medium text-gray-700">Distance *<select required value={att.raceDistance} onChange={(e) => updateAttendee(i, 'raceDistance', e.target.value)} className={`mt-1 w-full border rounded-lg px-3 py-2 text-sm ${normalCls}`}><option value="">Select distance</option>{runningConfig?.distances?.map((item) => <option key={item.code} value={item.code}>{item.name}</option>)}</select></label>
+                        <label className="text-xs font-medium text-gray-700">Race Division *<select required value={att.raceDivision} onChange={(e) => updateAttendee(i, 'raceDivision', e.target.value)} className={`mt-1 w-full border rounded-lg px-3 py-2 text-sm ${normalCls}`}><option value="">Select division</option>{runningConfig?.raceDivisions?.map((item) => <option key={item} value={item}>{item}</option>)}</select></label>
+                        <label className="text-xs font-medium text-gray-700">Gender Identity <span className="font-normal text-gray-400">(optional)</span><select value={att.genderIdentity} onChange={(e) => updateAttendee(i, 'genderIdentity', e.target.value)} className={`mt-1 w-full border rounded-lg px-3 py-2 text-sm ${normalCls}`}><option value="">Prefer not to provide</option>{runningConfig?.genderIdentityOptions?.map((item) => <option key={item} value={item}>{item}</option>)}</select></label>
+                        <label className="text-xs font-medium text-gray-700">Merchandise size *<select required value={att.merchandiseSize} onChange={(e) => updateAttendee(i, 'merchandiseSize', e.target.value)} className={`mt-1 w-full border rounded-lg px-3 py-2 text-sm ${normalCls}`}><option value="">Select size</option>{runningConfig?.merchandiseSizes?.map((item) => <option key={item} value={item}>{item}</option>)}</select></label>
+                      </div>
+                      <div className="grid gap-3 sm:grid-cols-3">
+                        <input required aria-label="Emergency contact name" placeholder="Emergency contact name" value={att.emergencyContactName} onChange={(e) => updateAttendee(i, 'emergencyContactName', e.target.value)} className={`border rounded-lg px-3 py-2 text-sm ${normalCls}`} />
+                        <input required type="tel" aria-label="Emergency contact phone" placeholder="Emergency contact phone" value={att.emergencyContactPhone} onChange={(e) => updateAttendee(i, 'emergencyContactPhone', e.target.value)} className={`border rounded-lg px-3 py-2 text-sm ${normalCls}`} />
+                        <input required aria-label="Emergency contact relationship" placeholder="Relationship" value={att.emergencyContactRelationship} onChange={(e) => updateAttendee(i, 'emergencyContactRelationship', e.target.value)} className={`border rounded-lg px-3 py-2 text-sm ${normalCls}`} />
+                      </div>
+                      <label className="block text-xs font-medium text-gray-700">Claim method *<select required value={att.claimMethod} onChange={(e) => updateAttendee(i, 'claimMethod', e.target.value)} className={`mt-1 w-full border rounded-lg px-3 py-2 text-sm ${normalCls}`}><option value="">Select claim method</option>{runningConfig?.claimMethods?.includes('self_claim') && <option value="self_claim">Claim at event</option>}{runningConfig?.claimMethods?.includes('delivery') && <option value="delivery">Delivery</option>}</select></label>
+                      {att.claimMethod === 'delivery' && (
+                        <div className="grid gap-3 sm:grid-cols-2">
+                          <input required aria-label="Delivery address line 1" placeholder="Address line 1" value={att.deliveryLine1} onChange={(e) => updateAttendee(i, 'deliveryLine1', e.target.value)} className={`border rounded-lg px-3 py-2 text-sm sm:col-span-2 ${normalCls}`} />
+                          <input aria-label="Delivery address line 2" placeholder="Address line 2 (optional)" value={att.deliveryLine2} onChange={(e) => updateAttendee(i, 'deliveryLine2', e.target.value)} className={`border rounded-lg px-3 py-2 text-sm sm:col-span-2 ${normalCls}`} />
+                          <input required aria-label="Delivery city" placeholder="City" value={att.deliveryCity} onChange={(e) => updateAttendee(i, 'deliveryCity', e.target.value)} className={`border rounded-lg px-3 py-2 text-sm ${normalCls}`} />
+                          <input required aria-label="Delivery province" placeholder="Province" value={att.deliveryProvince} onChange={(e) => updateAttendee(i, 'deliveryProvince', e.target.value)} className={`border rounded-lg px-3 py-2 text-sm ${normalCls}`} />
+                          <input required aria-label="Delivery postal code" placeholder="Postal code" value={att.deliveryPostalCode} onChange={(e) => updateAttendee(i, 'deliveryPostalCode', e.target.value)} className={`border rounded-lg px-3 py-2 text-sm ${normalCls}`} />
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </>
+              );
+            }
+
             return (
               <>
-                {i === 0 && (checkoutMode === 'guest' || checkoutMode === 'account') && (
+                {i === 0 && checkoutMode === 'account' && (
                   <div>
                     <div className="grid gap-4 sm:grid-cols-2">
                       <div>
@@ -982,11 +1105,7 @@ export default function RegistrationForm({
                         />
                       </div>
                     </div>
-                    <p className="mt-1 text-[11px] text-gray-500">
-                      {checkoutMode === 'guest'
-                        ? 'Used only as the contact for this confirmed transaction. No account or profile is created.'
-                        : 'Axon checks and links this email only after you verify the final one-time code.'}
-                    </p>
+                    <p className="mt-1 text-[11px] text-gray-500">Axon checks and links this email only after you verify the final one-time code.</p>
                   </div>
                 )}
 
@@ -1013,7 +1132,7 @@ export default function RegistrationForm({
                   </div>
                 </div>
 
-                {!(i === 0 && (checkoutMode === 'guest' || checkoutMode === 'account')) && <div>
+                {!(i === 0 && checkoutMode === 'account') && <div>
                   <div className="grid gap-4 sm:grid-cols-2">
                     <div>
                       <label className="block text-xs font-medium text-gray-600 mb-1">Email *</label>
@@ -1215,7 +1334,7 @@ export default function RegistrationForm({
       )}
 
       {/* Notes */}
-      <div className="bg-white border border-gray-200 rounded-2xl p-5">
+      {checkoutMode !== 'guest' && <div className="bg-white border border-gray-200 rounded-2xl p-5">
         <label className="block text-xs font-medium text-gray-600 mb-1">Notes (optional)</label>
         <textarea
           rows={3}
@@ -1224,7 +1343,7 @@ export default function RegistrationForm({
           placeholder="Anything we should know? e.g. food allergies, wheelchair access needed, etc."
           className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary resize-none"
         />
-      </div>
+      </div>}
         </>
       )}
 
@@ -1244,7 +1363,7 @@ export default function RegistrationForm({
           : isPaymentIntentStep
             ? `Continue to payment — ${formatPHP(totalPesos)}`
             : registrationId
-              ? isPaidCompletionFlow ? 'Review Attendee Details' : 'Submit attendee details for review'
+              ? isPaidCompletionFlow ? 'Review Transaction Details' : 'Submit attendee details for review'
               : `Confirm My Registration — ${isFreeRegistration ? 'Free' : formatPHP(totalPesos)}`}
       </button>
     </form>

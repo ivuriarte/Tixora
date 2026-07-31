@@ -13,12 +13,16 @@ const LEGACY_STEPS: Step[] = [
 
 interface Props {
   current: 1 | 2 | 3;
-  flow?: 'legacy' | 'paid-payment-first';
+  flow?: 'legacy' | 'paid-payment-first' | 'paid-single';
 }
 
 export default function CheckoutStepper({ current, flow = 'legacy' }: Props) {
-  const steps: Step[] =
-    flow === 'paid-payment-first'
+  const steps: Step[] = flow === 'paid-single'
+    ? [
+        { id: 1, label: 'Payment & Proof' },
+        { id: 2, label: 'Confirmation' },
+      ]
+    : flow === 'paid-payment-first'
       ? [
           { id: 1, label: 'Payment & Proof' },
           { id: 2, label: 'Attendee Details' },

@@ -1,4 +1,4 @@
-import { IsEmail, IsString, Matches, MaxLength } from 'class-validator';
+import { ArrayMaxSize, ArrayMinSize, IsArray, IsEmail, IsString, Matches, MaxLength } from 'class-validator';
 import { Transform } from 'class-transformer';
 import { UpdateRegistrationAttendeesDto } from './update-registration-attendees.dto';
 
@@ -20,3 +20,11 @@ export class ConfirmGuestCheckoutDto extends UpdateRegistrationAttendeesDto {
 }
 
 export class ClaimRegistrationDto extends UpdateRegistrationAttendeesDto {}
+
+export class CheckGuestDuplicatesDto {
+  @IsArray()
+  @ArrayMinSize(1)
+  @ArrayMaxSize(10)
+  @IsEmail({}, { each: true })
+  emails!: string[];
+}

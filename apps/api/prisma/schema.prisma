@@ -480,8 +480,21 @@ model Attendee {
   @@index([eventId, raceDistance])
   @@index([createdAt])
   @@index([email])
+  @@index([eventId, email])
   @@index([subEventId])
   @@map("attendees")
+}
+
+model GuestRegistrationEmailClaim {
+  id             String   @id @default(uuid())
+  eventId        String   @map("event_id")
+  registrationId String   @map("registration_id")
+  emailHash      String   @map("email_hash")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  @@unique([eventId, emailHash])
+  @@index([registrationId])
+  @@map("guest_registration_email_claims")
 }
 
 model RaceBibCounter {

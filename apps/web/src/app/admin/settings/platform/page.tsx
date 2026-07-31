@@ -61,7 +61,7 @@ export default function PlatformSettingsPage() {
             <div className="flex-1">
               <h2 className="text-sm font-semibold text-gray-900">Default Service Fee</h2>
               <p className="text-xs text-gray-500 mt-0.5">
-                Flat fee in Philippine Pesos (₱) added to every order, displayed to attendees in the Order Summary. Individual events can override this via Admin Controls.
+                Flat processing fee in Philippine Pesos (₱) charged once per registration transaction, regardless of attendee quantity. Individual events can override this via Admin Controls.
               </p>
             </div>
             <div className="flex-shrink-0 flex items-center gap-2 mt-0.5">

@@ -311,6 +311,7 @@ export default function AdminNewEventPage() {
         title="New Event"
         draft={draft}
         tiers={tiers}
+        paymentMethods={paymentMethods}
         submitLabel={loading ? 'Creating…' : 'Create Event'}
         submitting={loading}
         onSubmit={handleSubmit}

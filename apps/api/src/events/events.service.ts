@@ -1049,29 +1049,21 @@ export class EventsService {
     if (['published', 'on_sale'].includes(resultingStatus) && !resultingIsFree) {
       const manualPaymentEnabled = dto.allowManualPayment ?? existing.allowManualPayment;
       const methods = dto.paymentMethods !== undefined ? dto.paymentMethods : existing.paymentMethods;
-      const bankName = dto.bankName !== undefined ? dto.bankName : existing.bankName;
-      const bankAccountNumber =
-        dto.bankAccountNumber !== undefined ? dto.bankAccountNumber : existing.bankAccountNumber;
-      const gcashNumber = dto.gcashNumber !== undefined ? dto.gcashNumber : existing.gcashNumber;
-      const hasConfiguredMethod =
-        (Array.isArray(methods) &&
-          methods.some((method) => {
-            if (!method || typeof method !== 'object' || Array.isArray(method)) return false;
-            const item = method as Record<string, unknown>;
-            return Boolean(
-              String(item.name ?? '').trim() &&
-                (
-                  String(item.accountNumber ?? '').trim() ||
-                  String(item.qrImageUrl ?? '').trim() ||
-                  String(item.instructions ?? '').trim()
-                ),
-            );
-          })) ||
-        Boolean(bankName?.trim() && bankAccountNumber?.trim()) ||
-        Boolean(gcashNumber?.trim());
-      if (!manualPaymentEnabled || !hasConfiguredMethod) {
+      const configuredMethods = Array.isArray(methods) ? methods : [];
+      const allMethodsComplete = configuredMethods.length > 0 && configuredMethods.every((method) => {
+        if (!method || typeof method !== 'object' || Array.isArray(method)) return false;
+        const item = method as Record<string, unknown>;
+        return Boolean(
+          ['bank', 'ewallet'].includes(String(item.type ?? ''))
+          && String(item.name ?? '').trim()
+          && String(item.accountName ?? '').trim()
+          && String(item.accountNumber ?? '').trim()
+          && String(item.qrImageUrl ?? '').trim(),
+        );
+      });
+      if (!manualPaymentEnabled || !allMethodsComplete) {
         throw new BadRequestException(
-          'Configure at least one manual payment method before publishing a paid event.',
+          'Paid events require at least one complete bank or e-wallet payment method. Method name, account name, account number, and QR code are all required.',
         );
       }
     }
