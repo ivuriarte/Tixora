@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './support/qa-test';
 
 // ── Homepage ────────────────────────────────────────────────────────────────
 
@@ -36,15 +36,17 @@ test.describe('Homepage', () => {
     await expect(page).toHaveURL(/auth\/register/);
   });
 
-  test('featured hero exposes event details without unsupported payment copy', async ({ page }) => {
+  test('featured hero exposes an accessible event action without unsupported payment copy', async ({ page }) => {
     await page.goto('/');
     const carousel = page.getByRole('region', { name: 'Featured events' });
-    if ((await carousel.count()) === 0) return;
+    test.skip((await carousel.count()) === 0, 'This environment has no featured event fixture.');
 
-    await expect(carousel.getByText('Featured Event', { exact: true })).toBeVisible();
+    await expect(
+      carousel.locator('p:visible').filter({ hasText: /^Featured Event$/ }),
+    ).toBeVisible();
     await expect(carousel.getByText(/GCash accepted/i)).toHaveCount(0);
 
-    const viewEvent = carousel.getByRole('link', { name: 'View Event', exact: true });
+    const viewEvent = carousel.getByRole('link', { name: /View Event/i }).first();
     await expect(viewEvent).toBeVisible();
     const href = await viewEvent.getAttribute('href');
     expect(href).toMatch(/^\/events\/[a-z0-9-]+$/);
@@ -55,29 +57,25 @@ test.describe('Homepage', () => {
 // ── Auth – Login ────────────────────────────────────────────────────────────
 
 test.describe('Auth — Login', () => {
-  // Login is OTP/OAuth only — no email+password form
-  test('renders login page with entry options', async ({ page }) => {
+  test('legacy login route opens the merged email-first access page', async ({ page }) => {
     await page.goto('/auth/login');
-    await expect(page.getByRole('heading', { name: /sign in/i })).toBeVisible();
-    await expect(page.getByRole('link', { name: /continue with email/i })).toBeVisible();
-  });
-
-  test('unauthenticated user stays on login page', async ({ page }) => {
-    await page.goto('/auth/login');
-    await expect(page).toHaveURL(/auth\/login/);
-    await expect(page.getByRole('heading', { name: /sign in/i })).toBeVisible();
-  });
-
-  test('continue with email navigates to OTP page', async ({ page }) => {
-    await page.goto('/auth/login');
-    await page.getByRole('link', { name: /continue with email/i }).click();
     await expect(page).toHaveURL(/auth\/access/);
+    await expect(page.getByRole('heading', { name: 'Enter Email' })).toBeVisible();
+    await expect(page.getByLabel('Email address')).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Send my code' })).toBeDisabled();
   });
 
-  test('join free link navigates to OTP page', async ({ page }) => {
-    await page.goto('/auth/login');
-    await page.getByRole('link', { name: /join free/i }).click();
-    await expect(page).toHaveURL(/auth\/access/);
+  test('preserves a safe post-login destination', async ({ page }) => {
+    await page.goto('/auth/login?redirect=/account/tickets');
+    await expect(page).toHaveURL(/auth\/access\?redirect=%2Faccount%2Ftickets/);
+  });
+
+  test('shows email guidance and legal reminders on the same screen', async ({ page }) => {
+    await page.goto('/auth/access');
+    await expect(page.getByText(/new or returning, it works the same way/i)).toBeVisible();
+    await expect(page.getByText(/No account?/i)).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Terms & Conditions' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Privacy Policy' })).toBeVisible();
   });
 });
 
@@ -90,10 +88,11 @@ test.describe('Auth — Register', () => {
     await expect(page.getByRole('link', { name: /continue with email/i })).toBeVisible();
   });
 
-  test('navigates to login from register', async ({ page }) => {
+  test('navigates to the merged customer access screen from register', async ({ page }) => {
     await page.goto('/auth/register');
     await page.getByRole('link', { name: /sign in/i }).click();
-    await expect(page).toHaveURL(/auth\/login/);
+    await expect(page).toHaveURL(/auth\/access/);
+    await expect(page.getByRole('heading', { name: 'Enter Email' })).toBeVisible();
   });
 });
 
@@ -109,7 +108,9 @@ test.describe('Navigation', () => {
   test('unauthenticated /admin redirects to auth page', async ({ page }) => {
     await page.goto('/admin');
     // Client-side auth guard redirects to /auth/admin (dedicated admin login)
-    await page.waitForURL((url) => url.pathname.includes('/auth/'), { timeout: 10_000 }).catch(() => {});
+    await page
+      .waitForURL((url) => url.pathname.includes('/auth/'), { timeout: 10_000 })
+      .catch(() => {});
     const currentUrl = page.url();
     expect(currentUrl).toMatch(/\/auth\/(admin|login|access)/);
   });
@@ -118,8 +119,14 @@ test.describe('Navigation', () => {
     const res = await page.goto('/this-page-does-not-exist-at-all');
     // Either 404 status or a not-found UI
     const is404Status = res?.status() === 404;
-    const has404Text = await page.locator('text=404').isVisible().catch(() => false);
-    const hasNotFound = await page.locator('text=/not found/i').isVisible().catch(() => false);
+    const has404Text = await page
+      .locator('text=404')
+      .isVisible()
+      .catch(() => false);
+    const hasNotFound = await page
+      .locator('text=/not found/i')
+      .isVisible()
+      .catch(() => false);
     expect(is404Status || has404Text || hasNotFound).toBe(true);
   });
 });
@@ -131,15 +138,19 @@ test.describe('Event Detail', () => {
     await page.goto('/');
     const firstCard = page.locator('a[href^="/events/"]:has(h3)').first();
     const count = await firstCard.count();
-    if (count === 0) {
-      // No events in marketplace mode — acceptable
-      return;
-    }
+    test.skip(count === 0, 'This environment has no published event fixture.');
     const href = await firstCard.getAttribute('href');
     if (href) {
       await page.goto(href);
-      const is404 = await page.locator('text=404').isVisible().catch(() => false);
-      const hasHeading = await page.locator('h1, h2').first().isVisible().catch(() => false);
+      const is404 = await page
+        .locator('text=404')
+        .isVisible()
+        .catch(() => false);
+      const hasHeading = await page
+        .locator('h1, h2')
+        .first()
+        .isVisible()
+        .catch(() => false);
       expect(is404 || hasHeading).toBe(true);
     }
   });
@@ -148,7 +159,7 @@ test.describe('Event Detail', () => {
 // ── API Health ───────────────────────────────────────────────────────────────
 
 test.describe('API Health', () => {
-  const API_URL = process.env.API_URL ?? 'https://api-uat.axontickets.online';
+  const API_URL = process.env.API_URL ?? 'http://127.0.0.1:3001';
 
   test('GET /api/v1/health returns 200', async ({ request }) => {
     const res = await request.get(`${API_URL}/api/v1/health`);

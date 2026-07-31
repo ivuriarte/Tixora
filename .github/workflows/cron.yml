@@ -82,3 +82,15 @@ jobs:
             -H "x-cron-secret: ${{ secrets.CRON_SECRET }}" \
             -H "Content-Type: application/json" \
             "${{ vars.API_BASE_URL }}/api/v1/cron/cleanup-otp-codes"
+
+  enforce-attendee-retention:
+    name: Enforce two-year attendee retention
+    runs-on: ubuntu-latest
+    if: github.event.schedule == '0 2 * * *' || github.event_name == 'workflow_dispatch'
+    steps:
+      - name: POST /cron/enforce-attendee-retention
+        run: |
+          curl --fail-with-body -s -X POST \
+            -H "x-cron-secret: ${{ secrets.CRON_SECRET }}" \
+            -H "Content-Type: application/json" \
+            "${{ vars.API_BASE_URL }}/api/v1/cron/enforce-attendee-retention"

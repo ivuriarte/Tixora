@@ -3,6 +3,8 @@ import { PrismaService } from '../prisma/prisma.service';
 import { EmailService } from '../email/email.service';
 import { AuditService } from '../audit/audit.service';
 import { ConfigService } from '@nestjs/config';
+import { UploadService } from '../upload/upload.service';
+import { Prisma } from '@prisma/client';
 
 @Injectable()
 export class SchedulerService {
@@ -13,6 +15,7 @@ export class SchedulerService {
     private readonly emailService: EmailService,
     private readonly audit: AuditService,
     private readonly config: ConfigService,
+    private readonly upload: UploadService,
   ) {}
 
   /**
@@ -159,6 +162,135 @@ export class SchedulerService {
       },
     });
     this.logger.log({ msg: 'OTP cleanup complete', deleted: count });
+  }
+
+  /**
+   * CEO-approved attendee retention: two years from registration/attendee
+   * creation. PII and payment-proof images are removed while non-identifying
+   * financial and aggregate records remain available for reconciliation.
+   */
+  async enforceAttendeeRetention(): Promise<{ anonymized: number; proofsDeleted: number }> {
+    const cutoff = new Date();
+    cutoff.setUTCFullYear(cutoff.getUTCFullYear() - 2);
+    const registrations = await this.prisma.registration.findMany({
+      where: {
+        OR: [
+          {
+            createdAt: { lt: cutoff },
+            OR: [
+              { guestEmail: { not: null } },
+              { guestAccessTokenHash: { not: null } },
+              { notes: { not: null } },
+            ],
+          },
+          {
+            attendees: {
+              some: {
+                createdAt: { lt: cutoff },
+                OR: [
+                  { email: { not: null } },
+                  { phone: { not: null } },
+                  { bibNumber: { not: null } },
+                  { deliveryAddress: { not: Prisma.JsonNull } },
+                ],
+              },
+            },
+          },
+          { proofs: { some: { createdAt: { lt: cutoff } } } },
+        ],
+      },
+      orderBy: { createdAt: 'asc' },
+      take: 100,
+      include: {
+        attendees: {
+          where: { createdAt: { lt: cutoff } },
+          select: { id: true },
+        },
+        proofs: {
+          where: { createdAt: { lt: cutoff } },
+          select: { id: true, cloudinaryPublicId: true },
+        },
+      },
+    });
+
+    let anonymized = 0;
+    let proofsDeleted = 0;
+    for (const registration of registrations) {
+      try {
+        for (const proof of registration.proofs) {
+          await this.upload.deleteStoredImage(proof.cloudinaryPublicId);
+        }
+        await this.prisma.$transaction(async (tx) => {
+          for (const attendee of registration.attendees) {
+            await tx.attendee.update({
+              where: { id: attendee.id },
+              data: {
+                firstName: 'Deleted',
+                lastName: `Attendee ${attendee.id.slice(0, 8)}`,
+                email: null,
+                phone: null,
+                company: null,
+                jobTitle: null,
+                birthday: null,
+                gender: null,
+                genderIdentity: null,
+                raceDivision: null,
+                city: null,
+                emergencyContactName: null,
+                emergencyContactPhone: null,
+                emergencyContactRelationship: null,
+                claimMethod: null,
+                deliveryAddress: Prisma.JsonNull,
+                bibNumber: null,
+                bibSequence: null,
+                bibAssignedAt: null,
+                qrToken: null,
+                selectedSubEvents: Prisma.JsonNull,
+              },
+            });
+          }
+          await tx.paymentProof.deleteMany({
+            where: { registrationId: registration.id },
+          });
+          if (registration.createdAt < cutoff) {
+            await tx.registration.update({
+              where: { id: registration.id },
+              data: {
+                guestEmail: null,
+                guestAccessTokenHash: null,
+                notes: null,
+              },
+            });
+          }
+        });
+        proofsDeleted += registration.proofs.length;
+        anonymized += registration.attendees.length;
+        await this.audit.log({
+          action: 'ATTENDEE_RETENTION_ENFORCED',
+          entityType: 'Registration',
+          entityId: registration.id,
+          registrationId: registration.id,
+          metadata: {
+            cutoff: cutoff.toISOString(),
+            attendeesAnonymized: registration.attendees.length,
+            proofsDeleted: registration.proofs.length,
+          },
+        });
+      } catch (error) {
+        this.logger.error({
+          msg: 'Attendee retention enforcement failed; record will be retried',
+          registrationId: registration.id,
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
+    }
+    this.logger.log({
+      msg: 'Attendee retention enforcement complete',
+      registrations: registrations.length,
+      anonymized,
+      proofsDeleted,
+    });
+    return { anonymized, proofsDeleted };
   }
 
   /**

@@ -40,6 +40,35 @@ export default function BasicsStep({ draft, update }: BasicsStepProps) {
         <p className="text-xs text-gray-400 mt-1">{draft.description.length} characters</p>
       </div>
 
+      <div className="grid gap-4 sm:grid-cols-2">
+        <label className="block">
+          <span className="mb-1 block text-sm font-medium text-gray-700">Category{REQ}</span>
+          <select className={INP} value={draft.category} onChange={(event) => update({ category: event.target.value as EventDraft['category'] })}>
+            <option value="sports">Sports</option>
+            <option value="business">Business</option>
+            <option value="workshops">Workshops</option>
+            <option value="music">Music</option>
+            <option value="theater">Theater</option>
+            <option value="parties">Parties</option>
+          </select>
+        </label>
+        <label className="block">
+          <span className="mb-1 block text-sm font-medium text-gray-700">Event format{REQ}</span>
+          <select className={INP} value={draft.eventType} onChange={(event) => update({ eventType: event.target.value as EventDraft['eventType'] })}>
+            <option value="standard">Standard event</option>
+            <option value="running">Running event / fun run</option>
+          </select>
+        </label>
+      </div>
+
+      <label className="flex items-start gap-3 rounded-xl border border-gray-200 bg-gray-50 p-4">
+        <input type="checkbox" checked={draft.isOnline} onChange={(event) => update({ isOnline: event.target.checked })} className="mt-0.5 h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary" />
+        <span>
+          <span className="block text-sm font-semibold text-gray-900">Online event</span>
+          <span className="mt-0.5 block text-xs leading-5 text-gray-500">Adds the Online label automatically. Keep the joining instructions in the event details.</span>
+        </span>
+      </label>
+
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-1">
           Cover Image{REQ}

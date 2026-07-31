@@ -47,6 +47,18 @@ export interface EventDraftBasics {
   imageUrl: string;
   speakerName: string;
   tagline: string;
+  category: 'sports' | 'business' | 'workshops' | 'music' | 'theater' | 'parties';
+  eventType: 'standard' | 'running';
+  isOnline: boolean;
+}
+
+export interface RunningEventConfig {
+  distances: Array<{ name: string; code: string }>;
+  ageGroups: Array<{ name: string; minAge: number; maxAge: number }>;
+  raceDivisions: string[];
+  genderIdentityOptions: string[];
+  merchandiseSizes: string[];
+  claimMethods: Array<'self_claim' | 'delivery'>;
 }
 
 export interface EventDraftLocation {
@@ -78,6 +90,7 @@ export interface EventDraft
   sponsors: SponsorItem[];
   faqs: FaqItem[];
   customSections: CustomSectionItem[];
+  runningConfig: RunningEventConfig;
 }
 
 export interface StepMeta {
@@ -98,7 +111,7 @@ export const STEPS: readonly StepMeta[] = [
   { id: 'location', label: 'Location & Schedule', short: '2' },
   { id: 'capacity', label: 'Capacity & Tiers', short: '3' },
   { id: 'details', label: 'Event Program & Details', short: '4', optional: true },
-  { id: 'payment', label: 'Payment', short: '5', optional: true },
+  { id: 'payment', label: 'Payment', short: '5' },
   { id: 'review', label: 'Review', short: '6' },
 ];
 
@@ -119,6 +132,9 @@ export function emptyDraft(): EventDraft {
     imageUrl: '',
     speakerName: '',
     tagline: '',
+    category: 'business',
+    eventType: 'standard',
+    isOnline: false,
     venue: '',
     address: '',
     landmark: '',
@@ -136,6 +152,14 @@ export function emptyDraft(): EventDraft {
     sponsors: [],
     faqs: [],
     customSections: [],
+    runningConfig: {
+      distances: [{ name: '5K', code: '5K' }],
+      ageGroups: [{ name: 'Open', minAge: 0, maxAge: 120 }],
+      raceDivisions: ["Women's", "Men's", 'Non-binary', 'Open'],
+      genderIdentityOptions: ['Woman', 'Man', 'Non-binary', 'Self-described', 'Prefer not to say'],
+      merchandiseSizes: ['XS', 'S', 'M', 'L', 'XL', '2XL'],
+      claimMethods: ['self_claim', 'delivery'],
+    },
   };
 }
 
@@ -192,13 +216,37 @@ export function validateStep(
   step: StepId,
   draft: EventDraft,
   tiers: LocalTier[],
+  paymentMethods: LocalPaymentMethod[] = [],
 ): string | null {
   switch (step) {
     case 'basics': return validateBasics(draft);
     case 'location': return validateLocation(draft);
     case 'capacity': return validateCapacity(draft, tiers);
     case 'details':
-    case 'payment':
+      if (draft.eventType === 'running') {
+        if (draft.runningConfig.distances.length === 0) return 'Add at least one race distance';
+        if (draft.runningConfig.ageGroups.length === 0) return 'Add at least one age group';
+        const sorted = [...draft.runningConfig.ageGroups].sort((a, b) => a.minAge - b.minAge);
+        if (sorted.some((group) => group.minAge > group.maxAge)) return 'Every age group needs a valid age range';
+        if (sorted.some((group, index) => index > 0 && group.minAge <= sorted[index - 1].maxAge)) return 'Age groups cannot overlap';
+        if (draft.runningConfig.raceDivisions.length === 0) return 'Add at least one Race Division';
+        if (draft.runningConfig.merchandiseSizes.length === 0) return 'Add at least one merchandise size';
+      }
+      return null;
+    case 'payment': {
+      if (draft.isFree) return null;
+      if (paymentMethods.length === 0) return 'Add at least one payment method for this paid event';
+      const incomplete = paymentMethods.find((method) =>
+        !method.name.trim()
+        || !method.accountName.trim()
+        || !method.accountNumber.trim()
+        || !(method.qrFile || method.qrPreview || method.qrImageUrl),
+      );
+      if (incomplete) {
+        return `Complete every required field, including the QR code, for ${incomplete.name.trim() || 'the payment method'}`;
+      }
+      return null;
+    }
     case 'review':
       return null;
   }

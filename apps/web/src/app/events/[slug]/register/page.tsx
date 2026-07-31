@@ -1,7 +1,7 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { getAccessToken } from '@/lib/auth';
 import { useAuthStore } from '@/store/auth.store';
 import api from '@/lib/api';
@@ -56,6 +56,14 @@ interface EventData {
   bankAccountNumber?: string | null;
   paymentInstructions?: string | null;
   agenda?: Array<{ id?: string; title?: string; time?: string; isSubEvent?: boolean }> | null;
+  eventType?: 'standard' | 'running';
+  runningConfig?: {
+    distances?: Array<{ name: string; code: string }>;
+    raceDivisions?: string[];
+    genderIdentityOptions?: string[];
+    merchandiseSizes?: string[];
+    claimMethods?: Array<'self_claim' | 'delivery'>;
+  } | null;
 }
 
 interface AttendeeFields {
@@ -92,11 +100,129 @@ interface OtpVerifiedPayload {
   refreshToken: string;
 }
 
+interface GuestAccessChoiceProps {
+  event: EventData;
+  tier: Tier;
+  qty: number;
+  onActivateAccount: () => void;
+}
+
+function GuestAccessChoice({ event, tier, qty, onActivateAccount }: GuestAccessChoiceProps) {
+  const router = useRouter();
+  const [guestEmail, setGuestEmail] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const totalIsFree = event.isFree || tier.price === 0;
+
+  async function continueAsGuest(e: React.FormEvent) {
+    e.preventDefault();
+    const normalizedEmail = guestEmail.trim().toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
+      setError('Enter a valid email address for registration updates.');
+      return;
+    }
+    setLoading(true);
+    setError(null);
+    try {
+      const response = await api.post('/registrations/guest', {
+        eventId: event.id,
+        tierId: tier.id,
+        guestEmail: normalizedEmail,
+        attendeeCount: qty,
+        accountConsent: false,
+      });
+      const registration = response.data?.data ?? response.data;
+      window.sessionStorage.setItem(
+        `axon_guest_registration_${registration.id}`,
+        registration.guestAccessToken,
+      );
+      router.push(
+        totalIsFree
+          ? `/events/${event.slug}/register?registrationId=${registration.id}&tierId=${tier.id}&qty=${qty}&guest=1`
+          : `/events/${event.slug}/register/payment/${registration.id}`,
+      );
+    } catch (err: any) {
+      const message = err?.response?.data?.message ?? 'Guest checkout could not be started.';
+      setError(Array.isArray(message) ? message.join(' ') : message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="rounded-2xl border border-gray-200 bg-white p-6">
+        <h2 className="text-lg font-bold text-gray-900">Choose how to continue</h2>
+        <p className="mt-1 text-sm text-gray-500">Creating an Axon account is optional. We never activate one without your consent.</p>
+      </div>
+      <form onSubmit={continueAsGuest} className="rounded-2xl border-2 border-primary/30 bg-white p-5">
+        <h3 className="font-semibold text-gray-900">Continue as guest</h3>
+        <p className="mt-1 text-xs text-gray-500">Your email is used only for this registration, its status, and event updates.</p>
+        <label className="mt-4 block text-xs font-medium text-gray-700">
+          Email address
+          <input type="email" required autoComplete="email" value={guestEmail} onChange={(e) => setGuestEmail(e.target.value)} className="mt-1 w-full rounded-xl border border-gray-300 px-3 py-2.5 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20" />
+        </label>
+        {error && <p role="alert" className="mt-3 text-sm text-red-600">{error}</p>}
+        <button disabled={loading} className="mt-4 w-full rounded-xl bg-primary px-4 py-3 text-sm font-semibold text-white disabled:opacity-50">
+          {loading ? 'Starting secure checkout…' : 'Continue without an account'}
+        </button>
+      </form>
+      <button type="button" onClick={onActivateAccount} className="w-full rounded-2xl border border-gray-200 bg-white p-5 text-left transition hover:border-primary/40">
+        <span className="font-semibold text-gray-900">Sign in or activate an account</span>
+        <span className="mt-1 block text-sm text-gray-500">Choose this only if you consent to Axon creating or linking your account.</span>
+      </button>
+    </div>
+  );
+}
+
+function PaidGuestIdentityChoice({
+  onContinueAsGuest,
+  onUseAccount,
+}: {
+  onContinueAsGuest: () => void;
+  onUseAccount: () => void;
+}) {
+  return (
+    <div className="space-y-4">
+      <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-5">
+        <h2 className="font-semibold text-emerald-950">Payment proof received</h2>
+        <p className="mt-1 text-sm text-emerald-800">
+          Next, provide the attendee details for this order. You will review everything before
+          the transaction is confirmed.
+        </p>
+      </div>
+      <button
+        type="button"
+        onClick={onContinueAsGuest}
+        className="w-full rounded-2xl border-2 border-primary/30 bg-white p-5 text-left transition hover:border-primary"
+      >
+        <span className="font-semibold text-gray-900">Continue as Guest</span>
+        <span className="mt-1 block text-sm text-gray-500">
+          No Axon account or profile will be created. Your confirmed attendee email is retained
+          only as the contact for this transaction.
+        </span>
+      </button>
+      <button
+        type="button"
+        onClick={onUseAccount}
+        className="w-full rounded-2xl border border-gray-200 bg-white p-5 text-left transition hover:border-primary/40"
+      >
+        <span className="font-semibold text-gray-900">Sign In or Activate an Account</span>
+        <span className="mt-1 block text-sm text-gray-500">
+          Verify your email at final confirmation, then link this order and save your editable
+          attendee details to your profile.
+        </span>
+      </button>
+    </div>
+  );
+}
+
 interface GuestWizardProps {
   event: EventData;
   tier: Tier;
   qty: number;
   onOtpVerified: (payload: OtpVerifiedPayload) => void;
+  skipGate?: boolean;
 }
 
 type WizardStep = 'gate' | 'details' | 'verify';
@@ -105,10 +231,11 @@ function emptyAttendee(): AttendeeFields {
   return { firstName: '', lastName: '', email: '', phone: '', company: '', jobTitle: '', birthday: '', gender: '', city: '' };
 }
 
-function GuestWizard({ event, tier, qty, onOtpVerified }: GuestWizardProps) {
+function GuestWizard({ event, tier, qty, onOtpVerified, skipGate = false }: GuestWizardProps) {
   const router = useRouter();
   const funnelSessionId = getOrCreateFunnelSessionId();
-  const [step, setStep] = useState<WizardStep>('gate');
+  const [step, setStep] = useState<WizardStep>(skipGate ? 'details' : 'gate');
+  const [accountConsent, setAccountConsent] = useState(false);
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
   const [firstName, setFirstName] = useState('');
@@ -170,6 +297,10 @@ function GuestWizard({ event, tier, qty, onOtpVerified }: GuestWizardProps) {
     }
     if (normalizedPhone.length < 7) {
       setFieldError('Please enter your mobile number.');
+      return;
+    }
+    if (!accountConsent) {
+      setFieldError('Confirm your consent before Axon activates or links an account.');
       return;
     }
 
@@ -520,9 +651,22 @@ function GuestWizard({ event, tier, qty, onOtpVerified }: GuestWizardProps) {
           <p>No password needed — ever.</p>
         </div>
 
+        <label className="flex items-start gap-3 rounded-xl border border-primary/20 bg-primary/5 p-4 text-sm text-gray-700">
+          <input
+            type="checkbox"
+            checked={accountConsent}
+            onChange={(e) => setAccountConsent(e.target.checked)}
+            className="mt-0.5 h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+          />
+          <span>
+            I consent to Axon activating a new account or linking this registration to my
+            existing account. Guest checkout remains available without an account.
+          </span>
+        </label>
+
         <button
           type="submit"
-          disabled={loading || !firstName || !lastName || !email || phone.length < 10}
+          disabled={loading || !firstName || !lastName || !email || phone.length < 10 || !accountConsent}
           className="w-full py-3 rounded-xl bg-primary text-white font-semibold text-sm hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
         >
           {loading ? <><Spinner /> Sending your code…</> : 'Continue — Send My Code'}
@@ -615,21 +759,22 @@ function GuestWizard({ event, tier, qty, onOtpVerified }: GuestWizardProps) {
 
 // ── Main page ─────────────────────────────────────────────────────────────────
 
-export default function RegisterPage({
-  params,
-  searchParams,
-}: {
-  params: { slug: string };
-  searchParams: {
-    tierId?: string;
-    qty?: string;
-    registrationId?: string;
-    eventId?: string;
-    eventSlug?: string;
-    eventName?: string;
-  };
-}) {
+export default function RegisterPage() {
   const router = useRouter();
+  const params = useParams<{ slug: string }>();
+  const query = useSearchParams();
+  const searchParams = useMemo(
+    () => ({
+      tierId: query.get('tierId') ?? undefined,
+      qty: query.get('qty') ?? undefined,
+      registrationId: query.get('registrationId') ?? undefined,
+      eventId: query.get('eventId') ?? undefined,
+      eventSlug: query.get('eventSlug') ?? undefined,
+      eventName: query.get('eventName') ?? undefined,
+      guest: query.get('guest') ?? undefined,
+    }),
+    [query],
+  );
   const { isAuthenticated, isHydrating, setAuth } = useAuthStore();
 
   const [event, setEvent] = useState<EventData | null>(null);
@@ -637,6 +782,13 @@ export default function RegisterPage({
   const [initialAttendees, setInitialAttendees] = useState<AttendeeFields[] | undefined>(undefined);
   const [initialNotes, setInitialNotes] = useState<string | undefined>(undefined);
   const [initialIsFree, setInitialIsFree] = useState<boolean | undefined>(undefined);
+  const [guestAccessToken, setGuestAccessToken] = useState<string | null>(null);
+  const [showAccountActivation, setShowAccountActivation] = useState(false);
+  const [paidGuestMode, setPaidGuestMode] = useState<'guest' | 'account' | null>(null);
+  const [paidCheckoutStage, setPaidCheckoutStage] = useState<'details' | 'confirmation' | 'otp'>('details');
+  const [intentError, setIntentError] = useState<string | null>(null);
+  const [intentAttempt, setIntentAttempt] = useState(0);
+  const intentStartedRef = useRef(false);
 
   // Holds attendee data collected by GuestWizard so RegistrationForm can pre-fill after OTP success.
   const pendingGuestData = useRef<{
@@ -683,20 +835,33 @@ export default function RegisterPage({
     const eventFetch = fetch(`${baseUrl}/events/${params.slug}`)
       .then((r) => (r.ok ? r.json() : null));
 
-    const regFetch =
-      existingRegistrationId && getAccessToken()
+    const scopedGuestToken =
+      existingRegistrationId && searchParams.guest === '1'
+        ? window.sessionStorage.getItem(`axon_guest_registration_${existingRegistrationId}`)
+        : null;
+    setGuestAccessToken(scopedGuestToken);
+    const regFetch = existingRegistrationId
+      ? scopedGuestToken
         ? api
-            .get(`/registrations/${existingRegistrationId}`)
+            .get(`/registrations/guest/${existingRegistrationId}`, {
+              headers: { 'x-registration-token': scopedGuestToken },
+            })
             .then((r) => r.data?.data ?? r.data)
             .catch(() => null)
-        : Promise.resolve(null);
+        : getAccessToken()
+          ? api
+              .get(`/registrations/${existingRegistrationId}`)
+              .then((r) => r.data?.data ?? r.data)
+              .catch(() => null)
+          : Promise.resolve(null)
+      : Promise.resolve(null);
 
     try {
       const [eventJson, regData] = await Promise.all([eventFetch, regFetch]);
       if (!eventJson) { router.replace(`/events/${params.slug}`); return; }
       setEvent(eventJson.data);
 
-      if (regData?.attendees) {
+      if (Array.isArray(regData?.attendees) && regData.attendees.length > 0) {
         const sorted = [...regData.attendees].sort(
           (a: { isLead: boolean }, b: { isLead: boolean }) => (b.isLead ? 1 : 0) - (a.isLead ? 1 : 0),
         );
@@ -725,7 +890,7 @@ export default function RegisterPage({
     } finally {
       setPageLoading(false);
     }
-  }, [params.slug, existingRegistrationId, router]);
+  }, [params.slug, existingRegistrationId, router, searchParams.guest]);
 
   useEffect(() => {
     if (!isHydrating) void loadPage();
@@ -757,6 +922,49 @@ export default function RegisterPage({
         setDupCheck('clear');
       });
   }, [isAuthenticated, event, existingRegistrationId, router]);
+
+  // Paid checkout starts with Payment & Proof. Free events intentionally retain
+  // the existing attendee-first journey until their separate product decision.
+  useEffect(() => {
+    if (!event || existingRegistrationId || intentStartedRef.current) return;
+    if (event.isFree) return;
+    const selectedTierId = searchParams.tierId ?? event.tiers[0]?.id;
+    const selectedTier = event.tiers.find((item) => item.id === selectedTierId);
+    if (!selectedTier) return;
+    if (isAuthenticated && dupCheck !== 'clear') return;
+
+    intentStartedRef.current = true;
+    setIntentError(null);
+    const startPaidCheckout = async () => {
+      try {
+        const response = isAuthenticated
+          ? await api.post('/registrations', {
+              eventId: event.id,
+              tierId: selectedTier.id,
+              attendeeCount: qty,
+              accountConsent: true,
+            })
+          : await api.post('/registrations/guest-intent', {
+              eventId: event.id,
+              tierId: selectedTier.id,
+              attendeeCount: qty,
+              accountConsent: false,
+            });
+        const registration = response.data?.data ?? response.data;
+        if (!isAuthenticated) {
+          window.sessionStorage.setItem(
+            `axon_guest_registration_${registration.id}`,
+            registration.guestAccessToken,
+          );
+        }
+        router.replace(`/events/${event.slug}/register/payment/${registration.id}`);
+      } catch (err: any) {
+        const message = err?.response?.data?.message ?? 'Secure checkout could not be started.';
+        setIntentError(Array.isArray(message) ? message.join(' ') : message);
+      }
+    };
+    void startPaidCheckout();
+  }, [dupCheck, event, existingRegistrationId, intentAttempt, isAuthenticated, qty, router, searchParams.tierId]);
 
   useEffect(() => {
     if (!event) return;
@@ -816,14 +1024,23 @@ export default function RegisterPage({
     subEvents,
     registrationId: existingRegistrationId,
     initialIsFree,
+    eventType: event.eventType ?? 'standard',
+    runningConfig: event.runningConfig ?? null,
   };
+  const isPaidEvent = !event.isFree;
+  const isLoggedInSinglePaidCheckout = Boolean(
+    isPaidEvent && existingRegistrationId && isAuthenticated && qty === 1,
+  );
 
   return (
     <main className="min-h-screen bg-gray-50 py-10">
       <InAppBrowserBanner />
 
       <div className="max-w-2xl mx-auto px-4 sm:px-6">
-        <CheckoutStepper current={1} />
+        <CheckoutStepper
+          current={isLoggedInSinglePaidCheckout ? 2 : isPaidEvent ? (paidCheckoutStage === 'details' ? 2 : 3) : 1}
+          flow={isLoggedInSinglePaidCheckout ? 'paid-single' : isPaidEvent ? 'paid-payment-first' : 'legacy'}
+        />
 
         <div className="mb-6">
           <a href={`/events/${event.slug}`} className="text-sm text-gray-500 hover:text-gray-700">
@@ -853,9 +1070,56 @@ export default function RegisterPage({
           </div>
         )}
 
-        {/* Path A: authenticated (or just verified via OTP) — RegistrationForm */}
-        {isAuthenticated ? (
-          dupCheck === 'duplicate' ? (
+        {!existingRegistrationId && isPaidEvent ? (
+          <div className="rounded-2xl border border-gray-200 bg-white p-6 text-center">
+            {intentError ? (
+              <>
+                <p role="alert" className="text-sm text-red-700">{intentError}</p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    intentStartedRef.current = false;
+                    setIntentError(null);
+                    setIntentAttempt((attempt) => attempt + 1);
+                  }}
+                  className="mt-4 rounded-xl bg-primary px-5 py-3 text-sm font-semibold text-white"
+                >
+                  Try again
+                </button>
+              </>
+            ) : (
+              <div className="flex items-center justify-center gap-2 text-sm text-gray-600">
+                <Spinner /> Preparing secure payment…
+              </div>
+            )}
+          </div>
+        ) : guestAccessToken && existingRegistrationId ? (
+          paidGuestMode ? (
+            <RegistrationForm
+              {...registrationFormProps}
+              initialAttendees={initialAttendees}
+              initialNotes={initialNotes}
+              guestAccessToken={guestAccessToken}
+              checkoutMode={paidGuestMode}
+              onCheckoutStageChange={setPaidCheckoutStage}
+            />
+          ) : (
+            <PaidGuestIdentityChoice
+              onContinueAsGuest={() => setPaidGuestMode('guest')}
+              onUseAccount={() => setPaidGuestMode('account')}
+            />
+          )
+        ) : isAuthenticated ? (
+          existingRegistrationId ? (
+            <RegistrationForm
+              {...registrationFormProps}
+              initialAttendees={pendingGuestData.current?.attendees ?? initialAttendees}
+              initialNotes={pendingGuestData.current?.notes ?? initialNotes}
+              existingAccountDetected={pendingGuestData.current?.existingAccountDetected ?? false}
+              checkoutMode={isPaidEvent ? 'authenticated' : undefined}
+              onCheckoutStageChange={setPaidCheckoutStage}
+            />
+          ) : dupCheck === 'duplicate' ? (
             <div className="rounded-2xl border border-red-200 bg-red-50 p-5 flex items-start gap-3">
               <svg className="mt-0.5 h-5 w-5 shrink-0 text-red-500" viewBox="0 0 20 20" fill="currentColor">
                 <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
@@ -881,15 +1145,27 @@ export default function RegisterPage({
               initialAttendees={pendingGuestData.current?.attendees ?? initialAttendees}
               initialNotes={pendingGuestData.current?.notes ?? initialNotes}
               existingAccountDetected={pendingGuestData.current?.existingAccountDetected ?? false}
+              checkoutMode={isPaidEvent && existingRegistrationId ? 'authenticated' : undefined}
+              onCheckoutStageChange={setPaidCheckoutStage}
             />
           )
         ) : (
-          <GuestWizard
-            event={event}
-            tier={tier}
-            qty={qty}
-            onOtpVerified={handleOtpVerified}
-          />
+          showAccountActivation ? (
+            <GuestWizard
+              event={event}
+              tier={tier}
+              qty={qty}
+              onOtpVerified={handleOtpVerified}
+              skipGate
+            />
+          ) : (
+            <GuestAccessChoice
+              event={event}
+              tier={tier}
+              qty={qty}
+              onActivateAccount={() => setShowAccountActivation(true)}
+            />
+          )
         )}
       </div>
     </main>

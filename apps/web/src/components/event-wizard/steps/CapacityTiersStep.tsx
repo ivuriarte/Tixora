@@ -89,7 +89,7 @@ export default function CapacityTiersStep({
         <span>
           <span className="block text-sm font-semibold text-emerald-950">Free event</span>
           <span className="block text-xs leading-relaxed text-emerald-700">
-            Ticket tiers are tagged Free, tier prices are set to ₱0, and no platform fee is added during registration.
+            Ticket tiers are tagged Free, tier prices are set to ₱0, and no platform fee is added during registration. The Payment step will be disabled and skipped; the wizard continues from Event Program &amp; Details to Review.
           </span>
         </span>
       </label>

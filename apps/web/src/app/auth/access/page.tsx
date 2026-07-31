@@ -388,10 +388,11 @@ function AccessForm() {
             className="space-y-5 rounded-lg border border-[#e4dcf4] bg-white p-8"
           >
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label htmlFor="customer-access-email" className="block text-sm font-medium text-gray-700 mb-1">
                 Email address
               </label>
               <input
+                id="customer-access-email"
                 type="email"
                 required
                 autoFocus
@@ -423,12 +424,21 @@ function AccessForm() {
               )}
             </button>
 
-            <div className="space-y-1 rounded-xl border border-gray-100 bg-gray-50 px-3 py-3 text-xs text-gray-600">
-              <p>We send a 6-digit code to your email. Enter it to get in — no password, ever.</p>
-              <p>First time here? An account is created automatically.</p>
-              <p>No code in your inbox? Check your spam or promotions folder.</p>
+            <p className="text-center text-sm text-[#6b5b8a]">
+              No account?{' '}
+              <button type="submit" disabled={loading || !email} className="font-semibold text-primary hover:underline disabled:opacity-50">
+                Join free
+              </button>
+            </p>
+
+            <div className="rounded-xl border border-gray-100 bg-gray-50 px-4 py-3 text-xs text-gray-600">
+              <ul className="list-disc space-y-1.5 pl-4">
+                <li>We send a 6-digit code to your email—no password required.</li>
+                <li>First time here? Your free account is created after you verify the code.</li>
+                <li>No code in your inbox? Check your spam or promotions folder.</li>
+              </ul>
               {isInAppBrowser && (
-                <p className="text-amber-700 font-medium">
+                <p className="mt-2 text-amber-700 font-medium">
                   Tip: Open this page in Safari or Chrome for the best experience.
                 </p>
               )}

@@ -11,12 +11,14 @@ function makeScheduler(pendingRegs: object[] = []) {
   };
   const mockAudit = { log: jest.fn() };
   const mockConfig = { get: jest.fn().mockReturnValue('https://axontickets.online') };
+  const mockUpload = { deleteStoredImage: jest.fn().mockResolvedValue(undefined) };
 
   const service = new SchedulerService(
     mockPrisma as any,
     mockEmail as any,
     mockAudit as any,
     mockConfig as any,
+    mockUpload as any,
   );
   return { service, mockPrisma, mockEmail };
 }
@@ -87,5 +89,68 @@ describe('SchedulerService — remindPendingRegistrations()', () => {
 
     expect(result).toEqual({ reminded: 1 });
     expect(mockEmail.sendPaymentReminderEmail).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe('SchedulerService — enforceAttendeeRetention()', () => {
+  it('anonymizes only records selected past the two-year cutoff and deletes stored proofs', async () => {
+    const oldCreatedAt = new Date('2023-01-01T00:00:00.000Z');
+    const attendeeUpdate = jest.fn().mockResolvedValue(undefined);
+    const proofDelete = jest.fn().mockResolvedValue({ count: 1 });
+    const registrationUpdate = jest.fn().mockResolvedValue(undefined);
+    const tx = {
+      attendee: { update: attendeeUpdate },
+      paymentProof: { deleteMany: proofDelete },
+      registration: { update: registrationUpdate },
+    };
+    const prisma = {
+      registration: {
+        findMany: jest.fn().mockResolvedValue([
+          {
+            id: 'reg_old',
+            createdAt: oldCreatedAt,
+            attendees: [{ id: 'attendee_old' }],
+            proofs: [{ id: 'proof_old', cloudinaryPublicId: 'proofs/old' }],
+          },
+        ]),
+      },
+      $transaction: jest.fn(async (callback: (client: typeof tx) => unknown) => callback(tx)),
+    };
+    const upload = { deleteStoredImage: jest.fn().mockResolvedValue(undefined) };
+    const audit = { log: jest.fn().mockResolvedValue(undefined) };
+    const service = new SchedulerService(
+      prisma as any,
+      {} as any,
+      audit as any,
+      { get: jest.fn() } as any,
+      upload as any,
+    );
+
+    await expect(service.enforceAttendeeRetention()).resolves.toEqual({
+      anonymized: 1,
+      proofsDeleted: 1,
+    });
+    expect(upload.deleteStoredImage).toHaveBeenCalledWith('proofs/old');
+    expect(attendeeUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 'attendee_old' },
+        data: expect.objectContaining({
+          email: null,
+          phone: null,
+          deliveryAddress: expect.anything(),
+          qrToken: null,
+        }),
+      }),
+    );
+    expect(proofDelete).toHaveBeenCalledWith({ where: { registrationId: 'reg_old' } });
+    expect(registrationUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 'reg_old' },
+        data: expect.objectContaining({ guestEmail: null, guestAccessTokenHash: null, notes: null }),
+      }),
+    );
+    expect(audit.log).toHaveBeenCalledWith(
+      expect.objectContaining({ action: 'ATTENDEE_RETENTION_ENFORCED' }),
+    );
   });
 });

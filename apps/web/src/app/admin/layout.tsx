@@ -57,7 +57,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
           </svg>
         </button>
-        <Image src="/axon-logo.svg" alt="Axon Tickets" width={100} height={20} priority unoptimized />
+        <Image src="/axon-tickets-logo.png" alt="Axon Tickets" width={112} height={32} priority />
       </div>
 
       <AdminSidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />

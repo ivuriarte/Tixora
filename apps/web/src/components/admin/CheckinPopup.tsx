@@ -53,20 +53,35 @@ export default function CheckinPopup({ popup, onClose }: Props) {
   const isWarning = popup.type === 'warning';
   const theme = isSuccess
     ? {
-        bar: 'bg-green-500', circle: 'bg-green-100', icon: 'text-green-700',
-        title: 'text-gray-900', body: 'text-gray-700', track: 'bg-green-100',
-        drain: 'bg-green-500', button: 'bg-green-700 text-white hover:bg-green-800',
+        bar: 'bg-green-500',
+        circle: 'bg-green-100',
+        icon: 'text-green-700',
+        title: 'text-gray-900',
+        body: 'text-gray-700',
+        track: 'bg-green-100',
+        drain: 'bg-green-500',
+        button: 'bg-green-700 text-white hover:bg-green-800',
       }
     : isWarning
       ? {
-          bar: 'bg-amber-500', circle: 'bg-amber-100', icon: 'text-amber-800',
-          title: 'text-amber-950', body: 'text-gray-800', track: 'bg-amber-100',
-          drain: 'bg-amber-500', button: 'bg-amber-500 text-amber-950 hover:bg-amber-400',
+          bar: 'bg-amber-500',
+          circle: 'bg-amber-100',
+          icon: 'text-amber-800',
+          title: 'text-amber-950',
+          body: 'text-gray-800',
+          track: 'bg-amber-100',
+          drain: 'bg-amber-500',
+          button: 'bg-amber-500 text-amber-950 hover:bg-amber-400',
         }
       : {
-          bar: 'bg-red-500', circle: 'bg-red-100', icon: 'text-red-700',
-          title: 'text-red-800', body: 'text-gray-800', track: 'bg-red-100',
-          drain: 'bg-red-400', button: 'bg-red-700 text-white hover:bg-red-800',
+          bar: 'bg-red-500',
+          circle: 'bg-red-100',
+          icon: 'text-red-700',
+          title: 'text-red-800',
+          body: 'text-gray-800',
+          track: 'bg-red-100',
+          drain: 'bg-red-400',
+          button: 'bg-red-700 text-white hover:bg-red-800',
         };
 
   const orderStatusBadge =

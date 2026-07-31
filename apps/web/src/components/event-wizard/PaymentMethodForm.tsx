@@ -16,7 +16,12 @@ export default function PaymentMethodForm({ initial, onSave, onCancel }: Payment
   const upd = (field: keyof LocalPaymentMethod, value: string) =>
     setPm((prev) => ({ ...prev, [field]: value }));
 
-  const hasValue = pm.name.trim() || pm.accountName.trim() || pm.accountNumber.trim() || pm.qrFile;
+  const isComplete = Boolean(
+    pm.name.trim()
+    && pm.accountName.trim()
+    && pm.accountNumber.trim()
+    && (pm.qrFile || pm.qrPreview || pm.qrImageUrl),
+  );
   const isNew = !initial.name && !initial.accountName && !initial.accountNumber;
 
   function handleQrFile(e: React.ChangeEvent<HTMLInputElement>) {
@@ -52,20 +57,20 @@ export default function PaymentMethodForm({ initial, onSave, onCancel }: Payment
       <div className="grid grid-cols-2 gap-3">
         <div>
           <label className="block text-xs font-medium text-gray-600 mb-1">
-            {pm.type === 'bank' ? 'Bank Name' : 'E-Wallet Name'}
+            {pm.type === 'bank' ? 'Bank Name' : 'E-Wallet Name'} <span className="text-red-500">*</span>
           </label>
           <input className={INP}
             placeholder={pm.type === 'bank' ? 'e.g. BPI, BDO' : 'e.g. GCash, Maya'}
             value={pm.name} onChange={(e) => upd('name', e.target.value)} />
         </div>
         <div>
-          <label className="block text-xs font-medium text-gray-600 mb-1">Account Name</label>
+          <label className="block text-xs font-medium text-gray-600 mb-1">Account Name <span className="text-red-500">*</span></label>
           <input className={INP} placeholder="e.g. Juan Dela Cruz"
             value={pm.accountName} onChange={(e) => upd('accountName', e.target.value)} />
         </div>
         <div className="col-span-2">
           <label className="block text-xs font-medium text-gray-600 mb-1">
-            {pm.type === 'bank' ? 'Account Number' : 'Mobile / Account Number'}
+            {pm.type === 'bank' ? 'Account Number' : 'Mobile / Account Number'} <span className="text-red-500">*</span>
           </label>
           <input className={INP}
             placeholder={pm.type === 'bank' ? 'e.g. 1234-5678-90' : 'e.g. 0917-123-4567'}
@@ -74,15 +79,15 @@ export default function PaymentMethodForm({ initial, onSave, onCancel }: Payment
       </div>
       <div>
         <label className="block text-xs font-medium text-gray-600 mb-1">
-          QR Code <span className="text-gray-400">(optional · JPG or PNG only)</span>
+          QR Code <span className="text-red-500">*</span> <span className="text-gray-400">(JPG, PNG, or WEBP)</span>
         </label>
         <input ref={fileRef} type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={handleQrFile} />
-        {pm.qrPreview ? (
+        {(pm.qrPreview || pm.qrImageUrl) ? (
           <div className="flex items-center gap-3">
             {/* eslint-disable-next-line @next/next/no-img-element -- blob: URL from local file picker; next/image cannot handle blob: scheme */}
-            <img src={pm.qrPreview} alt="QR preview" width={64} height={64} loading="lazy" decoding="async" className="h-16 w-16 object-contain rounded border border-gray-200 bg-white" />
+            <img src={pm.qrPreview || pm.qrImageUrl} alt="QR preview" width={64} height={64} loading="lazy" decoding="async" className="h-16 w-16 object-contain rounded border border-gray-200 bg-white" />
             <button type="button"
-              onClick={() => { setPm((prev) => ({ ...prev, qrFile: null, qrPreview: '' })); if (fileRef.current) fileRef.current.value = ''; }}
+              onClick={() => { setPm((prev) => ({ ...prev, qrFile: null, qrPreview: '', qrImageUrl: '' })); if (fileRef.current) fileRef.current.value = ''; }}
               className="text-xs text-red-500 hover:text-red-700">Remove</button>
           </div>
         ) : (
@@ -96,13 +101,18 @@ export default function PaymentMethodForm({ initial, onSave, onCancel }: Payment
         )}
       </div>
       <div className="flex gap-2">
-        <button type="button" disabled={!hasValue} onClick={() => onSave(pm)}
+        <button type="button" disabled={!isComplete} onClick={() => onSave(pm)}
           className="bg-primary text-white font-semibold px-4 py-1.5 rounded-lg text-sm hover:bg-primary-hover disabled:opacity-40">
           {isNew ? 'Add' : 'Save'}
         </button>
         <button type="button" onClick={onCancel}
           className="border border-gray-300 text-gray-700 px-4 py-1.5 rounded-lg text-sm hover:bg-gray-50">Cancel</button>
       </div>
+      {!isComplete && (
+        <p className="text-xs text-amber-700" role="status">
+          Complete all fields and upload the recipient QR code before saving this payment method.
+        </p>
+      )}
     </div>
   );
 }

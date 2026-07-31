@@ -1,20 +1,21 @@
 'use client';
 
-import { STEPS, type StepId } from './types';
+import type { StepId, StepMeta } from './types';
 
 interface StepperProps {
   currentStep: StepId;
+  steps: readonly StepMeta[];
   completedSteps: Set<StepId>;
   onJump: (step: StepId) => void;
 }
 
-export default function Stepper({ currentStep, completedSteps, onJump }: StepperProps) {
-  const currentIdx = STEPS.findIndex((s) => s.id === currentStep);
+export default function Stepper({ currentStep, completedSteps, onJump, steps }: StepperProps) {
+  const currentIdx = steps.findIndex((s) => s.id === currentStep);
 
   return (
     <nav aria-label="Progress" className="w-full">
       <ol className="flex items-center justify-between gap-1 sm:gap-2">
-        {STEPS.map((step, idx) => {
+        {steps.map((step, idx) => {
           const isComplete = completedSteps.has(step.id);
           const isCurrent = step.id === currentStep;
           const isPast = idx < currentIdx;
@@ -57,7 +58,7 @@ export default function Stepper({ currentStep, completedSteps, onJump }: Stepper
                   {step.label}
                 </span>
               </button>
-              {idx < STEPS.length - 1 && (
+              {idx < steps.length - 1 && (
                 <div className="hidden sm:block absolute" aria-hidden />
               )}
             </li>
@@ -68,11 +69,11 @@ export default function Stepper({ currentStep, completedSteps, onJump }: Stepper
       <div className="mt-3 h-1 bg-gray-200 rounded-full overflow-hidden">
         <div
           className="h-full bg-primary transition-all duration-500 ease-out"
-          style={{ width: `${((currentIdx + 1) / STEPS.length) * 100}%` }}
+          style={{ width: `${((currentIdx + 1) / steps.length) * 100}%` }}
         />
       </div>
       <p className="mt-2 text-xs text-gray-500 text-center sm:hidden">
-        Step {currentIdx + 1} of {STEPS.length} · {STEPS[currentIdx].label}
+        Step {currentIdx + 1} of {steps.length} · {steps[currentIdx].label}
       </p>
     </nav>
   );

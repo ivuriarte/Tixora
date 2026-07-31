@@ -5,7 +5,7 @@ interface Step {
   label: string;
 }
 
-const STEPS: Step[] = [
+const LEGACY_STEPS: Step[] = [
   { id: 1, label: 'Attendee Details' },
   { id: 2, label: 'Payment & Proof' },
   { id: 3, label: 'Confirmation' },
@@ -13,13 +13,27 @@ const STEPS: Step[] = [
 
 interface Props {
   current: 1 | 2 | 3;
+  flow?: 'legacy' | 'paid-payment-first' | 'paid-single';
 }
 
-export default function CheckoutStepper({ current }: Props) {
+export default function CheckoutStepper({ current, flow = 'legacy' }: Props) {
+  const steps: Step[] = flow === 'paid-single'
+    ? [
+        { id: 1, label: 'Payment & Proof' },
+        { id: 2, label: 'Confirmation' },
+      ]
+    : flow === 'paid-payment-first'
+      ? [
+          { id: 1, label: 'Payment & Proof' },
+          { id: 2, label: 'Attendee Details' },
+          { id: 3, label: 'Confirmation' },
+        ]
+      : LEGACY_STEPS;
+
   return (
     <nav aria-label="Checkout progress" className="mb-6">
       <ol className="flex items-center gap-2 sm:gap-3">
-        {STEPS.map((step, idx) => {
+        {steps.map((step, idx) => {
           const isDone = step.id < current;
           const isActive = step.id === current;
           const dotBase =
@@ -64,7 +78,7 @@ export default function CheckoutStepper({ current }: Props) {
               <span className={`text-xs sm:text-sm whitespace-nowrap truncate transition-colors duration-200 ${labelCls}`}>
                 {step.label}
               </span>
-              {idx < STEPS.length - 1 && (
+              {idx < steps.length - 1 && (
                 <span
                   aria-hidden
                   className={`hidden sm:block h-px w-8 sm:w-12 transition-colors duration-500 ${

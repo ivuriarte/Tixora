@@ -255,11 +255,38 @@ export class AdminController {
     @CurrentUser() user: JwtPayload,
     @Res() res: Response,
   ) {
-    await this.adminService.assertEventAccess(eventId, user);
-    const csv = await this.adminService.exportAttendees(eventId);
+    const csv = await this.adminService.exportAttendees(eventId, user);
     res.setHeader('Content-Type', 'text/csv');
     res.setHeader('Content-Disposition', `attachment; filename="attendees-${eventId}.csv"`);
     res.send(csv);
+  }
+
+  @Patch('events/:eventId/attendees/:attendeeId/claim')
+  @ApiOperation({ summary: 'Mark or reverse an audited running-event merchandise claim' })
+  setAttendeeClaimStatus(
+    @Param('eventId') eventId: string,
+    @Param('attendeeId') attendeeId: string,
+    @Body() body: { claimed?: unknown },
+    @CurrentUser() user: JwtPayload,
+  ) {
+    if (typeof body?.claimed !== 'boolean') {
+      throw new BadRequestException('claimed must be a boolean');
+    }
+    return this.adminService.setAttendeeClaimStatus(
+      eventId,
+      attendeeId,
+      body.claimed,
+      user,
+    );
+  }
+
+  @Get('events/:eventId/merchandise-summary')
+  @ApiOperation({ summary: 'Get running-event merchandise totals by distance, race division, and size' })
+  getMerchandiseSummary(
+    @Param('eventId') eventId: string,
+    @CurrentUser() user: JwtPayload,
+  ) {
+    return this.adminService.getMerchandiseSummary(eventId, user);
   }
 
   @Post('events/:eventId/attendees/nametags')
@@ -380,8 +407,7 @@ export class AdminController {
     @CurrentUser() user: JwtPayload,
     @Res() res: Response,
   ) {
-    await this.adminService.assertEventAccess(eventId, user);
-    const csv = await this.adminService.exportRegistrations(eventId);
+    const csv = await this.adminService.exportRegistrations(eventId, user);
     res.setHeader('Content-Type', 'text/csv');
     res.setHeader(
       'Content-Disposition',
@@ -648,6 +674,20 @@ export class AdminController {
   ) {
     this.requirePlatformAdmin(user);
     return this.adminService.reinstateOrganizer(id, user.sub);
+  }
+
+  @Patch('organizers/:id/profile-visibility')
+  @ApiOperation({ summary: 'Super Admin takedown or restore of a public organizer profile' })
+  setOrganizerProfileVisibility(
+    @Param('id') id: string,
+    @Body() body: { visible?: unknown },
+    @CurrentUser() user: JwtPayload,
+  ) {
+    this.requirePlatformAdmin(user);
+    if (typeof body?.visible !== 'boolean') {
+      throw new BadRequestException('visible must be a boolean');
+    }
+    return this.adminService.setOrganizerProfileVisibility(id, body.visible, user.sub);
   }
 
   @Delete('organizers/:id')
