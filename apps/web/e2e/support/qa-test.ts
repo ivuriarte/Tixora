@@ -27,6 +27,20 @@ function safeUrl(rawUrl: string) {
 export const test = base.extend<{ diagnostics: BrowserDiagnostics }>({
   diagnostics: [
     async ({ page }, use, testInfo) => {
+      // Vercel injects its preview feedback toolbar into protected deployments.
+      // The toolbar probes the site root with OPTIONS and currently receives a
+      // 400 from Vercel itself, which creates a Chromium console error even
+      // though the Axon flow succeeds. Stub only the external toolbar bootstrap
+      // so release tests continue to fail on every Axon request and console
+      // error without treating Vercel's QA overlay as product behavior.
+      await page.route('https://vercel.live/_next-live/feedback/feedback.js**', async (route) => {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/javascript; charset=utf-8',
+          body: '/* Vercel toolbar disabled during automated product testing. */',
+        });
+      });
+
       const diagnostics: BrowserDiagnostics = {
         consoleErrors: [],
         pageErrors: [],
@@ -36,7 +50,13 @@ export const test = base.extend<{ diagnostics: BrowserDiagnostics }>({
       };
 
       const onConsole = (message: ConsoleMessage) => {
-        if (message.type() === 'error') diagnostics.consoleErrors.push(message.text());
+        if (message.type() !== 'error') return;
+
+        const location = message.location();
+        const source = location.url
+          ? ` (${safeUrl(location.url)}:${location.lineNumber}:${location.columnNumber})`
+          : '';
+        diagnostics.consoleErrors.push(`${message.text()}${source}`);
       };
       const onPageError = (error: Error) => diagnostics.pageErrors.push(error.message);
       const onRequestFailed = (request: Request) => {
