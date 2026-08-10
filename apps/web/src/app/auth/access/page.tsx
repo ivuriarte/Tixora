@@ -471,10 +471,14 @@ function AccessForm() {
         {step === 'code' && (
           <div className="space-y-6 rounded-lg border border-[#e4dcf4] bg-white p-8">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-3 text-center">
+              <label
+                htmlFor="access-otp-code"
+                className="block text-sm font-medium text-gray-700 mb-3 text-center"
+              >
                 Enter the 6-digit code
               </label>
               <input
+                id="access-otp-code"
                 ref={otpInputRef}
                 type="text"
                 inputMode="numeric"

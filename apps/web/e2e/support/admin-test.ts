@@ -1,5 +1,6 @@
 import { expect, test as base, type Page } from '@playwright/test';
-import { ADMIN_STORAGE_STATE } from './admin-auth';
+import { ADMIN_STORAGE_STATE, IS_ADMIN_MOCKED } from './admin-auth';
+import { installAdminApiMocks } from './admin-mocks';
 
 /**
  * UAT rotates refresh tokens during hydration. Reusing one worker-scoped
@@ -10,9 +11,23 @@ export const test = base.extend<{}, { adminPage: Page }>({
   adminPage: [
     async ({ browser }, use) => {
       const bypassSecret = process.env.VERCEL_AUTOMATION_BYPASS_SECRET;
+      const baseURL = process.env.BASE_URL ?? 'http://127.0.0.1:3100';
       const context = await browser.newContext({
-        baseURL: process.env.BASE_URL ?? 'http://127.0.0.1:3100',
-        storageState: ADMIN_STORAGE_STATE,
+        baseURL,
+        storageState: IS_ADMIN_MOCKED
+          ? {
+              cookies: [],
+              origins: [
+                {
+                  origin: new URL(baseURL).origin,
+                  localStorage: [
+                    { name: 'axon_tickets_rt', value: 'qa-refresh-token' },
+                    { name: 'axon_tickets_portal', value: 'organizer' },
+                  ],
+                },
+              ],
+            }
+          : ADMIN_STORAGE_STATE,
         ...(bypassSecret
           ? {
               extraHTTPHeaders: {
@@ -23,10 +38,12 @@ export const test = base.extend<{}, { adminPage: Page }>({
           : {}),
       });
 
+      if (IS_ADMIN_MOCKED) await installAdminApiMocks(context);
+
       // Vercel's bypass headers belong only to the protected web deployment.
       // Sending them to the separate API origin forces an unnecessary CORS
       // preflight and prevents AuthHydrator from restoring the admin session.
-      if (bypassSecret && process.env.API_URL) {
+      if (!IS_ADMIN_MOCKED && bypassSecret && process.env.API_URL) {
         const apiOrigin = new URL(process.env.API_URL).origin;
         await context.route(`${apiOrigin}/**`, async (route) => {
           const headers = { ...route.request().headers() };

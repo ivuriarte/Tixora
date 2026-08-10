@@ -28,6 +28,10 @@ jobs:
         working-directory: .
         run: npm ci --workspaces
 
+      - name: Block critical dependency advisories
+        working-directory: .
+        run: npm audit --audit-level=critical
+
       - name: Generate Prisma client
         run: npx prisma generate
 
@@ -42,8 +46,8 @@ jobs:
 
       - name: Build
         env:
-          DATABASE_URL: "postgresql://ci:ci@localhost:5432/ci"
-          DIRECT_URL: "postgresql://ci:ci@localhost:5432/ci"
+          DATABASE_URL: 'postgresql://ci:ci@localhost:5432/ci'
+          DIRECT_URL: 'postgresql://ci:ci@localhost:5432/ci'
         run: npm run build
 
   test-web:
@@ -86,69 +90,24 @@ jobs:
       - name: Install Playwright Chromium
         run: npx playwright install --with-deps chromium
 
-      - name: Critical browser journeys
+      - name: Deterministic checkout and admin browser journeys
         env:
           BASE_URL: http://127.0.0.1:3100
           API_URL: http://127.0.0.1:3001
           PW_START_SERVER: '1'
-        run: npx playwright test e2e/checkout-critical.spec.ts --project=chromium
+          PW_ADMIN_MOCKED: '1'
+        run: >-
+          npx playwright test
+          e2e/checkout-critical.spec.ts
+          e2e/admin-flows.spec.ts
+          --project=chromium
+          --project=admin-mocked
 
       - name: Upload Playwright evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: playwright-critical-${{ github.run_id }}
-          path: |
-            apps/web/playwright-report
-            apps/web/test-results
-          if-no-files-found: warn
-          retention-days: 7
-
-  admin-browser-uat:
-    name: Admin browser suite (UAT)
-    if: github.ref == 'refs/heads/uat' && vars.RUN_UAT_ADMIN_E2E == 'true'
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: apps/web
-    env:
-      BASE_URL: https://uat.axontickets.online
-      API_URL: https://api-uat.axontickets.online
-      TEST_ADMIN_EMAIL: ${{ secrets.UAT_TEST_ADMIN_EMAIL }}
-      TEST_ADMIN_PASSWORD: ${{ secrets.UAT_TEST_ADMIN_PASSWORD }}
-      VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.UAT_VERCEL_AUTOMATION_BYPASS_SECRET }}
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: '24'
-          cache: 'npm'
-          cache-dependency-path: package-lock.json
-
-      - name: Install dependencies
-        working-directory: .
-        run: npm ci --workspaces
-
-      - name: Validate isolated UAT credentials
-        run: |
-          test -n "$TEST_ADMIN_EMAIL"
-          test -n "$TEST_ADMIN_PASSWORD"
-          test -n "$VERCEL_AUTOMATION_BYPASS_SECRET"
-
-      - name: Install Playwright Chromium
-        run: npx playwright install --with-deps chromium
-
-      - name: Run authenticated admin suite
-        run: npx playwright test e2e/admin-flows.spec.ts --project=admin
-
-      - name: Upload admin Playwright evidence
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: playwright-admin-uat-${{ github.run_id }}
+          name: playwright-deterministic-${{ github.run_id }}
           path: |
             apps/web/playwright-report
             apps/web/test-results
@@ -178,6 +137,6 @@ jobs:
 
       - name: Validate Prisma schema
         env:
-          DATABASE_URL: "postgresql://placeholder:placeholder@localhost:5432/placeholder"
-          DIRECT_URL: "postgresql://placeholder:placeholder@localhost:5432/placeholder"
+          DATABASE_URL: 'postgresql://placeholder:placeholder@localhost:5432/placeholder'
+          DIRECT_URL: 'postgresql://placeholder:placeholder@localhost:5432/placeholder'
         run: npx prisma validate
