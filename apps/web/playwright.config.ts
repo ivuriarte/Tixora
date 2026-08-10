@@ -2,26 +2,30 @@ import { defineConfig, devices } from '@playwright/test';
 
 const baseURL = process.env.BASE_URL ?? 'http://127.0.0.1:3100';
 const bypassSecret = process.env.VERCEL_AUTOMATION_BYPASS_SECRET;
-const localUatLaunchOptions = process.env.PW_LOCAL_UAT_CORS === '1'
-  ? { launchOptions: { args: ['--disable-web-security'] } }
-  : {};
-const crossBrowserProjects = process.env.PW_CROSS_BROWSER === '1'
-  ? [
-      {
-        name: 'firefox',
-        testIgnore: [/admin-flows\.spec\.ts/, /.*\.setup\.ts/],
-        use: { ...devices['Desktop Firefox'] },
-      },
-      {
-        name: 'webkit',
-        testIgnore: [/admin-flows\.spec\.ts/, /.*\.setup\.ts/],
-        use: { ...devices['Desktop Safari'] },
-      },
-    ]
-  : [];
+const localUatLaunchOptions =
+  process.env.PW_LOCAL_UAT_CORS === '1'
+    ? { launchOptions: { args: ['--disable-web-security'] } }
+    : {};
+const crossBrowserProjects =
+  process.env.PW_CROSS_BROWSER === '1'
+    ? [
+        {
+          name: 'firefox',
+          testIgnore: [/admin-flows\.spec\.ts/, /customer-flows\.spec\.ts/, /.*\.setup\.ts/],
+          use: { ...devices['Desktop Firefox'] },
+        },
+        {
+          name: 'webkit',
+          testIgnore: [/admin-flows\.spec\.ts/, /customer-flows\.spec\.ts/, /.*\.setup\.ts/],
+          use: { ...devices['Desktop Safari'] },
+        },
+      ]
+    : [];
 
 if (process.env.CI && !process.env.BASE_URL) {
-  throw new Error('BASE_URL is required in CI so browser tests cannot target an unintended environment.');
+  throw new Error(
+    'BASE_URL is required in CI so browser tests cannot target an unintended environment.',
+  );
 }
 
 export default defineConfig({
@@ -57,10 +61,20 @@ export default defineConfig({
   projects: [
     {
       name: 'chromium',
-      testIgnore: [/admin-flows\.spec\.ts/, /.*\.setup\.ts/],
+      testIgnore: [/admin-flows\.spec\.ts/, /customer-flows\.spec\.ts/, /.*\.setup\.ts/],
       use: { ...devices['Desktop Chrome'], ...localUatLaunchOptions },
     },
     ...crossBrowserProjects,
+    {
+      name: 'admin-mocked',
+      testMatch: /admin-flows\.spec\.ts/,
+      use: {
+        ...devices['Desktop Chrome'],
+        trace: 'retain-on-failure',
+        screenshot: 'only-on-failure',
+        video: 'retain-on-failure',
+      },
+    },
     {
       name: 'admin-setup',
       testMatch: /admin\.setup\.ts/,
@@ -82,6 +96,27 @@ export default defineConfig({
         trace: 'off',
         screenshot: 'off',
         video: 'off',
+      },
+    },
+    {
+      name: 'customer-setup',
+      testMatch: /customer\.setup\.ts/,
+      use: {
+        ...devices['Desktop Chrome'],
+        ...localUatLaunchOptions,
+        trace: 'off',
+        screenshot: 'off',
+        video: 'off',
+      },
+    },
+    {
+      name: 'customer',
+      testMatch: /customer-flows\.spec\.ts/,
+      dependencies: ['customer-setup'],
+      use: {
+        ...devices['Desktop Chrome'],
+        ...localUatLaunchOptions,
+        storageState: 'playwright/.auth/customer.json',
       },
     },
   ],

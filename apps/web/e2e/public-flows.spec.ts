@@ -36,10 +36,12 @@ test.describe('Homepage', () => {
     await expect(page).toHaveURL(/auth\/register/);
   });
 
-  test('featured hero exposes an accessible event action without unsupported payment copy', async ({ page }) => {
+  test('featured hero exposes an accessible event action without unsupported payment copy', async ({
+    page,
+  }) => {
     await page.goto('/');
     const carousel = page.getByRole('region', { name: 'Featured events' });
-    test.skip((await carousel.count()) === 0, 'This environment has no featured event fixture.');
+    await expect(carousel, 'UAT must provide a featured event fixture').toBeVisible();
 
     await expect(
       carousel.locator('p:visible').filter({ hasText: /^Featured Event$/ }),
@@ -137,8 +139,7 @@ test.describe('Event Detail', () => {
   test('event page renders without unhandled error', async ({ page }) => {
     await page.goto('/');
     const firstCard = page.locator('a[href^="/events/"]:has(h3)').first();
-    const count = await firstCard.count();
-    test.skip(count === 0, 'This environment has no published event fixture.');
+    await expect(firstCard, 'UAT must provide a published event fixture').toBeVisible();
     const href = await firstCard.getAttribute('href');
     if (href) {
       await page.goto(href);

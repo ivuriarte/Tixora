@@ -1,0 +1,207 @@
+name: Scheduled UAT Regression
+
+on:
+  workflow_dispatch:
+  schedule:
+    # Monday 02:00 Asia/Manila (Sunday 18:00 UTC).
+    - cron: '0 18 * * 0'
+
+concurrency:
+  group: uat-deploy-and-regression
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  public-cross-browser:
+    name: Public UAT regression (${{ matrix.browser }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [chromium, firefox, webkit]
+    defaults:
+      run:
+        working-directory: apps/web
+    env:
+      BASE_URL: https://uat.axontickets.online
+      API_URL: https://api-uat.axontickets.online
+      PW_CROSS_BROWSER: '1'
+      VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.UAT_VERCEL_AUTOMATION_BYPASS_SECRET }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'npm'
+          cache-dependency-path: package-lock.json
+
+      - name: Install dependencies
+        working-directory: .
+        run: npm ci --workspaces
+
+      - name: Validate UAT browser access
+        run: test -n "$VERCEL_AUTOMATION_BYPASS_SECRET"
+
+      - name: Install Playwright browser
+        run: npx playwright install --with-deps ${{ matrix.browser }}
+
+      - name: Run public regression
+        run: >-
+          npx playwright test
+          e2e/checkout-critical.spec.ts
+          e2e/public-flows.spec.ts
+          e2e/release-2-discovery.spec.ts
+          e2e/release-2-accessibility.spec.ts
+          e2e/release-2-performance.spec.ts
+          --project=${{ matrix.browser }}
+
+      - name: Upload Playwright evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-${{ matrix.browser }}-uat-${{ github.run_id }}
+          path: |
+            apps/web/playwright-report
+            apps/web/test-results
+          if-no-files-found: warn
+          retention-days: 14
+
+  admin-ui:
+    name: Deterministic admin UI regression
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: apps/web
+    env:
+      BASE_URL: https://uat.axontickets.online
+      API_URL: https://api-uat.axontickets.online
+      PW_ADMIN_MOCKED: '1'
+      VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.UAT_VERCEL_AUTOMATION_BYPASS_SECRET }}
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'npm'
+          cache-dependency-path: package-lock.json
+      - name: Install dependencies
+        working-directory: .
+        run: npm ci --workspaces
+      - name: Validate UAT browser access
+        run: test -n "$VERCEL_AUTOMATION_BYPASS_SECRET"
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Run all 24 admin UI scenarios
+        run: npx playwright test e2e/admin-flows.spec.ts --project=admin-mocked
+      - name: Upload admin UI Playwright evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-admin-ui-uat-${{ github.run_id }}
+          path: |
+            apps/web/playwright-report
+            apps/web/test-results
+          if-no-files-found: warn
+          retention-days: 14
+
+  admin:
+    name: Authenticated admin UAT regression
+    if: vars.RUN_UAT_ADMIN_E2E == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: apps/web
+    env:
+      BASE_URL: https://uat.axontickets.online
+      API_URL: https://api-uat.axontickets.online
+      TEST_ADMIN_EMAIL: ${{ secrets.UAT_TEST_ADMIN_EMAIL }}
+      TEST_ADMIN_PASSWORD: ${{ secrets.UAT_TEST_ADMIN_PASSWORD }}
+      VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.UAT_VERCEL_AUTOMATION_BYPASS_SECRET }}
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'npm'
+          cache-dependency-path: package-lock.json
+      - name: Install dependencies
+        working-directory: .
+        run: npm ci --workspaces
+      - name: Validate isolated UAT credentials
+        run: |
+          test -n "$TEST_ADMIN_EMAIL"
+          test -n "$TEST_ADMIN_PASSWORD"
+          test -n "$VERCEL_AUTOMATION_BYPASS_SECRET"
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Run admin regression
+        run: npx playwright test e2e/admin-flows.spec.ts --project=admin
+      - name: Upload admin Playwright evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-admin-uat-${{ github.run_id }}
+          path: |
+            apps/web/playwright-report
+            apps/web/test-results
+          if-no-files-found: warn
+          retention-days: 14
+
+  customer:
+    name: Real customer OTP UAT regression
+    if: vars.RUN_UAT_CUSTOMER_E2E == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: apps/web
+    env:
+      BASE_URL: https://uat.axontickets.online
+      API_URL: https://api-uat.axontickets.online
+      TEST_CUSTOMER_EMAIL: ivvuriarte@gmail.com
+      TEST_GMAIL_CLIENT_ID: ${{ secrets.UAT_TEST_GMAIL_CLIENT_ID }}
+      TEST_GMAIL_CLIENT_SECRET: ${{ secrets.UAT_TEST_GMAIL_CLIENT_SECRET }}
+      TEST_GMAIL_REFRESH_TOKEN: ${{ secrets.UAT_TEST_GMAIL_REFRESH_TOKEN }}
+      VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.UAT_VERCEL_AUTOMATION_BYPASS_SECRET }}
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'npm'
+          cache-dependency-path: package-lock.json
+      - name: Install dependencies
+        working-directory: .
+        run: npm ci --workspaces
+      - name: Validate controlled customer mailbox
+        run: |
+          test -n "$TEST_CUSTOMER_EMAIL"
+          test -n "$TEST_GMAIL_CLIENT_ID"
+          test -n "$TEST_GMAIL_CLIENT_SECRET"
+          test -n "$TEST_GMAIL_REFRESH_TOKEN"
+          test -n "$VERCEL_AUTOMATION_BYPASS_SECRET"
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Run customer OTP regression
+        run: npx playwright test e2e/customer-flows.spec.ts --project=customer
+      - name: Upload customer Playwright evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-customer-uat-${{ github.run_id }}
+          path: |
+            apps/web/playwright-report
+            apps/web/test-results
+          if-no-files-found: warn
+          retention-days: 14

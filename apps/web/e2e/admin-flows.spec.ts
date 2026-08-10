@@ -3,6 +3,7 @@ import {
   ADMIN_EMAIL,
   ADMIN_PASSWORD,
   HAS_ADMIN_CREDENTIALS,
+  IS_ADMIN_MOCKED,
 } from './support/admin-auth';
 import { emptyDraft } from '../src/components/event-wizard/types';
 import type { Page } from '@playwright/test';
@@ -16,6 +17,11 @@ async function gotoAdmin(page: Page, path: string) {
   const signInHeading = page.getByRole('heading', { name: 'Admin sign-in' });
   await expect(logoutButton.or(signInHeading)).toBeVisible();
   if (await logoutButton.isVisible()) return;
+
+  expect(
+    IS_ADMIN_MOCKED,
+    'The deterministic admin session should hydrate without contacting a real login endpoint.',
+  ).toBe(false);
 
   const response = await fetch('https://api-uat.axontickets.online/api/v1/auth/login', {
     method: 'POST',
@@ -31,18 +37,15 @@ async function gotoAdmin(page: Page, path: string) {
   const refreshToken = payload?.data?.refreshToken;
   expect(typeof refreshToken).toBe('string');
 
-  await page.evaluate(
-    ({ name, value }) => localStorage.setItem(name, value),
-    { name: 'axon_tickets_rt', value: refreshToken },
-  );
+  await page.evaluate(({ name, value }) => localStorage.setItem(name, value), {
+    name: 'axon_tickets_rt',
+    value: refreshToken,
+  });
   await page.goto(path);
   await expect(logoutButton).toBeVisible();
 }
 
-async function openCreateWizardStep(
-  page: Page,
-  step: 'basics' | 'location' | 'details',
-) {
+async function openCreateWizardStep(page: Page, step: 'basics' | 'location' | 'details') {
   const persisted = {
     draft: {
       ...emptyDraft(),
@@ -79,10 +82,10 @@ async function openCreateWizardStep(
   if (page.url() === 'about:blank') {
     await gotoAdmin(page, '/admin');
   }
-  await page.evaluate(
-    ({ key, value }) => localStorage.setItem(key, JSON.stringify(value)),
-    { key: EVENT_DRAFT_KEY, value: persisted },
-  );
+  await page.evaluate(({ key, value }) => localStorage.setItem(key, JSON.stringify(value)), {
+    key: EVENT_DRAFT_KEY,
+    value: persisted,
+  });
   await gotoAdmin(page, '/admin/events/new');
   await page.getByRole('button', { name: 'Restore', exact: true }).click();
 
@@ -221,7 +224,10 @@ test.describe('Admin Create Event — Form Fields', () => {
     await expect(sponsorName.first()).toBeVisible();
 
     // Delete the sponsor
-    await page.getByRole('button', { name: /^delete$/i }).first().click();
+    await page
+      .getByRole('button', { name: /^delete$/i })
+      .first()
+      .click();
 
     // Sponsor should be gone
     await expect(sponsorName).toHaveCount(0);
@@ -249,7 +255,10 @@ test.describe('Admin Create Event — Form Fields', () => {
     await expect(faqQuestion.first()).toBeVisible();
 
     // Delete the FAQ
-    await page.getByRole('button', { name: /^delete$/i }).first().click();
+    await page
+      .getByRole('button', { name: /^delete$/i })
+      .first()
+      .click();
 
     // FAQ should be gone
     await expect(faqQuestion).toHaveCount(0);
@@ -266,10 +275,9 @@ test.describe('Admin Edit Event — Pre-population', () => {
 
     // Find first Edit link in the event list
     const editLink = page.getByRole('link', { name: /edit/i }).first();
-    await expect.poll(
-      () => editLink.count(),
-      { message: 'UAT should provide at least one editable event.' },
-    ).toBeGreaterThan(0);
+    await expect
+      .poll(() => editLink.count(), { message: 'UAT should provide at least one editable event.' })
+      .toBeGreaterThan(0);
 
     await editLink.click();
     await page.waitForURL(/events\/[^/]+$/, { timeout: 8000 });
@@ -283,10 +291,9 @@ test.describe('Admin Edit Event — Pre-population', () => {
     await gotoAdmin(page, '/admin');
 
     const editLink = page.getByRole('link', { name: /edit/i }).first();
-    await expect.poll(
-      () => editLink.count(),
-      { message: 'UAT should provide at least one editable event.' },
-    ).toBeGreaterThan(0);
+    await expect
+      .poll(() => editLink.count(), { message: 'UAT should provide at least one editable event.' })
+      .toBeGreaterThan(0);
 
     await editLink.click();
     await page.waitForURL(/events\/[^/]+$/, { timeout: 8000 });
@@ -299,10 +306,9 @@ test.describe('Admin Edit Event — Pre-population', () => {
     await gotoAdmin(page, '/admin');
 
     const editLink = page.getByRole('link', { name: /edit/i }).first();
-    await expect.poll(
-      () => editLink.count(),
-      { message: 'UAT should provide at least one editable event.' },
-    ).toBeGreaterThan(0);
+    await expect
+      .poll(() => editLink.count(), { message: 'UAT should provide at least one editable event.' })
+      .toBeGreaterThan(0);
 
     await editLink.click();
     await page.waitForURL(/events\/[^/]+$/, { timeout: 8000 });
@@ -340,10 +346,11 @@ test.describe('Admin Check-in', () => {
     await page.getByRole('button', { name: /search/i }).click();
 
     const eventSelect = page.locator('select').first();
-    await expect.poll(
-      () => eventSelect.locator('option:not([value=""])').count(),
-      { message: 'UAT should provide at least one event for check-in search.' },
-    ).toBeGreaterThan(0);
+    await expect
+      .poll(() => eventSelect.locator('option:not([value=""])').count(), {
+        message: 'UAT should provide at least one event for check-in search.',
+      })
+      .toBeGreaterThan(0);
     await eventSelect.selectOption({ index: 1 });
 
     const searchInput = page.locator('input[type="text"], input[type="search"]').first();
@@ -352,15 +359,16 @@ test.describe('Admin Check-in', () => {
 
     const searchResponse = page.waitForResponse(
       (response) =>
-        response.url().includes('/admin/checkin/search?') &&
-        response.request().method() === 'GET',
+        response.url().includes('/admin/checkin/search?') && response.request().method() === 'GET',
     );
-    await page.getByRole('button', { name: /^search$/i }).last().click();
+    await page
+      .getByRole('button', { name: /^search$/i })
+      .last()
+      .click();
     expect((await searchResponse).ok()).toBe(true);
 
     await expect(page.getByText(/something went wrong|unhandled/i)).not.toBeVisible();
   });
-
 });
 
 test.describe('Admin Analytics', () => {
@@ -379,7 +387,9 @@ test.describe('Admin Analytics', () => {
     await expect(eventSelect).toBeVisible();
   });
 
-  test('analytics page has time-range toggle buttons (7d, 14d, 30d)', async ({ adminPage: page }) => {
+  test('analytics page has time-range toggle buttons (7d, 14d, 30d)', async ({
+    adminPage: page,
+  }) => {
     await gotoAdmin(page, '/admin/analytics');
     await expect(page.getByRole('button', { name: /7d/i })).toBeVisible();
     await expect(page.getByRole('button', { name: /14d/i })).toBeVisible();
