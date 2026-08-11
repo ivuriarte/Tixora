@@ -304,7 +304,9 @@ export default function AdminAttendeesPage() {
             )}
             {data && (
               <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-                <p className="text-sm text-gray-500">{data.meta.total} attendees</p>
+                <p className="text-sm text-gray-500">
+                  {data.meta.total} {data.meta.total === 1 ? 'attendee' : 'attendees'}
+                </p>
                 {selectedCount > 0 && (
                   <button
                     type="button"
