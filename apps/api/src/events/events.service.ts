@@ -604,21 +604,6 @@ export class EventsService {
 
     const now = new Date();
     const result = await this.prisma.$transaction(async (tx) => {
-      if (dto.attendeeId?.trim()) {
-        const attendee = await tx.attendee.findFirst({
-          where: {
-            id: dto.attendeeId.trim(),
-            registration: { eventId: event.id, status: 'verified' },
-          },
-          include: {
-            registration: { select: { id: true, referenceNumber: true, tierName: true } },
-          },
-        });
-        if (!attendee) throw new NotFoundException('Attendee not found for this event.');
-        const attendance = await this.createDailyAttendance(tx, attendee, event.id, 'onsite_qr', now);
-        return { attendee, registration: attendee.registration, attendance, created: false };
-      }
-
       const emailNotApplicable = dto.emailNotApplicable === true;
       const email = emailNotApplicable ? null : dto.email?.trim().toLowerCase();
       const firstName = dto.firstName?.trim();

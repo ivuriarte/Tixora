@@ -49,6 +49,9 @@
     },
     "@sentry/bundler-plugin-core": {
       "brace-expansion": "$brace-expansion"
+    },
+    "@nestjs/swagger@11.4.6": {
+      "js-yaml": "5.2.3"
     }
   },
   "packageManager": "npm@11.0.0"

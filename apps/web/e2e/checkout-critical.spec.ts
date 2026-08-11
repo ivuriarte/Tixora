@@ -632,7 +632,7 @@ test.describe('Critical checkout journeys', () => {
     await expect(page.getByText('Katherine Johnson')).toBeVisible();
     await expect(page.getByText('Dorothy Vaughan')).toBeVisible();
     await page.getByRole('button', { name: 'Confirm and Send My Code' }).click();
-    expect(state.accessCodeRequests).toBe(1);
+    await expect.poll(() => state.accessCodeRequests).toBe(1);
     expect(state.claimPayload).toBeUndefined();
     await page.getByLabel('Six-digit confirmation code').fill('123456');
 

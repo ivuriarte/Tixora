@@ -404,6 +404,7 @@ test.describe('Admin Analytics', () => {
 
 test.describe('Admin/Organizer portfolio — on-site operations', () => {
   test.skip(!HAS_ADMIN_CREDENTIALS, 'Admin test identity is not configured.');
+  test.skip(!IS_ADMIN_MOCKED, 'Deterministic event fixtures are exercised by the mocked admin portfolio.');
 
   test('event editor exposes the QR poster and persists the on-site toggle', async ({ adminPage: page }) => {
     await gotoAdmin(page, '/admin/events/event-qa');
@@ -454,6 +455,7 @@ test.describe('Admin/Organizer portfolio — on-site operations', () => {
 
 test.describe('Super Admin portfolio — platform governance', () => {
   test.skip(!HAS_ADMIN_CREDENTIALS, 'Admin test identity is not configured.');
+  test.skip(!IS_ADMIN_MOCKED, 'Mutating governance scenarios require deterministic test-only identities.');
 
   test('super admin can review users and grant a role to another identity', async ({ adminPage: page }) => {
     await gotoAdmin(page, '/admin/users');
