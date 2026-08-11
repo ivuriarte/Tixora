@@ -106,6 +106,12 @@ jobs:
           DIRECT_URL: ${{ secrets.DIRECT_URL_UAT }}
         run: npx tsc --noEmit
 
+      - name: Run complete API portfolio
+        run: npm test --workspace=apps/api -- --runInBand
+
+      - name: Audit production dependencies
+        run: npm audit --omit=dev --audit-level=high
+
       - name: Type-check Web
         working-directory: apps/web
         env:
@@ -209,11 +215,13 @@ jobs:
         run: >-
           npx playwright test
           e2e/checkout-critical.spec.ts
+          e2e/onsite-registration.spec.ts
           e2e/admin-flows.spec.ts
           e2e/public-flows.spec.ts
           e2e/release-2-discovery.spec.ts
           e2e/release-2-accessibility.spec.ts
           e2e/release-2-performance.spec.ts
+          e2e/security-regression.spec.ts
           --project=chromium
           --project=admin-mocked
 
@@ -269,7 +277,11 @@ jobs:
         run: npx playwright install --with-deps chromium
 
       - name: Run authenticated admin suite
-        run: npx playwright test e2e/admin-flows.spec.ts --project=admin
+        run: >-
+          npx playwright test
+          e2e/admin-flows.spec.ts
+          e2e/admin-live-lifecycle.spec.ts
+          --project=admin
 
       - name: Upload admin Playwright evidence
         if: always()

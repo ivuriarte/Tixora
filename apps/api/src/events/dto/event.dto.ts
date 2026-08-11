@@ -654,11 +654,6 @@ export class OnsiteRegistrationDto {
   eventId?: string;
 
   @IsOptional()
-  @IsString()
-  @MaxLength(100)
-  attendeeId?: string;
-
-  @IsOptional()
   @IsBoolean()
   emailNotApplicable?: boolean;
 
@@ -678,37 +673,31 @@ export class OnsiteRegistrationDto {
   @MaxLength(100, { each: true })
   subEventIds?: string[];
 
-  @ValidateIf((dto: OnsiteRegistrationDto) => !dto.attendeeId)
   @IsString()
   @MinLength(1)
   @MaxLength(100)
   firstName?: string;
 
-  @ValidateIf((dto: OnsiteRegistrationDto) => !dto.attendeeId)
   @IsString()
   @MinLength(1)
   @MaxLength(100)
   lastName?: string;
 
-  @ValidateIf((dto: OnsiteRegistrationDto) => !dto.attendeeId && !dto.emailNotApplicable)
+  @ValidateIf((dto: OnsiteRegistrationDto) => !dto.emailNotApplicable)
   @Matches(/^[^\s@]+@[^\s@]+\.[^\s@]+$/)
   email?: string;
 
-  @ValidateIf((dto: OnsiteRegistrationDto) => !dto.attendeeId)
   @IsString()
   @MinLength(7)
   @MaxLength(20)
   contactNumber?: string;
 
-  @ValidateIf((dto: OnsiteRegistrationDto) => !dto.attendeeId)
   @IsIn(['female', 'male', 'non_binary', 'prefer_not_to_say', 'self_described'])
   gender?: string;
 
-  @ValidateIf((dto: OnsiteRegistrationDto) => !dto.attendeeId)
   @IsDateString()
   birthday?: string;
 
-  @ValidateIf((dto: OnsiteRegistrationDto) => !dto.attendeeId)
   @IsString()
   @MinLength(2)
   @MaxLength(100)

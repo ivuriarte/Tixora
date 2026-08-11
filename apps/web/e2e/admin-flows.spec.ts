@@ -401,3 +401,94 @@ test.describe('Admin Analytics', () => {
     await expect(page.getByRole('link', { name: /analytics/i })).toBeVisible();
   });
 });
+
+test.describe('Admin/Organizer portfolio — on-site operations', () => {
+  test.skip(!HAS_ADMIN_CREDENTIALS, 'Admin test identity is not configured.');
+  test.skip(!IS_ADMIN_MOCKED, 'Deterministic event fixtures are exercised by the mocked admin portfolio.');
+
+  test('event editor exposes the QR poster and persists the on-site toggle', async ({ adminPage: page }) => {
+    await gotoAdmin(page, '/admin/events/event-qa');
+    await expect(page.getByText('On-site registration QR')).toBeVisible();
+    const download = page.getByRole('link', { name: 'Download QR' });
+    await expect(download).toBeVisible();
+    await expect(download).toHaveAttribute('href', /events\/qa-event-2030\/onsite-registration\/qr\.pdf\?eventId=event-qa/);
+
+    const requestPromise = page.waitForRequest((request) =>
+      request.url().includes('/admin/events/event-qa') && request.method() === 'PUT',
+    );
+    await page.getByLabel('Enabled').uncheck();
+    const request = await requestPromise;
+    expect(request.postDataJSON()).toEqual({ onsiteRegistrationEnabled: false });
+    await expect(download).toHaveCount(0);
+  });
+
+  test('event history provides the event-scoped on-site QR download', async ({ adminPage: page }) => {
+    await gotoAdmin(page, '/admin/events');
+    await expect(page.getByText('QA Event 2030', { exact: true })).toBeVisible();
+    await expect(page.getByRole('link', { name: 'Download QR' })).toHaveAttribute(
+      'href',
+      /events\/qa-event-2030\/onsite-registration\/qr\.pdf\?eventId=event-qa/,
+    );
+  });
+
+  test('walk-in registration is visible in the owned event attendee roster', async ({ adminPage: page }) => {
+    await gotoAdmin(page, '/admin/attendees?eventId=event-qa');
+    await expect(page.getByRole('heading', { name: 'Attendees' })).toBeVisible();
+    const attendeeRow = page.getByRole('row', { name: /Walkin Attendee/ });
+    await expect(attendeeRow).toContainText('walkin@example.com');
+    await expect(attendeeRow).toContainText('Opening Plenary');
+    await expect(attendeeRow).toContainText('General Admission');
+    await expect(attendeeRow).toContainText('Yes');
+    await expect(page.getByText('1 attendee', { exact: true })).toBeVisible();
+  });
+
+  test('walk-in attendee is searchable at the check-in desk', async ({ adminPage: page }) => {
+    await gotoAdmin(page, '/admin/checkin');
+    await page.getByRole('button', { name: /search/i }).click();
+    await page.locator('select').first().selectOption('event-qa');
+    await page.locator('input[type="text"], input[type="search"]').first().fill('Walkin Attendee');
+    await page.getByRole('button', { name: /^search$/i }).last().click();
+    await expect(page.getByText('Walkin Attendee')).toBeVisible();
+    await expect(page.getByText(/AXN-ONSITE-QA/)).toBeVisible();
+  });
+});
+
+test.describe('Super Admin portfolio — platform governance', () => {
+  test.skip(!HAS_ADMIN_CREDENTIALS, 'Admin test identity is not configured.');
+  test.skip(!IS_ADMIN_MOCKED, 'Mutating governance scenarios require deterministic test-only identities.');
+
+  test('super admin can review users and grant a role to another identity', async ({ adminPage: page }) => {
+    await gotoAdmin(page, '/admin/users');
+    await expect(page.getByRole('heading', { name: 'User Management' })).toBeVisible();
+    await expect(page.getByText('customer@example.com')).toBeVisible();
+    page.once('dialog', (dialog) => dialog.accept());
+    const requestPromise = page.waitForRequest((request) =>
+      request.url().includes('/admin/users/user-qa/role') && request.method() === 'PATCH',
+    );
+    await page.getByRole('button', { name: 'Make Admin' }).click();
+    expect((await requestPromise).postDataJSON()).toEqual({ isAdmin: true });
+    await expect(page.getByText('Admin role granted')).toBeVisible();
+  });
+
+  test('super admin can review organizer applications across the platform', async ({ adminPage: page }) => {
+    await gotoAdmin(page, '/admin/organizers');
+    await expect(page.getByRole('heading', { name: 'Organizer Applications' })).toBeVisible();
+    await expect(page.getByText('QA Events', { exact: true })).toBeVisible();
+    await expect(page.getByText('owner@example.com')).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Review' })).toBeVisible();
+  });
+
+  test('super admin can update the platform-wide service fee with validation', async ({ adminPage: page }) => {
+    await gotoAdmin(page, '/admin/settings/platform');
+    await expect(page.getByRole('heading', { name: 'Platform Settings' })).toBeVisible();
+    const fee = page.locator('input[type="number"]');
+    await expect(fee).toHaveValue('50');
+    await fee.fill('75');
+    const requestPromise = page.waitForRequest((request) =>
+      request.url().includes('/admin/settings/platform') && request.method() === 'PATCH',
+    );
+    await page.getByRole('button', { name: 'Save Changes' }).click();
+    expect((await requestPromise).postDataJSON()).toEqual({ serviceFee: 75 });
+    await expect(page.getByText('Platform settings saved.')).toBeVisible();
+  });
+});

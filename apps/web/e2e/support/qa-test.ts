@@ -68,7 +68,10 @@ export const test = base.extend<{ diagnostics: BrowserDiagnostics }>({
         // Next.js deliberately aborts stale document, RSC, and prefetch requests
         // during client-side redirects. Preserve them as evidence without
         // treating an intentional cancellation as an infrastructure failure.
-        if (failure.reason.includes('ERR_ABORTED')) {
+        if (
+          failure.reason.includes('ERR_ABORTED') ||
+          failure.reason.includes('NS_BINDING_ABORTED')
+        ) {
           diagnostics.abortedRequests.push(failure);
           return;
         }

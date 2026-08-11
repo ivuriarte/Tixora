@@ -1,6 +1,6 @@
 import { validate } from 'class-validator';
 import { plainToInstance } from 'class-transformer';
-import { CreateEventDto, CustomSectionDto } from './event.dto';
+import { CreateEventDto, CustomSectionDto, OnsiteRegistrationDto } from './event.dto';
 
 describe('CustomSectionDto', () => {
   function section(imageUrl?: string): CustomSectionDto {
@@ -92,5 +92,38 @@ describe('CreateEventDto — Release 2.0 running events', () => {
 
     const errors = await validate(dto);
     expect(JSON.stringify(errors)).toContain('Distance code must use 1-12 uppercase letters or numbers');
+  });
+});
+
+describe('OnsiteRegistrationDto — public identity boundary', () => {
+  const valid = {
+    eventId: 'event-1',
+    tierId: 'tier-1',
+    firstName: 'Walkin',
+    lastName: 'Attendee',
+    email: 'walkin@example.com',
+    contactNumber: '+639171234567',
+    gender: 'prefer_not_to_say',
+    birthday: '1995-05-20',
+    city: 'Davao City',
+  };
+
+  it('rejects a raw attendee id on the unauthenticated walk-in endpoint', async () => {
+    const dto = plainToInstance(OnsiteRegistrationDto, { ...valid, attendeeId: 'attendee-private-id' });
+    const errors = await validate(dto, { whitelist: true, forbidNonWhitelisted: true });
+
+    expect(errors).toEqual(expect.arrayContaining([
+      expect.objectContaining({ property: 'attendeeId' }),
+    ]));
+  });
+
+  it('requires a complete attendee identity for every public walk-in submission', async () => {
+    const dto = plainToInstance(OnsiteRegistrationDto, { eventId: 'event-1', tierId: 'tier-1' });
+    const errors = await validate(dto);
+    const properties = errors.map((error) => error.property);
+
+    expect(properties).toEqual(expect.arrayContaining([
+      'firstName', 'lastName', 'email', 'contactNumber', 'gender', 'birthday', 'city',
+    ]));
   });
 });

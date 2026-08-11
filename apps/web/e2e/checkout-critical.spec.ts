@@ -605,6 +605,45 @@ test.describe('Critical checkout journeys', () => {
     expect(state.claimPayload?.attendees).toHaveLength(1);
     expectNoBrowserFailures(diagnostics);
   });
+
+  test('@critical logged-out bulk account checkout verifies once and links every named ticket recipient', async ({
+    page,
+    diagnostics,
+  }) => {
+    const state = await openSubmittedGuestCheckout(page, { quantity: 2 });
+    await page.getByRole('button', { name: /Sign In or Activate an Account/i }).click();
+
+    await expect(page.getByText(/every ticket receives its own named QR code/i)).toBeVisible();
+    const attendeeCards = page.locator('form').locator('div.rounded-2xl').filter({ has: page.locator('h3') });
+    const leadInputs = attendeeCards.filter({ hasText: 'Attendee 1' }).locator('input');
+    const secondInputs = attendeeCards.filter({ hasText: 'Attendee 2' }).locator('input');
+    await leadInputs.nth(0).fill('account@example.com');
+    await leadInputs.nth(1).fill('account@example.com');
+    await leadInputs.nth(2).fill('Katherine');
+    await leadInputs.nth(3).fill('Johnson');
+    await leadInputs.nth(4).fill('+639171234567');
+    await secondInputs.nth(0).fill('Dorothy');
+    await secondInputs.nth(1).fill('Vaughan');
+    await secondInputs.nth(2).fill('dorothy@example.com');
+    await secondInputs.nth(3).fill('dorothy@example.com');
+    await secondInputs.nth(4).fill('+639181234567');
+
+    await page.getByRole('button', { name: 'Review Transaction Details' }).click();
+    await expect(page.getByText('Katherine Johnson')).toBeVisible();
+    await expect(page.getByText('Dorothy Vaughan')).toBeVisible();
+    await page.getByRole('button', { name: 'Confirm and Send My Code' }).click();
+    await expect.poll(() => state.accessCodeRequests).toBe(1);
+    expect(state.claimPayload).toBeUndefined();
+    await page.getByLabel('Six-digit confirmation code').fill('123456');
+
+    await expect(page).toHaveURL(/scenario=account/);
+    expect(state.accessCodeVerifications).toBe(1);
+    expect(state.claimPayload?.attendees).toEqual([
+      expect.objectContaining({ firstName: 'Katherine', lastName: 'Johnson', email: 'account@example.com' }),
+      expect.objectContaining({ firstName: 'Dorothy', lastName: 'Vaughan', email: 'dorothy@example.com' }),
+    ]);
+    expectNoBrowserFailures(diagnostics);
+  });
 });
 
 test('@smoke customer login opens the merged email-first OTP screen', async ({

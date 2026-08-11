@@ -153,46 +153,6 @@ export class EventsService {
     return `${items.length} sub-events selected`;
   }
 
-  private async profileSuggestionForName(firstName: string, lastName: string) {
-    const attendee = await this.prisma.attendee.findFirst({
-      where: {
-        firstName: { equals: firstName, mode: 'insensitive' },
-        lastName: { equals: lastName, mode: 'insensitive' },
-        email: { not: null },
-        registration: {
-          status: 'verified',
-          paymentMethod: { in: ['onsite_qr', 'walk_in'] },
-        },
-      },
-      orderBy: { createdAt: 'desc' },
-      select: {
-        firstName: true,
-        lastName: true,
-        email: true,
-        phone: true,
-        gender: true,
-        birthday: true,
-        city: true,
-        company: true,
-        jobTitle: true,
-      },
-    });
-
-    if (!attendee?.email) return null;
-    return {
-      firstName: attendee.firstName,
-      lastName: attendee.lastName,
-      email: attendee.email,
-      contactNumber: attendee.phone ?? '',
-      gender: attendee.gender ?? '',
-      birthday: attendee.birthday?.toISOString().slice(0, 10) ?? '',
-      city: attendee.city ?? '',
-      company: attendee.company ?? '',
-      jobTitle: attendee.jobTitle ?? '',
-      maskedEmail: attendee.email.replace(/^(.).+(@.+)$/, '$1***$2'),
-    };
-  }
-
   private async createDailyAttendance(
     tx: Prisma.TransactionClient,
     attendee: { id: string; registrationId: string },
@@ -644,21 +604,6 @@ export class EventsService {
 
     const now = new Date();
     const result = await this.prisma.$transaction(async (tx) => {
-      if (dto.attendeeId?.trim()) {
-        const attendee = await tx.attendee.findFirst({
-          where: {
-            id: dto.attendeeId.trim(),
-            registration: { eventId: event.id, status: 'verified' },
-          },
-          include: {
-            registration: { select: { id: true, referenceNumber: true, tierName: true } },
-          },
-        });
-        if (!attendee) throw new NotFoundException('Attendee not found for this event.');
-        const attendance = await this.createDailyAttendance(tx, attendee, event.id, 'onsite_qr', now);
-        return { attendee, registration: attendee.registration, attendance, created: false };
-      }
-
       const emailNotApplicable = dto.emailNotApplicable === true;
       const email = emailNotApplicable ? null : dto.email?.trim().toLowerCase();
       const firstName = dto.firstName?.trim();
@@ -690,6 +635,14 @@ export class EventsService {
           birthday,
         },
       ];
+
+      // Serialize identical attendee submissions before the duplicate lookup.
+      // This closes the check-then-create race when two event-day devices send
+      // the same person at nearly the same time.
+      const identityLockKey = email
+        ? `email:${email}`
+        : `person:${firstName.toLowerCase()}:${lastName.toLowerCase()}:${dto.birthday}`;
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${event.id}), hashtext(${identityLockKey}))`;
 
       const existing = await tx.attendee.findFirst({
         where: {
@@ -731,39 +684,15 @@ export class EventsService {
         throw new BadRequestException('No seats are available for this ticket tier.');
       }
 
-      const user = email
-        ? await tx.user.upsert({
-            where: { email },
-            create: {
-              email,
-              phone,
-              firstName,
-              lastName,
-              isVerified: true,
-              birthday,
-              gender,
-              city,
-              company: dto.company?.trim() || null,
-              jobTitle: dto.jobTitle?.trim() || null,
-            },
-            update: {
-              phone,
-              birthday,
-              gender,
-              city,
-              ...(dto.company !== undefined ? { company: dto.company.trim() || null } : {}),
-              ...(dto.jobTitle !== undefined ? { jobTitle: dto.jobTitle.trim() || null } : {}),
-            },
-            select: { id: true },
-          })
-        : null;
-
       const unitPrice = event.isFree ? 0 : Number(tier.price);
       const fees = event.isFree ? 0 : Number(event.platformFee ?? 0);
       const registration = await tx.registration.create({
         data: {
           referenceNumber: generateReferenceNumber(),
-          userId: user?.id ?? null,
+          // The public event-day form cannot prove ownership of the supplied
+          // email. Keep it as event transaction data only; never create,
+          // verify, link, or mutate a customer account from this endpoint.
+          userId: null,
           eventId: event.id,
           tierId: tier.id,
           tierName: tier.name,
@@ -862,13 +791,9 @@ export class EventsService {
       throw new BadRequestException(`Registration is not open yet. This event is currently ${this.readableStatus(event.status)}.`);
     }
 
-    const firstName = dto.firstName.trim();
-    const lastName = dto.lastName.trim();
-    if (firstName.length < 2 || lastName.length < 2) {
-      return { match: null };
-    }
-
-    return { match: await this.profileSuggestionForName(firstName, lastName) };
+    // Name-only lookup previously returned full PII to an unauthenticated
+    // browser. Repeat attendance is handled by signed attendee QR tokens.
+    return { match: null };
   }
 
   async generateOnsiteQrPdf(slug: string, eventId?: string) {

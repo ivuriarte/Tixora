@@ -90,6 +90,7 @@ describe('EventsService onsite QR duplicate registration handling', () => {
     };
     const tx = {
       attendee: { findFirst: jest.fn().mockResolvedValue(existingAttendee) },
+      $executeRaw: jest.fn().mockResolvedValue(undefined),
     };
     const prisma = {
       event: { findUnique: jest.fn().mockResolvedValue(event) },
