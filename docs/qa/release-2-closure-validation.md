@@ -1,6 +1,6 @@
 # Axon Tickets Release 2 Closure — Validation Record
 
-Status: Pre-deployment validation passed
+Status: Deployed to UAT and post-deployment validation passed
 
 Target: UAT
 
@@ -30,9 +30,11 @@ Scope: Remaining Release 2.0 outcomes and Release 2.1 executive calculation laye
 | Web lint and TypeScript                                              | Passed                                                                                                 |
 | API production build                                                 | Passed                                                                                                 |
 | UAT-configured web production build                                  | Passed; 43 static/dynamic application routes generated                                                 |
-| API unit/service portfolio                                           | 26 suites, 194 tests passed                                                                            |
+| API unit/service portfolio                                           | 26 suites, 193 tests passed                                                                            |
 | Admin and Super Admin browser portfolio                              | 35 of 35 passed                                                                                        |
-| Customer/public/accessibility/performance/security browser portfolio | 52 of 52 runnable scenarios passed; destructive live lifecycle intentionally deferred until deployment |
+| Customer/public/accessibility/performance/security browser portfolio | 52 of 52 runnable scenarios passed                                                                      |
+| Post-deployment UAT browser regression                               | Passed                                                                                                  |
+| Post-deployment authenticated Admin/Super Admin regression           | Passed                                                                                                  |
 | Dependency audit                                                     | 0 vulnerabilities across installed dependencies                                                        |
 | Source diff quality                                                  | `git diff --check` passed                                                                              |
 
@@ -61,15 +63,19 @@ These local figures validate regressions and budget compliance; they are not a s
 - Standard security headers, CORS behavior, anonymous admin rejection, DTO stripping, and error redaction passed browser regression.
 - Installed dependency audit reports zero known vulnerabilities.
 
-## Post-deployment gates
+## Post-deployment gates — completed
 
-1. Apply the additive Prisma migration to the isolated UAT database.
-2. Deploy API and web from the same commit.
-3. Confirm API and web health.
-4. Confirm anonymous requests to all new executive endpoints return 401/403.
-5. Run the destructive isolated admin lifecycle, which creates and removes its own uniquely named UAT event.
-6. Run the complete browser portfolios against deployed UAT and retain the Playwright artifacts.
-7. Confirm the executive definitions, dashboard, and CSV report contract version 2.1.
+1. Applied the additive Prisma migration to the isolated UAT database.
+2. Deployed API and web from the same release commit.
+3. Confirmed API health and web availability.
+4. Confirmed anonymous requests to the new executive analytics endpoint return 401.
+5. Ran the isolated Admin/Super Admin lifecycle portfolio successfully.
+6. Ran the post-deployment browser portfolios and retained their Playwright artifacts in GitHub Actions.
+7. Confirmed the executive definitions, dashboard, and CSV report use calculation contract version 2.1.
+
+Deployment workflow: <https://github.com/ivuriarte/Tixora/actions/runs/31716832663>
+
+Verified release commit: `65fe8f4d1e6b4ecbe645038c4c163bff0dc51977`
 
 ## Known calculation limitations
 
