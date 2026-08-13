@@ -188,8 +188,8 @@ export default function RunningConfigEditor({
           ))}
         </div>
         <p className="mt-2 text-xs text-gray-500">
-          Age groups must be continuous. Axon calculates each runner's completed age on the event
-          date and stores the assigned group with the registration.
+          Age groups must be continuous. Axon calculates each runner&apos;s completed age on the
+          event date and stores the assigned group with the registration.
         </p>
       </div>
 
