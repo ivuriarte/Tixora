@@ -135,6 +135,16 @@ const SECTIONS: NavSection[] = [
           </svg>
         ),
       },
+      {
+        href: '/admin/executive-analytics',
+        label: 'Executive analytics',
+        adminOnly: true,
+        icon: (
+          <svg className="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth={1.75} viewBox="0 0 24 24" aria-hidden>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M3 3v18h18M7 16l4-5 3 3 5-7" />
+          </svg>
+        ),
+      },
     ],
   },
   {

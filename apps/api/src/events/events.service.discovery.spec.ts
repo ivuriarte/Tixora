@@ -135,6 +135,20 @@ describe('EventsService.findDiscovery()', () => {
       .not.toContain('Hottest Right Now');
   });
 
+  it('moves a future event with closed registration into Events You Missed', async () => {
+    eventFindMany.mockResolvedValue([
+      eventFixture('closed-future', new Date(NOW.getTime() + 10 * DAY), new Date(NOW.getTime() + 11 * DAY), {
+        saleEndsAt: new Date(NOW.getTime() - 1),
+      }),
+    ]);
+
+    const result = await service.findDiscovery();
+
+    expect(result.sections.happeningSoon).toEqual([]);
+    expect(result.sections.eventsYouMissed.map((event) => event.id)).toEqual(['closed-future']);
+    expect(result.sections.eventsYouMissed[0].labels).toContain('Registration Closed');
+  });
+
   it('rejects unsupported category filters before querying the database', async () => {
     await expect(service.findDiscovery('unsupported')).rejects.toThrow(BadRequestException);
     expect(eventFindMany).not.toHaveBeenCalled();

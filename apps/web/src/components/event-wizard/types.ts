@@ -66,7 +66,7 @@ export interface EventDraftLocation {
   address: string;
   landmark: string;
   city: string;
-  latitude: string;  // Form input (number as string)
+  latitude: string; // Form input (number as string)
   longitude: string; // Form input (number as string)
   startDate: string;
   startTime: string;
@@ -82,10 +82,7 @@ export interface EventDraftCapacity {
   platformFee: string;
 }
 
-export interface EventDraft
-  extends EventDraftBasics,
-    EventDraftLocation,
-    EventDraftCapacity {
+export interface EventDraft extends EventDraftBasics, EventDraftLocation, EventDraftCapacity {
   agenda: AgendaItem[];
   sponsors: SponsorItem[];
   faqs: FaqItem[];
@@ -94,13 +91,7 @@ export interface EventDraft
 }
 
 export interface StepMeta {
-  readonly id:
-    | 'basics'
-    | 'location'
-    | 'capacity'
-    | 'details'
-    | 'payment'
-    | 'review';
+  readonly id: 'basics' | 'location' | 'capacity' | 'details' | 'payment' | 'review';
   readonly label: string;
   readonly short: string;
   readonly optional?: boolean;
@@ -118,11 +109,30 @@ export const STEPS: readonly StepMeta[] = [
 export type StepId = StepMeta['id'];
 
 export function emptyTier(key: number): LocalTier {
-  return { key, name: '', description: '', price: '', totalQuantity: '', maxPerOrder: '', isVisible: true, inclusions: [], sortOrder: 0 };
+  return {
+    key,
+    name: '',
+    description: '',
+    price: '',
+    totalQuantity: '',
+    maxPerOrder: '',
+    isVisible: true,
+    inclusions: [],
+    sortOrder: 0,
+  };
 }
 
 export function emptyPM(key: number): LocalPaymentMethod {
-  return { key, type: 'bank', name: '', accountName: '', accountNumber: '', qrFile: null, qrPreview: '', qrImageUrl: '' };
+  return {
+    key,
+    type: 'bank',
+    name: '',
+    accountName: '',
+    accountNumber: '',
+    qrFile: null,
+    qrPreview: '',
+    qrImageUrl: '',
+  };
 }
 
 export function emptyDraft(): EventDraft {
@@ -219,28 +229,39 @@ export function validateStep(
   paymentMethods: LocalPaymentMethod[] = [],
 ): string | null {
   switch (step) {
-    case 'basics': return validateBasics(draft);
-    case 'location': return validateLocation(draft);
-    case 'capacity': return validateCapacity(draft, tiers);
+    case 'basics':
+      return validateBasics(draft);
+    case 'location':
+      return validateLocation(draft);
+    case 'capacity':
+      return validateCapacity(draft, tiers);
     case 'details':
       if (draft.eventType === 'running') {
         if (draft.runningConfig.distances.length === 0) return 'Add at least one race distance';
         if (draft.runningConfig.ageGroups.length === 0) return 'Add at least one age group';
         const sorted = [...draft.runningConfig.ageGroups].sort((a, b) => a.minAge - b.minAge);
-        if (sorted.some((group) => group.minAge > group.maxAge)) return 'Every age group needs a valid age range';
-        if (sorted.some((group, index) => index > 0 && group.minAge <= sorted[index - 1].maxAge)) return 'Age groups cannot overlap';
+        if (sorted.some((group) => group.minAge > group.maxAge))
+          return 'Every age group needs a valid age range';
+        if (sorted.some((group, index) => index > 0 && group.minAge <= sorted[index - 1].maxAge))
+          return 'Age groups cannot overlap';
+        if (
+          sorted.some((group, index) => index > 0 && group.minAge !== sorted[index - 1].maxAge + 1)
+        )
+          return 'Age groups must be continuous';
         if (draft.runningConfig.raceDivisions.length === 0) return 'Add at least one Race Division';
-        if (draft.runningConfig.merchandiseSizes.length === 0) return 'Add at least one merchandise size';
+        if (draft.runningConfig.merchandiseSizes.length === 0)
+          return 'Add at least one merchandise size';
       }
       return null;
     case 'payment': {
       if (draft.isFree) return null;
       if (paymentMethods.length === 0) return 'Add at least one payment method for this paid event';
-      const incomplete = paymentMethods.find((method) =>
-        !method.name.trim()
-        || !method.accountName.trim()
-        || !method.accountNumber.trim()
-        || !(method.qrFile || method.qrPreview || method.qrImageUrl),
+      const incomplete = paymentMethods.find(
+        (method) =>
+          !method.name.trim() ||
+          !method.accountName.trim() ||
+          !method.accountNumber.trim() ||
+          !(method.qrFile || method.qrPreview || method.qrImageUrl),
       );
       if (incomplete) {
         return `Complete every required field, including the QR code, for ${incomplete.name.trim() || 'the payment method'}`;

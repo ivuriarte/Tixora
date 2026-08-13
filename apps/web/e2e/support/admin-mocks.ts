@@ -8,6 +8,7 @@ const event = {
   imageUrl: '/og-image.png',
   category: 'business',
   eventType: 'standard',
+  runningConfig: null,
   isOnline: false,
   venue: 'QA Convention Hall',
   address: '123 QA Street',
@@ -45,6 +46,31 @@ const event = {
   ],
 };
 
+const runningEvent = {
+  ...event,
+  id: 'event-running-qa',
+  slug: 'qa-run-2030',
+  title: 'QA Run 2030',
+  category: 'sports',
+  eventType: 'running',
+  isFree: false,
+  platformFee: 50,
+  runningConfig: {
+    distances: [
+      { name: '5K', code: '5K' },
+      { name: '10K', code: '10K' },
+    ],
+    ageGroups: [
+      { name: 'Junior', minAge: 12, maxAge: 17 },
+      { name: 'Open', minAge: 18, maxAge: 99 },
+    ],
+    raceDivisions: ['Open'],
+    genderIdentityOptions: ['Prefer not to say'],
+    merchandiseSizes: ['M'],
+    claimMethods: ['pickup'],
+  },
+};
+
 const admin = {
   id: 'admin-qa',
   email: 'admin-automation@invalid.axontickets.test',
@@ -78,6 +104,25 @@ const onsiteAttendee = {
   claimedAt: null,
 };
 
+const runningAttendee = {
+  ...onsiteAttendee,
+  id: 'attendee-running-qa',
+  userEmail: 'runner@example.com',
+  userName: 'River Runner',
+  subEvents: null,
+  tierName: '5K',
+  orderStatus: 'paid',
+  status: 'valid',
+  checkedInAt: null,
+  raceDistance: '5K',
+  raceDivision: 'Open',
+  genderIdentity: 'Prefer not to say',
+  merchandiseSize: 'M',
+  bibNumber: '5K-0001',
+  claimMethod: 'pickup',
+  claimedAt: null,
+};
+
 const organizer = {
   id: 'org-qa',
   name: 'QA Events',
@@ -85,6 +130,8 @@ const organizer = {
   website: null,
   city: 'Davao City',
   approvalStatus: 'approved',
+  isPublic: true,
+  hiddenAt: null,
   rejectionReason: null,
   contactName: 'Organizer Owner',
   organizationType: 'Company',
@@ -138,11 +185,86 @@ export async function installAdminApiMocks(context: BrowserContext) {
     if (method === 'GET' && path === '/admin/organizers') {
       return json(route, {
         data: [organizer],
-        meta: { total: 1, page: 1, limit: 20, totalPages: 1, hasNextPage: false, hasPrevPage: false },
+        meta: {
+          total: 1,
+          page: 1,
+          limit: 20,
+          totalPages: 1,
+          hasNextPage: false,
+          hasPrevPage: false,
+        },
       });
     }
     if (method === 'GET' && path === `/admin/organizers/${organizer.id}`) {
       return json(route, organizer);
+    }
+    if (method === 'PATCH' && path === `/admin/organizers/${organizer.id}/profile-visibility`) {
+      const body = request.postDataJSON() as { visible: boolean };
+      return json(route, {
+        id: organizer.id,
+        visible: body.visible,
+        hiddenAt: body.visible ? null : new Date().toISOString(),
+      });
+    }
+    if (method === 'GET' && path === '/admin/analytics/executive') {
+      return json(route, {
+        contractVersion: '2.1',
+        generatedAt: '2030-01-15T00:00:00.000Z',
+        range: {
+          from: '2030-01-01T00:00:00.000Z',
+          to: '2030-01-15T00:00:00.000Z',
+          granularity: 'day',
+          timeZone: 'Asia/Manila',
+        },
+        metrics: {
+          totalOrganizers: 1,
+          activeOrganizers: 1,
+          inactiveOrganizers: 0,
+          overallEvents: 1,
+          activeEvents: 1,
+          finishedEvents: 0,
+          totalUserAccounts: 50,
+          successfulTransactions: 10,
+          ticketsIssued: 12,
+          grossSales: 5500,
+          refunds: 0,
+          netSales: 5500,
+          platformFees: 500,
+          averageOrderValue: 550,
+          averageSpendPerPayingUser: 550,
+          averageCustomerAge: 29.5,
+          ageDataCoverage: 0.8,
+        },
+        timeline: [
+          {
+            period: '2030-01-10',
+            grossSales: 5500,
+            refunds: 0,
+            netSales: 5500,
+            transactions: 10,
+            ticketsIssued: 12,
+          },
+        ],
+        organizerPerformance: [
+          {
+            organizerId: 'org-qa',
+            organizerName: 'QA Events',
+            successfulTransactions: 10,
+            ticketsIssued: 12,
+            grossSales: 5500,
+            refunds: 0,
+            netSales: 5500,
+          },
+        ],
+      });
+    }
+    if (method === 'GET' && path === '/admin/analytics/executive/export') {
+      await route.fulfill({
+        status: 200,
+        contentType: 'text/csv; charset=utf-8',
+        body: 'Metric,Value\n"grossSales","5500"',
+      });
+      return;
     }
     if (method === 'GET' && path === '/admin/users') {
       return json(route, {
@@ -168,8 +290,8 @@ export async function installAdminApiMocks(context: BrowserContext) {
     }
     if (method === 'GET' && path === '/admin/events') {
       return json(route, {
-        data: [event],
-        meta: { total: 1, page: 1, limit: 100, totalPages: 1 },
+        data: [event, runningEvent],
+        meta: { total: 2, page: 1, limit: 100, totalPages: 1 },
       });
     }
     if (method === 'GET' && path === '/admin/analytics/dashboard') {
@@ -187,6 +309,9 @@ export async function installAdminApiMocks(context: BrowserContext) {
     }
     if (method === 'GET' && path === `/admin/events/${event.id}`) {
       return json(route, event);
+    }
+    if (method === 'GET' && path === `/admin/events/${runningEvent.id}`) {
+      return json(route, runningEvent);
     }
     if (method === 'GET' && path === `/admin/events/${event.id}/workspace`) {
       return json(route, null);
@@ -230,11 +355,64 @@ export async function installAdminApiMocks(context: BrowserContext) {
     if (method === 'GET' && path === `/admin/events/${event.id}/attendees`) {
       return json(route, {
         data: [onsiteAttendee],
-        meta: { total: 1, page: 1, limit: 50, totalPages: 1, hasNextPage: false, hasPrevPage: false },
+        meta: {
+          total: 1,
+          page: 1,
+          limit: 50,
+          totalPages: 1,
+          hasNextPage: false,
+          hasPrevPage: false,
+        },
       });
     }
     if (method === 'GET' && path === `/admin/events/${event.id}/merchandise-summary`) {
       return json(route, []);
+    }
+    if (method === 'GET' && path === `/admin/events/${runningEvent.id}/attendees`) {
+      return json(route, {
+        data: [runningAttendee],
+        meta: {
+          total: 1,
+          page: 1,
+          limit: 50,
+          totalPages: 1,
+          hasNextPage: false,
+          hasPrevPage: false,
+        },
+      });
+    }
+    if (method === 'GET' && path === `/admin/events/${runningEvent.id}/merchandise-summary`) {
+      return json(route, [
+        {
+          distance: '5K',
+          raceDivision: 'Open',
+          size: 'M',
+          registered: 1,
+          claimed: 0,
+          remaining: 1,
+        },
+      ]);
+    }
+    if (
+      method === 'GET' &&
+      path === `/admin/events/${runningEvent.id}/merchandise-summary/export`
+    ) {
+      return route.fulfill({
+        status: 200,
+        contentType: 'text/csv',
+        body: 'Distance,Race Division,Size,Registered,Claimed,Remaining\n5K,Open,M,1,0,1',
+      });
+    }
+    if (
+      method === 'PATCH' &&
+      path === `/admin/events/${runningEvent.id}/attendees/${runningAttendee.id}/race-distance`
+    ) {
+      const body = request.postDataJSON() as { distance: string; reason: string };
+      return json(route, {
+        ...runningAttendee,
+        raceDistance: body.distance,
+        bibNumber: '10K-0001',
+      });
     }
     if (method === 'POST' && path === `/admin/checkin/manual/${onsiteAttendee.id}`) {
       return json(route, {

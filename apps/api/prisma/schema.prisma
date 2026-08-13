@@ -93,6 +93,7 @@ model User {
   avatarUrl    String?   @map("avatar_url")
   isVerified   Boolean   @default(false) @map("is_verified")
   isAdmin      Boolean   @default(false) @map("is_admin")
+  isTest       Boolean   @default(false) @map("is_test")
   fraudScore   Int       @default(0) @map("fraud_score")
   // Conference registration fields (added for Francis Kong MVP)
   company      String?   @map("company")
@@ -124,6 +125,7 @@ model User {
   workspacesClosed      EventWorkspace[]          @relation("WorkspaceClosedBy")
 
   @@map("users")
+  @@index([isTest, createdAt])
 }
 
 model Event {
@@ -143,6 +145,7 @@ model Event {
   status                    EventStatus @default(draft)
   category                  String      @default("business")
   eventType                 String      @default("standard") @map("event_type")
+  isTest                    Boolean     @default(false) @map("is_test")
   isOnline                  Boolean     @default(false) @map("is_online")
   publishedAt               DateTime?   @map("published_at")
   runningConfig             Json?       @map("running_config")
@@ -196,6 +199,7 @@ model Event {
   @@index([publishedAt])
   @@index([slug])
   @@index([organizationId])
+  @@index([isTest, status, startsAt])
   @@map("events")
 }
 
@@ -298,6 +302,7 @@ model Order {
   @@index([userId, status])
   @@index([eventId])
   @@index([status])
+  @@index([status, createdAt])
   @@map("orders")
 }
 
@@ -427,6 +432,7 @@ model Registration {
   @@index([eventId, status])
   @@index([tierId, status])
   @@index([status, createdAt])
+  @@index([status, verifiedAt])
   @@index([referenceNumber])
   @@map("registrations")
 }
@@ -442,6 +448,8 @@ model Attendee {
   company                      String?
   jobTitle                     String?   @map("job_title")
   birthday                     DateTime? @db.Date
+  ageAtEvent                   Int?      @map("age_at_event")
+  ageGroupName                 String?   @map("age_group_name")
   gender                       String?
   raceDistance                 String?   @map("race_distance")
   raceDivision                 String?   @map("race_division")
@@ -478,6 +486,7 @@ model Attendee {
   @@unique([eventId, raceDistance, bibSequence])
   @@index([registrationId])
   @@index([eventId, raceDistance])
+  @@index([eventId, ageGroupName])
   @@index([createdAt])
   @@index([email])
   @@index([eventId, email])
@@ -672,6 +681,7 @@ model Organization {
   logoUrl            String?           @map("logo_url")
   socialLinks        Json?             @map("social_links")
   isPublic           Boolean           @default(true) @map("is_public")
+  isTest             Boolean           @default(false) @map("is_test")
   hiddenAt           DateTime?         @map("hidden_at")
   profileUpdatedAt   DateTime?         @map("profile_updated_at")
   approvalStatus     OrgApprovalStatus @default(pending) @map("approval_status")
@@ -691,6 +701,7 @@ model Organization {
   @@index([approvalStatus])
   @@index([isPublic, approvalStatus])
   @@index([createdById])
+  @@index([isTest, approvalStatus])
   @@map("organizations")
 }
 

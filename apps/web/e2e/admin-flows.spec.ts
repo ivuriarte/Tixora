@@ -398,23 +398,31 @@ test.describe('Admin Analytics', () => {
 
   test('admin dashboard has Analytics quick-link', async ({ adminPage: page }) => {
     await gotoAdmin(page, '/admin');
-    await expect(page.getByRole('link', { name: /analytics/i })).toBeVisible();
+    await expect(page.getByRole('link', { name: 'Analytics', exact: true })).toBeVisible();
   });
 });
 
 test.describe('Admin/Organizer portfolio — on-site operations', () => {
   test.skip(!HAS_ADMIN_CREDENTIALS, 'Admin test identity is not configured.');
-  test.skip(!IS_ADMIN_MOCKED, 'Deterministic event fixtures are exercised by the mocked admin portfolio.');
+  test.skip(
+    !IS_ADMIN_MOCKED,
+    'Deterministic event fixtures are exercised by the mocked admin portfolio.',
+  );
 
-  test('event editor exposes the QR poster and persists the on-site toggle', async ({ adminPage: page }) => {
+  test('event editor exposes the QR poster and persists the on-site toggle', async ({
+    adminPage: page,
+  }) => {
     await gotoAdmin(page, '/admin/events/event-qa');
     await expect(page.getByText('On-site registration QR')).toBeVisible();
     const download = page.getByRole('link', { name: 'Download QR' });
     await expect(download).toBeVisible();
-    await expect(download).toHaveAttribute('href', /events\/qa-event-2030\/onsite-registration\/qr\.pdf\?eventId=event-qa/);
+    await expect(download).toHaveAttribute(
+      'href',
+      /events\/qa-event-2030\/onsite-registration\/qr\.pdf\?eventId=event-qa/,
+    );
 
-    const requestPromise = page.waitForRequest((request) =>
-      request.url().includes('/admin/events/event-qa') && request.method() === 'PUT',
+    const requestPromise = page.waitForRequest(
+      (request) => request.url().includes('/admin/events/event-qa') && request.method() === 'PUT',
     );
     await page.getByLabel('Enabled').uncheck();
     const request = await requestPromise;
@@ -422,16 +430,20 @@ test.describe('Admin/Organizer portfolio — on-site operations', () => {
     await expect(download).toHaveCount(0);
   });
 
-  test('event history provides the event-scoped on-site QR download', async ({ adminPage: page }) => {
+  test('event history provides the event-scoped on-site QR download', async ({
+    adminPage: page,
+  }) => {
     await gotoAdmin(page, '/admin/events');
     await expect(page.getByText('QA Event 2030', { exact: true })).toBeVisible();
-    await expect(page.getByRole('link', { name: 'Download QR' })).toHaveAttribute(
+    await expect(page.getByRole('link', { name: 'Download QR' }).first()).toHaveAttribute(
       'href',
       /events\/qa-event-2030\/onsite-registration\/qr\.pdf\?eventId=event-qa/,
     );
   });
 
-  test('walk-in registration is visible in the owned event attendee roster', async ({ adminPage: page }) => {
+  test('walk-in registration is visible in the owned event attendee roster', async ({
+    adminPage: page,
+  }) => {
     await gotoAdmin(page, '/admin/attendees?eventId=event-qa');
     await expect(page.getByRole('heading', { name: 'Attendees' })).toBeVisible();
     const attendeeRow = page.getByRole('row', { name: /Walkin Attendee/ });
@@ -447,30 +459,79 @@ test.describe('Admin/Organizer portfolio — on-site operations', () => {
     await page.getByRole('button', { name: /search/i }).click();
     await page.locator('select').first().selectOption('event-qa');
     await page.locator('input[type="text"], input[type="search"]').first().fill('Walkin Attendee');
-    await page.getByRole('button', { name: /^search$/i }).last().click();
+    await page
+      .getByRole('button', { name: /^search$/i })
+      .last()
+      .click();
     await expect(page.getByText('Walkin Attendee')).toBeVisible();
     await expect(page.getByText(/AXN-ONSITE-QA/)).toBeVisible();
+  });
+
+  test('running-event merchandise can be filtered and exported as an aggregate', async ({
+    adminPage: page,
+  }) => {
+    await gotoAdmin(page, '/admin/attendees?eventId=event-running-qa');
+    await expect(page.getByRole('heading', { name: 'Merchandise claim summary' })).toBeVisible();
+    await expect(page.getByRole('row', { name: /5K Open M 1 0 1/ })).toBeVisible();
+
+    await page.getByLabel('Filter merchandise by distance').fill('5K');
+    await expect(page.getByRole('row', { name: /5K Open M 1 0 1/ })).toBeVisible();
+    const download = page.waitForEvent('download');
+    await page.getByRole('button', { name: 'Export summary' }).click();
+    await expect((await download).suggestedFilename()).toBe(
+      'merchandise-summary-event-running-qa.csv',
+    );
+  });
+
+  test('approved runner distance change requires a reason and requests a new bib', async ({
+    adminPage: page,
+  }) => {
+    await gotoAdmin(page, '/admin/attendees?eventId=event-running-qa');
+    await page.getByRole('button', { name: 'Change distance' }).click();
+    const dialog = page.getByRole('dialog', { name: 'Change race distance' });
+    await dialog.getByLabel('New distance').selectOption('10K');
+    await expect(dialog.getByRole('button', { name: 'Allocate new bib' })).toBeDisabled();
+    await dialog.getByLabel('Audit reason').fill('Approved correction requested by the runner.');
+
+    const requestPromise = page.waitForRequest(
+      (request) =>
+        request.url().includes('/attendees/attendee-running-qa/race-distance') &&
+        request.method() === 'PATCH',
+    );
+    await dialog.getByRole('button', { name: 'Allocate new bib' }).click();
+    expect((await requestPromise).postDataJSON()).toEqual({
+      distance: '10K',
+      reason: 'Approved correction requested by the runner.',
+    });
   });
 });
 
 test.describe('Super Admin portfolio — platform governance', () => {
   test.skip(!HAS_ADMIN_CREDENTIALS, 'Admin test identity is not configured.');
-  test.skip(!IS_ADMIN_MOCKED, 'Mutating governance scenarios require deterministic test-only identities.');
+  test.skip(
+    !IS_ADMIN_MOCKED,
+    'Mutating governance scenarios require deterministic test-only identities.',
+  );
 
-  test('super admin can review users and grant a role to another identity', async ({ adminPage: page }) => {
+  test('super admin can review users and grant a role to another identity', async ({
+    adminPage: page,
+  }) => {
     await gotoAdmin(page, '/admin/users');
     await expect(page.getByRole('heading', { name: 'User Management' })).toBeVisible();
     await expect(page.getByText('customer@example.com')).toBeVisible();
     page.once('dialog', (dialog) => dialog.accept());
-    const requestPromise = page.waitForRequest((request) =>
-      request.url().includes('/admin/users/user-qa/role') && request.method() === 'PATCH',
+    const requestPromise = page.waitForRequest(
+      (request) =>
+        request.url().includes('/admin/users/user-qa/role') && request.method() === 'PATCH',
     );
     await page.getByRole('button', { name: 'Make Admin' }).click();
     expect((await requestPromise).postDataJSON()).toEqual({ isAdmin: true });
     await expect(page.getByText('Admin role granted')).toBeVisible();
   });
 
-  test('super admin can review organizer applications across the platform', async ({ adminPage: page }) => {
+  test('super admin can review organizer applications across the platform', async ({
+    adminPage: page,
+  }) => {
     await gotoAdmin(page, '/admin/organizers');
     await expect(page.getByRole('heading', { name: 'Organizer Applications' })).toBeVisible();
     await expect(page.getByText('QA Events', { exact: true })).toBeVisible();
@@ -478,14 +539,52 @@ test.describe('Super Admin portfolio — platform governance', () => {
     await expect(page.getByRole('button', { name: 'Review' })).toBeVisible();
   });
 
-  test('super admin can update the platform-wide service fee with validation', async ({ adminPage: page }) => {
+  test('super admin can hide an organizer profile only with an audited reason', async ({
+    adminPage: page,
+  }) => {
+    await gotoAdmin(page, '/admin/organizers');
+    await page.getByRole('button', { name: 'Review' }).click();
+    await page.getByRole('button', { name: 'Hide profile' }).click();
+    const dialog = page.getByRole('dialog');
+    await expect(dialog.getByRole('button', { name: 'Hide profile' })).toBeDisabled();
+    await dialog.getByPlaceholder(/governance reason/i).fill('Verified policy violation');
+    const requestPromise = page.waitForRequest(
+      (request) => request.url().includes('/profile-visibility') && request.method() === 'PATCH',
+    );
+    await dialog.getByRole('button', { name: 'Hide profile' }).click();
+    expect((await requestPromise).postDataJSON()).toEqual({
+      visible: false,
+      reason: 'Verified policy violation',
+    });
+  });
+
+  test('super admin executive dashboard renders the v2.1 contract and global date range', async ({
+    adminPage: page,
+  }) => {
+    await gotoAdmin(page, '/admin/executive-analytics');
+    await expect(page.getByRole('heading', { name: 'Executive performance' })).toBeVisible();
+    await expect(page.getByLabel('Financial performance').getByText('Gross sales')).toBeVisible();
+    await expect(page.getByText('contract v2.1')).toBeVisible();
+    await expect(page.locator('input[type="date"]')).toHaveCount(2);
+    await expect(page.getByRole('heading', { name: 'Commercial contribution' })).toBeVisible();
+    await expect(page.getByText('QA Events')).toBeVisible();
+    const downloadPromise = page.waitForEvent('download');
+    await page.getByRole('button', { name: 'Export reconciled CSV' }).click();
+    const download = await downloadPromise;
+    expect(download.suggestedFilename()).toMatch(/^axon-executive-analytics-.*\.csv$/);
+  });
+
+  test('super admin can update the platform-wide service fee with validation', async ({
+    adminPage: page,
+  }) => {
     await gotoAdmin(page, '/admin/settings/platform');
     await expect(page.getByRole('heading', { name: 'Platform Settings' })).toBeVisible();
     const fee = page.locator('input[type="number"]');
     await expect(fee).toHaveValue('50');
     await fee.fill('75');
-    const requestPromise = page.waitForRequest((request) =>
-      request.url().includes('/admin/settings/platform') && request.method() === 'PATCH',
+    const requestPromise = page.waitForRequest(
+      (request) =>
+        request.url().includes('/admin/settings/platform') && request.method() === 'PATCH',
     );
     await page.getByRole('button', { name: 'Save Changes' }).click();
     expect((await requestPromise).postDataJSON()).toEqual({ serviceFee: 75 });

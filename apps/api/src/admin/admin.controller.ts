@@ -25,9 +25,10 @@ import { JwtPayload } from '@axon-tickets/types';
 import { AdminService } from './admin.service';
 import { CreateEventDto, UpdateEventDto } from '../events/dto/event.dto';
 import { CreateTierDto, UpdateTierDto } from '../ticket-tiers/dto/tier.dto';
-import { AddOrganizerMemberDto, CheckinDto, RejectRegistrationDto, BulkApproveDto, BulkRejectDto, RejectOrganizerDto, SetUserRoleDto, UpdatePlatformSettingsDto } from './dto/admin.dto';
+import { AddOrganizerMemberDto, CheckinDto, RejectRegistrationDto, BulkApproveDto, BulkRejectDto, RejectOrganizerDto, SetUserRoleDto, UpdatePlatformSettingsDto, ReassignRaceDistanceDto, SetOrganizerProfileVisibilityDto } from './dto/admin.dto';
 import { RegistrationsService } from '../registrations/registrations.service';
 import { CreateReferralCodeDto, SetReferralCodeStatusDto, UpdateReferralCodeDto } from './dto/referral-code.dto';
+import { ExecutiveAnalyticsService } from './executive-analytics.service';
 
 @ApiTags('admin')
 @Controller('admin')
@@ -37,12 +38,48 @@ export class AdminController {
   constructor(
     private readonly adminService: AdminService,
     private readonly registrationsService: RegistrationsService,
+    private readonly executiveAnalytics: ExecutiveAnalyticsService,
   ) {}
 
   private requirePlatformAdmin(user: JwtPayload) {
     if (!user.isAdmin) {
       throw new ForbiddenException('Platform admin access required');
     }
+  }
+
+  @Get('analytics/executive/definitions')
+  @ApiOperation({ summary: 'Get the versioned executive metric dictionary' })
+  getExecutiveMetricDefinitions(@CurrentUser() user: JwtPayload) {
+    this.requirePlatformAdmin(user);
+    return this.executiveAnalytics.getDefinitions();
+  }
+
+  @Get('analytics/executive')
+  @ApiOperation({ summary: 'Get the Super Admin executive dashboard dataset' })
+  getExecutiveAnalytics(
+    @CurrentUser() user: JwtPayload,
+    @Query('from') from?: string,
+    @Query('to') to?: string,
+    @Query('granularity') granularity?: string,
+  ) {
+    this.requirePlatformAdmin(user);
+    return this.executiveAnalytics.getSnapshot(from, to, granularity);
+  }
+
+  @Get('analytics/executive/export')
+  @ApiOperation({ summary: 'Export the reconciled Super Admin executive dataset' })
+  async exportExecutiveAnalytics(
+    @CurrentUser() user: JwtPayload,
+    @Query('from') from: string | undefined,
+    @Query('to') to: string | undefined,
+    @Query('granularity') granularity: string | undefined,
+    @Res() res: Response,
+  ) {
+    this.requirePlatformAdmin(user);
+    const csv = await this.executiveAnalytics.exportSnapshot(user.sub, from, to, granularity);
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="axon-executive-analytics-${new Date().toISOString().slice(0, 10)}.csv"`);
+    res.send(csv);
   }
 
   // ── Events ───────────────────────────────────────────────────────────────
@@ -284,9 +321,40 @@ export class AdminController {
   @ApiOperation({ summary: 'Get running-event merchandise totals by distance, race division, and size' })
   getMerchandiseSummary(
     @Param('eventId') eventId: string,
+    @Query('distance') distance: string | undefined,
+    @Query('raceDivision') raceDivision: string | undefined,
+    @Query('size') size: string | undefined,
+    @Query('claimStatus') claimStatus: string | undefined,
     @CurrentUser() user: JwtPayload,
   ) {
-    return this.adminService.getMerchandiseSummary(eventId, user);
+    return this.adminService.getMerchandiseSummary(eventId, user, { distance, raceDivision, size, claimStatus });
+  }
+
+  @Get('events/:eventId/merchandise-summary/export')
+  async exportMerchandiseSummary(
+    @Param('eventId') eventId: string,
+    @Query('distance') distance: string | undefined,
+    @Query('raceDivision') raceDivision: string | undefined,
+    @Query('size') size: string | undefined,
+    @Query('claimStatus') claimStatus: string | undefined,
+    @CurrentUser() user: JwtPayload,
+    @Res() res: Response,
+  ) {
+    const csv = await this.adminService.exportMerchandiseSummary(eventId, user, { distance, raceDivision, size, claimStatus });
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', `attachment; filename="merchandise-summary-${eventId}.csv"`);
+    res.send(csv);
+  }
+
+  @Patch('events/:eventId/attendees/:attendeeId/race-distance')
+  @ApiOperation({ summary: 'Reassign a verified runner and allocate a new audited bib' })
+  reassignRaceDistance(
+    @Param('eventId') eventId: string,
+    @Param('attendeeId') attendeeId: string,
+    @Body() dto: ReassignRaceDistanceDto,
+    @CurrentUser() user: JwtPayload,
+  ) {
+    return this.adminService.reassignRaceDistance(eventId, attendeeId, dto.distance, dto.reason, user);
   }
 
   @Post('events/:eventId/attendees/nametags')
@@ -297,7 +365,6 @@ export class AdminController {
     @CurrentUser() user: JwtPayload,
     @Res() res: Response,
   ) {
-    await this.adminService.assertEventAccess(eventId, user);
     if (
       body?.attendeeIds !== undefined &&
       (!Array.isArray(body.attendeeIds) || body.attendeeIds.some((id) => typeof id !== 'string'))
@@ -308,6 +375,7 @@ export class AdminController {
     const pdf = await this.adminService.generateNametagsPdf(
       eventId,
       body?.attendeeIds as string[] | undefined,
+      user,
     );
     const date = new Date().toISOString().slice(0, 10);
 
@@ -680,14 +748,11 @@ export class AdminController {
   @ApiOperation({ summary: 'Super Admin takedown or restore of a public organizer profile' })
   setOrganizerProfileVisibility(
     @Param('id') id: string,
-    @Body() body: { visible?: unknown },
+    @Body() body: SetOrganizerProfileVisibilityDto,
     @CurrentUser() user: JwtPayload,
   ) {
     this.requirePlatformAdmin(user);
-    if (typeof body?.visible !== 'boolean') {
-      throw new BadRequestException('visible must be a boolean');
-    }
-    return this.adminService.setOrganizerProfileVisibility(id, body.visible, user.sub);
+    return this.adminService.setOrganizerProfileVisibility(id, body.visible, body.reason, user.sub);
   }
 
   @Delete('organizers/:id')

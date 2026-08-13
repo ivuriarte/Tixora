@@ -40,6 +40,13 @@ interface NametagRow {
   createdAt: Date;
 }
 
+interface MerchandiseSummaryFilters {
+  distance?: string;
+  raceDivision?: string;
+  size?: string;
+  claimStatus?: string;
+}
+
 function isPrismaErrorCode(error: unknown, code: string): boolean {
   return typeof error === 'object' && error !== null && 'code' in error && error.code === code;
 }
@@ -75,12 +82,27 @@ export class AdminService {
     return this.eventAccess.assertEventAccess(eventId, user);
   }
 
-  async assertEventExportAccess(eventId: string, user: JwtPayload): Promise<void> {
+  async assertEventExportAccess(
+    eventId: string,
+    user: JwtPayload,
+    scope = 'sensitive_event_export',
+  ): Promise<void> {
     const event = await this.prisma.event.findFirst({
       where: user.isAdmin ? { id: eventId } : { id: eventId, createdById: user.sub },
       select: { id: true },
     });
-    if (!event) throw new NotFoundException('Event not found');
+    if (!event) {
+      await this.audit.log({
+        action: 'SENSITIVE_EXPORT_DENIED',
+        entityType: 'Event',
+        entityId: eventId,
+        performedById: user.sub,
+        metadata: { scope, result: 'denied', reason: 'event_not_found_or_not_creator' },
+      });
+      // Keep the response indistinguishable from a missing event so callers
+      // cannot enumerate resources they do not own.
+      throw new NotFoundException('Event not found');
+    }
     // Export remains available after an event ends. The retention job removes or
     // anonymizes each attendee record exactly two years after that record was
     // created, so event age must not be used as a coarse export cutoff.
@@ -1284,14 +1306,27 @@ export class AdminService {
     };
   }
 
-  async getMerchandiseSummary(eventId: string, user: JwtPayload) {
+  private merchandiseWhere(eventId: string, filters: MerchandiseSummaryFilters): Prisma.AttendeeWhereInput {
+    const clean = (value?: string) => value?.trim().slice(0, 80) || undefined;
+    const claimStatus = clean(filters.claimStatus);
+    if (claimStatus && !['claimed', 'unclaimed', 'all'].includes(claimStatus)) {
+      throw new BadRequestException('claimStatus must be claimed, unclaimed, or all');
+    }
+    return {
+      eventId,
+      registration: { status: 'verified' },
+      merchandiseSize: clean(filters.size) ? clean(filters.size) : { not: null },
+      ...(clean(filters.distance) ? { raceDistance: clean(filters.distance) } : {}),
+      ...(clean(filters.raceDivision) ? { raceDivision: clean(filters.raceDivision) } : {}),
+      ...(claimStatus === 'claimed' ? { claimedAt: { not: null } } : {}),
+      ...(claimStatus === 'unclaimed' ? { claimedAt: null } : {}),
+    };
+  }
+
+  async getMerchandiseSummary(eventId: string, user: JwtPayload, filters: MerchandiseSummaryFilters = {}) {
     await this.assertEventAccess(eventId, user);
     const attendees = await this.prisma.attendee.findMany({
-      where: {
-        eventId,
-        registration: { status: 'verified' },
-        merchandiseSize: { not: null },
-      },
+      where: this.merchandiseWhere(eventId, filters),
       select: {
         raceDistance: true,
         raceDivision: true,
@@ -1329,6 +1364,100 @@ export class AdminService {
           `${b.distance}-${b.raceDivision}-${b.size}`,
         ),
       );
+  }
+
+  async exportMerchandiseSummary(eventId: string, user: JwtPayload, filters: MerchandiseSummaryFilters = {}) {
+    await this.assertEventExportAccess(eventId, user);
+    const summary = await this.getMerchandiseSummary(eventId, user, filters);
+    const header = 'Distance,Race Division,Size,Registered,Claimed,Remaining\n';
+    const rows = summary.map((row) => [
+      `"${this.escapeCsvCell(row.distance)}"`,
+      `"${this.escapeCsvCell(row.raceDivision)}"`,
+      `"${this.escapeCsvCell(row.size)}"`,
+      row.registered,
+      row.claimed,
+      row.remaining,
+    ].join(','));
+    await this.audit.log({
+      action: 'MERCHANDISE_SUMMARY_EXPORTED',
+      entityType: 'Event',
+      entityId: eventId,
+      performedById: user.sub,
+      metadata: { scope: 'verified_attendees', filters, result: 'success', rowCount: summary.length },
+    });
+    return header + rows.join('\n');
+  }
+
+  private distanceCode(runningConfig: Prisma.JsonValue, distanceName: string) {
+    if (runningConfig && typeof runningConfig === 'object' && !Array.isArray(runningConfig)) {
+      const distances = (runningConfig as Record<string, unknown>).distances;
+      if (Array.isArray(distances)) {
+        const configured = distances.find((item) =>
+          item && typeof item === 'object' && !Array.isArray(item) &&
+          (item as Record<string, unknown>).name === distanceName,
+        ) as Record<string, unknown> | undefined;
+        if (typeof configured?.code === 'string' && configured.code.trim()) return configured.code.trim();
+      }
+    }
+    return distanceName.replace(/[^A-Za-z0-9]/g, '').toUpperCase().slice(0, 12) || 'RACE';
+  }
+
+  async reassignRaceDistance(
+    eventId: string,
+    attendeeId: string,
+    distance: string,
+    reason: string,
+    user: JwtPayload,
+  ) {
+    await this.assertEventAccess(eventId, user);
+    const cleanDistance = distance.trim();
+    const attendee = await this.prisma.attendee.findFirst({
+      where: { id: attendeeId, eventId, registration: { status: 'verified' } },
+      include: { event: { select: { eventType: true, runningConfig: true } } },
+    });
+    if (!attendee) throw new NotFoundException('Verified attendee not found');
+    if (attendee.event.eventType !== 'running') throw new BadRequestException('Race distance applies only to running events');
+    const config = attendee.event.runningConfig as Record<string, unknown> | null;
+    const validDistances = Array.isArray(config?.distances)
+      ? config.distances.flatMap((item) => item && typeof item === 'object' && !Array.isArray(item)
+        ? [String((item as Record<string, unknown>).name ?? '')] : []).filter(Boolean)
+      : [];
+    if (!validDistances.includes(cleanDistance)) throw new BadRequestException('Destination race distance is not configured for this event');
+    if (attendee.raceDistance === cleanDistance) throw new ConflictException('Attendee is already assigned to this distance');
+
+    let bibNumber = '';
+    let sequence = 0;
+    await this.prisma.$transaction(async (tx) => {
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${eventId}), hashtext(${cleanDistance}))`;
+      const counter = await tx.raceBibCounter.upsert({
+        where: { eventId_distance: { eventId, distance: cleanDistance } },
+        create: { eventId, distance: cleanDistance, nextValue: 2 },
+        update: { nextValue: { increment: 1 } },
+        select: { nextValue: true },
+      });
+      sequence = counter.nextValue - 1;
+      bibNumber = `${this.distanceCode(attendee.event.runningConfig, cleanDistance)}-${String(sequence).padStart(4, '0')}`;
+      await tx.attendee.update({
+        where: { id: attendeeId },
+        data: { raceDistance: cleanDistance, bibNumber, bibSequence: sequence, bibAssignedAt: new Date() },
+      });
+    });
+    await this.audit.log({
+      action: 'BIB_REASSIGNED',
+      entityType: 'Attendee',
+      entityId: attendeeId,
+      registrationId: attendee.registrationId,
+      performedById: user.sub,
+      metadata: {
+        eventId,
+        reason: reason.trim(),
+        previousDistance: attendee.raceDistance,
+        previousBibNumber: attendee.bibNumber,
+        newDistance: cleanDistance,
+        newBibNumber: bibNumber,
+      },
+    });
+    return { id: attendeeId, raceDistance: cleanDistance, bibNumber, bibSequence: sequence };
   }
 
   // ── Analytics ──────────────────────────────────────────────────────────
@@ -1687,8 +1816,8 @@ export class AdminService {
   }
 
   async exportOrders(user: JwtPayload, eventId?: string): Promise<string> {
-    if (eventId) await this.assertEventAccess(eventId, user);
-    const ownershipFilter = !user.isAdmin ? { event: this.eventOwnerWhere(user) } : {};
+    if (eventId) await this.assertEventExportAccess(eventId, user, 'transaction_export');
+    const ownershipFilter = !user.isAdmin ? { event: { createdById: user.sub } } : {};
     const [orders, registrations] = await Promise.all([
       this.prisma.order.findMany({
         where: { ...(eventId ? { eventId } : {}), ...ownershipFilter },
@@ -1779,11 +1908,19 @@ export class AdminService {
       ...registrations.map((r: any, i: number) => ({ createdAt: r.createdAt, row: regRows[i] })),
     ].sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
 
-    return header + merged.map((m) => m.row).join('\n');
+    const csv = header + merged.map((m) => m.row).join('\n');
+    await this.audit.log({
+      action: 'TRANSACTION_EXPORT_COMPLETED',
+      entityType: eventId ? 'Event' : 'Platform',
+      entityId: eventId ?? 'platform',
+      performedById: user.sub,
+      metadata: { scope: eventId ? 'event_transactions' : 'authorized_transactions', eventId: eventId ?? null, result: 'success', rowCount: merged.length },
+    });
+    return csv;
   }
 
   async exportAttendees(eventId: string, user: JwtPayload): Promise<string> {
-    await this.assertEventExportAccess(eventId, user);
+    await this.assertEventExportAccess(eventId, user, 'attendee_masterlist');
     // ── Path A: Registration flow (Attendee records from verified registrations) ──
     const attendees = await this.prisma.attendee.findMany({
       where: { registration: { eventId, status: 'verified' } },
@@ -1877,6 +2014,9 @@ export class AdminService {
       entityId: eventId,
       performedById: user.sub,
       metadata: {
+        scope: 'verified_attendees_and_valid_tickets',
+        filters: {},
+        result: 'success',
         attendeeRows: attendeeRows.length,
         ticketRows: ticketRows.length,
       },
@@ -1884,7 +2024,12 @@ export class AdminService {
     return csv;
   }
 
-  async generateNametagsPdf(eventId: string, attendeeIds?: string[]): Promise<Buffer> {
+  async generateNametagsPdf(
+    eventId: string,
+    attendeeIds: string[] | undefined,
+    user: JwtPayload,
+  ): Promise<Buffer> {
+    await this.assertEventExportAccess(eventId, user, 'attendee_nametags');
     const event = await this.prisma.event.findUnique({
       where: { id: eventId },
       select: { title: true, startsAt: true },
@@ -1978,7 +2123,20 @@ export class AdminService {
       const eventDate = event.startsAt
         ? event.startsAt.toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' })
         : null;
-      return await this.renderNametagsPdf(event.title, eventDate, rows);
+      const pdf = await this.renderNametagsPdf(event.title, eventDate, rows);
+      await this.audit.log({
+        action: 'ATTENDEE_NAMETAGS_EXPORTED',
+        entityType: 'Event',
+        entityId: eventId,
+        performedById: user.sub,
+        metadata: {
+          scope: selectedIds.length > 0 ? 'selected_attendees' : 'all_verified_attendees',
+          filters: { selectedIds: selectedIds.length },
+          result: 'success',
+          rows: rows.length,
+        },
+      });
+      return pdf;
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       const stack = error instanceof Error ? error.stack : undefined;
@@ -2454,7 +2612,7 @@ export class AdminService {
    * Includes every status so admins have a complete backup before event day.
    */
   async exportRegistrations(eventId: string, user: JwtPayload): Promise<string> {
-    await this.assertEventExportAccess(eventId, user);
+    await this.assertEventExportAccess(eventId, user, 'registration_masterlist');
     const registrations = await this.prisma.registration.findMany({
       where: { eventId },
       orderBy: { createdAt: 'asc' },
@@ -2503,7 +2661,7 @@ export class AdminService {
       entityType: 'Event',
       entityId: eventId,
       performedById: user.sub,
-      metadata: { rows: rows.length },
+      metadata: { scope: 'all_registration_statuses', filters: {}, result: 'success', rows: rows.length },
     });
     return csv;
   }
@@ -2625,6 +2783,8 @@ export class AdminService {
         website: o.website,
         city: o.city,
         approvalStatus: o.approvalStatus,
+        isPublic: o.isPublic,
+        hiddenAt: o.hiddenAt?.toISOString() ?? null,
         rejectionReason: o.rejectionReason,
         createdBy: {
           id: o.createdBy.id,
@@ -2680,6 +2840,8 @@ export class AdminService {
       phone: org.phone,
       city: org.city,
       approvalStatus: org.approvalStatus,
+      isPublic: org.isPublic,
+      hiddenAt: org.hiddenAt?.toISOString() ?? null,
       rejectionReason: org.rejectionReason,
       createdBy: {
         id: org.createdBy.id,
@@ -2895,7 +3057,7 @@ export class AdminService {
     return { count };
   }
 
-  async setOrganizerProfileVisibility(id: string, visible: boolean, adminId: string) {
+  async setOrganizerProfileVisibility(id: string, visible: boolean, reason: string, adminId: string) {
     const organization = await this.prisma.organization.findUnique({
       where: { id },
       select: { id: true, name: true, isPublic: true, hiddenAt: true },
@@ -2918,6 +3080,7 @@ export class AdminService {
         name: organization.name,
         previousIsPublic: organization.isPublic,
         previousHiddenAt: organization.hiddenAt?.toISOString() ?? null,
+        reason: reason.trim(),
       },
     });
     return {

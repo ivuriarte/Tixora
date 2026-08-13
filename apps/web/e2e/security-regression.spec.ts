@@ -38,6 +38,8 @@ test.describe('Cybersecurity regression', () => {
       '/api/v1/admin/organizers',
       '/api/v1/admin/settings/platform',
       '/api/v1/admin/analytics/dashboard',
+      '/api/v1/admin/analytics/executive',
+      '/api/v1/admin/analytics/executive/export',
     ];
 
     for (const resource of resources) {
@@ -47,15 +49,20 @@ test.describe('Cybersecurity regression', () => {
   });
 
   test('API validation strips the legacy public attendee-id check-in path', async ({ request }) => {
-    const response = await request.post(`${API_URL}/api/v1/events/non-existent-event/onsite-registration`, {
-      data: { attendeeId: 'attendee-private-id' },
-    });
+    const response = await request.post(
+      `${API_URL}/api/v1/events/non-existent-event/onsite-registration`,
+      {
+        data: { attendeeId: 'attendee-private-id' },
+      },
+    );
     expect([400, 404]).toContain(response.status());
     const text = await response.text();
     expect(text).not.toMatch(/at\s+[A-Za-z0-9_$]+\s+\(|\/Users\/|node_modules/);
   });
 
-  test('unexpected API failures do not disclose stack traces or filesystem paths', async ({ request }) => {
+  test('unexpected API failures do not disclose stack traces or filesystem paths', async ({
+    request,
+  }) => {
     const response = await request.get(`${API_URL}/api/v1/events/does-not-exist-security-check`);
     expect(response.status()).toBe(404);
     const text = await response.text();

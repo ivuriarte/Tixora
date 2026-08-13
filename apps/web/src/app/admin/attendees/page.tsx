@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
-import { Download, Printer } from 'lucide-react';
+import { Download, Printer, RefreshCw } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '@/lib/api';
 import { EmptyState, ScreenSkeleton } from '@/components/ScreenState';
@@ -49,6 +49,11 @@ interface Event {
   slug: string;
 }
 
+interface EventDetail extends Event {
+  eventType: string;
+  runningConfig: { distances?: Array<{ name: string; code: string }> } | null;
+}
+
 interface MerchandiseSummary {
   distance: string;
   raceDivision: string;
@@ -75,6 +80,10 @@ export default function AdminAttendeesPage() {
   const [printing, setPrinting] = useState(false);
   const [selectedAttendeeIds, setSelectedAttendeeIds] = useState<Set<string>>(() => new Set());
   const [claimingId, setClaimingId] = useState<string | null>(null);
+  const [merchandiseFilters, setMerchandiseFilters] = useState({ distance: '', raceDivision: '', size: '', claimStatus: 'all' });
+  const [reassigning, setReassigning] = useState<Attendee | null>(null);
+  const [newDistance, setNewDistance] = useState('');
+  const [reassignReason, setReassignReason] = useState('');
 
   useEffect(() => {
     if (initialEvent && initialEvent !== selectedEventId) {
@@ -104,12 +113,20 @@ export default function AdminAttendeesPage() {
     enabled: !!selectedEventId,
   });
 
+  const { data: eventDetail } = useQuery<EventDetail>({
+    queryKey: ['admin-event-detail-attendees', selectedEventId],
+    queryFn: () => api.get<{ data: EventDetail }>(`/admin/events/${selectedEventId}`).then((response) => response.data.data),
+    enabled: !!selectedEventId,
+  });
+
   const { data: merchandiseSummary, refetch: refetchMerchandise } = useQuery<MerchandiseSummary[]>({
-    queryKey: ['admin-merchandise-summary', selectedEventId],
-    queryFn: () =>
-      api
-        .get<{ data: MerchandiseSummary[] }>(`/admin/events/${selectedEventId}/merchandise-summary`)
-        .then((response) => response.data.data),
+    queryKey: ['admin-merchandise-summary', selectedEventId, merchandiseFilters],
+    queryFn: () => {
+      const params = new URLSearchParams(Object.entries(merchandiseFilters).filter(([, value]) => value && value !== 'all'));
+      return api
+        .get<{ data: MerchandiseSummary[] }>(`/admin/events/${selectedEventId}/merchandise-summary?${params}`)
+        .then((response) => response.data.data);
+    },
     enabled: !!selectedEventId,
   });
 
@@ -210,8 +227,23 @@ export default function AdminAttendeesPage() {
     }
   };
 
+  const handleMerchandiseExport = async () => {
+    const params = new URLSearchParams(Object.entries(merchandiseFilters).filter(([, value]) => value && value !== 'all'));
+    const response = await api.get<Blob>(`/admin/events/${selectedEventId}/merchandise-summary/export?${params}`, { responseType: 'blob' });
+    const url = URL.createObjectURL(response.data); const link = document.createElement('a'); link.href = url; link.download = `merchandise-summary-${selectedEventId}.csv`; link.click(); URL.revokeObjectURL(url);
+  };
+
+  const handleReassign = async () => {
+    if (!reassigning) return;
+    try {
+      await api.patch(`/admin/events/${selectedEventId}/attendees/${reassigning.id}/race-distance`, { distance: newDistance, reason: reassignReason });
+      toast.success('Race distance changed and a new bib was allocated.'); setReassigning(null); setNewDistance(''); setReassignReason(''); await refetch();
+    } catch (error: any) { toast.error(error?.response?.data?.message ?? 'Race distance could not be changed.'); }
+  };
+
   return (
     <main className="max-w-7xl mx-auto px-4 py-10">
+        {reassigning && <div className="fixed inset-0 z-50 flex items-center justify-center p-4"><button aria-label="Close" className="absolute inset-0 bg-black/45" onClick={() => setReassigning(null)} /><section role="dialog" aria-modal="true" aria-labelledby="reassign-title" className="relative w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl"><h2 id="reassign-title" className="text-xl font-black text-[#1a0533]">Change race distance</h2><p className="mt-1 text-sm text-gray-600">{reassigning.userName} · current bib {reassigning.bibNumber ?? 'not assigned'}. The old bib will never be reused.</p><label className="mt-5 block text-sm font-semibold">New distance<select value={newDistance} onChange={(event) => setNewDistance(event.target.value)} className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2"><option value="">Select distance…</option>{eventDetail?.runningConfig?.distances?.filter((item) => item.name !== reassigning.raceDistance).map((item) => <option key={item.code} value={item.name}>{item.name}</option>)}</select></label><label className="mt-4 block text-sm font-semibold">Audit reason<textarea value={reassignReason} onChange={(event) => setReassignReason(event.target.value)} rows={3} className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2" placeholder="Why is this approved attendee changing distance?" /></label><div className="mt-5 flex gap-3"><button disabled={!newDistance || reassignReason.trim().length < 5} onClick={handleReassign} className="flex-1 rounded-lg bg-primary px-4 py-2 text-sm font-bold text-white disabled:opacity-40">Allocate new bib</button><button onClick={() => setReassigning(null)} className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold">Cancel</button></div></section></div>}
         <div className="flex items-center justify-between mb-8">
           <div>
             <h1 className="axon-page-title text-3xl sm:text-4xl">Attendees</h1>
@@ -272,7 +304,7 @@ export default function AdminAttendeesPage() {
 
         {selectedEventId && !isLoading && (
           <>
-            {merchandiseSummary && merchandiseSummary.length > 0 && (
+            {eventDetail?.eventType === 'running' && merchandiseSummary && (
               <section aria-labelledby="merchandise-summary-title" className="mb-6 rounded-2xl border border-violet-200 bg-violet-50/60 p-5">
                 <div className="flex flex-wrap items-end justify-between gap-2">
                   <div>
@@ -280,6 +312,13 @@ export default function AdminAttendeesPage() {
                     <h2 id="merchandise-summary-title" className="mt-1 text-lg font-bold text-[#1a0533]">Merchandise claim summary</h2>
                   </div>
                   <p className="text-xs text-[#6b5b8a]">Grouped by distance, Race Division, and size</p>
+                </div>
+                <div className="mt-4 grid gap-2 sm:grid-cols-5">
+                  <input aria-label="Filter merchandise by distance" placeholder="Distance" value={merchandiseFilters.distance} onChange={(event) => setMerchandiseFilters((current) => ({ ...current, distance: event.target.value }))} className="rounded-lg border border-violet-200 px-3 py-2 text-sm" />
+                  <input aria-label="Filter merchandise by Race Division" placeholder="Race Division" value={merchandiseFilters.raceDivision} onChange={(event) => setMerchandiseFilters((current) => ({ ...current, raceDivision: event.target.value }))} className="rounded-lg border border-violet-200 px-3 py-2 text-sm" />
+                  <input aria-label="Filter merchandise by size" placeholder="Size" value={merchandiseFilters.size} onChange={(event) => setMerchandiseFilters((current) => ({ ...current, size: event.target.value }))} className="rounded-lg border border-violet-200 px-3 py-2 text-sm" />
+                  <select aria-label="Filter merchandise by claim status" value={merchandiseFilters.claimStatus} onChange={(event) => setMerchandiseFilters((current) => ({ ...current, claimStatus: event.target.value }))} className="rounded-lg border border-violet-200 px-3 py-2 text-sm"><option value="all">All claims</option><option value="claimed">Claimed</option><option value="unclaimed">Unclaimed</option></select>
+                  <button type="button" onClick={handleMerchandiseExport} className="inline-flex items-center justify-center gap-2 rounded-lg border border-primary px-3 py-2 text-sm font-bold text-primary"><Download className="h-4 w-4" />Export summary</button>
                 </div>
                 <div className="mt-4 overflow-x-auto rounded-xl border border-violet-100 bg-white">
                   <table className="w-full min-w-[620px] text-sm">
@@ -297,6 +336,13 @@ export default function AdminAttendeesPage() {
                           <td className="px-3 py-2 tabular-nums font-bold text-primary">{row.remaining}</td>
                         </tr>
                       ))}
+                      {merchandiseSummary.length === 0 && (
+                        <tr>
+                          <td colSpan={6} className="px-3 py-8 text-center text-sm text-[#756a92]">
+                            No merchandise records match these filters.
+                          </td>
+                        </tr>
+                      )}
                     </tbody>
                   </table>
                 </div>
@@ -379,7 +425,7 @@ export default function AdminAttendeesPage() {
                       </td>
                       <td className="px-4 py-3 text-xs text-gray-600">
                         {a.raceDistance ? (
-                          <span>{a.raceDistance}<span className="block text-gray-400">{a.raceDivision ?? 'Open'}</span></span>
+                          <span>{a.raceDistance}<span className="block text-gray-400">{a.raceDivision ?? 'Open'}</span>{a.bibNumber && eventDetail?.eventType === 'running' && <button type="button" onClick={() => { setReassigning(a); setNewDistance(''); setReassignReason(''); }} className="mt-1 inline-flex items-center gap-1 text-[10px] font-bold text-primary hover:underline"><RefreshCw className="h-3 w-3" />Change distance</button>}</span>
                         ) : '—'}
                       </td>
                       <td className="px-4 py-3 font-mono text-xs font-bold text-[#1a0533]">{a.bibNumber ?? '—'}</td>

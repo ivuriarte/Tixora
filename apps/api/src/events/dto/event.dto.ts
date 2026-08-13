@@ -30,7 +30,10 @@ import { ApiProperty } from '@nestjs/swagger';
 // to `[]` (data loss).
 
 export class AgendaItemDto {
-  @ApiProperty({ required: false, description: 'Stable agenda item id used for sub-event registration selections' })
+  @ApiProperty({
+    required: false,
+    description: 'Stable agenda item id used for sub-event registration selections',
+  })
   @IsOptional()
   @IsString()
   @MaxLength(100)
@@ -53,7 +56,11 @@ export class AgendaItemDto {
   @MaxLength(1000)
   description?: string;
 
-  @ApiProperty({ required: false, default: false, description: 'When true, attendees can choose this agenda item during registration.' })
+  @ApiProperty({
+    required: false,
+    default: false,
+    description: 'When true, attendees can choose this agenda item during registration.',
+  })
   @IsOptional()
   @IsBoolean()
   isSubEvent?: boolean;
@@ -366,13 +373,21 @@ export class CreateEventDto {
   @Type(() => CustomSectionDto)
   customSections?: CustomSectionDto[];
 
-  @ApiProperty({ required: false, default: 50, description: 'Flat platform fee per registration transaction in PHP' })
+  @ApiProperty({
+    required: false,
+    default: 50,
+    description: 'Flat platform fee per registration transaction in PHP',
+  })
   @IsOptional()
   @IsNumber()
   @Min(0)
   platformFee?: number;
 
-  @ApiProperty({ required: false, default: false, description: 'Marks the event as free and suppresses platform fees at registration.' })
+  @ApiProperty({
+    required: false,
+    default: false,
+    description: 'Marks the event as free and suppresses platform fees at registration.',
+  })
   @IsOptional()
   @IsBoolean()
   isFree?: boolean;
@@ -409,7 +424,11 @@ export class CreateEventDto {
   @IsBoolean()
   allowManualPayment?: boolean;
 
-  @ApiProperty({ required: false, default: false, description: 'Allow public QR-initiated on-site registration and daily attendance check-in.' })
+  @ApiProperty({
+    required: false,
+    default: false,
+    description: 'Allow public QR-initiated on-site registration and daily attendance check-in.',
+  })
   @IsOptional()
   @IsBoolean()
   onsiteRegistrationEnabled?: boolean;
@@ -446,13 +465,21 @@ export class CreateEventDto {
   paymentMethods?: PaymentMethodItemDto[];
 
   // ── Featured hero fields ────────────────────────────────────────────────
-  @ApiProperty({ required: false, example: 'FULL-DAY LEADERSHIP CONFERENCE', description: 'Badge text shown above the event title in the homepage hero' })
+  @ApiProperty({
+    required: false,
+    example: 'FULL-DAY LEADERSHIP CONFERENCE',
+    description: 'Badge text shown above the event title in the homepage hero',
+  })
   @IsOptional()
   @IsString()
   @MaxLength(100)
   tagline?: string;
 
-  @ApiProperty({ required: false, default: false, description: 'Pin this event as a featured hero on the homepage' })
+  @ApiProperty({
+    required: false,
+    default: false,
+    description: 'Pin this event as a featured hero on the homepage',
+  })
   @IsOptional()
   @IsBoolean()
   isFeatured?: boolean;
@@ -464,7 +491,10 @@ export class CreateEventDto {
   @Max(99)
   featuredOrder?: number;
 
-  @ApiProperty({ required: false, description: 'ISO date after which the event is automatically removed from the featured hero' })
+  @ApiProperty({
+    required: false,
+    description: 'ISO date after which the event is automatically removed from the featured hero',
+  })
   @IsOptional()
   @IsDateString()
   featuredUntil?: string;

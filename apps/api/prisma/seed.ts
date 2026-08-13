@@ -48,12 +48,11 @@ async function main() {
   if (!adminEmail) {
     throw new Error(
       'SEED_ADMIN_EMAIL is required. Add it to your .env file.\n' +
-      'Example: SEED_ADMIN_EMAIL=ivvuriarte@gmail.com',
+        'Example: SEED_ADMIN_EMAIL=ivvuriarte@gmail.com',
     );
   }
 
-  const adminPassword =
-    process.env.SEED_ADMIN_PASSWORD ?? crypto.randomBytes(12).toString('hex');
+  const adminPassword = process.env.SEED_ADMIN_PASSWORD ?? crypto.randomBytes(12).toString('hex');
   const showGeneratedPassword = !process.env.SEED_ADMIN_PASSWORD;
 
   process.stdout.write('\n🌱 Seeding database...\n\n');
@@ -77,7 +76,7 @@ async function main() {
 
   const platformOrg = await prisma.organization.upsert({
     where: { id: deterministicId('org-platform') },
-    update: {},
+    update: { isTest: true },
     create: {
       id: deterministicId('org-platform'),
       name: 'Axon Tickets Platform',
@@ -89,6 +88,7 @@ async function main() {
       idNumber: 'PLATFORM-UAT',
       organizationType: 'company',
       approvalStatus: 'approved',
+      isTest: true,
       approvedById: admin.id,
       approvedAt: new Date(),
       createdById: admin.id,
@@ -123,7 +123,7 @@ async function main() {
 
   const user1 = await prisma.user.upsert({
     where: { email: 'testuser1@axon.uat' },
-    update: {},
+    update: { isTest: true },
     create: {
       id: deterministicId('user1'),
       email: 'testuser1@axon.uat',
@@ -132,6 +132,7 @@ async function main() {
       phone: '+639111111111',
       passwordHash: testHash,
       isVerified: true,
+      isTest: true,
       company: 'Santos Corp',
       jobTitle: 'Manager',
       city: 'Manila',
@@ -140,7 +141,7 @@ async function main() {
 
   const user2 = await prisma.user.upsert({
     where: { email: 'testuser2@axon.uat' },
-    update: {},
+    update: { isTest: true },
     create: {
       id: deterministicId('user2'),
       email: 'testuser2@axon.uat',
@@ -149,6 +150,7 @@ async function main() {
       phone: '+639222222222',
       passwordHash: testHash,
       isVerified: true,
+      isTest: true,
       company: 'Reyes Inc',
       jobTitle: 'Director',
       city: 'Cebu',
@@ -162,7 +164,7 @@ async function main() {
   // ── Event 1: Leadership Conference ──────────────────────────────────────
   const conf = await prisma.event.upsert({
     where: { slug: 'uat-leadership-conference-2026' },
-    update: { organizationId: platformOrg.id },
+    update: { organizationId: platformOrg.id, isTest: true },
     create: {
       id: deterministicId('event-conf'),
       slug: 'uat-leadership-conference-2026',
@@ -179,6 +181,7 @@ async function main() {
       speakerName: 'Dr. Test Speaker',
       tagline: 'FULL-DAY LEADERSHIP CONFERENCE',
       isFeatured: false,
+      isTest: true,
       platformFee: 50,
       allowManualPayment: true,
       gcashNumber: '09171234567',
@@ -241,7 +244,7 @@ async function main() {
   // ── Event 2: Fun Run ─────────────────────────────────────────────────────
   const funrun = await prisma.event.upsert({
     where: { slug: 'uat-fun-run-2026' },
-    update: { organizationId: platformOrg.id },
+    update: { organizationId: platformOrg.id, isTest: true },
     create: {
       id: deterministicId('event-funrun'),
       slug: 'uat-fun-run-2026',
@@ -255,6 +258,7 @@ async function main() {
       status: 'on_sale',
       maxCapacity: 500,
       maxPerUser: 3,
+      isTest: true,
       platformFee: 30,
       allowManualPayment: true,
       gcashNumber: '09181234567',
@@ -517,7 +521,9 @@ async function main() {
 
   process.stdout.write(`\n✅ Registrations seeded:\n`);
   process.stdout.write(`   UAT-REG-001  pending_payment   (conf, VIP, 1 attendee)\n`);
-  process.stdout.write(`   UAT-REG-002  proof_submitted   (conf, GA, 2 attendees, proof pending)\n`);
+  process.stdout.write(
+    `   UAT-REG-002  proof_submitted   (conf, GA, 2 attendees, proof pending)\n`,
+  );
   process.stdout.write(`   UAT-REG-003  verified          (conf, GA, QR ready, not checked in)\n`);
   process.stdout.write(`   UAT-REG-004  verified+checked  (fun run, 5K, already checked in)\n`);
   process.stdout.write(`   UAT-REG-005  rejected          (fun run, 10K, proof rejected)\n`);

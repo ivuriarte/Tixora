@@ -303,32 +303,14 @@ export class RegistrationsService {
             ...(attendees.length > 0 && {
               attendees: {
                 create: attendees.map((a, i) => ({
-                firstName: a.firstName,
-                lastName: a.lastName,
-                email: a.email,
-                phone: a.phone,
-                company: a.company,
-                jobTitle: a.jobTitle,
-                birthday: a.birthday ? new Date(`${a.birthday}T00:00:00.000Z`) : null,
-                gender: a.gender || null,
-                raceDistance: a.raceDistance?.trim() || null,
-                raceDivision: a.raceDivision?.trim() || null,
-                genderIdentity: a.genderIdentity?.trim() || null,
-                emergencyContactName: a.emergencyContactName?.trim() || null,
-                emergencyContactPhone: a.emergencyContactPhone?.trim() || null,
-                emergencyContactRelationship: a.emergencyContactRelationship?.trim() || null,
-                merchandiseSize: a.merchandiseSize?.trim() || null,
-                claimMethod: a.claimMethod ?? null,
-                deliveryAddress: a.deliveryAddress
-                  ? (a.deliveryAddress as unknown as Prisma.InputJsonValue)
-                  : Prisma.JsonNull,
-                city: a.city?.trim() || null,
-                subEventId: primarySubEvent?.id ?? null,
-                subEventTitle: this.summarizeSubEvents(selectedSubEvents),
-                subEventTime: selectedSubEvents.length === 1 ? primarySubEvent?.time ?? null : null,
-                selectedSubEvents: selectedSubEvents.length > 0 ? (selectedSubEvents as unknown as Prisma.InputJsonValue) : Prisma.JsonNull,
-                isLead: i === 0,
-                event: { connect: { id: dto.eventId } },
+                  ...this.toAttendeeData(a, i, event),
+                  subEventId: primarySubEvent?.id ?? null,
+                  subEventTitle: this.summarizeSubEvents(selectedSubEvents),
+                  subEventTime: selectedSubEvents.length === 1 ? primarySubEvent?.time ?? null : null,
+                  selectedSubEvents: selectedSubEvents.length > 0
+                    ? (selectedSubEvents as unknown as Prisma.InputJsonValue)
+                    : Prisma.JsonNull,
+                  event: { connect: { id: dto.eventId } },
                 })),
               },
             }),
@@ -651,7 +633,7 @@ export class RegistrationsService {
         where: { id },
         include: {
           attendees: { orderBy: { isLead: 'desc' } },
-          event: { select: { id: true, title: true, slug: true, eventType: true, runningConfig: true } },
+          event: { select: { id: true, title: true, slug: true, eventType: true, runningConfig: true, startsAt: true } },
         },
       }),
       this.prisma.user.findUnique({ where: { id: userId } }),
@@ -707,7 +689,7 @@ export class RegistrationsService {
       }
       await tx.attendee.createMany({
         data: dto.attendees.map((attendee, index) => ({
-          ...this.toAttendeeData(attendee, index),
+          ...this.toAttendeeData(attendee, index, registration.event),
           registrationId: id,
           eventId: registration.eventId,
         })),
@@ -870,7 +852,12 @@ export class RegistrationsService {
     return leftBuffer.length === rightBuffer.length && timingSafeEqual(leftBuffer, rightBuffer);
   }
 
-  private toAttendeeData(attendee: AttendeeDto, index: number) {
+  private toAttendeeData(
+    attendee: AttendeeDto,
+    index: number,
+    event?: { eventType: string; runningConfig: Prisma.JsonValue; startsAt: Date },
+  ) {
+    const ageGroup = event ? this.runningAgeGroupSnapshot(event, attendee) : null;
     return {
       firstName: attendee.firstName.trim(),
       lastName: attendee.lastName.trim(),
@@ -879,6 +866,8 @@ export class RegistrationsService {
       company: attendee.company?.trim() || null,
       jobTitle: attendee.jobTitle?.trim() || null,
       birthday: attendee.birthday ? new Date(`${attendee.birthday}T00:00:00.000Z`) : null,
+      ageAtEvent: ageGroup?.age ?? null,
+      ageGroupName: ageGroup?.name ?? null,
       gender: attendee.gender || null,
       city: attendee.city?.trim() || null,
       raceDistance: attendee.raceDistance?.trim() || null,
@@ -981,7 +970,7 @@ export class RegistrationsService {
   }
 
   private validateRunningAttendees(
-    event: { eventType: string; runningConfig: Prisma.JsonValue },
+    event: { eventType: string; runningConfig: Prisma.JsonValue; startsAt: Date },
     attendees: CreateRegistrationDto['attendees'],
   ) {
     if (event.eventType !== 'running' || !attendees?.length) return;
@@ -1016,6 +1005,10 @@ export class RegistrationsService {
 
     attendees.forEach((attendee, index) => {
       const label = `Attendee ${index + 1}`;
+      if (!attendee.birthday) {
+        throw new BadRequestException(`${label} requires a birthday for event-day age classification.`);
+      }
+      this.runningAgeGroupSnapshot(event, attendee, label);
       if (!attendee.raceDistance || !distances.includes(attendee.raceDistance)) {
         throw new BadRequestException(`${label} must select a configured race distance.`);
       }
@@ -1038,6 +1031,54 @@ export class RegistrationsService {
         throw new BadRequestException(`${label} requires a delivery address.`);
       }
     });
+  }
+
+  private runningAgeGroupSnapshot(
+    event: { eventType: string; runningConfig: Prisma.JsonValue; startsAt: Date },
+    attendee: Pick<AttendeeDto, 'birthday'>,
+    label = 'Attendee',
+  ) {
+    if (event.eventType !== 'running' || !attendee.birthday) return null;
+    const birthdayMatch = /^(\d{4})-(\d{2})-(\d{2})$/.exec(attendee.birthday);
+    const birthday = new Date(`${attendee.birthday}T00:00:00.000Z`);
+    if (!birthdayMatch || !Number.isFinite(birthday.getTime())) {
+      throw new BadRequestException(`${label} must provide a valid birthday.`);
+    }
+    const eventParts = new Intl.DateTimeFormat('en-US', {
+      timeZone: 'Asia/Manila',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).formatToParts(event.startsAt);
+    const eventYear = Number(eventParts.find((part) => part.type === 'year')?.value);
+    const eventMonth = Number(eventParts.find((part) => part.type === 'month')?.value);
+    const eventDay = Number(eventParts.find((part) => part.type === 'day')?.value);
+    const birthdayYear = Number(birthdayMatch[1]);
+    const birthdayMonth = Number(birthdayMatch[2]);
+    const birthdayDay = Number(birthdayMatch[3]);
+    let age = eventYear - birthdayYear;
+    const birthdayHasNotOccurred =
+      eventMonth < birthdayMonth ||
+      (eventMonth === birthdayMonth && eventDay < birthdayDay);
+    if (birthdayHasNotOccurred) age -= 1;
+
+    const config = event.runningConfig as Record<string, unknown> | null;
+    const groups = Array.isArray(config?.ageGroups)
+      ? config.ageGroups.filter(
+          (item): item is { name: string; minAge: number; maxAge: number } =>
+            Boolean(item) && typeof item === 'object' && !Array.isArray(item) &&
+            typeof (item as Record<string, unknown>).name === 'string' &&
+            typeof (item as Record<string, unknown>).minAge === 'number' &&
+            typeof (item as Record<string, unknown>).maxAge === 'number',
+        )
+      : [];
+    const group = groups.find((item) => age >= item.minAge && age <= item.maxAge);
+    if (!group) {
+      throw new BadRequestException(
+        `${label}'s age on the event date (${age}) is not covered by a configured age group.`,
+      );
+    }
+    return { age, name: group.name };
   }
 
   private distanceCode(runningConfig: Prisma.JsonValue, distanceName: string) {
@@ -1254,7 +1295,7 @@ export class RegistrationsService {
       where: { id, userId },
       include: {
         attendees: { orderBy: { isLead: 'desc' } },
-        event: { select: { id: true, title: true, slug: true, eventType: true, runningConfig: true } },
+        event: { select: { id: true, title: true, slug: true, eventType: true, runningConfig: true, startsAt: true } },
       },
     });
     if (!reg) throw new NotFoundException('Registration not found');
@@ -1290,7 +1331,7 @@ export class RegistrationsService {
         if (reg.attendees.length === 0) {
           await tx.attendee.createMany({
             data: dto.attendees.map((attendee, index) => ({
-              ...this.toAttendeeData(attendee, index),
+              ...this.toAttendeeData(attendee, index, reg.event),
               registrationId: reg.id,
               eventId: reg.event.id,
             })),
@@ -1300,7 +1341,7 @@ export class RegistrationsService {
             reg.attendees.map((attendee, index) =>
               tx.attendee.update({
                 where: { id: attendee.id },
-                data: this.toAttendeeData(dto.attendees[index], index),
+                data: this.toAttendeeData(dto.attendees[index], index, reg.event),
               }),
             ),
           );

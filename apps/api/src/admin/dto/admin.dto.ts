@@ -90,3 +90,27 @@ export class UpdatePlatformSettingsDto {
   @Max(9999)
   serviceFee: number;
 }
+
+export class ReassignRaceDistanceDto {
+  @ApiProperty({ description: 'Configured destination race distance' })
+  @IsString()
+  @MinLength(1)
+  @MaxLength(80)
+  distance: string;
+
+  @ApiProperty({ description: 'Required audit reason (5-500 chars)' })
+  @IsString()
+  @MinLength(5)
+  @MaxLength(500)
+  reason: string;
+}
+
+export class SetOrganizerProfileVisibilityDto {
+  @IsBoolean()
+  visible: boolean;
+
+  @IsString()
+  @MinLength(5)
+  @MaxLength(500)
+  reason: string;
+}
