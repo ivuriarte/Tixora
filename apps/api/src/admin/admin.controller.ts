@@ -765,6 +765,18 @@ export class AdminController {
     return this.adminService.deleteOrganizer(id, user.sub);
   }
 
+  // ── Icebreaker (Wheel / Raffle) ──────────────────────────────────────────
+
+  @Get('events/:eventId/wheel-participants')
+  @ApiOperation({ summary: 'Get checked-in attendees for the icebreaker wheel/raffle' })
+  async getWheelParticipants(
+    @Param('eventId') eventId: string,
+    @CurrentUser() user: JwtPayload,
+  ) {
+    await this.adminService.assertEventAccess(eventId, user);
+    return this.adminService.getWheelParticipants(eventId);
+  }
+
   // ── Platform settings ────────────────────────────────────────────────────
 
   @Get('settings/platform')
