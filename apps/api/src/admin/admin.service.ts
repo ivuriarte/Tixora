@@ -3046,6 +3046,80 @@ export class AdminService {
     return { deleted: true };
   }
 
+  // ── Icebreaker (Wheel / Raffle) ───────────────────────────────────────────
+
+  /**
+   * Returns checked-in attendees for the icebreaker wheel/raffle.
+   *
+   * Two check-in paths exist in the platform:
+   *   1. Registration flow → Attendee records with AttendeeAttendance rows
+   *   2. Orders flow → Ticket records with checkedInAt set
+   *
+   * This method unions both, deduplicates by name, and caps at 500.
+   * Only firstName + lastName are returned — no email, phone, or demographics.
+   */
+  async getWheelParticipants(eventId: string) {
+    const MAX_PARTICIPANTS = 500;
+
+    // Path A: Registration-based attendees who have been checked in
+    const attendeeRecords = await this.prisma.attendee.findMany({
+      where: {
+        eventId,
+        attendanceRecords: { some: {} },
+        registration: { status: 'verified' },
+      },
+      select: {
+        id: true,
+        firstName: true,
+        lastName: true,
+      },
+      take: MAX_PARTICIPANTS,
+    });
+
+    // Path B: Order-based tickets that have been checked in
+    const ticketRecords = await this.prisma.ticket.findMany({
+      where: {
+        eventId,
+        checkedInAt: { not: null },
+        status: 'used',
+      },
+      select: {
+        id: true,
+        user: {
+          select: {
+            firstName: true,
+            lastName: true,
+          },
+        },
+      },
+      take: MAX_PARTICIPANTS,
+    });
+
+    // Build unified list — attendee path first, then ticket path
+    const seen = new Set<string>();
+    const participants: Array<{ id: string; name: string }> = [];
+
+    for (const a of attendeeRecords) {
+      const name = this.compactName(a.firstName, a.lastName);
+      if (!name || seen.has(name)) continue;
+      seen.add(name);
+      participants.push({ id: a.id, name });
+    }
+
+    for (const t of ticketRecords) {
+      const name = this.compactName(t.user.firstName, t.user.lastName);
+      if (!name || seen.has(name)) continue;
+      seen.add(name);
+      participants.push({ id: t.id, name });
+    }
+
+    return {
+      eventId,
+      total: participants.length,
+      participants: participants.slice(0, MAX_PARTICIPANTS),
+    };
+  }
+
   // ── Platform settings ─────────────────────────────────────────────────────
 
   async getPlatformSettings() {
