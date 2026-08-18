@@ -5,6 +5,7 @@ import {
   MaxLength,
   IsIn,
   Matches,
+  IsEmail,
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
@@ -143,4 +144,22 @@ export class UpdateOrganizationDto {
   @IsString()
   @MaxLength(200)
   facebookUrl?: string | null;
+}
+
+export class AddOrganizationMemberDto {
+  @ApiProperty({ example: 'teammate@example.com' })
+  @IsEmail()
+  @MaxLength(254)
+  email: string;
+
+  @ApiPropertyOptional({ enum: ['admin', 'member'], default: 'member' })
+  @IsOptional()
+  @IsIn(['admin', 'member'])
+  role?: 'admin' | 'member';
+}
+
+export class UpdateOrganizationMemberDto {
+  @ApiProperty({ enum: ['admin', 'member'] })
+  @IsIn(['admin', 'member'])
+  role: 'admin' | 'member';
 }

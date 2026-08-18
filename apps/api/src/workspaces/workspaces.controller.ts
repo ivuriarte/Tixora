@@ -26,6 +26,8 @@ import {
   ApplyTemplateDto,
   CreateMilestoneDto,
   UpdateMilestoneDto,
+  CreateWorkspaceCategoryDto,
+  UpdateWorkspaceCategoryDto,
 } from './dto/workspace.dto';
 
 @ApiTags('workspaces')
@@ -137,6 +139,41 @@ export class WorkspacesController {
   }
 
   // ── Checklist items ──────────────────────────────────────────────────────
+
+  @Post('categories')
+  @ApiOperation({ summary: 'Create a checklist category' })
+  async createCategory(
+    @Param('eventId') eventId: string,
+    @Body() dto: CreateWorkspaceCategoryDto,
+    @CurrentUser() user: JwtPayload,
+  ) {
+    await this.eventAccess.assertEventAccess(eventId, user);
+    return this.workspacesService.createWorkspaceCategory(eventId, dto.name, user.sub);
+  }
+
+  @Patch('categories/:categoryId')
+  @ApiOperation({ summary: 'Rename a checklist category and its legacy item labels' })
+  async updateCategory(
+    @Param('eventId') eventId: string,
+    @Param('categoryId') categoryId: string,
+    @Body() dto: UpdateWorkspaceCategoryDto,
+    @CurrentUser() user: JwtPayload,
+  ) {
+    await this.eventAccess.assertEventAccess(eventId, user);
+    return this.workspacesService.updateWorkspaceCategory(eventId, categoryId, dto.name, user.sub);
+  }
+
+  @Delete('categories/:categoryId')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Delete a checklist category and the tasks it contains' })
+  async deleteCategory(
+    @Param('eventId') eventId: string,
+    @Param('categoryId') categoryId: string,
+    @CurrentUser() user: JwtPayload,
+  ) {
+    await this.eventAccess.assertEventAccess(eventId, user);
+    return this.workspacesService.deleteWorkspaceCategory(eventId, categoryId, user.sub);
+  }
 
   @Get('items')
   @ApiOperation({ summary: 'Get all checklist items grouped by category' })

@@ -103,85 +103,88 @@ model User {
   createdAt    DateTime  @default(now()) @map("created_at")
   updatedAt    DateTime  @updatedAt @map("updated_at")
 
-  reservations          Reservation[]
-  orders                Order[]
-  tickets               Ticket[]
-  otpCodes              OtpCode[]
-  fraudFlags            FraudFlag[]
-  events                Event[]                   @relation("CreatedBy")
-  checkIns              Ticket[]                  @relation("CheckedInBy")
-  attendanceCheckIns    AttendeeAttendance[]      @relation("AttendanceCheckedInBy")
-  confirmedOrders       Order[]                   @relation("ConfirmedByAdmin")
-  registrations         Registration[]
-  verifiedRegistrations Registration[]            @relation("VerifiedBy")
-  reviewedProofs        PaymentProof[]            @relation("ReviewedBy")
-  auditLogs             AuditLog[]                @relation("AuditPerformedBy")
-  funnelEvents          RegistrationFunnelEvent[]
-  organizationsCreated  Organization[]            @relation("OrgCreatedBy")
-  organizationsApproved Organization[]            @relation("OrgApprovedBy")
-  organizationMembers   OrganizationMember[]
-  workspaceMembers      WorkspaceMember[]
-  workspacesClosed      EventWorkspace[]          @relation("WorkspaceClosedBy")
+  reservations                Reservation[]
+  orders                      Order[]
+  tickets                     Ticket[]
+  otpCodes                    OtpCode[]
+  fraudFlags                  FraudFlag[]
+  events                      Event[]                     @relation("CreatedBy")
+  checkIns                    Ticket[]                    @relation("CheckedInBy")
+  attendanceCheckIns          AttendeeAttendance[]        @relation("AttendanceCheckedInBy")
+  confirmedOrders             Order[]                     @relation("ConfirmedByAdmin")
+  registrations               Registration[]
+  verifiedRegistrations       Registration[]              @relation("VerifiedBy")
+  reviewedProofs              PaymentProof[]              @relation("ReviewedBy")
+  auditLogs                   AuditLog[]                  @relation("AuditPerformedBy")
+  funnelEvents                RegistrationFunnelEvent[]
+  organizationsCreated        Organization[]              @relation("OrgCreatedBy")
+  organizationsApproved       Organization[]              @relation("OrgApprovedBy")
+  organizationMembers         OrganizationMember[]
+  workspaceMembers            WorkspaceMember[]
+  workspacesClosed            EventWorkspace[]            @relation("WorkspaceClosedBy")
+  workspaceItemsResponsible   WorkspaceItem[]             @relation("WorkspaceItemResponsible")
+  workspaceItemsAccountable   WorkspaceItem[]             @relation("WorkspaceItemAccountable")
+  workspaceReminderDeliveries WorkspaceReminderDelivery[]
 
   @@map("users")
 }
 
 model Event {
-  id                 String      @id @default(uuid())
-  slug               String      @unique
-  title              String
-  description        String?
-  venue              String
-  address            String?     @map("address")
-  landmark           String?     @map("landmark")
-  city               String      @default("Manila")
-  latitude           Decimal?    @db.Decimal(10, 7)
-  longitude          Decimal?    @db.Decimal(10, 7)
-  startsAt           DateTime    @map("starts_at")
-  endsAt             DateTime?   @map("ends_at")
-  imageUrl           String?     @map("image_url")
-  status             EventStatus @default(draft)
-  maxCapacity        Int?        @map("max_capacity")
-  maxPerUser         Int         @default(4) @map("max_per_user")
+  id                        String      @id @default(uuid())
+  slug                      String      @unique
+  title                     String
+  description               String?
+  venue                     String
+  address                   String?     @map("address")
+  landmark                  String?     @map("landmark")
+  city                      String      @default("Manila")
+  latitude                  Decimal?    @db.Decimal(10, 7)
+  longitude                 Decimal?    @db.Decimal(10, 7)
+  startsAt                  DateTime    @map("starts_at")
+  endsAt                    DateTime?   @map("ends_at")
+  imageUrl                  String?     @map("image_url")
+  status                    EventStatus @default(draft)
+  maxCapacity               Int?        @map("max_capacity")
+  maxPerUser                Int         @default(4) @map("max_per_user")
   // Conference-specific fields (added for Francis Kong MVP)
-  speakerName        String?     @map("speaker_name")
-  agenda             Json? // Array of { time: string, title: string, description?: string }
-  sponsors           Json? // Array of { name: string, logoUrl?: string, tier?: string }
-  faqs               Json? // Array of { question: string, answer: string }
-  customSections     Json?       @map("custom_sections") // Array of configurable event detail blocks
+  speakerName               String?     @map("speaker_name")
+  agenda                    Json? // Array of { time: string, title: string, description?: string }
+  sponsors                  Json? // Array of { name: string, logoUrl?: string, tier?: string }
+  faqs                      Json? // Array of { question: string, answer: string }
+  customSections            Json?       @map("custom_sections") // Array of configurable event detail blocks
   // Featured hero fields
-  tagline            String?     @map("tagline") // Badge text e.g. "FULL-DAY LEADERSHIP CONFERENCE"
-  featuredImageUrl   String?     @map("featured_image_url") // Dedicated 3:2 homepage hero artwork
-  isFeatured         Boolean     @default(false) @map("is_featured")
-  featuredOrder      Int?        @map("featured_order") // 1 = first slot; null = not featured
-  featuredUntil      DateTime?   @map("featured_until") // auto-expiry; null = no expiry
-  isFree             Boolean     @default(false) @map("is_free")
-  platformFee        Decimal     @default(50) @map("platform_fee") @db.Decimal(10, 2)
+  tagline                   String?     @map("tagline") // Badge text e.g. "FULL-DAY LEADERSHIP CONFERENCE"
+  featuredImageUrl          String?     @map("featured_image_url") // Dedicated 3:2 homepage hero artwork
+  isFeatured                Boolean     @default(false) @map("is_featured")
+  featuredOrder             Int?        @map("featured_order") // 1 = first slot; null = not featured
+  featuredUntil             DateTime?   @map("featured_until") // auto-expiry; null = no expiry
+  isFree                    Boolean     @default(false) @map("is_free")
+  platformFee               Decimal     @default(50) @map("platform_fee") @db.Decimal(10, 2)
   // Payment configuration
-  paymentMethods     Json?       @map("payment_methods") // Array of PaymentMethod objects
-  allowManualPayment Boolean     @default(true) @map("allow_manual_payment")
-  onsiteRegistrationEnabled Boolean @default(false) @map("onsite_registration_enabled")
-  bankName           String?     @map("bank_name")
-  bankAccountNumber  String?     @map("bank_account_number")
-  bankAccountName    String?     @map("bank_account_name")
-  gcashNumber        String?     @map("gcash_number")
-  createdById        String      @map("created_by_id")
-  organizationId     String?     @map("organization_id")
-  createdAt          DateTime    @default(now()) @map("created_at")
-  updatedAt          DateTime    @updatedAt @map("updated_at")
+  paymentMethods            Json?       @map("payment_methods") // Array of PaymentMethod objects
+  allowManualPayment        Boolean     @default(true) @map("allow_manual_payment")
+  onsiteRegistrationEnabled Boolean     @default(false) @map("onsite_registration_enabled")
+  bankName                  String?     @map("bank_name")
+  bankAccountNumber         String?     @map("bank_account_number")
+  bankAccountName           String?     @map("bank_account_name")
+  gcashNumber               String?     @map("gcash_number")
+  createdById               String      @map("created_by_id")
+  organizationId            String?     @map("organization_id")
+  createdAt                 DateTime    @default(now()) @map("created_at")
+  updatedAt                 DateTime    @updatedAt @map("updated_at")
 
-  createdBy     User                      @relation("CreatedBy", fields: [createdById], references: [id])
-  organization  Organization?             @relation(fields: [organizationId], references: [id], onDelete: SetNull)
-  tiers         TicketTier[]
-  reservations  Reservation[]
-  orders        Order[]
-  tickets       Ticket[]
-  registrations Registration[]
+  createdBy         User                      @relation("CreatedBy", fields: [createdById], references: [id])
+  organization      Organization?             @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+  tiers             TicketTier[]
+  reservations      Reservation[]
+  orders            Order[]
+  tickets           Ticket[]
+  registrations     Registration[]
   attendanceRecords AttendeeAttendance[]
-  eventViews    EventView[]
-  funnelEvents  RegistrationFunnelEvent[]
-  workspace     EventWorkspace?
-  referralCodes ReferralCode[]
+  eventViews        EventView[]
+  funnelEvents      RegistrationFunnelEvent[]
+  workspace         EventWorkspace?
+  referralCodes     ReferralCode[]
 
   @@index([status, startsAt])
   @@index([slug])
@@ -206,7 +209,7 @@ model TicketTier {
   createdAt     DateTime  @default(now()) @map("created_at")
   updatedAt     DateTime  @updatedAt @map("updated_at")
 
-  event         Event          @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  event         Event                 @relation(fields: [eventId], references: [id], onDelete: Cascade)
   inclusions    TicketTierInclusion[]
   reservations  Reservation[]
   orderItems    OrderItem[]
@@ -218,13 +221,13 @@ model TicketTier {
 }
 
 model TicketTierInclusion {
-  id          String     @id @default(uuid())
-  tierId      String     @map("tier_id")
+  id          String   @id @default(uuid())
+  tierId      String   @map("tier_id")
   label       String
-  stubEnabled Boolean    @default(true) @map("stub_enabled")
-  sortOrder   Int        @default(0) @map("sort_order")
-  createdAt   DateTime   @default(now()) @map("created_at")
-  updatedAt   DateTime   @updatedAt @map("updated_at")
+  stubEnabled Boolean  @default(true) @map("stub_enabled")
+  sortOrder   Int      @default(0) @map("sort_order")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
 
   tier TicketTier @relation(fields: [tierId], references: [id], onDelete: Cascade)
 
@@ -396,16 +399,16 @@ model Registration {
   createdAt            DateTime           @default(now()) @map("created_at")
   updatedAt            DateTime           @updatedAt @map("updated_at")
 
-  user          User?              @relation(fields: [userId], references: [id])
-  event         Event              @relation(fields: [eventId], references: [id])
-  tier          TicketTier?        @relation(fields: [tierId], references: [id])
-  attendees     Attendee[]
+  user              User?                @relation(fields: [userId], references: [id])
+  event             Event                @relation(fields: [eventId], references: [id])
+  tier              TicketTier?          @relation(fields: [tierId], references: [id])
+  attendees         Attendee[]
   attendanceRecords AttendeeAttendance[]
-  proofs        PaymentProof[]
-  verifiedBy    User?              @relation("VerifiedBy", fields: [verifiedById], references: [id])
-  auditLogs     AuditLog[]
-  referralCode  ReferralCode?      @relation(fields: [referralCodeId], references: [id], onDelete: SetNull)
-  referralUsage ReferralCodeUsage?
+  proofs            PaymentProof[]
+  verifiedBy        User?                @relation("VerifiedBy", fields: [verifiedById], references: [id])
+  auditLogs         AuditLog[]
+  referralCode      ReferralCode?        @relation(fields: [referralCodeId], references: [id], onDelete: SetNull)
+  referralUsage     ReferralCodeUsage?
 
   @@index([userId, status])
   @@index([eventId, status])
@@ -416,32 +419,32 @@ model Registration {
 }
 
 model Attendee {
-  id             String    @id @default(uuid())
-  registrationId String    @map("registration_id")
-  firstName      String    @map("first_name")
-  lastName       String    @map("last_name")
-  email          String?
-  phone          String?
-  company        String?
-  jobTitle       String?   @map("job_title")
-  birthday       DateTime? @db.Date
-  gender         String?
-  city           String?
-  subEventId     String?   @map("sub_event_id")
-  subEventTitle  String?   @map("sub_event_title")
-  subEventTime   String?   @map("sub_event_time")
-  selectedSubEvents Json?   @map("selected_sub_events")
-  isLead         Boolean   @default(false) @map("is_lead")
+  id                String    @id @default(uuid())
+  registrationId    String    @map("registration_id")
+  firstName         String    @map("first_name")
+  lastName          String    @map("last_name")
+  email             String?
+  phone             String?
+  company           String?
+  jobTitle          String?   @map("job_title")
+  birthday          DateTime? @db.Date
+  gender            String?
+  city              String?
+  subEventId        String?   @map("sub_event_id")
+  subEventTitle     String?   @map("sub_event_title")
+  subEventTime      String?   @map("sub_event_time")
+  selectedSubEvents Json?     @map("selected_sub_events")
+  isLead            Boolean   @default(false) @map("is_lead")
   // Anti-scalper: tickets are bound to the attendee record above and cannot
   // be re-assigned. Reserved for a future admin-controlled transfer flow.
-  transferable   Boolean   @default(false) @map("transferable")
-  qrToken        String?   @unique @map("qr_token")
-  checkedInAt    DateTime? @map("checked_in_at")
-  checkedInById  String?   @map("checked_in_by_id")
-  checkInMethod  String?   @map("check_in_method")
-  createdAt      DateTime  @default(now()) @map("created_at")
+  transferable      Boolean   @default(false) @map("transferable")
+  qrToken           String?   @unique @map("qr_token")
+  checkedInAt       DateTime? @map("checked_in_at")
+  checkedInById     String?   @map("checked_in_by_id")
+  checkInMethod     String?   @map("check_in_method")
+  createdAt         DateTime  @default(now()) @map("created_at")
 
-  registration Registration @relation(fields: [registrationId], references: [id], onDelete: Cascade)
+  registration      Registration         @relation(fields: [registrationId], references: [id], onDelete: Cascade)
   attendanceRecords AttendeeAttendance[]
 
   @@index([registrationId])
@@ -684,6 +687,7 @@ model EventWorkspace {
   closedBy   User?                @relation("WorkspaceClosedBy", fields: [closedById], references: [id])
   members    WorkspaceMember[]
   items      WorkspaceItem[]
+  categories WorkspaceCategory[]
   milestones WorkspaceMilestone[]
 
   @@map("event_workspaces")
@@ -706,27 +710,68 @@ model WorkspaceMember {
 }
 
 model WorkspaceItem {
-  id              String            @id @default(uuid())
-  workspaceId     String            @map("workspace_id")
-  title           String
-  category        String            @default("general")
-  status          ChecklistStatus   @default(open)
-  priority        ChecklistPriority @default(medium)
-  isBlocker       Boolean           @default(false) @map("is_blocker")
-  startDate       DateTime?         @map("start_date")
-  dueDate         DateTime?         @map("due_date")
-  assignedToName  String?           @map("assigned_to_name")
-  accountableName String?           @map("accountable_name")
-  notes           String?
-  completedAt     DateTime?         @map("completed_at")
-  sortOrder       Int               @default(0) @map("sort_order")
-  createdAt       DateTime          @default(now()) @map("created_at")
-  updatedAt       DateTime          @updatedAt @map("updated_at")
+  id                  String            @id @default(uuid())
+  workspaceId         String            @map("workspace_id")
+  title               String
+  category            String            @default("general")
+  status              ChecklistStatus   @default(open)
+  priority            ChecklistPriority @default(medium)
+  isBlocker           Boolean           @default(false) @map("is_blocker")
+  startDate           DateTime?         @map("start_date")
+  dueDate             DateTime?         @map("due_date")
+  assignedToName      String?           @map("assigned_to_name")
+  accountableName     String?           @map("accountable_name")
+  categoryId          String?           @map("category_id")
+  assignedToUserId    String?           @map("assigned_to_user_id")
+  accountableToUserId String?           @map("accountable_to_user_id")
+  notes               String?
+  completedAt         DateTime?         @map("completed_at")
+  sortOrder           Int               @default(0) @map("sort_order")
+  createdAt           DateTime          @default(now()) @map("created_at")
+  updatedAt           DateTime          @updatedAt @map("updated_at")
 
-  workspace EventWorkspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  workspace          EventWorkspace              @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  categoryRecord     WorkspaceCategory?          @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  assignedToUser     User?                       @relation("WorkspaceItemResponsible", fields: [assignedToUserId], references: [id], onDelete: SetNull)
+  accountableToUser  User?                       @relation("WorkspaceItemAccountable", fields: [accountableToUserId], references: [id], onDelete: SetNull)
+  reminderDeliveries WorkspaceReminderDelivery[]
 
   @@index([workspaceId])
+  @@index([categoryId])
+  @@index([assignedToUserId])
+  @@index([accountableToUserId])
   @@map("workspace_items")
+}
+
+model WorkspaceCategory {
+  id          String   @id @default(uuid())
+  workspaceId String   @map("workspace_id")
+  name        String
+  sortOrder   Int      @default(0) @map("sort_order")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  workspace EventWorkspace  @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  items     WorkspaceItem[]
+
+  @@unique([workspaceId, name])
+  @@index([workspaceId, sortOrder])
+  @@map("workspace_categories")
+}
+
+model WorkspaceReminderDelivery {
+  id              String   @id @default(uuid())
+  workspaceItemId String   @map("workspace_item_id")
+  recipientUserId String   @map("recipient_user_id")
+  reminderKey     String   @map("reminder_key")
+  sentAt          DateTime @default(now()) @map("sent_at")
+
+  workspaceItem WorkspaceItem @relation(fields: [workspaceItemId], references: [id], onDelete: Cascade)
+  recipientUser User          @relation(fields: [recipientUserId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceItemId, recipientUserId, reminderKey])
+  @@index([recipientUserId, sentAt])
+  @@map("workspace_reminder_deliveries")
 }
 
 model WorkspaceMilestone {

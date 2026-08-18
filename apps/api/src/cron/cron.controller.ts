@@ -1,5 +1,6 @@
 import {
   Controller,
+  Get,
   Post,
   Headers,
   HttpCode,
@@ -33,9 +34,10 @@ export class CronController {
     private readonly schedulerService: SchedulerService,
   ) {}
 
-  private verifySecret(secret: string | undefined): void {
+  private verifySecret(secret: string | undefined, authorization?: string): void {
     const expected = process.env.CRON_SECRET;
-    if (!expected || secret !== expected) {
+    const bearer = authorization?.startsWith('Bearer ') ? authorization.slice(7) : undefined;
+    if (!expected || (secret !== expected && bearer !== expected)) {
       throw new UnauthorizedException('Invalid or missing cron secret');
     }
   }
@@ -118,5 +120,20 @@ export class CronController {
     this.logger.log({ msg: 'External cron: cleanup-otp-codes triggered' });
     await this.schedulerService.cleanupExpiredOtpCodes();
     return { ok: true };
+  }
+
+  /** Daily at 08:00 Asia/Manila. Sends idempotent due-date digests to the
+   * verified Responsible and Accountable members linked to each task. */
+  @Get('workspace-due-reminders')
+  @Post('workspace-due-reminders')
+  @HttpCode(HttpStatus.OK)
+  async workspaceDueReminders(
+    @Headers('x-cron-secret') secret: string | undefined,
+    @Headers('authorization') authorization: string | undefined,
+  ) {
+    this.verifySecret(secret, authorization);
+    this.logger.log({ msg: 'External cron: workspace-due-reminders triggered' });
+    const result = await this.schedulerService.sendWorkspaceDueReminders();
+    return { ok: true, ...result };
   }
 }
