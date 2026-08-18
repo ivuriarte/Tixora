@@ -36,4 +36,19 @@ Date: 19 August 2026 (Asia/Manila)
 
 ## Deployment evidence
 
-To be completed after UAT database migration, API/web deployment, and post-deployment smoke tests.
+- UAT database migration `20260819090000_isolated_workspace_ownership_and_categories` applied successfully to the validated UAT database only. Production database credentials were not used.
+- Migration/backfill check: 15 categories, 50 preserved tasks, 0 uncategorized tasks, and 50 tasks intentionally left without due dates for organizer completion.
+- API deployment `dpl_E4djPkrqmHkWGJuTWaC5974FFX7J` is Ready in Vercel target `uat` and aliased to `https://api-uat.axontickets.online`.
+- Web deployment `dpl_GUXjxu7JFjsKVJmz3d66tmb4FDyQ` is Ready in Vercel target `uat` and aliased to `https://uat.axontickets.online`.
+- Public event smoke test returned HTTP 200 through the authenticated Vercel deployment path. Visual verification confirms the colored Sponsors & Partners card appears directly below Reserve Tickets.
+- API smoke tests: health HTTP 200 with UAT environment/database/Redis healthy; public events HTTP 200; anonymous team-members HTTP 401; unsigned reminder endpoint HTTP 401.
+- Vercel cron jobs are production-deployment-only, so the custom `uat` target cannot register one directly. A dedicated `tixora-uat-scheduler` project was deployed solely to call the protected UAT API; it contains no application or database logic and does not contact PROD.
+- Scheduler deployment `dpl_3Nn7UmN24kPujNvByqULfhrfHRhv` registered `/api/workspace-due-reminders` at `0 0 * * *` (08:00 Asia/Manila). Anonymous access returns HTTP 401.
+- Before the live scheduler smoke test, a read-only UAT query confirmed 0 actionable reminder tasks and 0 verified recipients. The protected invocation then returned HTTP 200, so no user email was sent during testing.
+- The UAT-only cron credential was rotated after route tracing, and request logging now redacts both Authorization and `x-cron-secret` values.
+
+## Verification boundary
+
+- Application-side recipient selection, due-state calculation, digest consolidation, idempotency, and failed-SMTP behavior are covered by automated tests.
+- No claim is made that a real email reached a controlled mailbox in this release run: UAT had no actionable assigned tasks, and sending an artificial message to a real member was intentionally avoided.
+- Authenticated organizer interaction remains available for stakeholder acceptance at `https://uat.axontickets.online`; automated verification did not use or expose repository-held UAT credentials.

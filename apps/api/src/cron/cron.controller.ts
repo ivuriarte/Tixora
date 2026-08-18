@@ -125,13 +125,24 @@ export class CronController {
   /** Daily at 08:00 Asia/Manila. Sends idempotent due-date digests to the
    * verified Responsible and Accountable members linked to each task. */
   @Get('workspace-due-reminders')
-  @Post('workspace-due-reminders')
   @HttpCode(HttpStatus.OK)
-  async workspaceDueReminders(
-    @Headers('x-cron-secret') secret: string | undefined,
+  async workspaceDueRemindersFromVercel(
     @Headers('authorization') authorization: string | undefined,
   ) {
-    this.verifySecret(secret, authorization);
+    this.verifySecret(undefined, authorization);
+    return this.runWorkspaceDueReminders();
+  }
+
+  @Post('workspace-due-reminders')
+  @HttpCode(HttpStatus.OK)
+  async workspaceDueRemindersFromGitHub(
+    @Headers('x-cron-secret') secret: string | undefined,
+  ) {
+    this.verifySecret(secret);
+    return this.runWorkspaceDueReminders();
+  }
+
+  private async runWorkspaceDueReminders() {
     this.logger.log({ msg: 'External cron: workspace-due-reminders triggered' });
     const result = await this.schedulerService.sendWorkspaceDueReminders();
     return { ok: true, ...result };

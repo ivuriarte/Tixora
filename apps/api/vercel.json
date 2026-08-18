@@ -9,9 +9,6 @@
       "includeFiles": "api/{libquery_engine*.node,schema.prisma,client/libquery_engine*.node}"
     }
   },
-  "crons": [
-    { "path": "/api/v1/cron/workspace-due-reminders", "schedule": "0 0 * * *" }
-  ],
   "rewrites": [
     { "source": "/(.*)", "destination": "/api/index" }
   ]

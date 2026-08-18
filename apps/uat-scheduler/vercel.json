@@ -1,0 +1,14 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "functions": {
+    "api/workspace-due-reminders.mjs": {
+      "maxDuration": 30
+    }
+  },
+  "crons": [
+    {
+      "path": "/api/workspace-due-reminders",
+      "schedule": "0 0 * * *"
+    }
+  ]
+}
