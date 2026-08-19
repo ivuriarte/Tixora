@@ -22,7 +22,7 @@
  *  W-18  getAssignableUsers: returns admin users mapped to id/name/email
  */
 
-import { computeScore, PRIORITY_WEIGHTS } from './workspaces.service';
+import { computeScore, PRIORITY_WEIGHTS, workspaceDueState } from './workspaces.service';
 import { WorkspacesService } from './workspaces.service';
 
 // ── computeScore pure-function tests ──────────────────────────────────────────
@@ -160,6 +160,20 @@ describe('computeScore()', () => {
     ];
     expect(computeScore(thirtyNinePct).score).toBe(39);
     expect(computeScore(thirtyNinePct).label).toBe('Needs Attention');
+  });
+});
+
+describe('workspaceDueState() — Asia/Manila calendar boundaries', () => {
+  const now = new Date('2026-08-18T20:30:00Z'); // 19 Aug, 04:30 in Manila
+  it('keeps the whole Manila due date valid instead of marking it overdue at midnight UTC', () => {
+    expect(workspaceDueState(new Date('2026-08-18T16:00:00Z'), 'open', now)).toBe('due_today');
+  });
+  it('classifies the next three Manila dates as due soon', () => {
+    expect(workspaceDueState(new Date('2026-08-21T16:00:00Z'), 'open', now)).toBe('due_soon');
+  });
+  it('never alerts completed or not-applicable tasks', () => {
+    expect(workspaceDueState(new Date('2026-08-01T00:00:00Z'), 'done', now)).toBe('completed');
+    expect(workspaceDueState(new Date('2026-08-01T00:00:00Z'), 'not_applicable', now)).toBe('completed');
   });
 });
 

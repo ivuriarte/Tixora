@@ -289,27 +289,6 @@ const TEMPLATES: Record<string, Template> = {
   },
 };
 
-// ── Default items (seeded when no template is applied at workspace creation) ──
-
-const DEFAULT_ITEMS: Array<{
-  title: string;
-  category: string;
-  priority: Priority;
-  isBlocker: boolean;
-  sortOrder: number;
-}> = [
-  { title: 'Cover image uploaded', category: 'Event Setup', priority: 'medium', isBlocker: false, sortOrder: 0 },
-  { title: 'Event description complete', category: 'Event Setup', priority: 'medium', isBlocker: false, sortOrder: 1 },
-  { title: 'Ticket tiers configured', category: 'Event Setup', priority: 'critical', isBlocker: true, sortOrder: 2 },
-  { title: 'Payment methods configured', category: 'Event Setup', priority: 'critical', isBlocker: true, sortOrder: 3 },
-  { title: 'Event published for sale', category: 'Event Setup', priority: 'high', isBlocker: false, sortOrder: 4 },
-  { title: 'Venue confirmed with organizer', category: 'Logistics', priority: 'high', isBlocker: false, sortOrder: 5 },
-  { title: 'Check-in staff assigned', category: 'Logistics', priority: 'medium', isBlocker: false, sortOrder: 6 },
-  { title: 'AV and equipment checklist done', category: 'Logistics', priority: 'low', isBlocker: false, sortOrder: 7 },
-  { title: 'Social media announcements scheduled', category: 'Marketing', priority: 'medium', isBlocker: false, sortOrder: 8 },
-  { title: 'Email announcement sent to list', category: 'Marketing', priority: 'medium', isBlocker: false, sortOrder: 9 },
-];
-
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 function userDisplayName(u: { firstName: string | null; lastName: string | null; email: string }) {
@@ -320,6 +299,41 @@ function parseSafeDate(value: string): Date {
   const d = new Date(value);
   if (isNaN(d.getTime())) throw new BadRequestException(`Invalid date value: ${value}`);
   return d;
+}
+
+export type WorkspaceDueState = 'completed' | 'overdue' | 'due_today' | 'due_soon' | 'upcoming' | 'unscheduled';
+
+export function manilaDateKey(value: Date): string {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Manila',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(value);
+}
+
+function dateKeyDistance(fromKey: string, toKey: string): number {
+  const [fy, fm, fd] = fromKey.split('-').map(Number);
+  const [ty, tm, td] = toKey.split('-').map(Number);
+  return Math.round((Date.UTC(ty, tm - 1, td) - Date.UTC(fy, fm - 1, fd)) / 86_400_000);
+}
+
+export function workspaceDueState(
+  dueDate: Date | null,
+  status: string,
+  now = new Date(),
+): WorkspaceDueState {
+  if (status === 'done' || status === 'not_applicable') return 'completed';
+  if (!dueDate) return 'unscheduled';
+  const distance = dateKeyDistance(manilaDateKey(now), manilaDateKey(dueDate));
+  if (distance < 0) return 'overdue';
+  if (distance === 0) return 'due_today';
+  if (distance <= 3) return 'due_soon';
+  return 'upcoming';
+}
+
+function manilaStartOfToday(now = new Date()): Date {
+  return new Date(`${manilaDateKey(now)}T00:00:00+08:00`);
 }
 
 // ── Service ───────────────────────────────────────────────────────────────────
@@ -377,16 +391,12 @@ export class WorkspacesService {
       });
     }
 
-    await this.prisma.workspaceItem.createMany({
-      data: DEFAULT_ITEMS.map((item) => ({ ...item, workspaceId: workspace.id })),
-    });
-
     await this.audit.log({
       action: 'WORKSPACE_CREATED',
       entityType: 'EventWorkspace',
       entityId: workspace.id,
       performedById: creatorId,
-      metadata: { eventId },
+      metadata: { eventId, initializedEmpty: true },
     });
 
     return workspace;
@@ -438,13 +448,17 @@ export class WorkspacesService {
 
     // Unowned = scorable items not done/NA with neither responsible nor accountable set
     const unownedCount = scorable.filter(
-      (i) => i.status !== 'done' && !i.assignedToName && !i.accountableName,
+      (i) => i.status !== 'done'
+        && !i.assignedToUserId && !i.accountableToUserId
+        && !i.assignedToName && !i.accountableName,
     ).length;
 
     // Overdue = scorable, not done, past due date
     const overdueCount = scorable.filter(
-      (i) => i.dueDate && i.dueDate < now && i.status !== 'done',
+      (i) => workspaceDueState(i.dueDate, i.status, now) === 'overdue',
     ).length;
+    const dueTodayCount = scorable.filter((i) => workspaceDueState(i.dueDate, i.status, now) === 'due_today').length;
+    const dueSoonCount = scorable.filter((i) => workspaceDueState(i.dueDate, i.status, now) === 'due_soon').length;
 
     return {
       workspaceId: workspace.id,
@@ -475,6 +489,8 @@ export class WorkspacesService {
         blockedCount: blockedItems.length,
         unownedCount,
         overdueCount,
+        dueTodayCount,
+        dueSoonCount,
         isForceBlocked,
       },
       criticalBlockers: criticalBlockers.map((i) => ({
@@ -484,6 +500,7 @@ export class WorkspacesService {
         status: i.status,
         priority: i.priority,
         dueDate: i.dueDate?.toISOString() ?? null,
+        dueState: workspaceDueState(i.dueDate, i.status, now),
         assignedTo:    i.assignedToName    ? { name: i.assignedToName    } : null,
         accountableTo: i.accountableName ? { name: i.accountableName } : null,
       })),
@@ -492,6 +509,7 @@ export class WorkspacesService {
         title: i.title,
         category: i.category,
         notes: i.notes,
+        dueState: workspaceDueState(i.dueDate, i.status, now),
         assignedTo:    i.assignedToName    ? { name: i.assignedToName    } : null,
         accountableTo: i.accountableName ? { name: i.accountableName } : null,
       })),
@@ -581,14 +599,101 @@ export class WorkspacesService {
 
   // ── Checklist items ─────────────────────────────────────────────────────────
 
+  async createWorkspaceCategory(eventId: string, rawName: string, performedById: string) {
+    const workspace = await this.prisma.eventWorkspace.findUnique({
+      where: { eventId },
+      select: { id: true, closedAt: true },
+    });
+    if (!workspace) throw new NotFoundException('Workspace not found');
+    this.assertWorkspaceNotClosed(workspace);
+    const name = rawName.trim();
+    const duplicate = await this.prisma.workspaceCategory.findFirst({
+      where: { workspaceId: workspace.id, name: { equals: name, mode: 'insensitive' } },
+      select: { id: true },
+    });
+    if (duplicate) throw new BadRequestException('A category with this name already exists');
+    const maxOrder = await this.prisma.workspaceCategory.aggregate({
+      where: { workspaceId: workspace.id },
+      _max: { sortOrder: true },
+    });
+    const category = await this.prisma.workspaceCategory.create({
+      data: { workspaceId: workspace.id, name, sortOrder: (maxOrder._max.sortOrder ?? -1) + 1 },
+    });
+    await this.audit.log({
+      action: 'WORKSPACE_CATEGORY_CREATED', entityType: 'WorkspaceCategory',
+      entityId: category.id, performedById, metadata: { eventId, name },
+    });
+    return { ...category, createdAt: category.createdAt.toISOString(), updatedAt: category.updatedAt.toISOString() };
+  }
+
+  async updateWorkspaceCategory(eventId: string, categoryId: string, rawName: string, performedById: string) {
+    const workspace = await this.prisma.eventWorkspace.findUnique({
+      where: { eventId }, select: { id: true, closedAt: true },
+    });
+    if (!workspace) throw new NotFoundException('Workspace not found');
+    this.assertWorkspaceNotClosed(workspace);
+    const category = await this.prisma.workspaceCategory.findFirst({ where: { id: categoryId, workspaceId: workspace.id } });
+    if (!category) throw new NotFoundException('Category not found');
+    const name = rawName.trim();
+    const duplicate = await this.prisma.workspaceCategory.findFirst({
+      where: { workspaceId: workspace.id, id: { not: categoryId }, name: { equals: name, mode: 'insensitive' } },
+      select: { id: true },
+    });
+    if (duplicate) throw new BadRequestException('A category with this name already exists');
+    await this.prisma.$transaction([
+      this.prisma.workspaceCategory.update({ where: { id: categoryId }, data: { name } }),
+      this.prisma.workspaceItem.updateMany({ where: { categoryId }, data: { category: name } }),
+    ]);
+    await this.audit.log({
+      action: 'WORKSPACE_CATEGORY_RENAMED', entityType: 'WorkspaceCategory', entityId: categoryId,
+      performedById, metadata: { eventId, from: category.name, to: name },
+    });
+    return { id: categoryId, name };
+  }
+
+  async deleteWorkspaceCategory(eventId: string, categoryId: string, performedById: string) {
+    const workspace = await this.prisma.eventWorkspace.findUnique({
+      where: { eventId }, select: { id: true, closedAt: true },
+    });
+    if (!workspace) throw new NotFoundException('Workspace not found');
+    this.assertWorkspaceNotClosed(workspace);
+    const category = await this.prisma.workspaceCategory.findFirst({
+      where: { id: categoryId, workspaceId: workspace.id }, include: { _count: { select: { items: true } } },
+    });
+    if (!category) throw new NotFoundException('Category not found');
+    await this.prisma.workspaceCategory.delete({ where: { id: categoryId } });
+    await this.audit.log({
+      action: 'WORKSPACE_CATEGORY_DELETED', entityType: 'WorkspaceCategory', entityId: categoryId,
+      performedById, metadata: { eventId, name: category.name, deletedItemCount: category._count.items },
+    });
+    return { deleted: true, deletedItemCount: category._count.items };
+  }
+
   async getWorkspaceItems(eventId: string) {
     const workspace = await this.prisma.eventWorkspace.findUnique({
       where: { eventId },
       select: {
         id: true,
+        categories: {
+          orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }],
+          include: {
+            items: {
+              orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }],
+              include: {
+                assignedToUser: { select: { id: true, firstName: true, lastName: true, email: true } },
+                accountableToUser: { select: { id: true, firstName: true, lastName: true, email: true } },
+              },
+            },
+          },
+        },
         items: {
+          where: { categoryId: null },
           orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }],
           take: 500,
+          include: {
+            assignedToUser: { select: { id: true, firstName: true, lastName: true, email: true } },
+            accountableToUser: { select: { id: true, firstName: true, lastName: true, email: true } },
+          },
         },
       },
     });
@@ -602,10 +707,20 @@ export class WorkspacesService {
 
     return {
       workspaceId: workspace.id,
-      categories: Object.entries(grouped).map(([category, categoryItems]) => ({
-        category,
-        items: categoryItems.map((i) => this.serializeItem(i)),
-      })),
+      categories: [
+        ...workspace.categories.map((category) => ({
+          id: category.id,
+          category: category.name,
+          sortOrder: category.sortOrder,
+          items: category.items.map((i) => this.serializeItem(i)),
+        })),
+        ...Object.entries(grouped).map(([category, categoryItems]) => ({
+          id: null,
+          category,
+          sortOrder: Number.MAX_SAFE_INTEGER,
+          items: categoryItems.map((i) => this.serializeItem(i)),
+        })),
+      ],
     };
   }
 
@@ -617,6 +732,32 @@ export class WorkspacesService {
     if (!workspace) throw new NotFoundException('Workspace not found');
     this.assertWorkspaceNotClosed(workspace);
 
+    let category = dto.categoryId
+      ? await this.prisma.workspaceCategory.findFirst({ where: { id: dto.categoryId, workspaceId: workspace.id } })
+      : null;
+    if (!category && dto.categoryId) throw new BadRequestException('Category does not belong to this workspace');
+    if (!category) {
+      const name = dto.category?.trim() || 'General';
+      category = await this.prisma.workspaceCategory.findFirst({
+        where: { workspaceId: workspace.id, name: { equals: name, mode: 'insensitive' } },
+      });
+      if (!category) {
+        const maxCategoryOrder = await this.prisma.workspaceCategory.aggregate({
+          where: { workspaceId: workspace.id }, _max: { sortOrder: true },
+        });
+        category = await this.prisma.workspaceCategory.create({
+          data: { workspaceId: workspace.id, name, sortOrder: (maxCategoryOrder._max.sortOrder ?? -1) + 1 },
+        });
+      }
+    }
+
+    const responsible = dto.assignedToUserId
+      ? await this.resolveTaskMember(eventId, dto.assignedToUserId)
+      : null;
+    const accountable = dto.accountableToUserId
+      ? await this.resolveTaskMember(eventId, dto.accountableToUserId)
+      : null;
+
     const maxOrder = await this.prisma.workspaceItem.aggregate({
       where: { workspaceId: workspace.id },
       _max: { sortOrder: true },
@@ -626,12 +767,17 @@ export class WorkspacesService {
       data: {
         workspaceId: workspace.id,
         title: dto.title.trim(),
-        category: dto.category ?? 'General',
+        category: category.name,
+        categoryId: category.id,
         priority: (dto.priority as any) ?? 'medium',
         isBlocker: dto.isBlocker ?? false,
         startDate: dto.startDate ? new Date(dto.startDate) : null,
         dueDate: dto.dueDate ? new Date(dto.dueDate) : null,
         notes: dto.notes ?? null,
+        assignedToUserId: responsible?.id ?? null,
+        assignedToName: responsible ? userDisplayName(responsible) : null,
+        accountableToUserId: accountable?.id ?? null,
+        accountableName: accountable ? userDisplayName(accountable) : null,
         sortOrder: (maxOrder._max.sortOrder ?? -1) + 1,
       },
     });
@@ -644,7 +790,7 @@ export class WorkspacesService {
       metadata: { eventId, title: item.title, category: item.category, isBlocker: item.isBlocker },
     });
 
-    return this.serializeItem(item);
+    return this.serializeItem({ ...item, assignedToUser: responsible, accountableToUser: accountable });
   }
 
   async updateWorkspaceItem(eventId: string, itemId: string, dto: UpdateWorkspaceItemDto, performedById: string) {
@@ -660,6 +806,17 @@ export class WorkspacesService {
     });
     if (!item) throw new NotFoundException('Item not found');
 
+    const nextCategory = dto.categoryId
+      ? await this.prisma.workspaceCategory.findFirst({ where: { id: dto.categoryId, workspaceId: workspace.id } })
+      : null;
+    if (dto.categoryId && !nextCategory) throw new BadRequestException('Category does not belong to this workspace');
+    const responsible = dto.assignedToUserId
+      ? await this.resolveTaskMember(eventId, dto.assignedToUserId)
+      : null;
+    const accountable = dto.accountableToUserId
+      ? await this.resolveTaskMember(eventId, dto.accountableToUserId)
+      : null;
+
     const wasNotDone = item.status !== 'done';
     const becomingDone = dto.status === 'done';
 
@@ -667,6 +824,10 @@ export class WorkspacesService {
       where: { id: itemId },
       data: {
         ...(dto.title !== undefined && { title: dto.title.trim() }),
+        ...(dto.categoryId !== undefined && {
+          categoryId: dto.categoryId,
+          ...(nextCategory ? { category: nextCategory.name } : {}),
+        }),
         ...(dto.category !== undefined && { category: dto.category }),
         ...(dto.status !== undefined && { status: dto.status as any }),
         ...(dto.priority !== undefined && { priority: dto.priority as any }),
@@ -676,6 +837,14 @@ export class WorkspacesService {
         ...(dto.notes !== undefined && { notes: dto.notes }),
         ...('assignedToName'  in dto && { assignedToName:  dto.assignedToName  ?? null }),
         ...('accountableName' in dto && { accountableName: dto.accountableName ?? null }),
+        ...('assignedToUserId' in dto && {
+          assignedToUserId: dto.assignedToUserId ?? null,
+          assignedToName: responsible ? userDisplayName(responsible) : null,
+        }),
+        ...('accountableToUserId' in dto && {
+          accountableToUserId: dto.accountableToUserId ?? null,
+          accountableName: accountable ? userDisplayName(accountable) : null,
+        }),
         ...(wasNotDone && becomingDone && { completedAt: new Date() }),
         ...(!becomingDone && item.completedAt && { completedAt: null }),
       },
@@ -711,6 +880,20 @@ export class WorkspacesService {
       });
     }
 
+    if ('assignedToUserId' in dto && (dto.assignedToUserId ?? null) !== item.assignedToUserId) {
+      await this.audit.log({
+        action: 'WORKSPACE_ITEM_ASSIGNEE_CHANGED', entityType: 'WorkspaceItem', entityId: itemId,
+        performedById, metadata: { eventId, role: 'responsible', fromUserId: item.assignedToUserId, toUserId: dto.assignedToUserId ?? null },
+      });
+    }
+
+    if ('accountableToUserId' in dto && (dto.accountableToUserId ?? null) !== item.accountableToUserId) {
+      await this.audit.log({
+        action: 'WORKSPACE_ITEM_ASSIGNEE_CHANGED', entityType: 'WorkspaceItem', entityId: itemId,
+        performedById, metadata: { eventId, role: 'accountable', fromUserId: item.accountableToUserId, toUserId: dto.accountableToUserId ?? null },
+      });
+    }
+
     if (dto.dueDate !== undefined) {
       const newDue = dto.dueDate ? new Date(dto.dueDate).toISOString() : null;
       const oldDue = item.dueDate ? item.dueDate.toISOString() : null;
@@ -735,7 +918,11 @@ export class WorkspacesService {
       });
     }
 
-    return this.serializeItem(updated);
+    return this.serializeItem({
+      ...updated,
+      assignedToUser: 'assignedToUserId' in dto ? responsible : undefined,
+      accountableToUser: 'accountableToUserId' in dto ? accountable : undefined,
+    });
   }
 
   async deleteWorkspaceItem(eventId: string, itemId: string, performedById: string) {
@@ -776,16 +963,41 @@ export class WorkspacesService {
     const items = await this.prisma.workspaceItem.findMany({
       where: {
         workspaceId: workspace.id,
-        dueDate: { lt: new Date() },
+        dueDate: { lt: manilaStartOfToday() },
         status: { notIn: ['done', 'not_applicable'] },
       },
       orderBy: { dueDate: 'asc' },
+      include: {
+        assignedToUser: { select: { id: true, firstName: true, lastName: true, email: true } },
+        accountableToUser: { select: { id: true, firstName: true, lastName: true, email: true } },
+      },
     });
 
     return items.map((i) => this.serializeItem(i));
   }
 
   // ── Assignable users ────────────────────────────────────────────────────────
+
+  private async resolveTaskMember(eventId: string, userId: string) {
+    const event = await this.prisma.event.findUnique({
+      where: { id: eventId }, select: { organizationId: true, createdById: true },
+    });
+    if (!event) throw new NotFoundException('Event not found');
+    if (event.organizationId) {
+      const membership = await this.prisma.organizationMember.findFirst({
+        where: { organizationId: event.organizationId, userId, user: { isVerified: true } },
+        include: { user: { select: { id: true, firstName: true, lastName: true, email: true } } },
+      });
+      if (!membership) throw new BadRequestException('Select a verified member of this organization');
+      return membership.user;
+    }
+    const user = await this.prisma.user.findFirst({
+      where: { id: userId, isVerified: true, OR: [{ isAdmin: true }, { id: event.createdById }] },
+      select: { id: true, firstName: true, lastName: true, email: true },
+    });
+    if (!user) throw new BadRequestException('Select a verified member with access to this event');
+    return user;
+  }
 
   async getAssignableUsers(eventId: string) {
     const event = await this.prisma.event.findUnique({
@@ -797,7 +1009,7 @@ export class WorkspacesService {
     // Preferred pool: real members of the event's organization.
     if (event.organizationId) {
       const orgMembers = await this.prisma.organizationMember.findMany({
-        where: { organizationId: event.organizationId },
+        where: { organizationId: event.organizationId, user: { isVerified: true } },
         include: { user: { select: { id: true, firstName: true, lastName: true, email: true } } },
         take: 200,
       });
@@ -809,7 +1021,7 @@ export class WorkspacesService {
 
     // Fallback for legacy/admin-created events with no organization: admins + creator.
     const adminUsers = await this.prisma.user.findMany({
-      where: { isAdmin: true },
+      where: { isAdmin: true, isVerified: true },
       select: { id: true, firstName: true, lastName: true, email: true },
       orderBy: [{ firstName: 'asc' }, { lastName: 'asc' }],
       take: 200,
@@ -819,7 +1031,7 @@ export class WorkspacesService {
 
     if (event.createdById && !userMap.has(event.createdById)) {
       const organizer = await this.prisma.user.findUnique({
-        where: { id: event.createdById },
+        where: { id: event.createdById, isVerified: true },
         select: { id: true, firstName: true, lastName: true, email: true },
       });
       if (organizer) userMap.set(organizer.id, organizer);
@@ -857,33 +1069,25 @@ export class WorkspacesService {
     if (!workspace) throw new NotFoundException('Workspace not found');
     this.assertWorkspaceNotClosed(workspace);
 
-    const items: Array<{
-      workspaceId: string;
-      title: string;
-      category: string;
-      priority: string;
-      isBlocker: boolean;
-      sortOrder: number;
-    }> = [];
-
+    await this.prisma.workspaceItem.deleteMany({ where: { workspaceId: workspace.id } });
+    await this.prisma.workspaceCategory.deleteMany({ where: { workspaceId: workspace.id } });
     let globalSort = 0;
-    for (const cat of template.categories) {
-      for (const item of cat.items) {
-        items.push({
+    for (const [categoryIndex, cat] of template.categories.entries()) {
+      const category = await this.prisma.workspaceCategory.create({
+        data: { workspaceId: workspace.id, name: cat.name, sortOrder: categoryIndex },
+      });
+      await this.prisma.workspaceItem.createMany({
+        data: cat.items.map((item) => ({
           workspaceId: workspace.id,
+          categoryId: category.id,
           title: item.title,
           category: cat.name,
           priority: item.priority,
           isBlocker: item.isBlocker,
           sortOrder: globalSort++,
-        });
-      }
+        })),
+      });
     }
-
-    await this.prisma.$transaction([
-      this.prisma.workspaceItem.deleteMany({ where: { workspaceId: workspace.id } }),
-      this.prisma.workspaceItem.createMany({ data: items as any }),
-    ]);
 
     await this.audit.log({
       action: 'WORKSPACE_TEMPLATE_APPLIED',
@@ -893,7 +1097,11 @@ export class WorkspacesService {
       metadata: { templateId, eventId },
     });
 
-    return { templateId, templateLabel: template.label, itemsCreated: items.length };
+    return {
+      templateId,
+      templateLabel: template.label,
+      itemsCreated: template.categories.reduce((sum, category) => sum + category.items.length, 0),
+    };
   }
 
   // ── Milestones ──────────────────────────────────────────────────────────────
@@ -1960,13 +2168,21 @@ export class WorkspacesService {
       isBlocker: item.isBlocker,
       startDate: item.startDate?.toISOString() ?? null,
       dueDate: item.dueDate?.toISOString() ?? null,
+      dueState: workspaceDueState(item.dueDate ?? null, item.status),
       notes: item.notes,
       completedAt: resolvedCompletedAt instanceof Date ? resolvedCompletedAt.toISOString() : (resolvedCompletedAt ?? null),
       sortOrder: item.sortOrder,
-      assignedToName: item.assignedToName ?? null,
-      assignedTo: item.assignedToName ? { name: item.assignedToName } : null,
-      accountableName: item.accountableName ?? null,
-      accountableTo: item.accountableName ? { name: item.accountableName } : null,
+      categoryId: item.categoryId ?? null,
+      assignedToUserId: item.assignedToUserId ?? null,
+      assignedToName: item.assignedToUser ? userDisplayName(item.assignedToUser) : (item.assignedToName ?? null),
+      assignedTo: item.assignedToUser
+        ? { id: item.assignedToUser.id, name: userDisplayName(item.assignedToUser), email: item.assignedToUser.email }
+        : item.assignedToName ? { id: null, name: item.assignedToName, email: null } : null,
+      accountableToUserId: item.accountableToUserId ?? null,
+      accountableName: item.accountableToUser ? userDisplayName(item.accountableToUser) : (item.accountableName ?? null),
+      accountableTo: item.accountableToUser
+        ? { id: item.accountableToUser.id, name: userDisplayName(item.accountableToUser), email: item.accountableToUser.email }
+        : item.accountableName ? { id: null, name: item.accountableName, email: null } : null,
     };
   }
 }

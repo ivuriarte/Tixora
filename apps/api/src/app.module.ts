@@ -46,7 +46,11 @@ const usePrettyLogs = process.env.APP_ENV === 'development' && process.env.VERCE
         transport: usePrettyLogs
           ? { target: 'pino-pretty', options: { colorize: true } }
           : undefined,
-        redact: ['req.headers.authorization', 'req.headers.cookie'],
+        redact: [
+          'req.headers.authorization',
+          'req.headers.cookie',
+          'req.headers.x-cron-secret',
+        ],
         customProps: () => ({ service: 'axon-tickets-api' }),
       },
     }),
