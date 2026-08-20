@@ -157,7 +157,7 @@ export default function AdminEventEditPage() {
     queryFn: () => api.get<{ data: ApiEvent }>(`/admin/events/${id}`).then((r) => r.data.data),
     enabled: !!id,
   });
-  const canManageEvent = event?.access.canManageEvent ?? false;
+  const canManageEvent = event?.access?.canManageEvent ?? false;
 
   const [draft, setDraft] = useState<EventDraft>(emptyDraft());
   const [tiers, setTiers] = useState<LocalTier[]>([]);
