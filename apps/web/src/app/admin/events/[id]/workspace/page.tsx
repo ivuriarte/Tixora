@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -24,17 +24,26 @@ interface WorkspaceItem {
   isBlocker: boolean;
   startDate: string | null;
   dueDate: string | null;
+  dueState: 'completed' | 'overdue' | 'due_today' | 'due_soon' | 'upcoming' | 'unscheduled';
   notes: string | null;
   completedAt: string | null;
   sortOrder: number;
   assignedToName: string | null;
   accountableName: string | null;
+  assignedToUserId: string | null;
+  accountableToUserId: string | null;
+  assignedTo: { id: string | null; name: string; email: string | null } | null;
+  accountableTo: { id: string | null; name: string; email: string | null } | null;
 }
 
 interface CategoryGroup {
+  id: string | null;
   category: string;
+  sortOrder: number;
   items: WorkspaceItem[];
 }
+
+interface AssignableUser { id: string; name: string; email: string; }
 
 interface Milestone {
   id: string;
@@ -76,6 +85,8 @@ interface WorkspaceSummary {
     blockedCount: number;
     unownedCount: number;
     overdueCount: number;
+    dueTodayCount: number;
+    dueSoonCount: number;
     isForceBlocked: boolean;
   };
   criticalBlockers: Array<{
@@ -89,14 +100,6 @@ interface WorkspaceSummary {
   }>;
   upcomingMilestones: Array<{ id: string; title: string; dueDate: string; status: string }>;
   createdAt: string;
-}
-
-interface TemplateInfo {
-  id: string;
-  label: string;
-  description: string;
-  totalItems: number;
-  categoryCount: number;
 }
 
 // ── Config ────────────────────────────────────────────────────────────────────
@@ -146,10 +149,14 @@ function daysUntil(iso: string) {
   return `${diff}d`;
 }
 
-function isOverdue(iso: string | null, status: ChecklistStatus) {
-  if (!iso || status === 'done' || status === 'not_applicable') return false;
-  return new Date(iso) < new Date();
-}
+const DUE_STYLE: Record<WorkspaceItem['dueState'], { label: string; className: string }> = {
+  completed: { label: 'Completed', className: 'bg-green-50 text-green-700' },
+  overdue: { label: 'Overdue', className: 'bg-red-50 text-red-700' },
+  due_today: { label: 'Due today', className: 'bg-orange-50 text-orange-700' },
+  due_soon: { label: 'Due soon', className: 'bg-amber-50 text-amber-700' },
+  upcoming: { label: 'Upcoming', className: 'bg-blue-50 text-blue-700' },
+  unscheduled: { label: 'No due date', className: 'bg-gray-50 text-gray-500' },
+};
 
 function initials(name: string) {
   return name.split(' ').map((p) => p[0]).join('').slice(0, 2).toUpperCase();
@@ -196,76 +203,67 @@ function ReadinessGauge({ score, label }: { score: number; label: ScoreLabel }) 
   );
 }
 
-// ── Template picker modal ─────────────────────────────────────────────────────
-
-function TemplatePicker({ eventId, hasItems, onClose }: { eventId: string; hasItems: boolean; onClose: () => void }) {
-  const invalidate = useInvalidateWorkspace(eventId);
-  const [selected, setSelected] = useState<string | null>(null);
-  const [confirmed, setConfirmed] = useState(false);
-
-  const { data: templates = [] } = useQuery<TemplateInfo[]>({
-    queryKey: ['workspace-templates'],
-    queryFn: () => api.get<{ data: TemplateInfo[] }>(`/admin/events/${eventId}/workspace/templates`).then((r) => r.data.data),
+function OrganizationTeamPanel({ eventId, canManage }: { eventId: string; canManage: boolean }) {
+  const qc = useQueryClient();
+  const [showInvite, setShowInvite] = useState(false);
+  const [email, setEmail] = useState('');
+  const [role, setRole] = useState<'admin' | 'member'>('member');
+  const { data } = useQuery<{
+    canManage: boolean;
+    members: Array<{ id: string; userId: string; name: string; email: string; role: 'owner' | 'admin' | 'member'; status: 'active' | 'pending' }>;
+  }>({
+    queryKey: ['organization-team'],
+    queryFn: () => api.get<{ data: any }>('/organizations/me/members').then((response) => response.data.data),
+    enabled: canManage,
+    retry: false,
   });
-
-  const applyMutation = useMutation({
-    mutationFn: (templateId: string) =>
-      api.post(`/admin/events/${eventId}/workspace/apply-template`, { templateId }),
-    onSuccess: (_, templateId) => {
-      const t = templates.find((t) => t.id === templateId);
-      toast.success(`"${t?.label ?? 'Template'}" applied — ${t?.totalItems ?? 0} items created.`);
-      invalidate();
-      onClose();
-    },
-    onError: () => toast.error('Could not apply template. Please try again.'),
+  const refresh = () => {
+    qc.invalidateQueries({ queryKey: ['organization-team'] });
+    qc.invalidateQueries({ queryKey: ['workspace-members', eventId] });
+    qc.invalidateQueries({ queryKey: ['workspace-assignable-users', eventId] });
+    qc.invalidateQueries({ queryKey: ['workspace-items', eventId] });
+  };
+  const inviteMutation = useMutation({
+    mutationFn: () => api.post('/organizations/me/members', { email: email.trim(), role }),
+    onSuccess: () => { toast.success('Team invitation added.'); setEmail(''); setShowInvite(false); refresh(); },
+    onError: (error: any) => toast.error(error?.response?.data?.message ?? 'Could not add team member.'),
   });
-
-  function handleApply() {
-    if (!selected) return;
-    if (hasItems && !confirmed) { setConfirmed(true); return; }
-    applyMutation.mutate(selected);
-  }
-
+  const roleMutation = useMutation({
+    mutationFn: ({ memberId, nextRole }: { memberId: string; nextRole: 'admin' | 'member' }) => api.patch(`/organizations/me/members/${memberId}`, { role: nextRole }),
+    onSuccess: () => { toast.success('Team role updated.'); refresh(); },
+    onError: (error: any) => toast.error(error?.response?.data?.message ?? 'Could not update role.'),
+  });
+  const removeMutation = useMutation({
+    mutationFn: (memberId: string) => api.delete(`/organizations/me/members/${memberId}`),
+    onSuccess: (response: any) => { toast.success(`Member removed${response?.data?.data?.unassignedTaskCount ? `; ${response.data.data.unassignedTaskCount} task(s) unassigned` : ''}.`); refresh(); },
+    onError: (error: any) => toast.error(error?.response?.data?.message ?? 'Could not remove member.'),
+  });
+  if (!data) return null;
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" aria-modal>
-      <div className="absolute inset-0 bg-black/40" onClick={onClose} />
-      <div className="relative bg-white rounded-2xl shadow-xl w-full max-w-lg overflow-hidden">
-        <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
-          <h2 className="text-base font-semibold text-gray-900">Apply checklist template</h2>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
+    <div className="rounded-2xl border border-gray-200 bg-white px-5 py-4">
+      <div className="flex items-center justify-between gap-3">
+        <div><h2 className="text-sm font-semibold text-gray-900">Organizer team</h2><p className="mt-0.5 text-xs text-gray-400">Only verified members can be assigned and receive due-date reminders.</p></div>
+        {data.canManage && <button onClick={() => setShowInvite((value) => !value)} className="text-sm font-medium text-violet-600">+ Add member</button>}
+      </div>
+      {showInvite && (
+        <div className="mt-3 flex flex-wrap gap-2 rounded-lg bg-violet-50 p-3">
+          <input type="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="teammate@example.com" className="min-w-52 flex-1 rounded-md border border-violet-200 bg-white px-3 py-2 text-sm" />
+          <select value={role} onChange={(event) => setRole(event.target.value as 'admin' | 'member')} className="rounded-md border border-violet-200 bg-white px-3 py-2 text-sm"><option value="member">Member</option><option value="admin">Admin</option></select>
+          <button onClick={() => inviteMutation.mutate()} disabled={!email.includes('@') || inviteMutation.isPending} className="rounded-md bg-violet-600 px-3 py-2 text-xs font-semibold text-white disabled:opacity-50">Send invite</button>
         </div>
-        <div className="px-6 py-4 space-y-2 max-h-[55vh] overflow-y-auto">
-          {templates.map((t) => (
-            <button key={t.id} onClick={() => { setSelected(t.id); setConfirmed(false); }}
-              className={`w-full text-left rounded-xl border px-4 py-3 transition-colors ${
-                selected === t.id
-                  ? 'border-violet-400 bg-violet-50 ring-1 ring-violet-400'
-                  : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
-              }`}>
-              <div className="flex items-center justify-between gap-2 mb-0.5">
-                <span className="font-medium text-sm text-gray-900">{t.label}</span>
-                <span className="text-xs text-gray-400 shrink-0">{t.totalItems} items · {t.categoryCount} categories</span>
-              </div>
-              <p className="text-xs text-gray-500">{t.description}</p>
-            </button>
-          ))}
-        </div>
-        {confirmed && hasItems && (
-          <div className="mx-6 mb-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-2.5 text-sm text-amber-800">
-            This will replace all existing checklist items. Click Apply again to confirm.
+      )}
+      <div className="mt-3 divide-y divide-gray-100">
+        {data.members.map((member) => (
+          <div key={member.id} className="flex items-center gap-3 py-2.5">
+            <span className="flex h-8 w-8 items-center justify-center rounded-full bg-violet-100 text-xs font-semibold text-violet-700">{initials(member.name)}</span>
+            <div className="min-w-0 flex-1"><p className="truncate text-sm font-medium text-gray-800">{member.name}</p><p className="truncate text-xs text-gray-400">{member.email}</p></div>
+            <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${member.status === 'active' ? 'bg-green-50 text-green-700' : 'bg-amber-50 text-amber-700'}`}>{member.status}</span>
+            {data.canManage && member.role !== 'owner' ? (
+              <select value={member.role} onChange={(event) => roleMutation.mutate({ memberId: member.id, nextRole: event.target.value as 'admin' | 'member' })} className="rounded-md border border-gray-200 bg-white px-2 py-1 text-xs"><option value="member">Member</option><option value="admin">Admin</option></select>
+            ) : <span className="text-xs capitalize text-gray-500">{member.role}</span>}
+            {data.canManage && member.role !== 'owner' && <button onClick={() => { if (window.confirm(`Remove ${member.name} from the team? Their tasks will become unassigned.`)) removeMutation.mutate(member.id); }} className="text-xs text-gray-400 hover:text-red-600">Remove</button>}
           </div>
-        )}
-        <div className="px-6 py-4 border-t border-gray-100 flex justify-end gap-3">
-          <button onClick={onClose} className="text-sm text-gray-500 hover:text-gray-700 px-4 py-2">Cancel</button>
-          <button onClick={handleApply} disabled={!selected || applyMutation.isPending}
-            className="bg-violet-600 hover:bg-violet-700 text-white text-sm font-medium px-5 py-2 rounded-lg disabled:opacity-50 transition-colors">
-            {applyMutation.isPending ? 'Applying…' : confirmed && hasItems ? 'Confirm Replace' : 'Apply Template'}
-          </button>
-        </div>
+        ))}
       </div>
     </div>
   );
@@ -274,72 +272,36 @@ function TemplatePicker({ eventId, hasItems, onClose }: { eventId: string; hasIt
 // ── RACI assignment input ─────────────────────────────────────────────────────
 
 function RaciInput({
-  role, currentName, itemId, eventId, isUnowned, canEdit,
+  role, currentUserId, currentName, itemId, eventId, isUnowned, canEdit, members,
 }: {
   role: 'R' | 'A';
+  currentUserId: string | null;
   currentName: string | null;
   itemId: string;
   eventId: string;
   isUnowned: boolean;
   canEdit: boolean;
+  members: AssignableUser[];
 }) {
   const invalidate = useInvalidateWorkspace(eventId);
-  const field = role === 'R' ? 'assignedToName' : 'accountableName';
-  const [localValue, setLocalValue] = useState(currentName ?? '');
-  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
+  const field = role === 'R' ? 'assignedToUserId' : 'accountableToUserId';
   const mutation = useMutation({
-    mutationFn: (name: string | null) =>
-      api.patch(`/admin/events/${eventId}/workspace/items/${itemId}`, { [field]: name || null }),
+    mutationFn: (userId: string | null) => api.patch(`/admin/events/${eventId}/workspace/items/${itemId}`, { [field]: userId }),
     onSuccess: invalidate,
-    onError: () => toast.error('Could not save assignment.'),
+    onError: (error: any) => toast.error(error?.response?.data?.message ?? 'Could not save assignment.'),
   });
-
-  useEffect(() => { setLocalValue(currentName ?? ''); }, [currentName]);
-
-  if (!canEdit) {
-    if (!currentName) {
-      return (
-        <span className={`text-xs ${isUnowned && role === 'R' ? 'text-amber-400' : 'text-gray-300'}`}>
-          {isUnowned && role === 'R' ? 'Unassigned' : '—'}
-        </span>
-      );
-    }
-    return (
-      <span className="text-xs text-gray-700 truncate" title={currentName}>{currentName}</span>
-    );
-  }
-
-  function handleChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const val = e.target.value;
-    setLocalValue(val);
-    if (timerRef.current) clearTimeout(timerRef.current);
-    timerRef.current = setTimeout(() => {
-      mutation.mutate(val.trim() || null);
-    }, 600);
-  }
-
-  function handleBlur() {
-    if (timerRef.current) clearTimeout(timerRef.current);
-    mutation.mutate(localValue.trim() || null);
-  }
-
-  const isEmpty = !localValue.trim();
-
+  if (!canEdit) return <span className={`truncate text-xs ${currentName ? 'text-gray-700' : isUnowned && role === 'R' ? 'text-amber-500' : 'text-gray-300'}`}>{currentName || (isUnowned && role === 'R' ? 'Unassigned' : '—')}</span>;
   return (
-    <input
-      type="text"
-      value={localValue}
-      onChange={handleChange}
-      onBlur={handleBlur}
-      placeholder={role === 'R' ? 'Responsible…' : 'Accountable…'}
+    <select
+      value={currentUserId ?? ''}
+      onChange={(event) => mutation.mutate(event.target.value || null)}
       disabled={mutation.isPending}
-      className={`w-full text-xs rounded-md border px-2 py-1 focus:outline-none focus:ring-1 focus:ring-violet-400 disabled:opacity-60 bg-white ${
-        isEmpty && isUnowned && role === 'R'
-          ? 'border-amber-200 bg-amber-50 text-amber-700 placeholder:text-amber-400'
-          : 'border-gray-200 bg-gray-50 text-gray-700 placeholder:text-gray-400'
-      }`}
-    />
+      aria-label={role === 'R' ? 'Responsible member' : 'Accountable member'}
+      className={`w-full rounded-md border px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-violet-400 disabled:opacity-60 ${!currentUserId && isUnowned && role === 'R' ? 'border-amber-200 bg-amber-50 text-amber-700' : 'border-gray-200 bg-gray-50 text-gray-700'}`}
+    >
+      <option value="">{currentName && !currentUserId ? `Relink ${currentName}` : 'Unassigned'}</option>
+      {members.map((member) => <option key={member.id} value={member.id}>{member.name}</option>)}
+    </select>
   );
 }
 
@@ -373,12 +335,32 @@ function StatusSelect({ value, itemId, eventId }: { value: ChecklistStatus; item
   );
 }
 
+function DueDateInput({ item, eventId, canEdit }: { item: WorkspaceItem; eventId: string; canEdit: boolean }) {
+  const invalidate = useInvalidateWorkspace(eventId);
+  const mutation = useMutation({
+    mutationFn: (date: string) => api.patch(`/admin/events/${eventId}/workspace/items/${item.id}`, {
+      dueDate: date ? new Date(`${date}T00:00:00+08:00`).toISOString() : null,
+    }),
+    onSuccess: invalidate,
+    onError: () => toast.error('Could not update the due date.'),
+  });
+  const value = item.dueDate ? new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Manila' }).format(new Date(item.dueDate)) : '';
+  if (canEdit) return (
+    <div className="space-y-1">
+      <input type="date" value={value} onChange={(event) => mutation.mutate(event.target.value)} disabled={mutation.isPending}
+        className="w-full rounded-md border border-gray-200 bg-gray-50 px-2 py-1 text-[11px] text-gray-700 focus:outline-none focus:ring-1 focus:ring-violet-400" />
+      <span className={`inline-block rounded-full px-1.5 py-0.5 text-[9px] font-semibold ${DUE_STYLE[item.dueState].className}`}>{DUE_STYLE[item.dueState].label}</span>
+    </div>
+  );
+  return <span className={`inline-block rounded-full px-2 py-1 text-[10px] font-semibold ${DUE_STYLE[item.dueState].className}`}>{DUE_STYLE[item.dueState].label}</span>;
+}
+
 // ── Item row ──────────────────────────────────────────────────────────────────
 
 function ItemRow({
-  item, eventId, canEdit,
+  item, eventId, canEdit, members,
 }: {
-  item: WorkspaceItem; eventId: string; canEdit: boolean;
+  item: WorkspaceItem; eventId: string; canEdit: boolean; members: AssignableUser[];
 }) {
   const invalidate = useInvalidateWorkspace(eventId);
   const isNA = item.status === 'not_applicable';
@@ -391,12 +373,12 @@ function ItemRow({
   });
 
   const isDoneOrNA = isDone || isNA;
-  const isUnowned = !item.assignedToName && !item.accountableName && !isDoneOrNA;
+  const isUnowned = !item.assignedToUserId && !item.accountableToUserId && !item.assignedToName && !item.accountableName && !isDoneOrNA;
 
   return (
     <div
       className={`grid items-center gap-2 px-3 py-2 rounded-md group hover:bg-gray-50 transition-colors text-sm ${isNA ? 'opacity-45' : ''}`}
-      style={{ gridTemplateColumns: '10px 1fr minmax(110px,150px) minmax(110px,150px) auto auto auto' }}
+      style={{ gridTemplateColumns: '10px minmax(150px,1fr) minmax(105px,130px) minmax(105px,130px) minmax(105px,120px) auto auto' }}
     >
       <div className={`w-2 h-2 rounded-full shrink-0 ${PRIORITY_DOT[item.priority]}`}
         title={`${PRIORITY_LABEL[item.priority]} priority`} />
@@ -417,15 +399,15 @@ function ItemRow({
         )}
       </div>
 
-      <RaciInput role="R" currentName={item.assignedToName}
+      <RaciInput role="R" currentName={item.assignedToName} currentUserId={item.assignedToUserId}
         itemId={item.id} eventId={eventId}
-        isUnowned={isUnowned} canEdit={canEdit} />
+        isUnowned={isUnowned} canEdit={canEdit} members={members} />
 
-      <RaciInput role="A" currentName={item.accountableName}
+      <RaciInput role="A" currentName={item.accountableName} currentUserId={item.accountableToUserId}
         itemId={item.id} eventId={eventId}
-        isUnowned={false} canEdit={canEdit} />
+        isUnowned={false} canEdit={canEdit} members={members} />
 
-      <span />
+      <DueDateInput item={item} eventId={eventId} canEdit={canEdit} />
 
       {canEdit ? (
         <StatusSelect value={item.status} itemId={item.id} eventId={eventId} />
@@ -451,19 +433,39 @@ function ItemRow({
 // ── Category section ──────────────────────────────────────────────────────────
 
 function CategorySection({
-  category, items, eventId, canEdit,
+  categoryId, category, items, eventId, canEdit, members,
 }: {
-  category: string; items: WorkspaceItem[]; eventId: string; canEdit: boolean;
+  categoryId: string | null; category: string; items: WorkspaceItem[]; eventId: string; canEdit: boolean; members: AssignableUser[];
 }) {
+  const invalidate = useInvalidateWorkspace(eventId);
+  const [editing, setEditing] = useState(false);
+  const [name, setName] = useState(category);
+  const [adding, setAdding] = useState(false);
   const scorable = items.filter((i) => i.status !== 'not_applicable');
   const done = scorable.filter((i) => i.status === 'done').length;
   const pct = scorable.length > 0 ? Math.round((done / scorable.length) * 100) : 100;
   const na = items.length - scorable.length;
+  const renameMutation = useMutation({
+    mutationFn: () => api.patch(`/admin/events/${eventId}/workspace/categories/${categoryId}`, { name: name.trim() }),
+    onSuccess: () => { toast.success('Category renamed.'); setEditing(false); invalidate(); },
+    onError: (error: any) => toast.error(error?.response?.data?.message ?? 'Could not rename category.'),
+  });
+  const deleteMutation = useMutation({
+    mutationFn: () => api.delete(`/admin/events/${eventId}/workspace/categories/${categoryId}`),
+    onSuccess: (response: any) => { toast.success(`Category removed${response?.data?.data?.deletedItemCount ? ` with ${response.data.data.deletedItemCount} task(s)` : ''}.`); invalidate(); },
+    onError: () => toast.error('Could not remove category.'),
+  });
 
   return (
     <div>
       <div className="flex items-center gap-3 px-3 pb-1 mb-0.5">
-        <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider shrink-0">{category}</span>
+        {editing ? (
+          <div className="flex items-center gap-1">
+            <input value={name} onChange={(event) => setName(event.target.value)} autoFocus className="w-44 rounded-md border border-violet-300 px-2 py-1 text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-violet-400" />
+            <button onClick={() => renameMutation.mutate()} disabled={!name.trim() || renameMutation.isPending} className="text-xs font-semibold text-violet-700">Save</button>
+            <button onClick={() => { setEditing(false); setName(category); }} className="text-xs text-gray-400">Cancel</button>
+          </div>
+        ) : <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider shrink-0">{category}</span>}
         <div className="flex-1 h-1 bg-gray-100 rounded-full overflow-hidden">
           <div className={`h-full rounded-full transition-all ${pct === 100 ? 'bg-green-400' : pct >= 50 ? 'bg-blue-400' : 'bg-gray-300'}`}
             style={{ width: `${pct}%` }} />
@@ -472,10 +474,18 @@ function CategorySection({
           {done}/{scorable.length}
           {na > 0 && <span className="ml-1 text-gray-300">·{na} n/a</span>}
         </span>
+        {canEdit && categoryId && !editing && (
+          <div className="flex items-center gap-2">
+            <button onClick={() => setAdding((value) => !value)} className="text-xs font-medium text-violet-600">+ Task</button>
+            <button onClick={() => setEditing(true)} className="text-xs text-gray-400 hover:text-gray-700">Rename</button>
+            <button onClick={() => { if (window.confirm(`Delete “${category}” and its ${items.length} task(s)?`)) deleteMutation.mutate(); }} className="text-xs text-gray-400 hover:text-red-600">Delete</button>
+          </div>
+        )}
       </div>
+      {adding && categoryId && <div className="px-3 pb-2"><AddItemRow eventId={eventId} categoryId={categoryId} members={members} onDone={() => setAdding(false)} /></div>}
       <div className="space-y-0.5">
         {items.map((item) => (
-          <ItemRow key={item.id} item={item} eventId={eventId} canEdit={canEdit} />
+          <ItemRow key={item.id} item={item} eventId={eventId} canEdit={canEdit} members={members} />
         ))}
       </div>
     </div>
@@ -484,18 +494,42 @@ function CategorySection({
 
 // ── Add item inline form ──────────────────────────────────────────────────────
 
-function AddItemRow({ eventId, onDone }: { eventId: string; onDone: () => void }) {
+function AddCategoryForm({ eventId, onDone }: { eventId: string; onDone: () => void }) {
+  const invalidate = useInvalidateWorkspace(eventId);
+  const [name, setName] = useState('');
+  const mutation = useMutation({
+    mutationFn: () => api.post(`/admin/events/${eventId}/workspace/categories`, { name: name.trim() }),
+    onSuccess: () => { toast.success('Category added.'); invalidate(); onDone(); },
+    onError: (error: any) => toast.error(error?.response?.data?.message ?? 'Could not add category.'),
+  });
+  return (
+    <div className="flex items-center gap-2 rounded-lg border border-dashed border-violet-200 bg-violet-50/50 p-3">
+      <input value={name} onChange={(event) => setName(event.target.value)} autoFocus placeholder="Category name, e.g. Venue & logistics"
+        onKeyDown={(event) => { if (event.key === 'Enter' && name.trim()) mutation.mutate(); if (event.key === 'Escape') onDone(); }}
+        className="flex-1 rounded-md border border-violet-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-violet-400" />
+      <button onClick={() => mutation.mutate()} disabled={!name.trim() || mutation.isPending} className="rounded-md bg-violet-600 px-3 py-2 text-xs font-semibold text-white disabled:opacity-50">Add category</button>
+      <button onClick={onDone} className="text-xs text-gray-500">Cancel</button>
+    </div>
+  );
+}
+
+function AddItemRow({ eventId, categoryId, members, onDone }: { eventId: string; categoryId: string; members: AssignableUser[]; onDone: () => void }) {
   const invalidate = useInvalidateWorkspace(eventId);
   const [title, setTitle]         = useState('');
-  const [category, setCategory]   = useState('');
   const [priority, setPriority]   = useState<ChecklistPriority>('medium');
   const [isBlocker, setIsBlocker] = useState(false);
+  const [dueDate, setDueDate] = useState('');
+  const [assignedToUserId, setAssignedToUserId] = useState('');
+  const [accountableToUserId, setAccountableToUserId] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
 
   const mutation = useMutation({
     mutationFn: () =>
       api.post(`/admin/events/${eventId}/workspace/items`, {
-        title: title.trim(), category: category.trim() || 'General', priority, isBlocker,
+        title: title.trim(), categoryId, priority, isBlocker,
+        dueDate: dueDate ? new Date(`${dueDate}T00:00:00+08:00`).toISOString() : undefined,
+        assignedToUserId: assignedToUserId || undefined,
+        accountableToUserId: accountableToUserId || undefined,
       }),
     onSuccess: () => { invalidate(); setTitle(''); inputRef.current?.focus(); },
     onError: () => toast.error('Could not add item.'),
@@ -515,14 +549,20 @@ function AddItemRow({ eventId, onDone }: { eventId: string; onDone: () => void }
         <button onClick={onDone} className="text-gray-400 hover:text-gray-600 text-xs shrink-0">Cancel</button>
       </div>
       <div className="flex flex-wrap items-center gap-2 text-xs">
-        <input type="text" placeholder="Category" value={category} onChange={(e) => setCategory(e.target.value)}
-          className="w-32 bg-white border border-gray-200 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-violet-400" />
         <select value={priority} onChange={(e) => setPriority(e.target.value as ChecklistPriority)}
           className="bg-white border border-gray-200 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-violet-400">
           <option value="low">Low</option>
           <option value="medium">Medium</option>
           <option value="high">High</option>
           <option value="critical">Critical</option>
+        </select>
+        <input type="date" value={dueDate} onChange={(event) => setDueDate(event.target.value)} aria-label="Due date"
+          className="bg-white border border-gray-200 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-violet-400" />
+        <select value={assignedToUserId} onChange={(event) => setAssignedToUserId(event.target.value)} aria-label="Responsible member" className="max-w-36 bg-white border border-gray-200 rounded px-2 py-1">
+          <option value="">Responsible</option>{members.map((member) => <option key={member.id} value={member.id}>{member.name}</option>)}
+        </select>
+        <select value={accountableToUserId} onChange={(event) => setAccountableToUserId(event.target.value)} aria-label="Accountable member" className="max-w-36 bg-white border border-gray-200 rounded px-2 py-1">
+          <option value="">Accountable</option>{members.map((member) => <option key={member.id} value={member.id}>{member.name}</option>)}
         </select>
         <label className="flex items-center gap-1.5 cursor-pointer select-none text-gray-600">
           <input type="checkbox" checked={isBlocker} onChange={(e) => setIsBlocker(e.target.checked)}
@@ -585,8 +625,7 @@ function AddMilestoneForm({ eventId, onDone }: { eventId: string; onDone: () => 
 export default function EventWorkspacePage() {
   const { id } = useParams<{ id: string }>();
   const qc = useQueryClient();
-  const [showTemplate, setShowTemplate]   = useState(false);
-  const [showAddItem, setShowAddItem]     = useState(false);
+  const [showAddCategory, setShowAddCategory] = useState(false);
   const [showAddMs, setShowAddMs]         = useState(false);
   const [downloading, setDownloading]         = useState(false);
   const [downloadingPE, setDownloadingPE]     = useState(false);
@@ -670,6 +709,12 @@ export default function EventWorkspacePage() {
     queryKey: ['workspace-members', id],
     queryFn: () =>
       api.get<{ data: TeamMember[] }>(`/admin/events/${id}/workspace/members`).then((r) => r.data.data),
+    enabled: !!summary,
+  });
+
+  const { data: assignableUsers = [] } = useQuery<AssignableUser[]>({
+    queryKey: ['workspace-assignable-users', id],
+    queryFn: () => api.get<{ data: AssignableUser[] }>(`/admin/events/${id}/workspace/assignable-users`).then((response) => response.data.data),
     enabled: !!summary,
   });
 
@@ -770,10 +815,6 @@ export default function EventWorkspacePage() {
 
   return (
     <>
-      {showTemplate && (
-        <TemplatePicker eventId={id} hasItems={totalItems > 0} onClose={() => setShowTemplate(false)} />
-      )}
-
       <main className="max-w-4xl mx-auto px-6 py-8 space-y-5">
 
         {/* Header */}
@@ -806,12 +847,6 @@ export default function EventWorkspacePage() {
               </svg>
               {downloadingPE ? 'Generating…' : 'Post-Event Report'}
             </button>
-            {canEdit && (
-              <button onClick={() => setShowTemplate(true)}
-                className="border border-gray-200 hover:border-gray-300 text-sm text-gray-600 hover:text-gray-800 font-medium px-3 py-2 rounded-lg transition-colors">
-                Choose Template
-              </button>
-            )}
             {canClose && !summary.isClosed && summary.event.status === 'completed' && (
               <button
                 onClick={() => {
@@ -840,7 +875,8 @@ export default function EventWorkspacePage() {
         )}
 
         {/* Team */}
-        {teamMembers && teamMembers.length > 0 && (
+        <OrganizationTeamPanel eventId={id} canManage={summary.viewerRole === 'manager'} />
+        {teamMembers && teamMembers.length > 0 && summary.viewerRole !== 'manager' && (
           <div className="rounded-2xl border border-gray-200 bg-white px-5 py-4">
             <h2 className="text-sm font-semibold text-gray-900 mb-2.5">Team</h2>
             <div className="flex flex-wrap gap-2">
@@ -880,7 +916,7 @@ export default function EventWorkspacePage() {
             ))}
           </div>
 
-          {(r.unownedCount > 0 || r.overdueCount > 0 || r.notApplicable > 0) && (
+          {(r.unownedCount > 0 || r.overdueCount > 0 || r.dueTodayCount > 0 || r.dueSoonCount > 0 || r.notApplicable > 0) && (
             <div className="flex flex-wrap gap-3 pt-2 border-t border-gray-100 text-xs">
               {r.unownedCount > 0 && (
                 <span className="flex items-center gap-1.5 text-amber-700 bg-amber-50 border border-amber-200 px-2.5 py-1 rounded-full">
@@ -898,6 +934,8 @@ export default function EventWorkspacePage() {
                   {r.overdueCount} overdue
                 </span>
               )}
+              {r.dueTodayCount > 0 && <span className="rounded-full border border-orange-200 bg-orange-50 px-2.5 py-1 text-orange-700">{r.dueTodayCount} due today</span>}
+              {r.dueSoonCount > 0 && <span className="rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-amber-700">{r.dueSoonCount} due soon</span>}
               {r.notApplicable > 0 && (
                 <span className="text-gray-400">
                   {r.notApplicable} N/A · score based on {r.scorableTotal} applicable item{r.scorableTotal !== 1 ? 's' : ''}
@@ -979,38 +1017,38 @@ export default function EventWorkspacePage() {
               <h2 className="text-sm font-semibold text-gray-900">Checklist</h2>
               <span className="text-xs text-gray-400">{totalItems} items</span>
             </div>
-            {canEdit && !showAddItem && (
-              <button onClick={() => setShowAddItem(true)}
+            {canEdit && !showAddCategory && (
+              <button onClick={() => setShowAddCategory(true)}
                 className="text-sm text-violet-600 hover:text-violet-800 font-medium transition-colors">
-                + Add item
+                + Add category
               </button>
             )}
           </div>
           <div className="grid px-3 py-1.5 border-b border-gray-50 text-[10px] font-semibold text-gray-300 uppercase tracking-wider gap-2"
-            style={{ gridTemplateColumns: '10px 1fr minmax(110px,150px) minmax(110px,150px) auto auto auto' }}>
-            <span /><span>Item</span><span>Responsible</span><span>Accountable</span><span /><span>Status</span><span />
+            style={{ gridTemplateColumns: '10px minmax(150px,1fr) minmax(105px,130px) minmax(105px,130px) minmax(105px,120px) auto auto' }}>
+            <span /><span>Task</span><span>Responsible</span><span>Accountable</span><span>Due date</span><span>Status</span><span />
           </div>
           <div className="px-2 py-2 space-y-4">
-            {showAddItem && (
+            {showAddCategory && (
               <div className="px-1">
-                <AddItemRow eventId={id} onDone={() => setShowAddItem(false)} />
+                <AddCategoryForm eventId={id} onDone={() => setShowAddCategory(false)} />
               </div>
             )}
             {itemsLoading ? (
               <ScreenSkeleton rows={4} compact />
             ) : !itemsData || itemsData.categories.length === 0 ? (
               <div className="py-4">
-                <EmptyState title="No workspace items yet" message="Choose a readiness template or add the first item for this event." action={canEdit ? (
-                  <button onClick={() => setShowTemplate(true)}
+                <EmptyState title="Build your organizer workspace" message="Start with a category, then add the tasks, owners, and due dates your event needs." action={canEdit ? (
+                  <button onClick={() => setShowAddCategory(true)}
                     className="axon-pill bg-primary text-xs text-white hover:bg-primary-hover">
-                    Choose a template
+                    Add first category
                   </button>
                 ) : undefined} />
               </div>
             ) : (
-              itemsData.categories.map(({ category, items }) => (
-                <CategorySection key={category} category={category} items={items}
-                  eventId={id} canEdit={canEdit} />
+              itemsData.categories.map(({ id: categoryId, category, items }) => (
+                <CategorySection key={categoryId ?? category} categoryId={categoryId} category={category} items={items}
+                  eventId={id} canEdit={canEdit} members={assignableUsers} />
               ))
             )}
           </div>

@@ -7,6 +7,7 @@ import {
   IsIn,
   MinLength,
   ValidateIf,
+  IsUUID,
 } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 
@@ -26,6 +27,12 @@ export class UpdateWorkspaceItemDto {
   @IsString()
   @MaxLength(80)
   category?: string;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @ValidateIf((o) => o.categoryId !== null)
+  @IsUUID()
+  categoryId?: string | null;
 
   @ApiProperty({ required: false, enum: VALID_STATUSES })
   @IsOptional()
@@ -73,6 +80,18 @@ export class UpdateWorkspaceItemDto {
   @IsString()
   @MaxLength(200)
   accountableName?: string | null;
+
+  @ApiProperty({ required: false, description: 'Verified organization member responsible for this task, or null to clear' })
+  @IsOptional()
+  @ValidateIf((o) => o.assignedToUserId !== null)
+  @IsUUID()
+  assignedToUserId?: string | null;
+
+  @ApiProperty({ required: false, description: 'Verified organization member accountable for this task, or null to clear' })
+  @IsOptional()
+  @ValidateIf((o) => o.accountableToUserId !== null)
+  @IsUUID()
+  accountableToUserId?: string | null;
 }
 
 export class CreateWorkspaceItemDto {
@@ -87,6 +106,11 @@ export class CreateWorkspaceItemDto {
   @IsString()
   @MaxLength(80)
   category?: string;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsUUID()
+  categoryId?: string;
 
   @ApiProperty({ required: false, enum: VALID_PRIORITIES })
   @IsOptional()
@@ -113,6 +137,32 @@ export class CreateWorkspaceItemDto {
   @IsString()
   @MaxLength(1000)
   notes?: string;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsUUID()
+  assignedToUserId?: string;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsUUID()
+  accountableToUserId?: string;
+}
+
+export class CreateWorkspaceCategoryDto {
+  @ApiProperty()
+  @IsString()
+  @MinLength(1)
+  @MaxLength(80)
+  name: string;
+}
+
+export class UpdateWorkspaceCategoryDto {
+  @ApiProperty()
+  @IsString()
+  @MinLength(1)
+  @MaxLength(80)
+  name: string;
 }
 
 export class ApplyTemplateDto {

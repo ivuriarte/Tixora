@@ -206,9 +206,14 @@ export default function EventPreview({ draft, tiers }: EventPreviewProps) {
         {draft.sponsors.length > 0 && (
           <div>
             <p className="text-[10px] uppercase tracking-wider text-gray-400 mb-1">Sponsors</p>
-            <div className="flex flex-wrap gap-1.5">
+            <div className="grid grid-cols-2 gap-2">
               {draft.sponsors.map((s, i) => (
-                <span key={i} className="text-[10px] px-2 py-0.5 rounded-full bg-gray-100 text-gray-700">{s.name}</span>
+                <div key={i} className="flex min-h-12 items-center justify-center rounded-lg border border-violet-100 bg-white p-2">
+                  {s.logoUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={s.logoUrl} alt={`${s.name} logo`} className="max-h-8 max-w-full object-contain opacity-100" />
+                  ) : <span className="text-center text-[10px] font-medium text-gray-700">{s.name}</span>}
+                </div>
               ))}
             </div>
           </div>

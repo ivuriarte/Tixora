@@ -7,6 +7,7 @@ import {
   Matches,
   IsBoolean,
   ValidateNested,
+  IsEmail,
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
@@ -210,4 +211,22 @@ export class UpdateOrganizationDto {
   @IsOptional()
   @IsBoolean()
   isPublic?: boolean;
+}
+
+export class AddOrganizationMemberDto {
+  @ApiProperty({ example: 'teammate@example.com' })
+  @IsEmail()
+  @MaxLength(254)
+  email: string;
+
+  @ApiPropertyOptional({ enum: ['admin', 'member'], default: 'member' })
+  @IsOptional()
+  @IsIn(['admin', 'member'])
+  role?: 'admin' | 'member';
+}
+
+export class UpdateOrganizationMemberDto {
+  @ApiProperty({ enum: ['admin', 'member'] })
+  @IsIn(['admin', 'member'])
+  role: 'admin' | 'member';
 }

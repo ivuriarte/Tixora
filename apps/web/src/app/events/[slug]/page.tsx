@@ -12,6 +12,7 @@ import EventCoverFallback from '@/components/EventCoverFallback';
 import StickyEventCta from '@/components/StickyEventCta';
 import ShareEventButton from '@/components/ShareEventButton';
 import Footer from '@/components/marketing/Footer';
+import SponsorShowcase from '@/components/SponsorShowcase';
 
 interface Tier {
   id: string;
@@ -320,70 +321,6 @@ export default async function EventPage({
               </div>
             )}
 
-            {/* Sponsors */}
-            {sponsors.length > 0 && (
-              <div>
-                <h2 className="text-lg font-semibold text-gray-900 mb-6 text-center">Sponsors &amp; Partners</h2>
-                {(() => {
-                  const TIER_ORDER = ['platinum', 'gold', 'silver', 'bronze'];
-                  const TIER_HEIGHT: Record<string, string> = {
-                    platinum: 'h-24',
-                    gold: 'h-16',
-                    silver: 'h-12',
-                    bronze: 'h-10',
-                  };
-                  const grouped = sponsors.reduce<Record<string, Sponsor[]>>((acc, s) => {
-                    const key = s.tier?.toLowerCase() ?? '__none__';
-                    (acc[key] ??= []).push(s);
-                    return acc;
-                  }, {});
-                  const sortedKeys = Object.keys(grouped).sort((a, b) => {
-                    if (a === '__none__') return 1;
-                    if (b === '__none__') return -1;
-                    const ai = TIER_ORDER.indexOf(a);
-                    const bi = TIER_ORDER.indexOf(b);
-                    if (ai === -1 && bi === -1) return a.localeCompare(b);
-                    if (ai === -1) return 1;
-                    if (bi === -1) return -1;
-                    return ai - bi;
-                  });
-                  return sortedKeys.map((tierKey) => {
-                    const tierSponsors = grouped[tierKey];
-                    const tierLabel = tierKey === '__none__' ? null : tierKey.charAt(0).toUpperCase() + tierKey.slice(1);
-                    const logoHeight = TIER_HEIGHT[tierKey] ?? 'h-16';
-                    return (
-                      <div key={tierKey} className="mb-8 last:mb-0">
-                        {tierLabel && (
-                          <div className="flex items-center gap-3 mb-5">
-                            <div className="flex-1 h-px bg-gray-200" />
-                            <span className="text-[10px] font-semibold uppercase tracking-[0.15em] text-gray-400">{tierLabel}</span>
-                            <div className="flex-1 h-px bg-gray-200" />
-                          </div>
-                        )}
-                        <div className="flex flex-wrap items-center justify-center gap-8">
-                          {tierSponsors.map((s, i) => {
-                            const logo = s.logoUrl ? (
-                              /* eslint-disable-next-line @next/next/no-img-element */
-                              <img src={s.logoUrl} alt={`${s.name} logo`} loading="lazy" decoding="async" className={`${logoHeight} w-auto max-w-[280px] object-contain grayscale opacity-60 transition-all duration-200 hover:grayscale-0 hover:opacity-100`} />
-                            ) : (
-                              <span className="text-sm font-semibold text-gray-500">{s.name}</span>
-                            );
-                            return (
-                              <div key={i} className="flex items-center justify-center">
-                                {s.websiteUrl ? (
-                                  <a href={s.websiteUrl} target="_blank" rel="noopener noreferrer" aria-label={`Visit ${s.name}`}>{logo}</a>
-                                ) : logo}
-                              </div>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    );
-                  });
-                })()}
-              </div>
-            )}
-
             {customSections.map((section, index) => (
               <section key={`${section.title}-${index}`} className="overflow-hidden rounded-2xl border border-gray-200 bg-white">
                 {section.imageUrl && (
@@ -475,6 +412,7 @@ export default async function EventPage({
               disabled={isPreview || isSoldOut || isCancelled}
             />
             </div>
+            {sponsors.length > 0 && <SponsorShowcase sponsors={sponsors} compact />}
           </div>
         </div>
         </div>

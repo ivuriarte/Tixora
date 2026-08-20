@@ -2,6 +2,8 @@ import {
   Injectable,
   ConflictException,
   NotFoundException,
+  ForbiddenException,
+  BadRequestException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
@@ -313,6 +315,136 @@ export class OrganizationsService {
         endsAt: event.endsAt?.toISOString() ?? null,
       })),
     };
+  }
+
+  private async requireTeamManager(userId: string) {
+    const membership = await this.prisma.organizationMember.findFirst({
+      where: {
+        userId,
+        role: { in: ['owner', 'admin'] },
+        organization: { approvalStatus: 'approved' },
+      },
+      include: { organization: { select: { id: true, name: true } } },
+      orderBy: { createdAt: 'desc' },
+    });
+    if (!membership) throw new ForbiddenException('Organization owner or admin access required');
+    return membership;
+  }
+
+  async getMyTeam(userId: string) {
+    const actor = await this.prisma.organizationMember.findFirst({
+      where: { userId, organization: { approvalStatus: 'approved' } },
+      select: { organizationId: true, role: true },
+      orderBy: { createdAt: 'desc' },
+    });
+    if (!actor) throw new NotFoundException('Approved organization not found');
+    const members = await this.prisma.organizationMember.findMany({
+      where: { organizationId: actor.organizationId },
+      include: { user: { select: { id: true, firstName: true, lastName: true, email: true, isVerified: true } } },
+      orderBy: [{ role: 'asc' }, { createdAt: 'asc' }],
+    });
+    return {
+      canManage: actor.role === 'owner' || actor.role === 'admin',
+      members: members.map((member) => ({
+        id: member.id,
+        userId: member.user.id,
+        name: [member.user.firstName, member.user.lastName].filter(Boolean).join(' ') || member.user.email,
+        email: member.user.email,
+        role: member.role,
+        status: member.user.isVerified ? 'active' : 'pending',
+        createdAt: member.createdAt.toISOString(),
+      })),
+    };
+  }
+
+  async addMyTeamMember(actorId: string, rawEmail: string, role: 'admin' | 'member') {
+    const actor = await this.requireTeamManager(actorId);
+    const email = rawEmail.trim().toLowerCase();
+    let user = await this.prisma.user.findUnique({
+      where: { email },
+      select: { id: true, email: true, firstName: true, lastName: true, isVerified: true },
+    });
+    if (user) {
+      const membershipElsewhere = await this.prisma.organizationMember.findFirst({
+        where: { userId: user.id, organizationId: { not: actor.organizationId } },
+        select: { id: true },
+      });
+      if (membershipElsewhere) throw new ConflictException('This account already belongs to another organizer');
+    } else {
+      user = await this.prisma.user.create({
+        data: { email, isVerified: false },
+        select: { id: true, email: true, firstName: true, lastName: true, isVerified: true },
+      });
+    }
+    const existing = await this.prisma.organizationMember.findUnique({
+      where: { userId_organizationId: { userId: user.id, organizationId: actor.organizationId } },
+      select: { id: true },
+    });
+    if (existing) throw new ConflictException('This person is already on the team');
+    const membership = await this.prisma.organizationMember.create({
+      data: { userId: user.id, organizationId: actor.organizationId, role },
+    });
+    await this.audit.log({
+      action: 'ORGANIZATION_MEMBER_ADDED', entityType: 'OrganizationMember', entityId: membership.id,
+      performedById: actorId, metadata: { organizationId: actor.organizationId, userId: user.id, role, pendingVerification: !user.isVerified },
+    }).catch(() => null);
+    await this.emailService.sendOrganizationTeamInvite(email, actor.organization.name, !user.isVerified);
+    return this.getMyTeam(actorId);
+  }
+
+  async updateMyTeamMember(actorId: string, memberId: string, role: 'admin' | 'member') {
+    const actor = await this.requireTeamManager(actorId);
+    const member = await this.prisma.organizationMember.findFirst({
+      where: { id: memberId, organizationId: actor.organizationId },
+    });
+    if (!member) throw new NotFoundException('Team member not found');
+    if (member.role === 'owner') throw new BadRequestException('The owner role cannot be changed');
+    if (actor.role === 'admin' && member.role === 'admin') throw new ForbiddenException('Only the owner can change another admin');
+    await this.prisma.organizationMember.update({ where: { id: memberId }, data: { role } });
+    await this.prisma.workspaceMember.updateMany({
+      where: { userId: member.userId, workspace: { event: { organizationId: actor.organizationId } } },
+      data: { role: role === 'admin' ? 'manager' : 'editor' },
+    });
+    await this.audit.log({
+      action: 'ORGANIZATION_MEMBER_ROLE_CHANGED', entityType: 'OrganizationMember', entityId: memberId,
+      performedById: actorId, metadata: { organizationId: actor.organizationId, from: member.role, to: role },
+    }).catch(() => null);
+    return this.getMyTeam(actorId);
+  }
+
+  async removeMyTeamMember(actorId: string, memberId: string) {
+    const actor = await this.requireTeamManager(actorId);
+    const member = await this.prisma.organizationMember.findFirst({
+      where: { id: memberId, organizationId: actor.organizationId },
+    });
+    if (!member) throw new NotFoundException('Team member not found');
+    if (member.role === 'owner') throw new BadRequestException('The organization owner cannot be removed');
+    if (member.userId === actorId) throw new BadRequestException('You cannot remove your own access');
+    if (actor.role === 'admin' && member.role === 'admin') throw new ForbiddenException('Only the owner can remove another admin');
+
+    const affected = await this.prisma.workspaceItem.count({
+      where: {
+        workspace: { event: { organizationId: actor.organizationId } },
+        OR: [{ assignedToUserId: member.userId }, { accountableToUserId: member.userId }],
+      },
+    });
+    await this.prisma.workspaceItem.updateMany({
+      where: { workspace: { event: { organizationId: actor.organizationId } }, assignedToUserId: member.userId },
+      data: { assignedToUserId: null, assignedToName: null },
+    });
+    await this.prisma.workspaceItem.updateMany({
+      where: { workspace: { event: { organizationId: actor.organizationId } }, accountableToUserId: member.userId },
+      data: { accountableToUserId: null, accountableName: null },
+    });
+    await this.prisma.workspaceMember.deleteMany({
+      where: { userId: member.userId, workspace: { event: { organizationId: actor.organizationId } } },
+    });
+    await this.prisma.organizationMember.delete({ where: { id: memberId } });
+    await this.audit.log({
+      action: 'ORGANIZATION_MEMBER_REMOVED', entityType: 'OrganizationMember', entityId: memberId,
+      performedById: actorId, metadata: { organizationId: actor.organizationId, userId: member.userId, unassignedTaskCount: affected },
+    }).catch(() => null);
+    return { removed: true, unassignedTaskCount: affected };
   }
 
   async getApprovalStatusForUser(

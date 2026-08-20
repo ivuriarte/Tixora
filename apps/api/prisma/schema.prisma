@@ -104,25 +104,28 @@ model User {
   createdAt    DateTime  @default(now()) @map("created_at")
   updatedAt    DateTime  @updatedAt @map("updated_at")
 
-  reservations          Reservation[]
-  orders                Order[]
-  tickets               Ticket[]
-  otpCodes              OtpCode[]
-  fraudFlags            FraudFlag[]
-  events                Event[]                   @relation("CreatedBy")
-  checkIns              Ticket[]                  @relation("CheckedInBy")
-  attendanceCheckIns    AttendeeAttendance[]      @relation("AttendanceCheckedInBy")
-  confirmedOrders       Order[]                   @relation("ConfirmedByAdmin")
-  registrations         Registration[]
-  verifiedRegistrations Registration[]            @relation("VerifiedBy")
-  reviewedProofs        PaymentProof[]            @relation("ReviewedBy")
-  auditLogs             AuditLog[]                @relation("AuditPerformedBy")
-  funnelEvents          RegistrationFunnelEvent[]
-  organizationsCreated  Organization[]            @relation("OrgCreatedBy")
-  organizationsApproved Organization[]            @relation("OrgApprovedBy")
-  organizationMembers   OrganizationMember[]
-  workspaceMembers      WorkspaceMember[]
-  workspacesClosed      EventWorkspace[]          @relation("WorkspaceClosedBy")
+  reservations                Reservation[]
+  orders                      Order[]
+  tickets                     Ticket[]
+  otpCodes                    OtpCode[]
+  fraudFlags                  FraudFlag[]
+  events                      Event[]                     @relation("CreatedBy")
+  checkIns                    Ticket[]                    @relation("CheckedInBy")
+  attendanceCheckIns          AttendeeAttendance[]        @relation("AttendanceCheckedInBy")
+  confirmedOrders             Order[]                     @relation("ConfirmedByAdmin")
+  registrations               Registration[]
+  verifiedRegistrations       Registration[]              @relation("VerifiedBy")
+  reviewedProofs              PaymentProof[]              @relation("ReviewedBy")
+  auditLogs                   AuditLog[]                  @relation("AuditPerformedBy")
+  funnelEvents                RegistrationFunnelEvent[]
+  organizationsCreated        Organization[]              @relation("OrgCreatedBy")
+  organizationsApproved       Organization[]              @relation("OrgApprovedBy")
+  organizationMembers         OrganizationMember[]
+  workspaceMembers            WorkspaceMember[]
+  workspacesClosed            EventWorkspace[]            @relation("WorkspaceClosedBy")
+  workspaceItemsResponsible   WorkspaceItem[]             @relation("WorkspaceItemResponsible")
+  workspaceItemsAccountable   WorkspaceItem[]             @relation("WorkspaceItemAccountable")
+  workspaceReminderDeliveries WorkspaceReminderDelivery[]
 
   @@map("users")
   @@index([isTest, createdAt])
@@ -764,6 +767,7 @@ model EventWorkspace {
   closedBy   User?                @relation("WorkspaceClosedBy", fields: [closedById], references: [id])
   members    WorkspaceMember[]
   items      WorkspaceItem[]
+  categories WorkspaceCategory[]
   milestones WorkspaceMilestone[]
 
   @@map("event_workspaces")
@@ -786,27 +790,68 @@ model WorkspaceMember {
 }
 
 model WorkspaceItem {
-  id              String            @id @default(uuid())
-  workspaceId     String            @map("workspace_id")
-  title           String
-  category        String            @default("general")
-  status          ChecklistStatus   @default(open)
-  priority        ChecklistPriority @default(medium)
-  isBlocker       Boolean           @default(false) @map("is_blocker")
-  startDate       DateTime?         @map("start_date")
-  dueDate         DateTime?         @map("due_date")
-  assignedToName  String?           @map("assigned_to_name")
-  accountableName String?           @map("accountable_name")
-  notes           String?
-  completedAt     DateTime?         @map("completed_at")
-  sortOrder       Int               @default(0) @map("sort_order")
-  createdAt       DateTime          @default(now()) @map("created_at")
-  updatedAt       DateTime          @updatedAt @map("updated_at")
+  id                  String            @id @default(uuid())
+  workspaceId         String            @map("workspace_id")
+  title               String
+  category            String            @default("general")
+  status              ChecklistStatus   @default(open)
+  priority            ChecklistPriority @default(medium)
+  isBlocker           Boolean           @default(false) @map("is_blocker")
+  startDate           DateTime?         @map("start_date")
+  dueDate             DateTime?         @map("due_date")
+  assignedToName      String?           @map("assigned_to_name")
+  accountableName     String?           @map("accountable_name")
+  categoryId          String?           @map("category_id")
+  assignedToUserId    String?           @map("assigned_to_user_id")
+  accountableToUserId String?           @map("accountable_to_user_id")
+  notes               String?
+  completedAt         DateTime?         @map("completed_at")
+  sortOrder           Int               @default(0) @map("sort_order")
+  createdAt           DateTime          @default(now()) @map("created_at")
+  updatedAt           DateTime          @updatedAt @map("updated_at")
 
-  workspace EventWorkspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  workspace          EventWorkspace              @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  categoryRecord     WorkspaceCategory?          @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  assignedToUser     User?                       @relation("WorkspaceItemResponsible", fields: [assignedToUserId], references: [id], onDelete: SetNull)
+  accountableToUser  User?                       @relation("WorkspaceItemAccountable", fields: [accountableToUserId], references: [id], onDelete: SetNull)
+  reminderDeliveries WorkspaceReminderDelivery[]
 
   @@index([workspaceId])
+  @@index([categoryId])
+  @@index([assignedToUserId])
+  @@index([accountableToUserId])
   @@map("workspace_items")
+}
+
+model WorkspaceCategory {
+  id          String   @id @default(uuid())
+  workspaceId String   @map("workspace_id")
+  name        String
+  sortOrder   Int      @default(0) @map("sort_order")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  workspace EventWorkspace  @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  items     WorkspaceItem[]
+
+  @@unique([workspaceId, name])
+  @@index([workspaceId, sortOrder])
+  @@map("workspace_categories")
+}
+
+model WorkspaceReminderDelivery {
+  id              String   @id @default(uuid())
+  workspaceItemId String   @map("workspace_item_id")
+  recipientUserId String   @map("recipient_user_id")
+  reminderKey     String   @map("reminder_key")
+  sentAt          DateTime @default(now()) @map("sent_at")
+
+  workspaceItem WorkspaceItem @relation(fields: [workspaceItemId], references: [id], onDelete: Cascade)
+  recipientUser User          @relation(fields: [recipientUserId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceItemId, recipientUserId, reminderKey])
+  @@index([recipientUserId, sentAt])
+  @@map("workspace_reminder_deliveries")
 }
 
 model WorkspaceMilestone {

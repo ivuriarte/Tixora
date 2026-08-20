@@ -8,6 +8,8 @@ on:
     - cron: '*/5 * * * *'
     # Daily at 02:00 UTC — OTP code cleanup.
     - cron: '0 2 * * *'
+    # Daily at 08:00 Asia/Manila — organizer workspace due-date digest.
+    - cron: '0 0 * * *'
   workflow_dispatch: # allow manual trigger for testing / event-day use
 
 jobs:
@@ -94,3 +96,15 @@ jobs:
             -H "x-cron-secret: ${{ secrets.CRON_SECRET }}" \
             -H "Content-Type: application/json" \
             "${{ vars.API_BASE_URL }}/api/v1/cron/enforce-attendee-retention"
+
+  workspace-due-reminders:
+    name: Send organizer workspace due reminders
+    runs-on: ubuntu-latest
+    if: github.event.schedule == '0 0 * * *' || github.event_name == 'workflow_dispatch'
+    steps:
+      - name: POST /cron/workspace-due-reminders
+        run: |
+          curl --fail-with-body -s -X POST \
+            -H "x-cron-secret: ${{ secrets.CRON_SECRET }}" \
+            -H "Content-Type: application/json" \
+            "${{ vars.API_BASE_URL }}/api/v1/cron/workspace-due-reminders"

@@ -154,3 +154,50 @@ describe('SchedulerService — enforceAttendeeRetention()', () => {
     );
   });
 });
+
+describe('SchedulerService — sendWorkspaceDueReminders()', () => {
+  it('consolidates Responsible and Accountable into one digest and records delivery only after success', async () => {
+    const user = { id: 'user_1', email: 'owner@example.com', firstName: 'Ana', lastName: 'Reyes', isVerified: true };
+    const item = {
+      id: 'item_1', title: 'Confirm venue', status: 'open', dueDate: new Date('2026-08-19T00:00:00+08:00'),
+      workspace: { event: { id: 'event_1', title: 'Leadership Summit' } },
+      assignedToUser: user, accountableToUser: user, reminderDeliveries: [],
+    };
+    const prisma = {
+      workspaceItem: { findMany: jest.fn().mockResolvedValue([item]) },
+      workspaceReminderDelivery: { createMany: jest.fn().mockResolvedValue({ count: 1 }) },
+    };
+    const email = { sendWorkspaceDueDigest: jest.fn().mockResolvedValue(true) };
+    const service = new SchedulerService(
+      prisma as any,
+      email as any,
+      { log: jest.fn() } as any,
+      { get: jest.fn().mockReturnValue('https://uat.axontickets.online') } as any,
+      { deleteStoredImage: jest.fn() } as any,
+    );
+    const result = await service.sendWorkspaceDueReminders(new Date('2026-08-18T20:00:00Z'));
+    expect(result).toEqual({ recipients: 1, tasks: 1 });
+    expect(email.sendWorkspaceDueDigest).toHaveBeenCalledTimes(1);
+    expect(prisma.workspaceReminderDelivery.createMany).toHaveBeenCalledWith(expect.objectContaining({ skipDuplicates: true }));
+  });
+
+  it('does not mark a delivery when SMTP is unavailable', async () => {
+    const user = { id: 'user_1', email: 'owner@example.com', firstName: 'Ana', lastName: null, isVerified: true };
+    const prisma = {
+      workspaceItem: { findMany: jest.fn().mockResolvedValue([{
+        id: 'item_1', title: 'Confirm venue', status: 'open', dueDate: new Date('2026-08-19T00:00:00+08:00'),
+        workspace: { event: { id: 'event_1', title: 'Summit' } }, assignedToUser: user, accountableToUser: null, reminderDeliveries: [],
+      }]) },
+      workspaceReminderDelivery: { createMany: jest.fn() },
+    };
+    const service = new SchedulerService(
+      prisma as any,
+      { sendWorkspaceDueDigest: jest.fn().mockResolvedValue(false) } as any,
+      { log: jest.fn() } as any,
+      { get: jest.fn().mockReturnValue('https://uat.axontickets.online') } as any,
+      { deleteStoredImage: jest.fn() } as any,
+    );
+    await expect(service.sendWorkspaceDueReminders(new Date('2026-08-18T20:00:00Z'))).resolves.toEqual({ recipients: 0, tasks: 0 });
+    expect(prisma.workspaceReminderDelivery.createMany).not.toHaveBeenCalled();
+  });
+});

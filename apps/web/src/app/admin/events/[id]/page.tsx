@@ -104,6 +104,10 @@ interface WorkspaceSummary {
     notApplicable: number;
     hasCriticalBlockers: boolean;
     blockedCount: number;
+    unownedCount: number;
+    overdueCount: number;
+    dueTodayCount: number;
+    dueSoonCount: number;
   };
   criticalBlockers: Array<{ id: string; title: string; status: string }>;
   blockedItems: Array<{ id: string; title: string; category: string }>;
@@ -688,6 +692,10 @@ export default function AdminEventEditPage() {
                   {workspaceSummary.criticalBlockers.length} blocker{workspaceSummary.criticalBlockers.length !== 1 ? 's' : ''}
                 </span>
               )}
+              {workspaceSummary.readiness.overdueCount > 0 && <span className="rounded border border-red-200 bg-red-100 px-1.5 py-0.5 text-xs font-medium text-red-700">{workspaceSummary.readiness.overdueCount} overdue</span>}
+              {workspaceSummary.readiness.dueTodayCount > 0 && <span className="rounded border border-orange-200 bg-orange-100 px-1.5 py-0.5 text-xs font-medium text-orange-700">{workspaceSummary.readiness.dueTodayCount} due today</span>}
+              {workspaceSummary.readiness.dueSoonCount > 0 && <span className="rounded border border-amber-200 bg-amber-100 px-1.5 py-0.5 text-xs font-medium text-amber-700">{workspaceSummary.readiness.dueSoonCount} due soon</span>}
+              {workspaceSummary.readiness.unownedCount > 0 && <span className="rounded border border-gray-200 bg-white px-1.5 py-0.5 text-xs font-medium text-gray-600">{workspaceSummary.readiness.unownedCount} unassigned</span>}
             </div>
             <div className="flex items-center gap-3 mt-1">
               <div className="flex-1 max-w-[120px] h-1.5 bg-gray-200 rounded-full overflow-hidden">
