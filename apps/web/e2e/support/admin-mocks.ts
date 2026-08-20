@@ -23,6 +23,7 @@ const event = {
   platformFee: 0,
   status: 'on_sale',
   onsiteRegistrationEnabled: true,
+  access: { role: 'platform_admin', canManageEvent: true },
   ticketsSold: 10,
   organization: { id: 'org-qa', name: 'QA Events' },
   agenda: [],
