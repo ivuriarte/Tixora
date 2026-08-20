@@ -24,6 +24,8 @@ export interface WizardShellProps {
   topBanner?: ReactNode;
   /** renders event fields for reference without allowing mutations */
   readOnly?: boolean;
+  /** lets existing or view-only events reach every section even when legacy data is incomplete */
+  allowIncompleteNavigation?: boolean;
 }
 
 export default function WizardShell({
@@ -38,6 +40,7 @@ export default function WizardShell({
   statusIndicator,
   topBanner,
   readOnly = false,
+  allowIncompleteNavigation = false,
 }: WizardShellProps) {
   const [step, setStep] = useState<StepId>('basics');
   const [completed, setCompleted] = useState<Set<StepId>>(new Set());
@@ -51,7 +54,7 @@ export default function WizardShell({
   const validationError = validateStep(step, draft, tiers);
   const optionalStep = !!currentStep.optional;
   // Optional steps can always advance. Required steps need to validate.
-  const canAdvance = optionalStep || !validationError;
+  const canAdvance = allowIncompleteNavigation || optionalStep || !validationError;
 
   function handleNext() {
     setAttemptedNext(true);
