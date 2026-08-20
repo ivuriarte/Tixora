@@ -787,6 +787,7 @@ export default function AdminEventEditPage() {
         onCancel={() => router.push('/admin')}
         topBanner={topBanner}
         readOnly={!canManageEvent}
+        allowIncompleteNavigation
         renderStep={(step, jump) => {
           switch (step) {
             case 'basics': return <BasicsStep draft={draft} update={update} />;

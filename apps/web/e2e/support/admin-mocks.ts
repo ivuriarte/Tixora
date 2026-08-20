@@ -5,7 +5,7 @@ const event = {
   slug: 'qa-event-2030',
   title: 'QA Event 2030',
   description: 'A deterministic event used only by the Playwright admin UI suite.',
-  imageUrl: '/og-image.png',
+  imageUrl: null,
   category: 'business',
   eventType: 'standard',
   runningConfig: null,
