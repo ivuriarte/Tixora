@@ -74,4 +74,11 @@ export class OrganizationsController {
   removeMyTeamMember(@Param('memberId') memberId: string, @CurrentUser() user: JwtPayload) {
     return this.orgsService.removeMyTeamMember(user.sub, memberId);
   }
+
+  @Delete('me/invitations/:invitationId')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Revoke a pending organizer team invitation' })
+  revokeMyTeamInvitation(@Param('invitationId') invitationId: string, @CurrentUser() user: JwtPayload) {
+    return this.orgsService.revokeMyTeamInvitation(user.sub, invitationId);
+  }
 }

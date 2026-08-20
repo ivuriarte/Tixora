@@ -25,7 +25,7 @@ import { JwtPayload } from '@axon-tickets/types';
 import { AdminService } from './admin.service';
 import { CreateEventDto, UpdateEventDto } from '../events/dto/event.dto';
 import { CreateTierDto, UpdateTierDto } from '../ticket-tiers/dto/tier.dto';
-import { AddOrganizerMemberDto, CheckinDto, RejectRegistrationDto, BulkApproveDto, BulkRejectDto, RejectOrganizerDto, SetUserRoleDto, UpdatePlatformSettingsDto, ReassignRaceDistanceDto, SetOrganizerProfileVisibilityDto } from './dto/admin.dto';
+import { AddOrganizerMemberDto, UpdateOrganizerMemberDto, CheckinDto, RejectRegistrationDto, BulkApproveDto, BulkRejectDto, RejectOrganizerDto, SetUserRoleDto, UpdatePlatformSettingsDto, ReassignRaceDistanceDto, SetOrganizerProfileVisibilityDto } from './dto/admin.dto';
 import { RegistrationsService } from '../registrations/registrations.service';
 import { CreateReferralCodeDto, SetReferralCodeStatusDto, UpdateReferralCodeDto } from './dto/referral-code.dto';
 import { ExecutiveAnalyticsService } from './executive-analytics.service';
@@ -680,7 +680,19 @@ export class AdminController {
     @CurrentUser() user: JwtPayload,
   ) {
     this.requirePlatformAdmin(user);
-    return this.adminService.addOrganizerMember(id, user.sub, dto.email, dto.role ?? 'admin');
+    return this.adminService.addOrganizerMember(id, user.sub, dto.email, dto.role ?? 'member');
+  }
+
+  @Patch('organizers/:id/members/:memberId')
+  @ApiOperation({ summary: 'Update organizer account member role' })
+  updateOrganizerMember(
+    @Param('id') id: string,
+    @Param('memberId') memberId: string,
+    @Body() dto: UpdateOrganizerMemberDto,
+    @CurrentUser() user: JwtPayload,
+  ) {
+    this.requirePlatformAdmin(user);
+    return this.adminService.updateOrganizerMember(id, memberId, user.sub, dto.role);
   }
 
   @Delete('organizers/:id/members/:memberId')

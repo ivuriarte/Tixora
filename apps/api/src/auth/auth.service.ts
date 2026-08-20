@@ -166,6 +166,8 @@ export class AuthService {
       this.prisma.user.update({ where: { id: dto.userId }, data: { isVerified: true } }),
     ]);
 
+    await this.acceptPendingOrganizationInvitation(user.id, user.email);
+
     const [accessToken, refreshToken] = await Promise.all([
       this.generateAccessToken(user.id, user.email, user.isAdmin),
       this.generateRefreshToken(user.id),
@@ -539,6 +541,8 @@ export class AuthService {
       this.prisma.user.update({ where: { id: dto.userId }, data: { isVerified: true } }),
     ]);
 
+    await this.acceptPendingOrganizationInvitation(user.id, user.email);
+
     const [accessToken, refreshToken] = await Promise.all([
       this.generateAccessToken(user.id, user.email, user.isAdmin),
       this.generateRefreshToken(user.id),
@@ -603,6 +607,66 @@ export class AuthService {
     }
 
     return sent;
+  }
+
+  private async acceptPendingOrganizationInvitation(userId: string, rawEmail: string): Promise<void> {
+    const email = rawEmail.trim().toLowerCase();
+    await this.prisma.organizationInvitation.updateMany({
+      where: { email, status: 'pending', expiresAt: { lte: new Date() } },
+      data: { status: 'expired' },
+    });
+
+    const invitation = await this.prisma.organizationInvitation.findFirst({
+      where: {
+        email,
+        status: 'pending',
+        expiresAt: { gt: new Date() },
+        organization: { approvalStatus: 'approved' },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+    if (!invitation) return;
+
+    const existingOrganization = await this.prisma.organizationMember.findFirst({
+      where: { userId },
+      select: { organizationId: true },
+    });
+    if (existingOrganization && existingOrganization.organizationId !== invitation.organizationId) {
+      this.logger.warn({
+        msg: 'Organization invitation not accepted because user already belongs to another organizer',
+        userId,
+        invitationId: invitation.id,
+      });
+      return;
+    }
+
+    await this.prisma.organizationMember.upsert({
+      where: {
+        userId_organizationId: { userId, organizationId: invitation.organizationId },
+      },
+      update: { role: invitation.role },
+      create: { userId, organizationId: invitation.organizationId, role: invitation.role },
+    });
+
+    const workspaces = await this.prisma.eventWorkspace.findMany({
+      where: { event: { organizationId: invitation.organizationId } },
+      select: { id: true },
+    });
+    if (workspaces.length > 0) {
+      await this.prisma.workspaceMember.createMany({
+        data: workspaces.map((workspace) => ({
+          workspaceId: workspace.id,
+          userId,
+          role: invitation.role === 'member' ? 'viewer' : 'manager',
+        })),
+        skipDuplicates: true,
+      });
+    }
+
+    await this.prisma.organizationInvitation.update({
+      where: { id: invitation.id },
+      data: { status: 'accepted', acceptedAt: new Date() },
+    });
   }
 
   private generateOtpCode(): string {

@@ -28,6 +28,7 @@ import {
   UpdateMilestoneDto,
   CreateWorkspaceCategoryDto,
   UpdateWorkspaceCategoryDto,
+  CreateWorkspaceTaskUpdateDto,
 } from './dto/workspace.dto';
 
 @ApiTags('workspaces')
@@ -46,7 +47,7 @@ export class WorkspacesController {
     @Param('eventId') eventId: string,
     @CurrentUser() user: JwtPayload,
   ) {
-    await this.eventAccess.assertEventAccess(eventId, user);
+    await this.eventAccess.assertWorkspaceManageAccess(eventId, user);
     return this.workspacesService.ensureWorkspace(eventId, user.sub);
   }
 
@@ -83,7 +84,7 @@ export class WorkspacesController {
     @Body() dto: ApplyTemplateDto,
     @CurrentUser() user: JwtPayload,
   ) {
-    await this.eventAccess.assertEventAccess(eventId, user);
+    await this.eventAccess.assertWorkspaceManageAccess(eventId, user);
     return this.workspacesService.applyTemplate(eventId, dto.templateId, user.sub);
   }
 
@@ -147,7 +148,7 @@ export class WorkspacesController {
     @Body() dto: CreateWorkspaceCategoryDto,
     @CurrentUser() user: JwtPayload,
   ) {
-    await this.eventAccess.assertEventAccess(eventId, user);
+    await this.eventAccess.assertWorkspaceManageAccess(eventId, user);
     return this.workspacesService.createWorkspaceCategory(eventId, dto.name, user.sub);
   }
 
@@ -159,7 +160,7 @@ export class WorkspacesController {
     @Body() dto: UpdateWorkspaceCategoryDto,
     @CurrentUser() user: JwtPayload,
   ) {
-    await this.eventAccess.assertEventAccess(eventId, user);
+    await this.eventAccess.assertWorkspaceManageAccess(eventId, user);
     return this.workspacesService.updateWorkspaceCategory(eventId, categoryId, dto.name, user.sub);
   }
 
@@ -171,7 +172,7 @@ export class WorkspacesController {
     @Param('categoryId') categoryId: string,
     @CurrentUser() user: JwtPayload,
   ) {
-    await this.eventAccess.assertEventAccess(eventId, user);
+    await this.eventAccess.assertWorkspaceManageAccess(eventId, user);
     return this.workspacesService.deleteWorkspaceCategory(eventId, categoryId, user.sub);
   }
 
@@ -189,7 +190,7 @@ export class WorkspacesController {
     @Body() dto: CreateWorkspaceItemDto,
     @CurrentUser() user: JwtPayload,
   ) {
-    await this.eventAccess.assertEventAccess(eventId, user);
+    await this.eventAccess.assertWorkspaceManageAccess(eventId, user);
     return this.workspacesService.createWorkspaceItem(eventId, dto, user.sub);
   }
 
@@ -201,7 +202,7 @@ export class WorkspacesController {
     @Body() dto: UpdateWorkspaceItemDto,
     @CurrentUser() user: JwtPayload,
   ) {
-    await this.eventAccess.assertEventAccess(eventId, user);
+    await this.eventAccess.assertWorkspaceManageAccess(eventId, user);
     return this.workspacesService.updateWorkspaceItem(eventId, itemId, dto, user.sub);
   }
 
@@ -213,8 +214,38 @@ export class WorkspacesController {
     @Param('itemId') itemId: string,
     @CurrentUser() user: JwtPayload,
   ) {
-    await this.eventAccess.assertEventAccess(eventId, user);
+    await this.eventAccess.assertWorkspaceManageAccess(eventId, user);
     return this.workspacesService.deleteWorkspaceItem(eventId, itemId, user.sub);
+  }
+
+  @Get('my-tasks')
+  @ApiOperation({ summary: 'List tasks assigned to the current user as Responsible or Accountable' })
+  async getMyTasks(@Param('eventId') eventId: string, @CurrentUser() user: JwtPayload) {
+    await this.eventAccess.assertEventAccess(eventId, user);
+    return this.workspacesService.getMyTasks(eventId, user.sub);
+  }
+
+  @Get('items/:itemId/updates')
+  @ApiOperation({ summary: 'List progress updates for a task' })
+  async getTaskUpdates(
+    @Param('eventId') eventId: string,
+    @Param('itemId') itemId: string,
+    @CurrentUser() user: JwtPayload,
+  ) {
+    const role = await this.eventAccess.getEventOrganizationRole(eventId, user);
+    return this.workspacesService.getTaskUpdates(eventId, itemId, user.sub, role !== 'member');
+  }
+
+  @Post('items/:itemId/updates')
+  @ApiOperation({ summary: 'Add a progress update and optionally change assigned task status' })
+  async addTaskUpdate(
+    @Param('eventId') eventId: string,
+    @Param('itemId') itemId: string,
+    @Body() dto: CreateWorkspaceTaskUpdateDto,
+    @CurrentUser() user: JwtPayload,
+  ) {
+    const role = await this.eventAccess.getEventOrganizationRole(eventId, user);
+    return this.workspacesService.addTaskUpdate(eventId, itemId, dto, user.sub, role !== 'member');
   }
 
   // ── Milestones ───────────────────────────────────────────────────────────
@@ -233,7 +264,7 @@ export class WorkspacesController {
     @Body() dto: CreateMilestoneDto,
     @CurrentUser() user: JwtPayload,
   ) {
-    await this.eventAccess.assertEventAccess(eventId, user);
+    await this.eventAccess.assertWorkspaceManageAccess(eventId, user);
     return this.workspacesService.createMilestone(eventId, dto, user.sub);
   }
 
@@ -245,7 +276,7 @@ export class WorkspacesController {
     @Body() dto: UpdateMilestoneDto,
     @CurrentUser() user: JwtPayload,
   ) {
-    await this.eventAccess.assertEventAccess(eventId, user);
+    await this.eventAccess.assertWorkspaceManageAccess(eventId, user);
     return this.workspacesService.updateMilestone(eventId, milestoneId, dto, user.sub);
   }
 
@@ -257,7 +288,7 @@ export class WorkspacesController {
     @Param('milestoneId') milestoneId: string,
     @CurrentUser() user: JwtPayload,
   ) {
-    await this.eventAccess.assertEventAccess(eventId, user);
+    await this.eventAccess.assertWorkspaceManageAccess(eventId, user);
     return this.workspacesService.deleteMilestone(eventId, milestoneId, user.sub);
   }
 

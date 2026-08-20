@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException, BadRequestException, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
+import { EmailService } from '../email/email.service';
 import { PDFDocument, PDFFont, PDFPage, StandardFonts, rgb } from 'pdf-lib';
 import { JwtPayload } from '@axon-tickets/types';
 import {
@@ -8,6 +9,7 @@ import {
   UpdateWorkspaceItemDto,
   CreateMilestoneDto,
   UpdateMilestoneDto,
+  CreateWorkspaceTaskUpdateDto,
 } from './dto/workspace.dto';
 
 type WorkspaceRoleLevel = 'manager' | 'editor' | 'viewer';
@@ -15,7 +17,9 @@ type WorkspaceRoleLevel = 'manager' | 'editor' | 'viewer';
 const ORG_ROLE_TO_WORKSPACE_ROLE: Record<string, WorkspaceRoleLevel> = {
   owner: 'manager',
   admin: 'manager',
-  member: 'editor',
+  co_owner: 'manager',
+  manager: 'manager',
+  member: 'viewer',
 };
 
 // ── Scoring constants ─────────────────────────────────────────────────────────
@@ -343,6 +347,7 @@ export class WorkspacesService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
+    private readonly emailService?: EmailService,
   ) {}
 
   // ── Workspace lifecycle ─────────────────────────────────────────────────────
@@ -376,7 +381,7 @@ export class WorkspacesService {
           data: {
             workspaceId: workspace.id,
             userId: m.userId,
-            role: ORG_ROLE_TO_WORKSPACE_ROLE[m.role] ?? 'editor',
+            role: ORG_ROLE_TO_WORKSPACE_ROLE[m.role] ?? 'viewer',
           },
         });
       }
@@ -543,7 +548,7 @@ export class WorkspacesService {
       const orgMember = await this.prisma.organizationMember.findUnique({
         where: { userId_organizationId: { userId: user.sub, organizationId } },
       });
-      if (orgMember) return ORG_ROLE_TO_WORKSPACE_ROLE[orgMember.role] ?? 'editor';
+      if (orgMember) return ORG_ROLE_TO_WORKSPACE_ROLE[orgMember.role] ?? 'viewer';
     }
 
     const wsMember = await this.prisma.workspaceMember.findUnique({
@@ -575,7 +580,7 @@ export class WorkspacesService {
         id: m.user.id,
         name: userDisplayName(m.user),
         email: m.user.email,
-        role: ORG_ROLE_TO_WORKSPACE_ROLE[m.role] ?? 'editor',
+        role: ORG_ROLE_TO_WORKSPACE_ROLE[m.role] ?? 'viewer',
       }));
     }
 
@@ -767,6 +772,7 @@ export class WorkspacesService {
       data: {
         workspaceId: workspace.id,
         title: dto.title.trim(),
+        description: dto.description?.trim() || null,
         category: category.name,
         categoryId: category.id,
         priority: (dto.priority as any) ?? 'medium',
@@ -789,6 +795,24 @@ export class WorkspacesService {
       performedById,
       metadata: { eventId, title: item.title, category: item.category, isBlocker: item.isBlocker },
     });
+
+    if (responsible || accountable) {
+      const event = await this.prisma.event.findUnique({ where: { id: eventId }, select: { title: true } });
+      const webBase = process.env.WEB_URL ?? 'https://axontickets.online';
+      const assignments = [
+        ...(responsible ? [{ user: responsible, role: 'Responsible' as const }] : []),
+        ...(accountable ? [{ user: accountable, role: 'Accountable' as const }] : []),
+      ];
+      await Promise.all(assignments.map((assignment) => this.emailService?.sendWorkspaceTaskAssignment(
+        assignment.user.email,
+        userDisplayName(assignment.user),
+        item.title,
+        event?.title ?? 'Event workspace',
+        assignment.role,
+        item.dueDate,
+        `${webBase}/admin/events/${eventId}/my-tasks?task=${item.id}`,
+      ).catch(() => false)));
+    }
 
     return this.serializeItem({ ...item, assignedToUser: responsible, accountableToUser: accountable });
   }
@@ -824,6 +848,7 @@ export class WorkspacesService {
       where: { id: itemId },
       data: {
         ...(dto.title !== undefined && { title: dto.title.trim() }),
+        ...(dto.description !== undefined && { description: dto.description?.trim() || null }),
         ...(dto.categoryId !== undefined && {
           categoryId: dto.categoryId,
           ...(nextCategory ? { category: nextCategory.name } : {}),
@@ -846,7 +871,7 @@ export class WorkspacesService {
           accountableName: accountable ? userDisplayName(accountable) : null,
         }),
         ...(wasNotDone && becomingDone && { completedAt: new Date() }),
-        ...(!becomingDone && item.completedAt && { completedAt: null }),
+        ...(dto.status !== undefined && dto.status !== 'done' && item.completedAt && { completedAt: null }),
       },
     });
 
@@ -918,6 +943,36 @@ export class WorkspacesService {
       });
     }
 
+    const newlyAssigned = [
+      ...('assignedToUserId' in dto && dto.assignedToUserId && dto.assignedToUserId !== item.assignedToUserId
+        ? [{ userId: dto.assignedToUserId, role: 'Responsible' as const }]
+        : []),
+      ...('accountableToUserId' in dto && dto.accountableToUserId && dto.accountableToUserId !== item.accountableToUserId
+        ? [{ userId: dto.accountableToUserId, role: 'Accountable' as const }]
+        : []),
+    ];
+    if (newlyAssigned.length > 0) {
+      const event = await this.prisma.event.findUnique({ where: { id: eventId }, select: { title: true } });
+      const users = await this.prisma.user.findMany({
+        where: { id: { in: Array.from(new Set(newlyAssigned.map((assignment) => assignment.userId))) }, isVerified: true },
+        select: { id: true, email: true, firstName: true, lastName: true },
+      });
+      const webBase = process.env.WEB_URL ?? 'https://axontickets.online';
+      await Promise.all(newlyAssigned.map(async (assignment) => {
+        const recipient = users.find((user) => user.id === assignment.userId);
+        if (!recipient || !event) return;
+        await this.emailService?.sendWorkspaceTaskAssignment(
+          recipient.email,
+          userDisplayName(recipient),
+          updated.title,
+          event.title,
+          assignment.role,
+          updated.dueDate,
+          `${webBase}/admin/events/${eventId}/my-tasks?task=${itemId}`,
+        ).catch(() => false);
+      }));
+    }
+
     return this.serializeItem({
       ...updated,
       assignedToUser: 'assignedToUserId' in dto ? responsible : undefined,
@@ -974,6 +1029,164 @@ export class WorkspacesService {
     });
 
     return items.map((i) => this.serializeItem(i));
+  }
+
+  async getMyTasks(eventId: string, userId: string) {
+    const workspace = await this.prisma.eventWorkspace.findUnique({
+      where: { eventId },
+      select: {
+        id: true,
+        closedAt: true,
+        event: { select: { id: true, title: true, startsAt: true } },
+      },
+    });
+    if (!workspace) return null;
+
+    const items = await this.prisma.workspaceItem.findMany({
+      where: {
+        workspaceId: workspace.id,
+        OR: [{ assignedToUserId: userId }, { accountableToUserId: userId }],
+      },
+      orderBy: [{ dueDate: 'asc' }, { priority: 'desc' }, { createdAt: 'asc' }],
+      take: 500,
+      include: {
+        assignedToUser: { select: { id: true, firstName: true, lastName: true, email: true } },
+        accountableToUser: { select: { id: true, firstName: true, lastName: true, email: true } },
+        updates: {
+          orderBy: { createdAt: 'desc' },
+          take: 3,
+          include: { author: { select: { id: true, firstName: true, lastName: true, email: true } } },
+        },
+      },
+    });
+    const dueRank: Record<WorkspaceDueState, number> = {
+      overdue: 0,
+      due_today: 1,
+      due_soon: 2,
+      upcoming: 3,
+      unscheduled: 4,
+      completed: 5,
+    };
+    const tasks = items
+      .map((item) => ({
+        ...this.serializeItem(item),
+        assignmentRoles: [
+          ...(item.assignedToUserId === userId ? ['responsible' as const] : []),
+          ...(item.accountableToUserId === userId ? ['accountable' as const] : []),
+        ],
+        recentUpdates: item.updates.map((update) => ({
+          id: update.id,
+          message: update.message,
+          previousStatus: update.previousStatus,
+          nextStatus: update.nextStatus,
+          author: { id: update.author.id, name: userDisplayName(update.author) },
+          createdAt: update.createdAt.toISOString(),
+        })),
+      }))
+      .sort((a, b) => dueRank[a.dueState] - dueRank[b.dueState]);
+
+    return {
+      workspaceId: workspace.id,
+      isClosed: Boolean(workspace.closedAt),
+      event: {
+        id: workspace.event.id,
+        title: workspace.event.title,
+        startsAt: workspace.event.startsAt.toISOString(),
+      },
+      summary: {
+        total: tasks.length,
+        open: tasks.filter((task) => task.status === 'open').length,
+        inProgress: tasks.filter((task) => task.status === 'in_progress').length,
+        overdue: tasks.filter((task) => task.dueState === 'overdue').length,
+        done: tasks.filter((task) => task.status === 'done').length,
+      },
+      tasks,
+    };
+  }
+
+  async getTaskUpdates(eventId: string, itemId: string, userId: string, canManage: boolean) {
+    const item = await this.prisma.workspaceItem.findFirst({
+      where: { id: itemId, workspace: { eventId } },
+      select: { assignedToUserId: true, accountableToUserId: true },
+    });
+    if (!item) throw new NotFoundException('Task not found');
+    if (!canManage && item.assignedToUserId !== userId && item.accountableToUserId !== userId) {
+      throw new ForbiddenException('You can only view updates for tasks assigned to you');
+    }
+    const updates = await this.prisma.workspaceTaskUpdate.findMany({
+      where: { workspaceItemId: itemId },
+      orderBy: { createdAt: 'desc' },
+      take: 100,
+      include: { author: { select: { id: true, firstName: true, lastName: true, email: true } } },
+    });
+    return updates.map((update) => ({
+      id: update.id,
+      message: update.message,
+      previousStatus: update.previousStatus,
+      nextStatus: update.nextStatus,
+      author: { id: update.author.id, name: userDisplayName(update.author) },
+      createdAt: update.createdAt.toISOString(),
+    }));
+  }
+
+  async addTaskUpdate(
+    eventId: string,
+    itemId: string,
+    dto: CreateWorkspaceTaskUpdateDto,
+    userId: string,
+    canManage: boolean,
+  ) {
+    const item = await this.prisma.workspaceItem.findFirst({
+      where: { id: itemId, workspace: { eventId } },
+      include: { workspace: { select: { closedAt: true } } },
+    });
+    if (!item) throw new NotFoundException('Task not found');
+    this.assertWorkspaceNotClosed(item.workspace);
+    if (!canManage && item.assignedToUserId !== userId && item.accountableToUserId !== userId) {
+      throw new ForbiddenException('You can only update tasks assigned to you');
+    }
+    const message = dto.message?.trim() || null;
+    if (!message && !dto.status) {
+      throw new BadRequestException('Add a progress note or select a new status');
+    }
+    const nextStatus = dto.status ?? item.status;
+    if (!canManage && nextStatus === 'not_applicable') {
+      throw new ForbiddenException('Only a workspace manager can mark a task not applicable');
+    }
+    const updated = dto.status && dto.status !== item.status
+      ? await this.prisma.workspaceItem.update({
+          where: { id: item.id },
+          data: {
+            status: dto.status as any,
+            completedAt: dto.status === 'done' ? new Date() : null,
+          },
+        })
+      : item;
+    const update = await this.prisma.workspaceTaskUpdate.create({
+      data: {
+        workspaceItemId: item.id,
+        authorUserId: userId,
+        message,
+        previousStatus: item.status,
+        nextStatus: nextStatus as any,
+      },
+      include: { author: { select: { id: true, firstName: true, lastName: true, email: true } } },
+    });
+    await this.audit.log({
+      action: 'WORKSPACE_TASK_PROGRESS_UPDATED', entityType: 'WorkspaceItem', entityId: item.id,
+      performedById: userId, metadata: { eventId, from: item.status, to: nextStatus, hasNote: Boolean(message) },
+    });
+    return {
+      task: this.serializeItem(updated),
+      update: {
+        id: update.id,
+        message: update.message,
+        previousStatus: update.previousStatus,
+        nextStatus: update.nextStatus,
+        author: { id: update.author.id, name: userDisplayName(update.author) },
+        createdAt: update.createdAt.toISOString(),
+      },
+    };
   }
 
   // ── Assignable users ────────────────────────────────────────────────────────
@@ -1324,306 +1537,297 @@ export class WorkspacesService {
   // ── Stakeholder report ──────────────────────────────────────────────────────
 
   async generateStakeholderReport(eventId: string, performedById: string): Promise<Buffer> {
-    // Privacy boundary: only fetch fields needed for the report.
-    // Deliberately excludes: notes, user PII, attendee records, sponsor contacts.
+    // Share-safe query boundary: operational facts only. No attendee, member,
+    // assignee, sponsor-contact, internal-note, or payment data enters the PDF.
     const workspace = await this.prisma.eventWorkspace.findUnique({
       where: { eventId },
       include: {
-        event: {
-          select: { title: true, startsAt: true, venue: true, city: true, status: true },
-        },
+        event: { select: { title: true, startsAt: true, venue: true, city: true, status: true } },
         items: {
-          select: {
-            title: true, category: true, status: true,
-            priority: true, isBlocker: true, dueDate: true,
-          },
+          select: { title: true, category: true, status: true, priority: true, isBlocker: true, dueDate: true },
           orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }],
+          take: 500,
         },
         milestones: {
           select: { title: true, dueDate: true, status: true },
           orderBy: { dueDate: 'asc' },
+          take: 200,
         },
       },
     });
     if (!workspace) throw new NotFoundException('Workspace not found');
 
-    // Compute readiness from items (same logic as computeScore but we also need counts)
+    const now = new Date();
     const { score, label } = computeScore(workspace.items);
-    const scorable     = workspace.items.filter((i) => i.status !== 'not_applicable');
-    const doneCount    = scorable.filter((i) => i.status === 'done').length;
-    const inProgCount  = scorable.filter((i) => i.status === 'in_progress').length;
-    const notStrtCount = scorable.filter((i) => i.status === 'open').length;
-    const blockedCount = scorable.filter((i) => i.status === 'blocked').length;
-    const naCount      = workspace.items.length - scorable.length;
+    const scorable = workspace.items.filter((item) => item.status !== 'not_applicable');
+    const doneCount = scorable.filter((item) => item.status === 'done').length;
+    const inProgressCount = scorable.filter((item) => item.status === 'in_progress').length;
+    const notStartedCount = scorable.filter((item) => item.status === 'open').length;
+    const blockedCount = scorable.filter((item) => item.status === 'blocked').length;
+    const notApplicableCount = workspace.items.length - scorable.length;
+    const overdueItems = scorable.filter((item) => workspaceDueState(item.dueDate, item.status, now) === 'overdue');
+    const dueTodayItems = scorable.filter((item) => workspaceDueState(item.dueDate, item.status, now) === 'due_today');
+    const dueSoonItems = scorable.filter((item) => workspaceDueState(item.dueDate, item.status, now) === 'due_soon');
+    const activeBlockers = scorable.filter((item) => item.isBlocker && item.status !== 'done');
 
-    // Category rollup — no notes, no user data
-    const catMap: Record<string, { scorable: number; done: number }> = {};
-    for (const item of workspace.items) {
-      if (!catMap[item.category]) catMap[item.category] = { scorable: 0, done: 0 };
-      if (item.status !== 'not_applicable') {
-        catMap[item.category].scorable++;
-        if (item.status === 'done') catMap[item.category].done++;
-      }
+    const categoryMap = new Map<string, { total: number; done: number; blocked: number; overdue: number }>();
+    for (const item of scorable) {
+      const current = categoryMap.get(item.category) ?? { total: 0, done: 0, blocked: 0, overdue: 0 };
+      current.total += 1;
+      if (item.status === 'done') current.done += 1;
+      if (item.status === 'blocked') current.blocked += 1;
+      if (workspaceDueState(item.dueDate, item.status, now) === 'overdue') current.overdue += 1;
+      categoryMap.set(item.category, current);
     }
-    const categories = Object.entries(catMap).filter(([, c]) => c.scorable > 0);
+    const categories = Array.from(categoryMap.entries());
 
-    // Blockers — title only, no notes, no assignee names
-    const criticalBlockers = workspace.items.filter(
-      (i) => i.isBlocker && i.status !== 'done' && i.status !== 'not_applicable',
-    );
+    const priorityActions = Array.from(new Map(
+      [...activeBlockers, ...overdueItems, ...dueTodayItems, ...dueSoonItems].map((item) => [item.title, item]),
+    ).values());
 
-    // ── PDF setup ─────────────────────────────────────────────────────────────
     const pdf = await PDFDocument.create();
-    pdf.setTitle(`${workspace.event.title} — Stakeholder Progress Report`);
+    pdf.setTitle(`${workspace.event.title} - Stakeholder Progress Report`);
     pdf.setAuthor('Axon Tickets');
-    pdf.setSubject('Event Readiness Stakeholder Report');
+    pdf.setSubject('Event readiness and priority action brief');
     pdf.setCreator('Axon Tickets');
 
     const regular = await pdf.embedFont(StandardFonts.Helvetica);
-    const bold    = await pdf.embedFont(StandardFonts.HelveticaBold);
+    const bold = await pdf.embedFont(StandardFonts.HelveticaBold);
     const oblique = await pdf.embedFont(StandardFonts.HelveticaOblique);
+    const W = 595.28;
+    const H = 841.89;
+    const ML = 48;
+    const MR = 48;
+    const CW = W - ML - MR;
+    const FOOTER_TOP = 48;
+    const cViolet = rgb(0.39, 0.22, 0.78);
+    const cVioletSoft = rgb(0.96, 0.94, 1);
+    const cBody = rgb(0.12, 0.14, 0.19);
+    const cSecond = rgb(0.38, 0.41, 0.48);
+    const cMuted = rgb(0.57, 0.59, 0.65);
+    const cBorder = rgb(0.87, 0.88, 0.92);
+    const cPanel = rgb(0.97, 0.97, 0.99);
+    const cRed = rgb(0.76, 0.10, 0.12);
+    const cRedSoft = rgb(1, 0.95, 0.95);
+    const cGreen = rgb(0.05, 0.55, 0.30);
+    const cAmber = rgb(0.72, 0.40, 0.02);
+    const cBlue = rgb(0.10, 0.36, 0.78);
+    const cWhite = rgb(1, 1, 1);
+    const ctx = { page: null as unknown as PDFPage, y: 0 };
 
-    const W    = 595.28;
-    const H    = 841.89;
-    const ML   = 50;
-    const MR   = 50;
-    const CW   = W - ML - MR;   // 495.28
-    const HDR_H    = 70;
-    const PAGE_FOOT = 48;
-
-    const cViolet  = rgb(0.44, 0.30, 0.82);
-    const cLtViolet = rgb(0.78, 0.70, 0.96);
-    const cBody    = rgb(0.22, 0.24, 0.28);
-    const cSecond  = rgb(0.45, 0.47, 0.52);
-    const cBorder  = rgb(0.87, 0.89, 0.92);
-    const cRed     = rgb(0.82, 0.16, 0.16);
-    const cGreen   = rgb(0.12, 0.62, 0.34);
-    const cAmber   = rgb(0.75, 0.50, 0.06);
-    const cBlue    = rgb(0.14, 0.42, 0.82);
-    const cWhite   = rgb(1, 1, 1);
-
-    const scoreColor = (lbl: typeof label) =>
-      lbl === 'Complete' || lbl === 'On Track' ? cGreen
-      : lbl === 'At Risk' ? cAmber
-      : cRed;
-
-    const trunc = (text: string, font: PDFFont, size: number, maxW: number): string => {
-      if (!text) return '';
-      if (font.widthOfTextAtSize(text, size) <= maxW) return text;
-      let t = text;
-      while (t.length > 1 && font.widthOfTextAtSize(t + '…', size) > maxW) t = t.slice(0, -1);
-      return t + '…';
-    };
-
-    // ── Rendering context ─────────────────────────────────────────────────────
-    const ctx = { page: null as unknown as PDFPage, cur: 0 };
-
-    const newPage = (isFirst = false) => {
-      ctx.page = pdf.addPage([W, H]);
-      ctx.cur = isFirst ? H - HDR_H - 20 : H - 30;
-    };
-
-    const ensureSpace = (needed: number) => {
-      if (ctx.cur - needed < PAGE_FOOT) newPage();
-    };
-
-    const drawSectionHeader = (title: string) => {
-      ensureSpace(32);
-      ctx.page.drawText(title.toUpperCase(), {
-        x: ML, y: ctx.cur, font: bold, size: 7.5, color: cViolet,
-      });
-      ctx.cur -= 5;
-      ctx.page.drawLine({
-        start: { x: ML, y: ctx.cur }, end: { x: ML + CW, y: ctx.cur },
-        color: cViolet, thickness: 0.4,
-      });
-      ctx.cur -= 12;
-    };
-
-    // ── Page 1 header bar ─────────────────────────────────────────────────────
-    newPage(true);
-    ctx.page.drawRectangle({ x: 0, y: H - HDR_H, width: W, height: HDR_H, color: cViolet });
-    ctx.page.drawText('STAKEHOLDER PROGRESS REPORT', {
-      x: ML, y: H - 17, font: bold, size: 7.5, color: cLtViolet,
-    });
-    ctx.page.drawText(trunc(workspace.event.title, bold, 18, CW), {
-      x: ML, y: H - 46, font: bold, size: 18, color: cWhite,
-    });
-
-    // ── Meta row ──────────────────────────────────────────────────────────────
-    const genDate = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
-    ctx.page.drawText(`Generated ${genDate}`, { x: ML, y: ctx.cur, font: regular, size: 8, color: cSecond });
-    const notice = 'Share-safe · No attendee personal data included';
-    ctx.page.drawText(notice, {
-      x: W - MR - regular.widthOfTextAtSize(notice, 8),
-      y: ctx.cur, font: oblique, size: 8, color: cViolet,
-    });
-    ctx.cur -= 22;
-
-    // ── Section 1: Event Details ──────────────────────────────────────────────
-    drawSectionHeader('Event Details');
-    const evt = workspace.event;
-    const evtDate = new Date(evt.startsAt).toLocaleDateString('en-US', {
-      weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
-    });
-    const evtStatus = evt.status.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
-    const venue = [evt.venue, evt.city].filter(Boolean).join(', ') || '—';
-    const details: [string, string][] = [
-      ['Event',  evt.title],
-      ['Date',   evtDate],
-      ['Venue',  venue],
-      ['Status', evtStatus],
-    ];
-    for (const [lbl, val] of details) {
-      ctx.page.drawText(`${lbl}:`, { x: ML, y: ctx.cur, font: bold, size: 9, color: cSecond });
-      ctx.page.drawText(trunc(val, regular, 9, CW - 60), { x: ML + 55, y: ctx.cur, font: regular, size: 9, color: cBody });
-      ctx.cur -= 15;
-    }
-    ctx.cur -= 10;
-
-    // ── Section 2: Readiness Score ────────────────────────────────────────────
-    drawSectionHeader('Readiness Score');
-    const sColor = scoreColor(label);
-
-    // Large score + label
-    ctx.page.drawText(`${score}%`, { x: ML, y: ctx.cur - 10, font: bold, size: 38, color: sColor });
-    const scoreW = bold.widthOfTextAtSize(`${score}%`, 38);
-    ctx.page.drawText(label, { x: ML + scoreW + 12, y: ctx.cur, font: bold, size: 14, color: sColor });
-    const labelDesc =
-      label === 'Complete'          ? 'All applicable items completed.' :
-      label === 'On Track'          ? 'Good progress across categories.' :
-      label === 'At Risk'           ? 'Some areas need attention.' :
-      label === 'Blocked'           ? 'Critical items blocked — action required.' :
-                                      'Significant gaps in readiness.';
-    ctx.page.drawText(labelDesc, { x: ML + scoreW + 12, y: ctx.cur - 15, font: regular, size: 8.5, color: cSecond });
-
-    // Progress bar
-    const barY = ctx.cur - 32;
-    ctx.page.drawRectangle({ x: ML, y: barY, width: CW, height: 10, color: cBorder });
-    const fillW = Math.max(score > 0 ? 3 : 0, Math.round((score / 100) * CW));
-    if (fillW > 0) ctx.page.drawRectangle({ x: ML, y: barY, width: fillW, height: 10, color: sColor });
-    ctx.cur -= 52;
-
-    // Stats grid
-    const stats = [
-      { label: 'Not Started', value: notStrtCount, c: cSecond },
-      { label: 'In Progress', value: inProgCount,  c: cBlue  },
-      { label: 'Done',        value: doneCount,    c: cGreen },
-      { label: 'Blocked',     value: blockedCount, c: blockedCount > 0 ? cRed : cSecond },
-      { label: 'N/A (excl.)', value: naCount,      c: cSecond },
-    ];
-    const sColW = CW / stats.length;
-    stats.forEach((s, i) => {
-      const sx = ML + i * sColW;
-      ctx.page.drawText(String(s.value), { x: sx, y: ctx.cur, font: bold, size: 16, color: s.c });
-      ctx.page.drawText(s.label, { x: sx, y: ctx.cur - 13, font: regular, size: 7, color: cSecond });
-    });
-    ctx.cur -= 30;
-    ctx.page.drawText(
-      '* Weighted score: critical items 5×, high 3×, medium 2×, low 1×. Items marked N/A are excluded.',
-      { x: ML, y: ctx.cur, font: oblique, size: 7, color: cSecond },
-    );
-    ctx.cur -= 20;
-
-    // ── Section 3: Category Progress ──────────────────────────────────────────
-    drawSectionHeader('Category Progress');
-    for (const [catName, counts] of categories) {
-      ensureSpace(20);
-      const pct = counts.scorable > 0 ? Math.round((counts.done / counts.scorable) * 100) : 100;
-      ctx.page.drawText(trunc(catName, bold, 9, 205), { x: ML, y: ctx.cur, font: bold, size: 9, color: cBody });
-      ctx.page.drawText(`${counts.done} / ${counts.scorable}`, { x: ML + 220, y: ctx.cur, font: regular, size: 9, color: cSecond });
-      const mBarX = ML + 270;
-      const mBarW = CW - 270 - 34;
-      const mBarH = 7;
-      ctx.page.drawRectangle({ x: mBarX, y: ctx.cur + 1, width: mBarW, height: mBarH, color: cBorder });
-      const mFill = Math.max(pct > 0 ? 2 : 0, Math.round((pct / 100) * mBarW));
-      const mColor = pct === 100 ? cGreen : pct >= 60 ? cBlue : pct >= 30 ? cAmber : cRed;
-      if (mFill > 0) ctx.page.drawRectangle({ x: mBarX, y: ctx.cur + 1, width: mFill, height: mBarH, color: mColor });
-      ctx.page.drawText(`${pct}%`, { x: mBarX + mBarW + 5, y: ctx.cur, font: bold, size: 8, color: cBody });
-      ctx.cur -= 16;
-    }
-    ctx.cur -= 8;
-
-    // ── Section 4: Event Blockers ─────────────────────────────────────────────
-    ensureSpace(32);
-    drawSectionHeader(
-      criticalBlockers.length > 0
-        ? `Event Blockers (${criticalBlockers.length} unresolved)`
-        : 'Event Blockers',
-    );
-    if (criticalBlockers.length === 0) {
-      ctx.page.drawText('No active event blockers.', { x: ML, y: ctx.cur, font: oblique, size: 9, color: cGreen });
-      ctx.cur -= 20;
-    } else {
-      for (const b of criticalBlockers) {
-        ensureSpace(22);
-        ctx.page.drawRectangle({ x: ML, y: ctx.cur + 1, width: 3, height: 10, color: cRed });
-        ctx.page.drawText(trunc(b.title, regular, 9, CW - 85), { x: ML + 9, y: ctx.cur, font: regular, size: 9, color: cBody });
-        if (b.dueDate) {
-          const dueTxt = `Due ${new Date(b.dueDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`;
-          ctx.page.drawText(dueTxt, {
-            x: ML + CW - regular.widthOfTextAtSize(dueTxt, 8),
-            y: ctx.cur, font: regular, size: 8, color: cRed,
-          });
+    const wrapText = (text: string, font: PDFFont, size: number, maxWidth: number): string[] => {
+      const output: string[] = [];
+      for (const paragraph of (text || '').split(/\n/)) {
+        if (!paragraph.trim()) { output.push(''); continue; }
+        let line = '';
+        for (const rawWord of paragraph.trim().split(/\s+/)) {
+          const fragments: string[] = [];
+          let word = rawWord;
+          while (font.widthOfTextAtSize(word, size) > maxWidth && word.length > 1) {
+            let cut = word.length - 1;
+            while (cut > 1 && font.widthOfTextAtSize(word.slice(0, cut) + '-', size) > maxWidth) cut -= 1;
+            fragments.push(word.slice(0, cut) + '-');
+            word = word.slice(cut);
+          }
+          fragments.push(word);
+          for (const fragment of fragments) {
+            const candidate = line ? `${line} ${fragment}` : fragment;
+            if (font.widthOfTextAtSize(candidate, size) <= maxWidth) line = candidate;
+            else { if (line) output.push(line); line = fragment; }
+          }
         }
-        ctx.cur -= 16;
+        if (line) output.push(line);
       }
-      ctx.cur -= 4;
+      return output.length ? output : [''];
+    };
+
+    const newPage = (continuation = true) => {
+      ctx.page = pdf.addPage([W, H]);
+      if (continuation) {
+        ctx.page.drawRectangle({ x: 0, y: H - 7, width: W, height: 7, color: cViolet });
+        ctx.page.drawText('STAKEHOLDER PROGRESS REPORT', { x: ML, y: H - 28, font: bold, size: 7, color: cViolet });
+        ctx.page.drawText('CONTINUED', { x: W - MR - bold.widthOfTextAtSize('CONTINUED', 7), y: H - 28, font: bold, size: 7, color: cMuted });
+        ctx.y = H - 48;
+      }
+    };
+    const ensureSpace = (height: number) => { if (ctx.y - height < FOOTER_TOP) newPage(); };
+    const drawLines = (lines: string[], x: number, y: number, font: PDFFont, size: number, color: ReturnType<typeof rgb>, lineHeight: number) => {
+      lines.forEach((line, index) => ctx.page.drawText(line, { x, y: y - index * lineHeight, font, size, color }));
+      return lines.length * lineHeight;
+    };
+    const sectionHeader = (title: string, subtitle?: string) => {
+      ensureSpace(subtitle ? 40 : 28);
+      ctx.page.drawText(title.toUpperCase(), { x: ML, y: ctx.y, font: bold, size: 8, color: cViolet });
+      if (subtitle) ctx.page.drawText(subtitle, { x: ML, y: ctx.y - 13, font: regular, size: 7.5, color: cMuted });
+      const lineY = ctx.y - (subtitle ? 20 : 8);
+      ctx.page.drawLine({ start: { x: ML, y: lineY }, end: { x: ML + CW, y: lineY }, color: cBorder, thickness: 0.7 });
+      ctx.y = lineY - 15;
+    };
+
+    newPage(false);
+    const titleLines = wrapText(workspace.event.title, bold, 20, CW).slice(0, 4);
+    const headerHeight = Math.max(104, 48 + titleLines.length * 24);
+    ctx.page.drawRectangle({ x: 0, y: H - headerHeight, width: W, height: headerHeight, color: cViolet });
+    ctx.page.drawText('STAKEHOLDER PROGRESS REPORT', { x: ML, y: H - 27, font: bold, size: 8, color: rgb(0.82, 0.76, 0.98) });
+    drawLines(titleLines, ML, H - 56, bold, 20, cWhite, 24);
+    ctx.y = H - headerHeight - 22;
+
+    const generatedLabel = `Prepared ${now.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}`;
+    const privacyLabel = 'Share-safe - no attendee personal data';
+    ctx.page.drawText(generatedLabel, { x: ML, y: ctx.y, font: regular, size: 8, color: cSecond });
+    ctx.page.drawText(privacyLabel, { x: W - MR - oblique.widthOfTextAtSize(privacyLabel, 8), y: ctx.y, font: oblique, size: 8, color: cViolet });
+    ctx.y -= 24;
+
+    const eventDate = workspace.event.startsAt.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+    const eventStatus = workspace.event.status.replace(/_/g, ' ').replace(/\b\w/g, (value) => value.toUpperCase());
+    const venue = [workspace.event.venue, workspace.event.city].filter(Boolean).join(', ') || 'Not specified';
+    const detailRows: Array<[string, string]> = [['Event date', eventDate], ['Venue', venue], ['Event status', eventStatus]];
+    const detailHeight = 18 + detailRows.reduce((sum, [, value]) => sum + Math.max(16, wrapText(value, regular, 9, CW - 115).length * 12), 0);
+    ensureSpace(detailHeight);
+    ctx.page.drawRectangle({ x: ML, y: ctx.y - detailHeight, width: CW, height: detailHeight, color: cPanel, borderColor: cBorder, borderWidth: 0.6 });
+    let detailY = ctx.y - 18;
+    for (const [key, value] of detailRows) {
+      const lines = wrapText(value, regular, 9, CW - 115);
+      ctx.page.drawText(key.toUpperCase(), { x: ML + 14, y: detailY, font: bold, size: 6.8, color: cMuted });
+      drawLines(lines, ML + 110, detailY, regular, 9, cBody, 12);
+      detailY -= Math.max(16, lines.length * 12);
+    }
+    ctx.y -= detailHeight + 22;
+
+    const narrative: string[] = [];
+    narrative.push(`Readiness is currently assessed as ${label} at ${score}%. ${doneCount} of ${scorable.length} applicable tasks are complete, while ${inProgressCount} are in progress and ${notStartedCount} have not started.`);
+    if (activeBlockers.length || blockedCount) narrative.push(`${activeBlockers.length} active event blocker${activeBlockers.length === 1 ? '' : 's'} and ${blockedCount} blocked task${blockedCount === 1 ? '' : 's'} require decision or dependency follow-through before the event can be considered operationally secure.`);
+    else narrative.push('No active event blockers are recorded. The immediate management focus should remain on sustaining delivery pace and closing remaining work in priority order.');
+    if (overdueItems.length || dueTodayItems.length || dueSoonItems.length) narrative.push(`Schedule pressure is visible: ${overdueItems.length} task${overdueItems.length === 1 ? ' is' : 's are'} overdue, ${dueTodayItems.length} due today, and ${dueSoonItems.length} due within the next three days. Resolve overdue and blocker-tagged work first, then protect near-term commitments.`);
+    else narrative.push('There are no overdue or near-term due tasks in the current workspace. Stakeholders should validate that remaining work has realistic dates and clear ownership.');
+    const narrativeLines = narrative.flatMap((paragraph, index) => [...wrapText(paragraph, regular, 9.2, CW - 28), ...(index < narrative.length - 1 ? [''] : [])]);
+    const narrativeHeight = 30 + narrativeLines.length * 13;
+    ensureSpace(narrativeHeight + 28);
+    sectionHeader('Executive Narrative', 'What the current readiness picture means for stakeholders');
+    ctx.page.drawRectangle({ x: ML, y: ctx.y - narrativeHeight, width: CW, height: narrativeHeight, color: cVioletSoft, borderColor: rgb(0.84, 0.79, 0.96), borderWidth: 0.7 });
+    ctx.page.drawRectangle({ x: ML, y: ctx.y - narrativeHeight, width: 5, height: narrativeHeight, color: cViolet });
+    drawLines(narrativeLines, ML + 18, ctx.y - 20, regular, 9.2, cBody, 13);
+    ctx.y -= narrativeHeight + 22;
+
+    sectionHeader('Readiness At A Glance', 'Weighted score: critical 5x, high 3x, medium 2x, low 1x; N/A is excluded');
+    const scoreColor = label === 'Complete' || label === 'On Track' ? cGreen : label === 'At Risk' ? cAmber : cRed;
+    const cards = [
+      { label: 'READINESS', value: `${score}%`, note: label, color: scoreColor },
+      {
+        label: 'COMPLETED',
+        value: String(doneCount),
+        note: `of ${scorable.length} applicable${notApplicableCount ? ` · ${notApplicableCount} N/A` : ''}`,
+        color: cGreen,
+      },
+      { label: 'IN PROGRESS', value: String(inProgressCount), note: `${notStartedCount} not started`, color: cBlue },
+      { label: 'AT RISK', value: String(overdueItems.length + blockedCount), note: `${overdueItems.length} overdue / ${blockedCount} blocked`, color: cRed },
+    ];
+    const cardGap = 8;
+    const cardWidth = (CW - cardGap * 3) / 4;
+    ensureSpace(82);
+    cards.forEach((card, index) => {
+      const x = ML + index * (cardWidth + cardGap);
+      ctx.page.drawRectangle({ x, y: ctx.y - 66, width: cardWidth, height: 66, color: cPanel, borderColor: cBorder, borderWidth: 0.6 });
+      ctx.page.drawText(card.label, { x: x + 10, y: ctx.y - 15, font: bold, size: 6.5, color: cMuted });
+      ctx.page.drawText(card.value, { x: x + 10, y: ctx.y - 39, font: bold, size: 18, color: card.color });
+      const note = wrapText(card.note, regular, 6.7, cardWidth - 20)[0] ?? '';
+      ctx.page.drawText(note, { x: x + 10, y: ctx.y - 55, font: regular, size: 6.7, color: cSecond });
+    });
+    ctx.y -= 86;
+
+    sectionHeader('Category Progress', 'Completion and delivery pressure by workstream');
+    if (categories.length === 0) {
+      ctx.page.drawText('No applicable checklist categories have been created.', { x: ML, y: ctx.y, font: oblique, size: 9, color: cMuted });
+      ctx.y -= 24;
+    }
+    for (const [category, counts] of categories) {
+      const nameLines = wrapText(category, bold, 8.5, 185);
+      const rowHeight = Math.max(28, nameLines.length * 11 + 8);
+      ensureSpace(rowHeight);
+      drawLines(nameLines, ML, ctx.y - 4, bold, 8.5, cBody, 11);
+      const percent = counts.total ? Math.round((counts.done / counts.total) * 100) : 100;
+      const barX = ML + 205;
+      const barWidth = 185;
+      ctx.page.drawRectangle({ x: barX, y: ctx.y - 8, width: barWidth, height: 7, color: cBorder });
+      if (percent > 0) ctx.page.drawRectangle({ x: barX, y: ctx.y - 8, width: Math.max(3, barWidth * percent / 100), height: 7, color: percent === 100 ? cGreen : percent >= 60 ? cBlue : percent >= 30 ? cAmber : cRed });
+      ctx.page.drawText(`${counts.done}/${counts.total}  ${percent}%`, { x: barX + barWidth + 10, y: ctx.y - 8, font: bold, size: 8, color: cBody });
+      const riskText = [counts.overdue ? `${counts.overdue} overdue` : '', counts.blocked ? `${counts.blocked} blocked` : ''].filter(Boolean).join(' / ');
+      if (riskText) ctx.page.drawText(riskText, { x: barX, y: ctx.y - 22, font: regular, size: 7, color: cRed });
+      ctx.y -= rowHeight;
+    }
+    ctx.y -= 10;
+
+    ensureSpace(priorityActions.length > 0 ? 105 : 70);
+    sectionHeader('Priority Actions', 'Unresolved blockers and time-sensitive commitments');
+    if (priorityActions.length === 0) {
+      ensureSpace(30);
+      ctx.page.drawRectangle({ x: ML, y: ctx.y - 26, width: CW, height: 26, color: rgb(0.94, 0.99, 0.96), borderColor: rgb(0.73, 0.91, 0.80), borderWidth: 0.6 });
+      ctx.page.drawText('No active blockers, overdue tasks, or tasks due within three days.', { x: ML + 12, y: ctx.y - 17, font: regular, size: 8.5, color: cGreen });
+      ctx.y -= 40;
+    } else {
+      const actionGap = 10;
+      const actionWidth = (CW - actionGap) / 2;
+      for (let index = 0; index < priorityActions.length; index += 2) {
+        const pair = priorityActions.slice(index, index + 2);
+        const prepared = pair.map((item) => ({
+          item,
+          lines: wrapText(item.title, regular, 8.2, actionWidth - 24),
+        }));
+        const rowHeight = Math.max(...prepared.map(({ lines }) => Math.max(54, lines.length * 10 + 30)));
+        ensureSpace(rowHeight + 6);
+        prepared.forEach(({ item, lines }, column) => {
+          const x = ML + column * (actionWidth + actionGap);
+          const dueState = workspaceDueState(item.dueDate, item.status, now);
+          const stateLabel = item.isBlocker ? 'BLOCKER' : dueState === 'overdue' ? 'OVERDUE' : dueState === 'due_today' ? 'DUE TODAY' : 'DUE SOON';
+          ctx.page.drawRectangle({ x, y: ctx.y - rowHeight, width: actionWidth, height: rowHeight, color: cRedSoft, borderColor: rgb(0.96, 0.80, 0.80), borderWidth: 0.5 });
+          ctx.page.drawRectangle({ x, y: ctx.y - rowHeight, width: 4, height: rowHeight, color: cRed });
+          ctx.page.drawText(stateLabel, { x: x + 13, y: ctx.y - 15, font: bold, size: 6.3, color: cRed });
+          if (item.dueDate) ctx.page.drawText(item.dueDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }), { x: x + actionWidth - 70, y: ctx.y - 15, font: regular, size: 6.5, color: cSecond });
+          drawLines(lines, x + 13, ctx.y - 31, regular, 8.2, cBody, 10);
+        });
+        ctx.y -= rowHeight + 6;
+      }
     }
 
-    // ── Section 5: Milestones ─────────────────────────────────────────────────
     if (workspace.milestones.length > 0) {
-      ensureSpace(52);
-      drawSectionHeader('Milestones');
-      const cols = { title: ML, due: ML + 330, status: ML + 425 };
-      ctx.page.drawText('Milestone',    { x: cols.title,  y: ctx.cur, font: bold, size: 8, color: cSecond });
-      ctx.page.drawText('Due Date',     { x: cols.due,    y: ctx.cur, font: bold, size: 8, color: cSecond });
-      ctx.page.drawText('Status',       { x: cols.status, y: ctx.cur, font: bold, size: 8, color: cSecond });
-      ctx.cur -= 5;
-      ctx.page.drawLine({ start: { x: ML, y: ctx.cur }, end: { x: ML + CW, y: ctx.cur }, color: cBorder, thickness: 0.5 });
-      ctx.cur -= 13;
-
-      for (const m of workspace.milestones) {
-        ensureSpace(20);
-        const mDue   = new Date(m.dueDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-        const mLabel = m.status.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
-        const mColor = m.status === 'done' ? cGreen : m.status === 'overdue' ? cRed : m.status === 'at_risk' ? cAmber : cBody;
-        ctx.page.drawText(trunc(m.title, regular, 9, 310), { x: cols.title,  y: ctx.cur, font: regular, size: 9, color: cBody });
-        ctx.page.drawText(mDue,   { x: cols.due,    y: ctx.cur, font: regular, size: 9, color: cSecond });
-        ctx.page.drawText(mLabel, { x: cols.status, y: ctx.cur, font: bold,    size: 9, color: mColor   });
-        ctx.cur -= 16;
+      ctx.y -= 8;
+      const estimatedMilestoneHeight = 42 + workspace.milestones.reduce((total, milestone) => {
+        const lines = wrapText(milestone.title, regular, 9, CW - 165);
+        return total + Math.max(25, lines.length * 12 + 8);
+      }, 0);
+      if (ctx.y - estimatedMilestoneHeight < FOOTER_TOP) newPage();
+      sectionHeader('Milestones', 'Decision points and delivery checkpoints');
+      for (const milestone of workspace.milestones) {
+        const titleLines = wrapText(milestone.title, regular, 9, CW - 165);
+        const rowHeight = Math.max(25, titleLines.length * 12 + 8);
+        ensureSpace(rowHeight);
+        drawLines(titleLines, ML, ctx.y - 5, regular, 9, cBody, 12);
+        const date = milestone.dueDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+        const status = milestone.status.replace(/_/g, ' ').toUpperCase();
+        const statusColor = milestone.status === 'done' ? cGreen : milestone.status === 'overdue' ? cRed : milestone.status === 'at_risk' ? cAmber : cSecond;
+        ctx.page.drawText(date, { x: ML + CW - 155, y: ctx.y - 5, font: regular, size: 8, color: cSecond });
+        ctx.page.drawText(status, { x: ML + CW - 65, y: ctx.y - 5, font: bold, size: 7, color: statusColor });
+        ctx.page.drawLine({ start: { x: ML, y: ctx.y - rowHeight + 4 }, end: { x: ML + CW, y: ctx.y - rowHeight + 4 }, color: cBorder, thickness: 0.4 });
+        ctx.y -= rowHeight;
       }
     }
 
-    // ── Footer on every page ──────────────────────────────────────────────────
-    const ts = new Date().toISOString();
-    const allPages = pdf.getPages();
-    allPages.forEach((p, i) => {
-      p.drawLine({ start: { x: ML, y: 40 }, end: { x: W - MR, y: 40 }, color: cBorder, thickness: 0.4 });
-      p.drawText(
-        'This report contains no attendee personal data. Prepared for stakeholder communication only.',
-        { x: ML, y: 28, font: oblique, size: 6.5, color: cSecond },
-      );
-      p.drawText(`Axon Tickets · Page ${i + 1} of ${allPages.length}`, {
-        x: ML, y: 14, font: regular, size: 6.5, color: cSecond,
-      });
-      p.drawText(ts, {
-        x: W - MR - regular.widthOfTextAtSize(ts, 6.5),
-        y: 14, font: regular, size: 6.5, color: cSecond,
-      });
+    const generatedIso = now.toISOString();
+    const pages = pdf.getPages();
+    pages.forEach((page, index) => {
+      page.drawLine({ start: { x: ML, y: 40 }, end: { x: W - MR, y: 40 }, color: cBorder, thickness: 0.5 });
+      page.drawText('Share-safe operational summary. No attendee personal data is included.', { x: ML, y: 27, font: oblique, size: 6.5, color: cMuted });
+      const pageLabel = `Axon Tickets  |  Page ${index + 1} of ${pages.length}`;
+      page.drawText(pageLabel, { x: ML, y: 14, font: regular, size: 6.5, color: cSecond });
+      page.drawText(generatedIso, { x: W - MR - regular.widthOfTextAtSize(generatedIso, 6.5), y: 14, font: regular, size: 6.5, color: cSecond });
     });
 
-    const buf = Buffer.from(await pdf.save());
-
+    const buffer = Buffer.from(await pdf.save());
     await this.audit.log({
-      action: 'REPORT_GENERATED',
-      entityType: 'EventWorkspace',
-      entityId: workspace.id,
-      performedById,
-      metadata: { eventId, reportType: 'stakeholder' },
+      action: 'REPORT_GENERATED', entityType: 'EventWorkspace', entityId: workspace.id,
+      performedById, metadata: { eventId, reportType: 'stakeholder', pageCount: pages.length, score, label },
     });
-
-    return buf;
+    return buffer;
   }
 
   // ── Post-event report suite (PR-01 / PR-02) ──────────────────────────────────
@@ -2162,6 +2366,7 @@ export class WorkspacesService {
     return {
       id: item.id,
       title: item.title,
+      description: item.description ?? null,
       category: item.category,
       status: item.status,
       priority: item.priority,

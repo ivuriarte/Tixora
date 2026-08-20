@@ -58,8 +58,17 @@ enum OrgApprovalStatus {
 
 enum OrgMemberRole {
   owner
-  admin
+  admin // Legacy value retained for backwards-compatible reads; exposed as manager.
+  co_owner
+  manager
   member
+}
+
+enum OrgInvitationStatus {
+  pending
+  accepted
+  revoked
+  expired
 }
 
 enum RegistrationStatus {
@@ -121,11 +130,13 @@ model User {
   organizationsCreated        Organization[]              @relation("OrgCreatedBy")
   organizationsApproved       Organization[]              @relation("OrgApprovedBy")
   organizationMembers         OrganizationMember[]
+  organizationInvitationsSent OrganizationInvitation[]    @relation("OrganizationInvitationInvitedBy")
   workspaceMembers            WorkspaceMember[]
   workspacesClosed            EventWorkspace[]            @relation("WorkspaceClosedBy")
   workspaceItemsResponsible   WorkspaceItem[]             @relation("WorkspaceItemResponsible")
   workspaceItemsAccountable   WorkspaceItem[]             @relation("WorkspaceItemAccountable")
   workspaceReminderDeliveries WorkspaceReminderDelivery[]
+  workspaceTaskUpdates        WorkspaceTaskUpdate[]
 
   @@map("users")
   @@index([isTest, createdAt])
@@ -696,10 +707,11 @@ model Organization {
   createdAt          DateTime          @default(now()) @map("created_at")
   updatedAt          DateTime          @updatedAt @map("updated_at")
 
-  createdBy  User                 @relation("OrgCreatedBy", fields: [createdById], references: [id])
-  approvedBy User?                @relation("OrgApprovedBy", fields: [approvedById], references: [id])
-  members    OrganizationMember[]
-  events     Event[]
+  createdBy   User                     @relation("OrgCreatedBy", fields: [createdById], references: [id])
+  approvedBy  User?                    @relation("OrgApprovedBy", fields: [approvedById], references: [id])
+  members     OrganizationMember[]
+  invitations OrganizationInvitation[]
+  events      Event[]
 
   @@index([approvalStatus])
   @@index([isPublic, approvalStatus])
@@ -722,6 +734,27 @@ model OrganizationMember {
   @@index([userId])
   @@index([organizationId])
   @@map("organization_members")
+}
+
+model OrganizationInvitation {
+  id             String              @id @default(uuid())
+  organizationId String              @map("organization_id")
+  email          String
+  role           OrgMemberRole
+  status         OrgInvitationStatus @default(pending)
+  invitedById    String              @map("invited_by_id")
+  expiresAt      DateTime            @map("expires_at")
+  acceptedAt     DateTime?           @map("accepted_at")
+  createdAt      DateTime            @default(now()) @map("created_at")
+  updatedAt      DateTime            @updatedAt @map("updated_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  invitedBy    User         @relation("OrganizationInvitationInvitedBy", fields: [invitedById], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, email])
+  @@index([email, status])
+  @@index([organizationId, status])
+  @@map("organization_invitations")
 }
 
 // ── Event Workspace ───────────────────────────────────────────────────────────
@@ -793,6 +826,7 @@ model WorkspaceItem {
   id                  String            @id @default(uuid())
   workspaceId         String            @map("workspace_id")
   title               String
+  description         String?
   category            String            @default("general")
   status              ChecklistStatus   @default(open)
   priority            ChecklistPriority @default(medium)
@@ -815,12 +849,30 @@ model WorkspaceItem {
   assignedToUser     User?                       @relation("WorkspaceItemResponsible", fields: [assignedToUserId], references: [id], onDelete: SetNull)
   accountableToUser  User?                       @relation("WorkspaceItemAccountable", fields: [accountableToUserId], references: [id], onDelete: SetNull)
   reminderDeliveries WorkspaceReminderDelivery[]
+  updates            WorkspaceTaskUpdate[]
 
   @@index([workspaceId])
   @@index([categoryId])
   @@index([assignedToUserId])
   @@index([accountableToUserId])
   @@map("workspace_items")
+}
+
+model WorkspaceTaskUpdate {
+  id              String           @id @default(uuid())
+  workspaceItemId String           @map("workspace_item_id")
+  authorUserId    String           @map("author_user_id")
+  message         String?
+  previousStatus  ChecklistStatus? @map("previous_status")
+  nextStatus      ChecklistStatus? @map("next_status")
+  createdAt       DateTime         @default(now()) @map("created_at")
+
+  workspaceItem WorkspaceItem @relation(fields: [workspaceItemId], references: [id], onDelete: Cascade)
+  author        User          @relation(fields: [authorUserId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceItemId, createdAt])
+  @@index([authorUserId, createdAt])
+  @@map("workspace_task_updates")
 }
 
 model WorkspaceCategory {

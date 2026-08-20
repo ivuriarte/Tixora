@@ -217,7 +217,7 @@ export class SchedulerService {
           eventTitle: item.workspace.event.title,
           dueLabel,
           dueState,
-          workspaceUrl: `${webBase}/admin/events/${item.workspace.event.id}/workspace`,
+          workspaceUrl: `${webBase}/admin/events/${item.workspace.event.id}/my-tasks?task=${item.id}`,
         });
         digests.set(user.id, digest);
       }

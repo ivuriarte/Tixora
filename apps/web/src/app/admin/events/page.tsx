@@ -7,6 +7,7 @@ import api from '@/lib/api';
 import { formatShortDate } from '@axon-tickets/utils';
 import { useAuthStore } from '@/store/auth.store';
 import { EmptyState, ScreenSkeleton } from '@/components/ScreenState';
+import { useOrganizerAccess } from '@/lib/useOrganizerAccess';
 
 interface EventRow {
   id: string;
@@ -37,6 +38,7 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.axontickets.onli
 
 export default function EventHistoryPage() {
   const { user } = useAuthStore();
+  const { canCreateEvents } = useOrganizerAccess();
   const [q, setQ] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [organizationId, setOrganizationId] = useState('');
@@ -76,12 +78,14 @@ export default function EventHistoryPage() {
               A log of every event with quick access to analytics, attendees, and details.
             </p>
           </div>
-          <Link
-            href="/admin/events/new"
-            className="bg-primary text-white font-semibold px-5 py-2.5 rounded-xl text-sm hover:bg-primary-hover transition-colors"
-          >
-            + New Event
-          </Link>
+          {canCreateEvents && (
+            <Link
+              href="/admin/events/new"
+              className="bg-primary text-white font-semibold px-5 py-2.5 rounded-xl text-sm hover:bg-primary-hover transition-colors"
+            >
+              + New Event
+            </Link>
+          )}
         </div>
 
         {/* Filters */}

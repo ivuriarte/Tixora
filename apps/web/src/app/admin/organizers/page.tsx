@@ -38,8 +38,9 @@ interface OrgDetail extends OrgRow {
   facebookUrl: string | null;
   members: Array<{
     id: string;
-    role: string;
-    user: { id: string; email: string; name: string };
+    role: 'owner' | 'co_owner' | 'manager' | 'member';
+    status: 'active' | 'invited' | 'expired';
+    user: { id: string | null; email: string; name: string };
     joinedAt: string;
   }>;
   updatedAt: string;
@@ -170,7 +171,7 @@ function OrgDrawer({
   const [showRejectInput, setShowRejectInput] = useState(false);
   const [modalAction, setModalAction] = useState<ModalAction>(null);
   const [memberEmail, setMemberEmail] = useState('');
-  const [memberRole, setMemberRole] = useState<'admin' | 'member'>('admin');
+  const [memberRole, setMemberRole] = useState<'co_owner' | 'manager' | 'member'>('member');
 
   const { data: org, isLoading } = useQuery<OrgDetail>({
     queryKey: ['admin-organizer', orgId],
@@ -242,9 +243,9 @@ function OrgDrawer({
         role: memberRole,
       }),
     onSuccess: () => {
-      toast.success('Organizer member added.');
+      toast.success('Organizer member added or invited.');
       setMemberEmail('');
-      setMemberRole('admin');
+      setMemberRole('member');
       invalidate();
     },
     onError: () => toast.error('Could not add member. Please check the email and try again.'),
@@ -252,8 +253,14 @@ function OrgDrawer({
 
   const removeMemberMutation = useMutation({
     mutationFn: (memberId: string) => api.delete(`/admin/organizers/${orgId}/members/${memberId}`),
-    onSuccess: () => { toast.success('Organizer member removed.'); invalidate(); },
+    onSuccess: () => { toast.success('Organizer member removed or invitation revoked.'); invalidate(); },
     onError: () => toast.error('Could not remove member.'),
+  });
+
+  const updateMemberMutation = useMutation({
+    mutationFn: ({ memberId, role }: { memberId: string; role: 'co_owner' | 'manager' | 'member' }) => api.patch(`/admin/organizers/${orgId}/members/${memberId}`, { role }),
+    onSuccess: () => { toast.success('Organizer member role updated.'); invalidate(); },
+    onError: () => toast.error('Could not update member role.'),
   });
 
   const canAddMember = memberEmail.trim().includes('@') && !addMemberMutation.isPending;
@@ -433,9 +440,8 @@ function OrgDrawer({
                         <span className="text-gray-400 text-xs ml-1.5 break-all">{m.user.email}</span>
                       </div>
                       <div className="flex items-center gap-2 shrink-0">
-                        <span className="text-xs bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded">
-                          {m.role}
-                        </span>
+                        <span className={`rounded px-1.5 py-0.5 text-[10px] font-semibold ${m.status === 'active' ? 'bg-green-50 text-green-700' : 'bg-amber-50 text-amber-700'}`}>{m.status}</span>
+                        {m.role === 'owner' || m.status !== 'active' ? <span className="text-xs bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded capitalize">{m.role.replace('_', ' ')}</span> : <select value={m.role} onChange={(event) => updateMemberMutation.mutate({ memberId: m.id, role: event.target.value as 'co_owner' | 'manager' | 'member' })} className="rounded border border-gray-200 bg-white px-2 py-1 text-xs"><option value="co_owner">Co-owner</option><option value="manager">Manager</option><option value="member">Member</option></select>}
                         {m.role !== 'owner' && (
                           <button
                             type="button"
@@ -443,7 +449,7 @@ function OrgDrawer({
                             disabled={removeMemberMutation.isPending}
                             className="text-xs text-red-500 hover:text-red-700 disabled:opacity-50"
                           >
-                            Remove
+                            {m.status === 'active' ? 'Remove' : 'Revoke'}
                           </button>
                         )}
                       </div>
@@ -467,11 +473,12 @@ function OrgDrawer({
                     />
                     <select
                       value={memberRole}
-                      onChange={(e) => setMemberRole(e.target.value as 'admin' | 'member')}
-                      className="w-28 border border-gray-300 rounded-lg px-2 py-2 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-violet-400"
+                      onChange={(e) => setMemberRole(e.target.value as 'co_owner' | 'manager' | 'member')}
+                      className="w-32 border border-gray-300 rounded-lg px-2 py-2 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-violet-400"
                     >
-                      <option value="admin">admin</option>
-                      <option value="member">member</option>
+                      <option value="co_owner">Co-owner</option>
+                      <option value="manager">Manager</option>
+                      <option value="member">Member</option>
                     </select>
                   </div>
                   <button

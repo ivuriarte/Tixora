@@ -8,6 +8,7 @@ import Link from 'next/link';
 import { formatPHP, formatShortDate } from '@axon-tickets/utils';
 import toast from 'react-hot-toast';
 import { EmptyState, ScreenSkeleton } from '@/components/ScreenState';
+import { useOrganizerAccess } from '@/lib/useOrganizerAccess';
 
 // completed is auto-only — never in the dropdown
 const STATUS_OPTIONS = ['draft', 'on_sale', 'sold_out', 'cancelled'];
@@ -48,6 +49,7 @@ interface DashboardStats {
 
 export default function AdminDashboardPage() {
   const queryClient = useQueryClient();
+  const { canCreateEvents } = useOrganizerAccess();
 
   type ConfirmState = {
     title: string;
@@ -129,12 +131,14 @@ export default function AdminDashboardPage() {
       <main className="max-w-6xl mx-auto px-4 py-10">
         <div className="flex items-center justify-between mb-8">
           <h1 className="axon-page-title text-3xl sm:text-4xl">Operations Overview</h1>
-          <Link
-            href="/admin/events/new"
-            className="bg-primary text-white font-semibold px-5 py-2.5 rounded-xl text-sm hover:bg-primary-hover transition-colors"
-          >
-            + New Event
-          </Link>
+          {canCreateEvents && (
+            <Link
+              href="/admin/events/new"
+              className="bg-primary text-white font-semibold px-5 py-2.5 rounded-xl text-sm hover:bg-primary-hover transition-colors"
+            >
+              + New Event
+            </Link>
+          )}
         </div>
 
         {/* Metrics cards */}
@@ -189,9 +193,9 @@ export default function AdminDashboardPage() {
                     Download QR
                   </a>
                 )}
-                {event.status === 'completed' ? (
+                {!canCreateEvents || event.status === 'completed' ? (
                   <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${statusStyle(event.status)}`}>
-                    completed
+                    {event.status.replace('_', ' ')}
                   </span>
                 ) : (
                   <select
@@ -219,23 +223,25 @@ export default function AdminDashboardPage() {
                   </select>
                 )}
                 <Link href={`/admin/events/${event.id}`} className="text-sm text-primary hover:underline">
-                  Edit
+                  {canCreateEvents ? 'Edit' : 'Details'}
                 </Link>
-                <button
-                  onClick={() => {
-                    setDialog({
-                      title: `Delete "${event.title}"?`,
-                      message: 'This permanently removes the event and all its data. This cannot be undone.',
-                      confirmLabel: 'Delete event',
-                      variant: 'danger',
-                      onConfirm: () => deleteMutation.mutate(event.id),
-                    });
-                  }}
-                  disabled={deleteMutation.isPending}
-                  className="text-sm text-red-500 hover:text-red-700 font-medium disabled:opacity-40"
-                >
-                  Delete
-                </button>
+                {canCreateEvents && (
+                  <button
+                    onClick={() => {
+                      setDialog({
+                        title: `Delete "${event.title}"?`,
+                        message: 'This permanently removes the event and all its data. This cannot be undone.',
+                        confirmLabel: 'Delete event',
+                        variant: 'danger',
+                        onConfirm: () => deleteMutation.mutate(event.id),
+                      });
+                    }}
+                    disabled={deleteMutation.isPending}
+                    className="text-sm text-red-500 hover:text-red-700 font-medium disabled:opacity-40"
+                  >
+                    Delete
+                  </button>
+                )}
               </div>
             </div>
           ))}

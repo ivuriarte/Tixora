@@ -20,6 +20,7 @@ import {
   type LocalPaymentMethod,
 } from '@/components/event-wizard/types';
 import { loadDraft, clearDraft, useAutosaveDraft } from '@/components/event-wizard/useEventDraft';
+import { useOrganizerAccess } from '@/lib/useOrganizerAccess';
 
 /** Retry once on network/timeout errors (cold-start protection). Does not retry on 4xx/5xx. */
 async function postWithRetry(url: string, body: object): Promise<{ data: unknown }> {
@@ -33,6 +34,7 @@ async function postWithRetry(url: string, body: object): Promise<{ data: unknown
 
 export default function AdminNewEventPage() {
   const router = useRouter();
+  const { canCreateEvents, isCheckingEventOwnership } = useOrganizerAccess();
   const [loading, setLoading] = useState(false);
   const [platformFee, setPlatformFee] = useState<number | null>(null);
 
@@ -305,6 +307,27 @@ export default function AdminNewEventPage() {
       </div>
     </div>
   ) : null;
+
+  if (isCheckingEventOwnership) {
+    return <main className="mx-auto max-w-3xl px-4 py-16 text-center text-sm text-gray-500">Checking event permissions…</main>;
+  }
+
+  if (!canCreateEvents) {
+    return (
+      <main className="mx-auto max-w-3xl px-4 py-16">
+        <div className="rounded-2xl border border-violet-100 bg-white p-8 shadow-sm">
+          <p className="text-xs font-semibold uppercase tracking-widest text-primary">View-only event access</p>
+          <h1 className="mt-2 text-2xl font-bold text-gray-900">Only the Organizer Owner can create events</h1>
+          <p className="mt-3 text-sm leading-6 text-gray-600">
+            Co-owners, Managers, and Members can view event-management information and continue working in authorized workspaces.
+          </p>
+          <button type="button" onClick={() => router.replace('/admin/events')} className="mt-6 rounded-xl bg-primary px-5 py-2.5 text-sm font-semibold text-white hover:bg-primary-hover">
+            Return to Event History
+          </button>
+        </div>
+      </main>
+    );
+  }
 
   return (
     <WizardShell

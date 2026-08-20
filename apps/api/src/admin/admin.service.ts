@@ -4,6 +4,7 @@ import {
   BadRequestException,
   ConflictException,
   Logger,
+  ForbiddenException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { Prisma } from '@prisma/client';
@@ -219,20 +220,21 @@ export class AdminService {
   async createEvent(dto: CreateEventDto, user: JwtPayload) {
     const organizationId = user.isAdmin
       ? undefined
-      : await this.getApprovedOrganizationIdForUser(user.sub);
+      : await this.getApprovedOwnerOrganizationIdForUser(user.sub);
     return this.eventsService.create(dto, user.sub, organizationId);
   }
 
-  private async getApprovedOrganizationIdForUser(userId: string): Promise<string> {
+  private async getApprovedOwnerOrganizationIdForUser(userId: string): Promise<string> {
     const membership = await this.prisma.organizationMember.findFirst({
       where: {
         userId,
+        role: 'owner',
         organization: { approvalStatus: 'approved' },
       },
       orderBy: [{ role: 'asc' }, { createdAt: 'asc' }],
       select: { organizationId: true },
     });
-    if (!membership) throw new BadRequestException('Approved organizer account required to create events');
+    if (!membership) throw new ForbiddenException('Only the approved organizer Owner can create events');
     return membership.organizationId;
   }
 
@@ -248,11 +250,19 @@ export class AdminService {
     });
     if (!event) throw new NotFoundException('Event not found');
     const tiers = await this.eventsService.withLiveInventory(event.tiers);
-    return { ...event, tiers };
+    const role = await this.eventAccess.getEventOrganizationRole(id, user);
+    return {
+      ...event,
+      tiers,
+      access: {
+        role,
+        canManageEvent: role === 'platform_admin' || role === 'owner',
+      },
+    };
   }
 
   async updateEvent(id: string, dto: UpdateEventDto, user: JwtPayload) {
-    await this.assertEventAccess(id, user);
+    await this.eventAccess.assertEventMutationAccess(id, user);
     const updated = await this.eventsService.update(id, dto);
     await this.audit.log({
       action: 'EVENT_UPDATED',
@@ -300,7 +310,7 @@ export class AdminService {
   }
 
   async createReferralCode(eventId: string, dto: CreateReferralCodeDto, user: JwtPayload) {
-    await this.assertEventAccess(eventId, user);
+    await this.eventAccess.assertEventMutationAccess(eventId, user);
     const code = dto.code.trim().toUpperCase();
     if (dto.discountType === 'percentage' && dto.discountValue > 100) {
       throw new BadRequestException('Percentage discount cannot exceed 100%.');
@@ -348,7 +358,7 @@ export class AdminService {
   }
 
   async setReferralCodeStatus(eventId: string, codeId: string, isActive: boolean, user: JwtPayload) {
-    await this.assertEventAccess(eventId, user);
+    await this.eventAccess.assertEventMutationAccess(eventId, user);
     const existing = await this.prisma.referralCode.findFirst({ where: { id: codeId, eventId } });
     if (!existing) throw new NotFoundException('Referral code not found');
     const updated = await this.prisma.referralCode.update({
@@ -366,7 +376,7 @@ export class AdminService {
   }
 
   async updateReferralCode(eventId: string, codeId: string, dto: UpdateReferralCodeDto, user: JwtPayload) {
-    await this.assertEventAccess(eventId, user);
+    await this.eventAccess.assertEventMutationAccess(eventId, user);
     const existing = await this.prisma.referralCode.findFirst({ where: { id: codeId, eventId, deletedAt: null } });
     if (!existing) throw new NotFoundException('Referral code not found');
     if (dto.validFrom && dto.validUntil && new Date(dto.validUntil) <= new Date(dto.validFrom)) {
@@ -389,7 +399,7 @@ export class AdminService {
   }
 
   async deleteReferralCode(eventId: string, codeId: string, user: JwtPayload) {
-    await this.assertEventAccess(eventId, user);
+    await this.eventAccess.assertEventMutationAccess(eventId, user);
     const existing = await this.prisma.referralCode.findFirst({ where: { id: codeId, eventId, deletedAt: null } });
     if (!existing) throw new NotFoundException('Referral code not found');
     // Soft-delete: mark as deleted and inactive so no new registrations can use it.
@@ -433,8 +443,7 @@ export class AdminService {
   }
 
   async deleteEvent(id: string, user: JwtPayload) {
-    const event = await this.prisma.event.findFirst({ where: { id, ...this.eventOwnerWhere(user) }, select: { id: true } });
-    if (!event) throw new NotFoundException('Event not found');
+    await this.eventAccess.assertEventMutationAccess(id, user);
 
     // Single transaction: remove all dependents without a prior findMany round-trip
     await this.prisma.$transaction([
@@ -520,21 +529,21 @@ export class AdminService {
   // ── Tiers ──────────────────────────────────────────────────────────────
 
   async createTier(eventId: string, dto: CreateTierDto, user: JwtPayload) {
-    await this.assertEventAccess(eventId, user);
+    await this.eventAccess.assertEventMutationAccess(eventId, user);
     return this.tiersService.create(eventId, dto);
   }
 
   async updateTier(tierId: string, dto: UpdateTierDto, user: JwtPayload) {
     const tier = await this.prisma.ticketTier.findUnique({ where: { id: tierId }, select: { eventId: true } });
     if (!tier) throw new NotFoundException('Ticket tier not found');
-    await this.assertEventAccess(tier.eventId, user);
+    await this.eventAccess.assertEventMutationAccess(tier.eventId, user);
     return this.tiersService.update(tierId, dto);
   }
 
   async deleteTier(tierId: string, user: JwtPayload) {
     const tier = await this.prisma.ticketTier.findUnique({ where: { id: tierId }, select: { eventId: true } });
     if (!tier) throw new NotFoundException('Ticket tier not found');
-    await this.assertEventAccess(tier.eventId, user);
+    await this.eventAccess.assertEventMutationAccess(tier.eventId, user);
     return this.tiersService.delete(tierId);
   }
 
@@ -2822,6 +2831,10 @@ export class AdminService {
           },
           orderBy: { createdAt: 'asc' },
         },
+        invitations: {
+          where: { status: 'pending' },
+          orderBy: { createdAt: 'asc' },
+        },
       },
     });
     if (!org) throw new NotFoundException('Organization not found');
@@ -2857,22 +2870,38 @@ export class AdminService {
         : null,
       approvedAt: org.approvedAt?.toISOString() ?? null,
       rejectedAt: org.rejectedAt?.toISOString() ?? null,
-      members: org.members.map((m) => ({
-        id: m.id,
-        role: m.role,
-        user: {
-          id: m.user.id,
-          email: m.user.email,
-          name: `${m.user.firstName ?? ''} ${m.user.lastName ?? ''}`.trim(),
-        },
-        joinedAt: m.createdAt.toISOString(),
-      })),
+      members: [
+        ...org.members.map((m) => ({
+          id: m.id,
+          role: m.role,
+          status: 'active' as const,
+          user: {
+            id: m.user.id,
+            email: m.user.email,
+            name: `${m.user.firstName ?? ''} ${m.user.lastName ?? ''}`.trim(),
+          },
+          joinedAt: m.createdAt.toISOString(),
+        })),
+        ...org.invitations.map((invitation) => ({
+          id: invitation.id,
+          role: invitation.role,
+          status: (invitation.expiresAt <= new Date() ? 'expired' : 'invited') as 'expired' | 'invited',
+          user: { id: null, email: invitation.email, name: invitation.email },
+          joinedAt: invitation.createdAt.toISOString(),
+          expiresAt: invitation.expiresAt.toISOString(),
+        })),
+      ],
       createdAt: org.createdAt.toISOString(),
       updatedAt: org.updatedAt.toISOString(),
     };
   }
 
-  async addOrganizerMember(id: string, adminId: string, email: string, role: 'admin' | 'member' = 'admin') {
+  async addOrganizerMember(
+    id: string,
+    adminId: string,
+    email: string,
+    role: 'co_owner' | 'manager' | 'member' = 'member',
+  ) {
     const normalizedEmail = email.trim().toLowerCase();
     const org = await this.prisma.organization.findUnique({
       where: { id },
@@ -2880,12 +2909,30 @@ export class AdminService {
     });
     if (!org) throw new NotFoundException('Organization not found');
 
-    const user = await this.prisma.user.upsert({
+    const user = await this.prisma.user.findUnique({
       where: { email: normalizedEmail },
-      update: {},
-      create: { email: normalizedEmail, isVerified: false },
-      select: { id: true, email: true, firstName: true, lastName: true },
+      select: { id: true, email: true, firstName: true, lastName: true, isVerified: true },
     });
+
+    if (!user?.isVerified) {
+      const invitation = await this.prisma.organizationInvitation.upsert({
+        where: { organizationId_email: { organizationId: id, email: normalizedEmail } },
+        update: { role, status: 'pending', invitedById: adminId, acceptedAt: null, expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) },
+        create: { organizationId: id, email: normalizedEmail, role, invitedById: adminId, expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) },
+      });
+      await this.emailService.sendOrganizationTeamInvite(normalizedEmail, org.name, true, role);
+      await this.audit.log({
+        action: 'ORGANIZER_MEMBER_INVITED', entityType: 'OrganizationInvitation', entityId: invitation.id,
+        performedById: adminId, metadata: { organizationName: org.name, memberEmail: normalizedEmail, role },
+      });
+      return this.getOrganizer(id);
+    }
+
+    const elsewhere = await this.prisma.organizationMember.findFirst({
+      where: { userId: user.id, organizationId: { not: id } },
+      select: { id: true },
+    });
+    if (elsewhere) throw new ConflictException('This account already belongs to another organizer');
 
     const member = await this.prisma.organizationMember.upsert({
       where: { userId_organizationId: { userId: user.id, organizationId: id } },
@@ -2902,6 +2949,8 @@ export class AdminService {
       metadata: { organizationName: org.name, memberEmail: normalizedEmail, role },
     });
 
+    await this.emailService.sendOrganizationTeamInvite(normalizedEmail, org.name, false, role);
+
     return {
       id: member.id,
       role: member.role,
@@ -2914,6 +2963,29 @@ export class AdminService {
     };
   }
 
+  async updateOrganizerMember(
+    id: string,
+    memberId: string,
+    adminId: string,
+    role: 'co_owner' | 'manager' | 'member',
+  ) {
+    const member = await this.prisma.organizationMember.findFirst({
+      where: { id: memberId, organizationId: id },
+    });
+    if (!member) throw new NotFoundException('Organization member not found');
+    if (member.role === 'owner') throw new BadRequestException('Owner membership cannot be changed from this panel');
+    await this.prisma.organizationMember.update({ where: { id: member.id }, data: { role } });
+    await this.prisma.workspaceMember.updateMany({
+      where: { userId: member.userId, workspace: { event: { organizationId: id } } },
+      data: { role: role === 'member' ? 'viewer' : 'manager' },
+    });
+    await this.audit.log({
+      action: 'ORGANIZER_MEMBER_ROLE_CHANGED', entityType: 'OrganizationMember', entityId: member.id,
+      performedById: adminId, metadata: { organizationId: id, from: member.role, to: role },
+    });
+    return this.getOrganizer(id);
+  }
+
   async removeOrganizerMember(id: string, memberId: string, adminId: string) {
     const member = await this.prisma.organizationMember.findFirst({
       where: { id: memberId, organizationId: id },
@@ -2922,11 +2994,40 @@ export class AdminService {
         user: { select: { email: true } },
       },
     });
-    if (!member) throw new NotFoundException('Organization member not found');
+    if (!member) {
+      const invitation = await this.prisma.organizationInvitation.findFirst({
+        where: { id: memberId, organizationId: id, status: 'pending' },
+        include: { organization: { select: { name: true } } },
+      });
+      if (!invitation) throw new NotFoundException('Organization member or invitation not found');
+      await this.prisma.organizationInvitation.update({ where: { id: invitation.id }, data: { status: 'revoked' } });
+      await this.audit.log({
+        action: 'ORGANIZER_INVITATION_REVOKED', entityType: 'OrganizationInvitation', entityId: invitation.id,
+        performedById: adminId, metadata: { organizationName: invitation.organization.name, memberEmail: invitation.email, role: invitation.role },
+      });
+      return { deleted: true, invitationRevoked: true };
+    }
     if (member.role === 'owner') {
       throw new BadRequestException('Owner membership cannot be removed from this panel');
     }
 
+    const affectedTaskCount = await this.prisma.workspaceItem.count({
+      where: {
+        workspace: { event: { organizationId: id } },
+        OR: [{ assignedToUserId: member.userId }, { accountableToUserId: member.userId }],
+      },
+    });
+    await this.prisma.workspaceItem.updateMany({
+      where: { workspace: { event: { organizationId: id } }, assignedToUserId: member.userId },
+      data: { assignedToUserId: null, assignedToName: null },
+    });
+    await this.prisma.workspaceItem.updateMany({
+      where: { workspace: { event: { organizationId: id } }, accountableToUserId: member.userId },
+      data: { accountableToUserId: null, accountableName: null },
+    });
+    await this.prisma.workspaceMember.deleteMany({
+      where: { userId: member.userId, workspace: { event: { organizationId: id } } },
+    });
     await this.prisma.organizationMember.delete({ where: { id: memberId } });
 
     await this.audit.log({
@@ -2934,10 +3035,15 @@ export class AdminService {
       entityType: 'Organization',
       entityId: id,
       performedById: adminId,
-      metadata: { organizationName: member.organization.name, memberEmail: member.user.email, role: member.role },
+      metadata: {
+        organizationName: member.organization.name,
+        memberEmail: member.user.email,
+        role: member.role,
+        unassignedTaskCount: affectedTaskCount,
+      },
     });
 
-    return { deleted: true };
+    return { deleted: true, unassignedTaskCount: affectedTaskCount };
   }
 
   async approveOrganizer(id: string, adminId: string) {

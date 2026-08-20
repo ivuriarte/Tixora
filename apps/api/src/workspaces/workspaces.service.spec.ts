@@ -24,6 +24,9 @@
 
 import { computeScore, PRIORITY_WEIGHTS, workspaceDueState } from './workspaces.service';
 import { WorkspacesService } from './workspaces.service';
+import { PDFDocument } from 'pdf-lib';
+import { mkdirSync, writeFileSync } from 'node:fs';
+import { dirname } from 'node:path';
 
 // ── computeScore pure-function tests ──────────────────────────────────────────
 
@@ -253,6 +256,10 @@ function makePrisma(workspaceFindUnique: unknown, extraMocks: Record<string, unk
       createMany: jest.fn().mockResolvedValue({}),
       aggregate: jest.fn().mockResolvedValue({ _max: { sortOrder: null } }),
     },
+    workspaceTaskUpdate: {
+      findMany: jest.fn().mockResolvedValue([]),
+      create: jest.fn().mockResolvedValue({}),
+    },
     user: {
       findMany: jest.fn().mockResolvedValue([]),
       findUnique: jest.fn().mockResolvedValue(null),
@@ -262,6 +269,10 @@ function makePrisma(workspaceFindUnique: unknown, extraMocks: Record<string, unk
 }
 
 const mockAudit = { log: jest.fn().mockResolvedValue(undefined) } as any;
+
+beforeEach(() => {
+  jest.clearAllMocks();
+});
 
 // ── Unowned items (TR-01) ─────────────────────────────────────────────────────
 
@@ -417,15 +428,15 @@ describe('getWorkspaceSummary() — canEdit / viewerRole', () => {
     expect(prisma.organizationMember.findUnique).not.toHaveBeenCalled();
   });
 
-  it('maps an org "member" role to editor with canEdit=true', async () => {
+  it('maps an org "member" role to viewer with canEdit=false', async () => {
     const workspace = makeWorkspace([]);
     workspace.event.organizationId = 'org_1';
     const prisma = makePrisma(workspace);
     prisma.organizationMember.findUnique.mockResolvedValue({ role: 'member' });
     const service = new WorkspacesService(prisma, mockAudit);
     const summary = await service.getWorkspaceSummary('evt_1', NON_ADMIN);
-    expect(summary?.viewerRole).toBe('editor');
-    expect(summary?.canEdit).toBe(true);
+    expect(summary?.viewerRole).toBe('viewer');
+    expect(summary?.canEdit).toBe(false);
   });
 
   it('defaults to viewer with canEdit=false when the user has no membership anywhere', async () => {
@@ -445,6 +456,47 @@ describe('getWorkspaceSummary() — canEdit / viewerRole', () => {
     const summary = await service.getWorkspaceSummary('evt_1', NON_ADMIN);
     expect(summary?.isClosed).toBe(true);
     expect(summary?.canEdit).toBe(false);
+  });
+});
+
+describe('generateStakeholderReport()', () => {
+  it('creates a paginated share-safe executive brief without truncating the report title', async () => {
+    const reportWorkspace = {
+      id: 'ws_report',
+      eventId: 'evt_report',
+      event: {
+        title: 'Influencing the Future: How Modern Leaders Navigate Complex Change and Build Enduring Organizations',
+        startsAt: new Date('2026-09-26T01:00:00Z'),
+        venue: 'Asian Institute of Management',
+        city: 'Makati City',
+        status: 'draft',
+      },
+      items: Array.from({ length: 32 }, (_, index) => ({
+        title: `Complete the detailed readiness commitment for workstream ${index + 1} with stakeholder validation and documented acceptance`,
+        category: ['Event Setup', 'Logistics and Venue Operations', 'Marketing and Communications', 'Governance and Executive Approvals'][index % 4],
+        status: index < 7 ? 'done' : index % 7 === 0 ? 'blocked' : index % 3 === 0 ? 'in_progress' : 'open',
+        priority: index % 6 === 0 ? 'critical' : index % 3 === 0 ? 'high' : 'medium',
+        isBlocker: index % 7 === 0,
+        dueDate: index < 20 ? new Date(`2026-08-${String((index % 18) + 1).padStart(2, '0')}T00:00:00Z`) : null,
+      })),
+      milestones: Array.from({ length: 8 }, (_, index) => ({
+        title: `Executive checkpoint ${index + 1}: confirm readiness evidence and approve the next delivery gate`,
+        dueDate: new Date(`2026-09-${String(index + 5).padStart(2, '0')}T00:00:00Z`),
+        status: index < 2 ? 'done' : index === 2 ? 'at_risk' : 'upcoming',
+      })),
+    };
+    const prisma = makePrisma(reportWorkspace);
+    const service = new WorkspacesService(prisma, mockAudit);
+    const result = await service.generateStakeholderReport('evt_report', 'admin_1');
+    expect(result.subarray(0, 4).toString()).toBe('%PDF');
+    const parsed = await PDFDocument.load(result);
+    expect(parsed.getPageCount()).toBeGreaterThan(1);
+    expect(parsed.getTitle()).toContain(reportWorkspace.event.title);
+    const outputPath = process.env.STAKEHOLDER_REPORT_QA_OUTPUT;
+    if (outputPath) {
+      mkdirSync(dirname(outputPath), { recursive: true });
+      writeFileSync(outputPath, result);
+    }
   });
 });
 
@@ -561,5 +613,109 @@ describe('updateWorkspaceItem() — closed guard & audit expansion', () => {
         metadata: expect.objectContaining({ from: false, to: true }),
       }),
     );
+  });
+
+  it('keeps completion history when editing a different field on a done task', async () => {
+    const prisma = makePrisma({ id: 'ws_1', closedAt: null });
+    const existingItem = { ...makeItem({ id: 'item_1', status: 'done' }), completedAt: BASE_DATE };
+    prisma.workspaceItem.findFirst.mockResolvedValue(existingItem);
+    prisma.workspaceItem.update.mockResolvedValue({ ...existingItem, dueDate: new Date('2026-08-28T16:00:00.000Z') });
+    const service = new WorkspacesService(prisma, mockAudit);
+
+    await service.updateWorkspaceItem(
+      'evt_1',
+      'item_1',
+      { dueDate: '2026-08-28T16:00:00.000Z' },
+      'user_1',
+    );
+
+    expect(prisma.workspaceItem.update).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.not.objectContaining({ completedAt: null }),
+    }));
+  });
+
+  it('persists edited task titles and full descriptions', async () => {
+    const prisma = makePrisma({ id: 'ws_1', closedAt: null });
+    const existingItem = { ...makeItem({ id: 'item_1' }), title: 'Old title' };
+    prisma.workspaceItem.findFirst.mockResolvedValue(existingItem);
+    prisma.workspaceItem.update.mockResolvedValue({
+      ...existingItem,
+      title: 'Decision-ready event brief',
+      description: 'Include the approved scope, dependencies, owners, and acceptance criteria.',
+    });
+    const service = new WorkspacesService(prisma, mockAudit);
+
+    const result = await service.updateWorkspaceItem(
+      'evt_1',
+      'item_1',
+      {
+        title: '  Decision-ready event brief  ',
+        description: '  Include the approved scope, dependencies, owners, and acceptance criteria.  ',
+      },
+      'user_1',
+    );
+
+    expect(prisma.workspaceItem.update).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({
+        title: 'Decision-ready event brief',
+        description: 'Include the approved scope, dependencies, owners, and acceptance criteria.',
+      }),
+    }));
+    expect(result.description).toContain('acceptance criteria');
+  });
+});
+
+describe('My Tasks assignment boundary', () => {
+  it('rejects progress updates from an unassigned member', async () => {
+    const prisma = makePrisma(null);
+    prisma.workspaceItem.findFirst.mockResolvedValue({
+      ...makeItem({ id: 'task_1' }),
+      workspace: { closedAt: null },
+      assignedToUserId: 'responsible_1',
+      accountableToUserId: 'accountable_1',
+    });
+    const service = new WorkspacesService(prisma, mockAudit);
+    await expect(service.addTaskUpdate(
+      'evt_1',
+      'task_1',
+      { message: 'Attempted update' },
+      'unassigned_1',
+      false,
+    )).rejects.toThrow('You can only update tasks assigned to you');
+  });
+
+  it('allows an assigned member to add a note and change progress status', async () => {
+    const prisma = makePrisma(null);
+    const item = {
+      ...makeItem({ id: 'task_1', status: 'open' }),
+      description: 'Full task description',
+      workspace: { closedAt: null },
+      assignedToUserId: 'member_1',
+      accountableToUserId: null,
+    };
+    prisma.workspaceItem.findFirst.mockResolvedValue(item);
+    prisma.workspaceItem.update.mockResolvedValue({ ...item, status: 'in_progress' });
+    prisma.workspaceTaskUpdate.create.mockResolvedValue({
+      id: 'update_1',
+      message: 'Supplier confirmation received.',
+      previousStatus: 'open',
+      nextStatus: 'in_progress',
+      createdAt: BASE_DATE,
+      author: { id: 'member_1', firstName: 'Mina', lastName: 'Member', email: 'mina@example.com' },
+    });
+    const service = new WorkspacesService(prisma, mockAudit);
+    const result = await service.addTaskUpdate(
+      'evt_1',
+      'task_1',
+      { message: 'Supplier confirmation received.', status: 'in_progress' },
+      'member_1',
+      false,
+    );
+    expect(result.task.status).toBe('in_progress');
+    expect(result.update.message).toBe('Supplier confirmation received.');
+    expect(mockAudit.log).toHaveBeenCalledWith(expect.objectContaining({
+      action: 'WORKSPACE_TASK_PROGRESS_UPDATED',
+      performedById: 'member_1',
+    }));
   });
 });
