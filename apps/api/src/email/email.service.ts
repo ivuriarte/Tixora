@@ -958,17 +958,18 @@ export class EmailService implements OnModuleDestroy {
     to: string,
     organizationName: string,
     needsVerification: boolean,
+    role: 'co_owner' | 'manager' | 'member' = 'member',
   ): Promise<boolean> {
     const webBase = this.config.get<string>('webUrl') ?? 'https://axontickets.online';
     const actionUrl = needsVerification ? `${webBase}/auth/access` : `${webBase}/admin/events`;
     const actionLabel = needsVerification ? 'Verify your Axon account' : 'Open organizer workspace';
     return this.sendWithRetry(
       to,
-      `You were added to ${organizationName} on Axon Tickets`,
+      `You were invited to ${organizationName} on Axon Tickets`,
       `<div style="font-family:Arial,sans-serif;max-width:560px;margin:0 auto;padding:28px;color:#1f2937">
         <p style="font-size:12px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:#7c3aed">Axon Tickets organizer team</p>
-        <h1 style="font-size:24px;margin:8px 0 12px">You have been added to ${this.escapeHtml(organizationName)}</h1>
-        <p style="line-height:1.6">Use the email address that received this message to access the organizer workspace. Task reminders will only be sent after your account is verified.</p>
+        <h1 style="font-size:24px;margin:8px 0 12px">You have been invited to ${this.escapeHtml(organizationName)}</h1>
+        <p style="line-height:1.6">Your role is <strong>${this.escapeHtml(role.replace('_', ' '))}</strong>. Use the email address that received this message to access the organizer workspace. Task reminders will only be sent after your account is verified and the invitation is accepted.</p>
         <p style="margin:26px 0"><a href="${actionUrl}" style="background:#7c3aed;color:#fff;text-decoration:none;padding:12px 18px;border-radius:8px;font-weight:700">${actionLabel}</a></p>
         <p style="font-size:12px;color:#6b7280">If you were not expecting this invitation, you can ignore this email.</p>
       </div>`,
@@ -984,7 +985,7 @@ export class EmailService implements OnModuleDestroy {
       const stateColor = item.dueState === 'overdue' ? '#b91c1c' : item.dueState === 'due_today' ? '#c2410c' : '#6d28d9';
       return `<tr>
         <td style="padding:14px 0;border-bottom:1px solid #ede9fe">
-          <div style="font-weight:700;color:#1f2937">${this.escapeHtml(item.title)}</div>
+          <div style="font-weight:700"><a href="${item.workspaceUrl}" style="color:#5b21b6;text-decoration:none">${this.escapeHtml(item.title)}</a></div>
           <div style="font-size:13px;color:#6b7280;margin-top:4px">${this.escapeHtml(item.eventTitle)}</div>
         </td>
         <td style="padding:14px 0;border-bottom:1px solid #ede9fe;text-align:right;white-space:nowrap;color:${stateColor};font-size:13px;font-weight:700">${this.escapeHtml(item.dueLabel)}</td>
@@ -999,8 +1000,38 @@ export class EmailService implements OnModuleDestroy {
         <h1 style="font-size:24px;margin:8px 0 8px">Due-date update</h1>
         <p style="line-height:1.6;color:#4b5563">Hi ${this.escapeHtml(recipientName)}, these tasks are assigned to you as Responsible or Accountable.</p>
         <table role="presentation" style="width:100%;border-collapse:collapse;margin:20px 0">${rows}</table>
-        <p style="margin:26px 0"><a href="${workspaceUrl}" style="background:#7c3aed;color:#fff;text-decoration:none;padding:12px 18px;border-radius:8px;font-weight:700">Review workspace</a></p>
+        <p style="margin:26px 0"><a href="${workspaceUrl}" style="background:#7c3aed;color:#fff;text-decoration:none;padding:12px 18px;border-radius:8px;font-weight:700">Open My Tasks</a></p>
         <p style="font-size:12px;color:#6b7280">This digest uses your current verified Axon account email. Completed and not-applicable tasks are excluded.</p>
+      </div>`,
+    );
+  }
+
+  async sendWorkspaceTaskAssignment(
+    to: string,
+    recipientName: string,
+    taskTitle: string,
+    eventTitle: string,
+    assignmentRole: 'Responsible' | 'Accountable',
+    dueDate: Date | null,
+    taskUrl: string,
+  ): Promise<boolean> {
+    const due = dueDate
+      ? dueDate.toLocaleDateString('en-PH', { year: 'numeric', month: 'long', day: 'numeric', timeZone: 'Asia/Manila' })
+      : 'No due date has been set';
+    return this.sendWithRetry(
+      to,
+      `${assignmentRole} assignment: ${taskTitle}`,
+      `<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:28px;color:#1f2937">
+        <p style="font-size:12px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:#7c3aed">Organizer workspace assignment</p>
+        <h1 style="font-size:24px;margin:8px 0 12px">You have a new ${assignmentRole} assignment</h1>
+        <p style="line-height:1.6">Hi ${this.escapeHtml(recipientName)}, you were assigned as <strong>${assignmentRole}</strong> for this event task.</p>
+        <div style="margin:20px 0;padding:18px;border:1px solid #ddd6fe;border-radius:12px;background:#faf8ff">
+          <div style="font-size:12px;color:#6b7280;text-transform:uppercase;letter-spacing:.08em">${this.escapeHtml(eventTitle)}</div>
+          <div style="font-size:18px;font-weight:700;margin-top:7px">${this.escapeHtml(taskTitle)}</div>
+          <div style="font-size:13px;color:#6b7280;margin-top:9px">Due: ${this.escapeHtml(due)}</div>
+        </div>
+        <p style="margin:26px 0"><a href="${taskUrl}" style="background:#7c3aed;color:#fff;text-decoration:none;padding:12px 18px;border-radius:8px;font-weight:700">Open task</a></p>
+        <p style="font-size:12px;color:#6b7280">You will receive due-date reminders at this verified Axon account email while the task remains active.</p>
       </div>`,
     );
   }

@@ -18,6 +18,7 @@ type ScoreLabel = 'Complete' | 'On Track' | 'At Risk' | 'Needs Attention' | 'Blo
 interface WorkspaceItem {
   id: string;
   title: string;
+  description: string | null;
   category: string;
   status: ChecklistStatus;
   priority: ChecklistPriority;
@@ -52,13 +53,6 @@ interface Milestone {
   status: MilestoneStatus;
   notes: string | null;
   completedAt: string | null;
-}
-
-interface TeamMember {
-  id: string;
-  name: string;
-  email: string;
-  role: 'manager' | 'editor' | 'viewer';
 }
 
 interface WorkspaceSummary {
@@ -203,23 +197,23 @@ function ReadinessGauge({ score, label }: { score: number; label: ScoreLabel }) 
   );
 }
 
-function OrganizationTeamPanel({ eventId, canManage }: { eventId: string; canManage: boolean }) {
+function OrganizationTeamPanel({ eventId }: { eventId: string }) {
   const qc = useQueryClient();
   const [showInvite, setShowInvite] = useState(false);
   const [email, setEmail] = useState('');
-  const [role, setRole] = useState<'admin' | 'member'>('member');
+  const [role, setRole] = useState<'co_owner' | 'manager' | 'member'>('member');
   const { data } = useQuery<{
+    currentRole: 'owner' | 'co_owner' | 'manager' | 'member';
     canManage: boolean;
-    members: Array<{ id: string; userId: string; name: string; email: string; role: 'owner' | 'admin' | 'member'; status: 'active' | 'pending' }>;
+    members: Array<{ id: string; userId: string | null; name: string; email: string; role: 'owner' | 'co_owner' | 'manager' | 'member'; status: 'active' | 'invited' | 'expired' }>;
   }>({
     queryKey: ['organization-team'],
     queryFn: () => api.get<{ data: any }>('/organizations/me/members').then((response) => response.data.data),
-    enabled: canManage,
+    enabled: true,
     retry: false,
   });
   const refresh = () => {
     qc.invalidateQueries({ queryKey: ['organization-team'] });
-    qc.invalidateQueries({ queryKey: ['workspace-members', eventId] });
     qc.invalidateQueries({ queryKey: ['workspace-assignable-users', eventId] });
     qc.invalidateQueries({ queryKey: ['workspace-items', eventId] });
   };
@@ -229,12 +223,12 @@ function OrganizationTeamPanel({ eventId, canManage }: { eventId: string; canMan
     onError: (error: any) => toast.error(error?.response?.data?.message ?? 'Could not add team member.'),
   });
   const roleMutation = useMutation({
-    mutationFn: ({ memberId, nextRole }: { memberId: string; nextRole: 'admin' | 'member' }) => api.patch(`/organizations/me/members/${memberId}`, { role: nextRole }),
+    mutationFn: ({ memberId, nextRole }: { memberId: string; nextRole: 'co_owner' | 'manager' | 'member' }) => api.patch(`/organizations/me/members/${memberId}`, { role: nextRole }),
     onSuccess: () => { toast.success('Team role updated.'); refresh(); },
     onError: (error: any) => toast.error(error?.response?.data?.message ?? 'Could not update role.'),
   });
   const removeMutation = useMutation({
-    mutationFn: (memberId: string) => api.delete(`/organizations/me/members/${memberId}`),
+    mutationFn: ({ memberId, invited }: { memberId: string; invited: boolean }) => api.delete(invited ? `/organizations/me/invitations/${memberId}` : `/organizations/me/members/${memberId}`),
     onSuccess: (response: any) => { toast.success(`Member removed${response?.data?.data?.unassignedTaskCount ? `; ${response.data.data.unassignedTaskCount} task(s) unassigned` : ''}.`); refresh(); },
     onError: (error: any) => toast.error(error?.response?.data?.message ?? 'Could not remove member.'),
   });
@@ -248,7 +242,7 @@ function OrganizationTeamPanel({ eventId, canManage }: { eventId: string; canMan
       {showInvite && (
         <div className="mt-3 flex flex-wrap gap-2 rounded-lg bg-violet-50 p-3">
           <input type="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="teammate@example.com" className="min-w-52 flex-1 rounded-md border border-violet-200 bg-white px-3 py-2 text-sm" />
-          <select value={role} onChange={(event) => setRole(event.target.value as 'admin' | 'member')} className="rounded-md border border-violet-200 bg-white px-3 py-2 text-sm"><option value="member">Member</option><option value="admin">Admin</option></select>
+          <select value={role} onChange={(event) => setRole(event.target.value as 'co_owner' | 'manager' | 'member')} className="rounded-md border border-violet-200 bg-white px-3 py-2 text-sm"><option value="member">Member</option><option value="manager">Manager</option>{data.currentRole === 'owner' && <option value="co_owner">Co-owner</option>}</select>
           <button onClick={() => inviteMutation.mutate()} disabled={!email.includes('@') || inviteMutation.isPending} className="rounded-md bg-violet-600 px-3 py-2 text-xs font-semibold text-white disabled:opacity-50">Send invite</button>
         </div>
       )}
@@ -258,10 +252,10 @@ function OrganizationTeamPanel({ eventId, canManage }: { eventId: string; canMan
             <span className="flex h-8 w-8 items-center justify-center rounded-full bg-violet-100 text-xs font-semibold text-violet-700">{initials(member.name)}</span>
             <div className="min-w-0 flex-1"><p className="truncate text-sm font-medium text-gray-800">{member.name}</p><p className="truncate text-xs text-gray-400">{member.email}</p></div>
             <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${member.status === 'active' ? 'bg-green-50 text-green-700' : 'bg-amber-50 text-amber-700'}`}>{member.status}</span>
-            {data.canManage && member.role !== 'owner' ? (
-              <select value={member.role} onChange={(event) => roleMutation.mutate({ memberId: member.id, nextRole: event.target.value as 'admin' | 'member' })} className="rounded-md border border-gray-200 bg-white px-2 py-1 text-xs"><option value="member">Member</option><option value="admin">Admin</option></select>
+            {data.canManage && member.status === 'active' && member.role !== 'owner' ? (
+              <select value={member.role} onChange={(event) => roleMutation.mutate({ memberId: member.id, nextRole: event.target.value as 'co_owner' | 'manager' | 'member' })} className="rounded-md border border-gray-200 bg-white px-2 py-1 text-xs"><option value="member">Member</option><option value="manager">Manager</option>{data.currentRole === 'owner' && <option value="co_owner">Co-owner</option>}</select>
             ) : <span className="text-xs capitalize text-gray-500">{member.role}</span>}
-            {data.canManage && member.role !== 'owner' && <button onClick={() => { if (window.confirm(`Remove ${member.name} from the team? Their tasks will become unassigned.`)) removeMutation.mutate(member.id); }} className="text-xs text-gray-400 hover:text-red-600">Remove</button>}
+            {data.canManage && member.role !== 'owner' && <button onClick={() => { const invited = member.status !== 'active'; if (window.confirm(invited ? `Revoke the invitation for ${member.email}?` : `Remove ${member.name} from the team? Their tasks will become unassigned.`)) removeMutation.mutate({ memberId: member.id, invited }); }} className="text-xs text-gray-400 hover:text-red-600">{member.status === 'active' ? 'Remove' : 'Revoke'}</button>}
           </div>
         ))}
       </div>
@@ -346,10 +340,10 @@ function DueDateInput({ item, eventId, canEdit }: { item: WorkspaceItem; eventId
   });
   const value = item.dueDate ? new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Manila' }).format(new Date(item.dueDate)) : '';
   if (canEdit) return (
-    <div className="space-y-1">
+    <div className="flex min-w-0 items-center gap-2">
       <input type="date" value={value} onChange={(event) => mutation.mutate(event.target.value)} disabled={mutation.isPending}
-        className="w-full rounded-md border border-gray-200 bg-gray-50 px-2 py-1 text-[11px] text-gray-700 focus:outline-none focus:ring-1 focus:ring-violet-400" />
-      <span className={`inline-block rounded-full px-1.5 py-0.5 text-[9px] font-semibold ${DUE_STYLE[item.dueState].className}`}>{DUE_STYLE[item.dueState].label}</span>
+        className="w-[126px] rounded-md border border-gray-200 bg-gray-50 px-2 py-1.5 text-[11px] text-gray-700 focus:outline-none focus:ring-1 focus:ring-violet-400" />
+      <span className={`whitespace-nowrap rounded-full px-2 py-1 text-[9px] font-semibold ${DUE_STYLE[item.dueState].className}`}>{DUE_STYLE[item.dueState].label}</span>
     </div>
   );
   return <span className={`inline-block rounded-full px-2 py-1 text-[10px] font-semibold ${DUE_STYLE[item.dueState].className}`}>{DUE_STYLE[item.dueState].label}</span>;
@@ -365,6 +359,7 @@ function ItemRow({
   const invalidate = useInvalidateWorkspace(eventId);
   const isNA = item.status === 'not_applicable';
   const isDone = item.status === 'done';
+  const [editing, setEditing] = useState(false);
 
   const deleteMutation = useMutation({
     mutationFn: () => api.delete(`/admin/events/${eventId}/workspace/items/${item.id}`),
@@ -377,14 +372,14 @@ function ItemRow({
 
   return (
     <div
-      className={`grid items-center gap-2 px-3 py-2 rounded-md group hover:bg-gray-50 transition-colors text-sm ${isNA ? 'opacity-45' : ''}`}
-      style={{ gridTemplateColumns: '10px minmax(150px,1fr) minmax(105px,130px) minmax(105px,130px) minmax(105px,120px) auto auto' }}
+      className={`grid items-start gap-3 px-3 py-3 rounded-lg group hover:bg-gray-50 transition-colors text-sm ${isNA ? 'opacity-45' : ''}`}
+      style={{ gridTemplateColumns: '10px minmax(240px,1fr) 136px 136px 215px 108px 58px' }}
     >
       <div className={`w-2 h-2 rounded-full shrink-0 ${PRIORITY_DOT[item.priority]}`}
         title={`${PRIORITY_LABEL[item.priority]} priority`} />
 
       <div className="min-w-0">
-        <span className={`truncate block ${isDone || isNA ? 'line-through text-gray-400' : 'text-gray-800'}`}>
+        <span className={`block whitespace-normal break-words font-medium leading-5 ${isDone || isNA ? 'line-through text-gray-400' : 'text-gray-800'}`}>
           {item.title}
           {item.isBlocker && !isDone && !isNA && (
             <span className="ml-2 text-[10px] font-semibold text-red-600 bg-red-50 border border-red-200 px-1 py-px rounded uppercase tracking-wide">
@@ -392,6 +387,7 @@ function ItemRow({
             </span>
           )}
         </span>
+        {item.description && <p className="mt-1 whitespace-pre-wrap break-words text-xs leading-5 text-gray-500">{item.description}</p>}
         {isDone && item.completedAt && (
           <span className="text-[10px] text-green-600 tabular-nums">
             Completed {formatDate(item.completedAt)}
@@ -418,14 +414,68 @@ function ItemRow({
       )}
 
       {canEdit ? (
-        <button onClick={() => deleteMutation.mutate()} disabled={deleteMutation.isPending}
-          className="opacity-0 group-hover:opacity-100 text-gray-300 hover:text-red-500 transition-all disabled:opacity-30 shrink-0"
-          aria-label="Delete">
-          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-          </svg>
-        </button>
+        <div className="flex items-center justify-end gap-2 pt-1">
+          <button onClick={() => setEditing(true)} className="text-xs font-medium text-violet-600 hover:text-violet-800" aria-label={`Edit ${item.title}`}>Edit</button>
+          <button onClick={() => { if (window.confirm(`Delete “${item.title}”?`)) deleteMutation.mutate(); }} disabled={deleteMutation.isPending}
+            className="text-gray-300 hover:text-red-500 transition-all disabled:opacity-30 shrink-0" aria-label="Delete">
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+          </button>
+        </div>
       ) : <span />}
+      {editing && <TaskEditor item={item} eventId={eventId} members={members} onClose={() => setEditing(false)} />}
+    </div>
+  );
+}
+
+function TaskEditor({ item, eventId, members, onClose }: { item: WorkspaceItem; eventId: string; members: AssignableUser[]; onClose: () => void }) {
+  const invalidate = useInvalidateWorkspace(eventId);
+  const [title, setTitle] = useState(item.title);
+  const [description, setDescription] = useState(item.description ?? '');
+  const [notes, setNotes] = useState(item.notes ?? '');
+  const [priority, setPriority] = useState<ChecklistPriority>(item.priority);
+  const [status, setStatus] = useState<ChecklistStatus>(item.status);
+  const [isBlocker, setIsBlocker] = useState(item.isBlocker);
+  const [assignedToUserId, setAssignedToUserId] = useState(item.assignedToUserId ?? '');
+  const [accountableToUserId, setAccountableToUserId] = useState(item.accountableToUserId ?? '');
+  const [dueDate, setDueDate] = useState(item.dueDate ? new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Manila' }).format(new Date(item.dueDate)) : '');
+  const mutation = useMutation({
+    mutationFn: () => api.patch(`/admin/events/${eventId}/workspace/items/${item.id}`, {
+      title: title.trim(),
+      description: description.trim() || null,
+      notes: notes.trim() || null,
+      priority,
+      status,
+      isBlocker,
+      assignedToUserId: assignedToUserId || null,
+      accountableToUserId: accountableToUserId || null,
+      dueDate: dueDate ? new Date(`${dueDate}T00:00:00+08:00`).toISOString() : null,
+    }),
+    onSuccess: () => { toast.success('Task updated.'); invalidate(); onClose(); },
+    onError: (error: any) => toast.error(error?.response?.data?.message ?? 'Could not update task.'),
+  });
+  return (
+    <div className="fixed inset-0 z-50 flex justify-end bg-slate-950/35" role="dialog" aria-modal="true" aria-label="Edit task">
+      <button className="absolute inset-0 cursor-default" onClick={onClose} aria-label="Close task editor" />
+      <aside className="relative h-full w-full max-w-xl overflow-y-auto bg-white p-6 shadow-2xl">
+        <div className="flex items-start justify-between gap-4 border-b border-gray-100 pb-4">
+          <div><p className="text-xs font-semibold uppercase tracking-[0.16em] text-violet-600">Checklist task</p><h2 className="mt-1 text-xl font-semibold text-gray-950">Edit task details</h2></div>
+          <button onClick={onClose} className="rounded-lg p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-700">✕</button>
+        </div>
+        <div className="space-y-5 py-5">
+          <label className="block text-sm font-medium text-gray-700">Task title<input value={title} onChange={(event) => setTitle(event.target.value)} maxLength={200} className="mt-1.5 w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm focus:border-violet-400 focus:outline-none focus:ring-2 focus:ring-violet-100" /></label>
+          <label className="block text-sm font-medium text-gray-700">Description<textarea value={description} onChange={(event) => setDescription(event.target.value)} maxLength={5000} rows={7} placeholder="Add the full outcome, scope, dependencies, and acceptance details." className="mt-1.5 w-full resize-y rounded-xl border border-gray-200 px-3 py-2.5 text-sm leading-6 focus:border-violet-400 focus:outline-none focus:ring-2 focus:ring-violet-100" /><span className="mt-1 block text-right text-[11px] text-gray-400">{description.length}/5000</span></label>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <label className="text-sm font-medium text-gray-700">Responsible<select value={assignedToUserId} onChange={(event) => setAssignedToUserId(event.target.value)} className="mt-1.5 w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5"><option value="">Unassigned</option>{members.map((member) => <option key={member.id} value={member.id}>{member.name}</option>)}</select></label>
+            <label className="text-sm font-medium text-gray-700">Accountable<select value={accountableToUserId} onChange={(event) => setAccountableToUserId(event.target.value)} className="mt-1.5 w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5"><option value="">Unassigned</option>{members.map((member) => <option key={member.id} value={member.id}>{member.name}</option>)}</select></label>
+            <label className="text-sm font-medium text-gray-700">Due date<input type="date" value={dueDate} onChange={(event) => setDueDate(event.target.value)} className="mt-1.5 w-full rounded-xl border border-gray-200 px-3 py-2.5" /></label>
+            <label className="text-sm font-medium text-gray-700">Status<select value={status} onChange={(event) => setStatus(event.target.value as ChecklistStatus)} className="mt-1.5 w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5">{STATUS_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
+            <label className="text-sm font-medium text-gray-700">Priority<select value={priority} onChange={(event) => setPriority(event.target.value as ChecklistPriority)} className="mt-1.5 w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5">{Object.entries(PRIORITY_LABEL).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
+            <label className="mt-7 flex items-center gap-2 text-sm font-medium text-gray-700"><input type="checkbox" checked={isBlocker} onChange={(event) => setIsBlocker(event.target.checked)} className="rounded border-gray-300 text-red-500" />Critical event blocker</label>
+          </div>
+          <label className="block text-sm font-medium text-gray-700">Internal notes<textarea value={notes} onChange={(event) => setNotes(event.target.value)} maxLength={1000} rows={4} className="mt-1.5 w-full resize-y rounded-xl border border-gray-200 px-3 py-2.5 text-sm leading-6" /></label>
+        </div>
+        <div className="sticky bottom-0 -mx-6 flex justify-end gap-2 border-t border-gray-100 bg-white px-6 py-4"><button onClick={onClose} className="rounded-xl border border-gray-200 px-4 py-2.5 text-sm font-medium text-gray-600">Cancel</button><button onClick={() => mutation.mutate()} disabled={!title.trim() || mutation.isPending} className="rounded-xl bg-violet-600 px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50">{mutation.isPending ? 'Saving…' : 'Save changes'}</button></div>
+      </aside>
     </div>
   );
 }
@@ -516,6 +566,7 @@ function AddCategoryForm({ eventId, onDone }: { eventId: string; onDone: () => v
 function AddItemRow({ eventId, categoryId, members, onDone }: { eventId: string; categoryId: string; members: AssignableUser[]; onDone: () => void }) {
   const invalidate = useInvalidateWorkspace(eventId);
   const [title, setTitle]         = useState('');
+  const [description, setDescription] = useState('');
   const [priority, setPriority]   = useState<ChecklistPriority>('medium');
   const [isBlocker, setIsBlocker] = useState(false);
   const [dueDate, setDueDate] = useState('');
@@ -526,12 +577,12 @@ function AddItemRow({ eventId, categoryId, members, onDone }: { eventId: string;
   const mutation = useMutation({
     mutationFn: () =>
       api.post(`/admin/events/${eventId}/workspace/items`, {
-        title: title.trim(), categoryId, priority, isBlocker,
+        title: title.trim(), description: description.trim() || undefined, categoryId, priority, isBlocker,
         dueDate: dueDate ? new Date(`${dueDate}T00:00:00+08:00`).toISOString() : undefined,
         assignedToUserId: assignedToUserId || undefined,
         accountableToUserId: accountableToUserId || undefined,
       }),
-    onSuccess: () => { invalidate(); setTitle(''); inputRef.current?.focus(); },
+    onSuccess: () => { invalidate(); setTitle(''); setDescription(''); inputRef.current?.focus(); },
     onError: () => toast.error('Could not add item.'),
   });
 
@@ -548,6 +599,7 @@ function AddItemRow({ eventId, categoryId, members, onDone }: { eventId: string;
         </button>
         <button onClick={onDone} className="text-gray-400 hover:text-gray-600 text-xs shrink-0">Cancel</button>
       </div>
+      <textarea value={description} onChange={(event) => setDescription(event.target.value)} maxLength={5000} rows={2} placeholder="Description (optional)" className="w-full resize-y rounded-md border border-gray-200 bg-white px-2.5 py-1.5 text-sm leading-5 focus:outline-none focus:ring-1 focus:ring-violet-400" />
       <div className="flex flex-wrap items-center gap-2 text-xs">
         <select value={priority} onChange={(e) => setPriority(e.target.value as ChecklistPriority)}
           className="bg-white border border-gray-200 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-violet-400">
@@ -705,13 +757,6 @@ export default function EventWorkspacePage() {
   const canEdit = summary?.canEdit ?? false;
   const canClose = summary?.viewerRole === 'manager';
 
-  const { data: teamMembers } = useQuery<TeamMember[]>({
-    queryKey: ['workspace-members', id],
-    queryFn: () =>
-      api.get<{ data: TeamMember[] }>(`/admin/events/${id}/workspace/members`).then((r) => r.data.data),
-    enabled: !!summary,
-  });
-
   const { data: assignableUsers = [] } = useQuery<AssignableUser[]>({
     queryKey: ['workspace-assignable-users', id],
     queryFn: () => api.get<{ data: AssignableUser[] }>(`/admin/events/${id}/workspace/assignable-users`).then((response) => response.data.data),
@@ -815,7 +860,7 @@ export default function EventWorkspacePage() {
 
   return (
     <>
-      <main className="max-w-4xl mx-auto px-6 py-8 space-y-5">
+      <main className="max-w-7xl mx-auto px-6 py-8 space-y-5">
 
         {/* Header */}
         <div className="flex items-start justify-between gap-4">
@@ -875,23 +920,7 @@ export default function EventWorkspacePage() {
         )}
 
         {/* Team */}
-        <OrganizationTeamPanel eventId={id} canManage={summary.viewerRole === 'manager'} />
-        {teamMembers && teamMembers.length > 0 && summary.viewerRole !== 'manager' && (
-          <div className="rounded-2xl border border-gray-200 bg-white px-5 py-4">
-            <h2 className="text-sm font-semibold text-gray-900 mb-2.5">Team</h2>
-            <div className="flex flex-wrap gap-2">
-              {teamMembers.map((m) => (
-                <span key={m.id} className="inline-flex items-center gap-1.5 text-xs bg-gray-50 border border-gray-200 rounded-full px-2.5 py-1">
-                  <span className="w-4 h-4 rounded-full bg-violet-100 text-violet-700 flex items-center justify-center text-[9px] font-semibold shrink-0">
-                    {initials(m.name)}
-                  </span>
-                  <span className="text-gray-700">{m.name}</span>
-                  <span className="text-gray-400 capitalize">{m.role}</span>
-                </span>
-              ))}
-            </div>
-          </div>
-        )}
+        <OrganizationTeamPanel eventId={id} />
 
         {/* Readiness card */}
         <div className="rounded-2xl border border-gray-200 bg-white px-5 py-4 space-y-4">
@@ -1011,7 +1040,7 @@ export default function EventWorkspacePage() {
         )}
 
         {/* Checklist */}
-        <div className="rounded-2xl border border-gray-200 bg-white overflow-hidden">
+        <div className="rounded-2xl border border-gray-200 bg-white overflow-x-auto">
           <div className="px-5 py-3.5 border-b border-gray-100 flex items-center justify-between">
             <div className="flex items-baseline gap-2">
               <h2 className="text-sm font-semibold text-gray-900">Checklist</h2>
@@ -1024,11 +1053,11 @@ export default function EventWorkspacePage() {
               </button>
             )}
           </div>
-          <div className="grid px-3 py-1.5 border-b border-gray-50 text-[10px] font-semibold text-gray-300 uppercase tracking-wider gap-2"
-            style={{ gridTemplateColumns: '10px minmax(150px,1fr) minmax(105px,130px) minmax(105px,130px) minmax(105px,120px) auto auto' }}>
+          <div className="min-w-[1080px] grid px-3 py-2 border-b border-gray-50 text-[10px] font-semibold text-gray-400 uppercase tracking-wider gap-3"
+            style={{ gridTemplateColumns: '10px minmax(240px,1fr) 136px 136px 215px 108px 58px' }}>
             <span /><span>Task</span><span>Responsible</span><span>Accountable</span><span>Due date</span><span>Status</span><span />
           </div>
-          <div className="px-2 py-2 space-y-4">
+          <div className="min-w-[1080px] px-2 py-2 space-y-4">
             {showAddCategory && (
               <div className="px-1">
                 <AddCategoryForm eventId={id} onDone={() => setShowAddCategory(false)} />

@@ -62,10 +62,16 @@ export class AddOrganizerMemberDto {
   @IsEmail()
   email: string;
 
-  @ApiProperty({ description: 'Organizer member role', enum: ['admin', 'member'], default: 'admin', required: false })
+  @ApiProperty({ description: 'Organizer member role', enum: ['co_owner', 'manager', 'member'], default: 'member', required: false })
   @IsOptional()
-  @IsIn(['admin', 'member'])
-  role?: 'admin' | 'member';
+  @IsIn(['co_owner', 'manager', 'member'])
+  role?: 'co_owner' | 'manager' | 'member';
+}
+
+export class UpdateOrganizerMemberDto {
+  @ApiProperty({ description: 'Organizer member role', enum: ['co_owner', 'manager', 'member'] })
+  @IsIn(['co_owner', 'manager', 'member'])
+  role: 'co_owner' | 'manager' | 'member';
 }
 
 export class BulkRejectDto {

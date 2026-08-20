@@ -22,6 +22,8 @@ export interface WizardShellProps {
   statusIndicator?: ReactNode;
   /** optional banner at the top (e.g. restore-draft prompt) */
   topBanner?: ReactNode;
+  /** renders event fields for reference without allowing mutations */
+  readOnly?: boolean;
 }
 
 export default function WizardShell({
@@ -35,6 +37,7 @@ export default function WizardShell({
   submitting = false,
   statusIndicator,
   topBanner,
+  readOnly = false,
 }: WizardShellProps) {
   const [step, setStep] = useState<StepId>('basics');
   const [completed, setCompleted] = useState<Set<StepId>>(new Set());
@@ -139,7 +142,7 @@ export default function WizardShell({
             </div>
 
             {/* Animated step content */}
-            <div key={step} className="animate-fade-in space-y-5">
+            <div key={step} className={`animate-fade-in space-y-5 ${readOnly ? 'pointer-events-none opacity-80' : ''}`} aria-readonly={readOnly}>
               {renderStep(step, handleJump)}
             </div>
 
@@ -183,6 +186,8 @@ export default function WizardShell({
                   >
                     Next →
                   </button>
+                ) : readOnly ? (
+                  <span className="axon-pill border border-gray-200 bg-gray-50 text-xs text-gray-500">View only</span>
                 ) : (
                   <button
                     type="button"

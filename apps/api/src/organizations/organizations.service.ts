@@ -9,6 +9,12 @@ import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { EmailService } from '../email/email.service';
 import { RegisterOrganizationDto, UpdateOrganizationDto } from './dto/organization.dto';
+import {
+  normalizeOrganizationRole,
+  organizationCapabilities,
+  organizationRoleCan,
+  workspaceRoleForOrganizationRole,
+} from '../common/access/organization-capabilities';
 
 @Injectable()
 export class OrganizationsService {
@@ -132,7 +138,7 @@ export class OrganizationsService {
 
   async getMyOrganization(userId: string) {
     const membership = await this.prisma.organizationMember.findFirst({
-      where: { userId, role: 'owner' },
+      where: { userId },
       include: {
         organization: {
           select: {
@@ -180,12 +186,14 @@ export class OrganizationsService {
       approvedAt: org.approvedAt?.toISOString() ?? null,
       rejectedAt: org.rejectedAt?.toISOString() ?? null,
       createdAt: org.createdAt.toISOString(),
+      role: normalizeOrganizationRole(membership.role),
+      capabilities: organizationCapabilities(normalizeOrganizationRole(membership.role)),
     };
   }
 
   async updateMyOrganization(dto: UpdateOrganizationDto, userId: string) {
     const membership = await this.prisma.organizationMember.findFirst({
-      where: { userId, role: 'owner' },
+      where: { userId },
       include: {
         organization: {
           select: { id: true },
@@ -195,6 +203,9 @@ export class OrganizationsService {
     });
 
     if (!membership) throw new NotFoundException('No organization found for this user');
+    if (!organizationRoleCan(normalizeOrganizationRole(membership.role), 'organization.profile.manage')) {
+      throw new ForbiddenException('Only an Owner or Co-owner can update the organizer profile');
+    }
 
     const data: Record<string, string | null> = {};
     if (dto.name !== undefined) data.name = dto.name.trim();
@@ -229,13 +240,13 @@ export class OrganizationsService {
     const membership = await this.prisma.organizationMember.findFirst({
       where: {
         userId,
-        role: { in: ['owner', 'admin'] },
+        role: { in: ['owner', 'co_owner'] },
         organization: { approvalStatus: 'approved' },
       },
       include: { organization: { select: { id: true, name: true } } },
       orderBy: { createdAt: 'desc' },
     });
-    if (!membership) throw new ForbiddenException('Organization owner or admin access required');
+    if (!membership) throw new ForbiddenException('Organization Owner or Co-owner access required');
     return membership;
   }
 
@@ -246,29 +257,53 @@ export class OrganizationsService {
       orderBy: { createdAt: 'desc' },
     });
     if (!actor) throw new NotFoundException('Approved organization not found');
-    const members = await this.prisma.organizationMember.findMany({
-      where: { organizationId: actor.organizationId },
-      include: { user: { select: { id: true, firstName: true, lastName: true, email: true, isVerified: true } } },
-      orderBy: [{ role: 'asc' }, { createdAt: 'asc' }],
-    });
+    const [members, invitations] = await Promise.all([
+      this.prisma.organizationMember.findMany({
+        where: { organizationId: actor.organizationId },
+        include: { user: { select: { id: true, firstName: true, lastName: true, email: true, isVerified: true } } },
+        orderBy: [{ role: 'asc' }, { createdAt: 'asc' }],
+      }),
+      this.prisma.organizationInvitation.findMany({
+        where: { organizationId: actor.organizationId, status: 'pending' },
+        orderBy: { createdAt: 'asc' },
+      }),
+    ]);
+    const role = normalizeOrganizationRole(actor.role);
     return {
-      canManage: actor.role === 'owner' || actor.role === 'admin',
-      members: members.map((member) => ({
+      currentRole: role,
+      capabilities: organizationCapabilities(role),
+      canManage: organizationRoleCan(role, 'organization.members.manage'),
+      members: [
+        ...members.map((member) => ({
         id: member.id,
         userId: member.user.id,
         name: [member.user.firstName, member.user.lastName].filter(Boolean).join(' ') || member.user.email,
         email: member.user.email,
-        role: member.role,
-        status: member.user.isVerified ? 'active' : 'pending',
+        role: normalizeOrganizationRole(member.role),
+        status: 'active' as const,
         createdAt: member.createdAt.toISOString(),
-      })),
+        })),
+        ...invitations.map((invitation) => ({
+          id: invitation.id,
+          userId: null,
+          name: invitation.email,
+          email: invitation.email,
+          role: normalizeOrganizationRole(invitation.role),
+          status: (invitation.expiresAt <= new Date() ? 'expired' : 'invited') as 'expired' | 'invited',
+          createdAt: invitation.createdAt.toISOString(),
+          expiresAt: invitation.expiresAt.toISOString(),
+        })),
+      ],
     };
   }
 
-  async addMyTeamMember(actorId: string, rawEmail: string, role: 'admin' | 'member') {
+  async addMyTeamMember(actorId: string, rawEmail: string, role: 'co_owner' | 'manager' | 'member') {
     const actor = await this.requireTeamManager(actorId);
+    if (role === 'co_owner' && actor.role !== 'owner') {
+      throw new ForbiddenException('Only the Owner can appoint a Co-owner');
+    }
     const email = rawEmail.trim().toLowerCase();
-    let user = await this.prisma.user.findUnique({
+    const user = await this.prisma.user.findUnique({
       where: { email },
       select: { id: true, email: true, firstName: true, lastName: true, isVerified: true },
     });
@@ -278,40 +313,64 @@ export class OrganizationsService {
         select: { id: true },
       });
       if (membershipElsewhere) throw new ConflictException('This account already belongs to another organizer');
-    } else {
-      user = await this.prisma.user.create({
-        data: { email, isVerified: false },
-        select: { id: true, email: true, firstName: true, lastName: true, isVerified: true },
+      const existing = await this.prisma.organizationMember.findUnique({
+        where: { userId_organizationId: { userId: user.id, organizationId: actor.organizationId } },
+        select: { id: true },
       });
+      if (existing) throw new ConflictException('This person is already on the team');
     }
-    const existing = await this.prisma.organizationMember.findUnique({
-      where: { userId_organizationId: { userId: user.id, organizationId: actor.organizationId } },
-      select: { id: true },
-    });
-    if (existing) throw new ConflictException('This person is already on the team');
+
+    if (!user?.isVerified) {
+      const invitation = await this.prisma.organizationInvitation.upsert({
+        where: { organizationId_email: { organizationId: actor.organizationId, email } },
+        update: {
+          role,
+          status: 'pending',
+          invitedById: actorId,
+          acceptedAt: null,
+          expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+        },
+        create: {
+          organizationId: actor.organizationId,
+          email,
+          role,
+          invitedById: actorId,
+          expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+        },
+      });
+      await this.audit.log({
+        action: 'ORGANIZATION_MEMBER_INVITED', entityType: 'OrganizationInvitation', entityId: invitation.id,
+        performedById: actorId, metadata: { organizationId: actor.organizationId, email, role },
+      }).catch(() => null);
+      await this.emailService.sendOrganizationTeamInvite(email, actor.organization.name, true, role);
+      return this.getMyTeam(actorId);
+    }
+
     const membership = await this.prisma.organizationMember.create({
       data: { userId: user.id, organizationId: actor.organizationId, role },
     });
     await this.audit.log({
       action: 'ORGANIZATION_MEMBER_ADDED', entityType: 'OrganizationMember', entityId: membership.id,
-      performedById: actorId, metadata: { organizationId: actor.organizationId, userId: user.id, role, pendingVerification: !user.isVerified },
+      performedById: actorId, metadata: { organizationId: actor.organizationId, userId: user.id, role },
     }).catch(() => null);
-    await this.emailService.sendOrganizationTeamInvite(email, actor.organization.name, !user.isVerified);
+    await this.emailService.sendOrganizationTeamInvite(email, actor.organization.name, false, role);
     return this.getMyTeam(actorId);
   }
 
-  async updateMyTeamMember(actorId: string, memberId: string, role: 'admin' | 'member') {
+  async updateMyTeamMember(actorId: string, memberId: string, role: 'co_owner' | 'manager' | 'member') {
     const actor = await this.requireTeamManager(actorId);
     const member = await this.prisma.organizationMember.findFirst({
       where: { id: memberId, organizationId: actor.organizationId },
     });
     if (!member) throw new NotFoundException('Team member not found');
     if (member.role === 'owner') throw new BadRequestException('The owner role cannot be changed');
-    if (actor.role === 'admin' && member.role === 'admin') throw new ForbiddenException('Only the owner can change another admin');
+    if (actor.role !== 'owner' && (member.role === 'co_owner' || role === 'co_owner')) {
+      throw new ForbiddenException('Only the Owner can change Co-owner access');
+    }
     await this.prisma.organizationMember.update({ where: { id: memberId }, data: { role } });
     await this.prisma.workspaceMember.updateMany({
       where: { userId: member.userId, workspace: { event: { organizationId: actor.organizationId } } },
-      data: { role: role === 'admin' ? 'manager' : 'editor' },
+      data: { role: workspaceRoleForOrganizationRole(role) },
     });
     await this.audit.log({
       action: 'ORGANIZATION_MEMBER_ROLE_CHANGED', entityType: 'OrganizationMember', entityId: memberId,
@@ -328,7 +387,9 @@ export class OrganizationsService {
     if (!member) throw new NotFoundException('Team member not found');
     if (member.role === 'owner') throw new BadRequestException('The organization owner cannot be removed');
     if (member.userId === actorId) throw new BadRequestException('You cannot remove your own access');
-    if (actor.role === 'admin' && member.role === 'admin') throw new ForbiddenException('Only the owner can remove another admin');
+    if (actor.role !== 'owner' && member.role === 'co_owner') {
+      throw new ForbiddenException('Only the Owner can remove a Co-owner');
+    }
 
     const affected = await this.prisma.workspaceItem.count({
       where: {
@@ -353,6 +414,26 @@ export class OrganizationsService {
       performedById: actorId, metadata: { organizationId: actor.organizationId, userId: member.userId, unassignedTaskCount: affected },
     }).catch(() => null);
     return { removed: true, unassignedTaskCount: affected };
+  }
+
+  async revokeMyTeamInvitation(actorId: string, invitationId: string) {
+    const actor = await this.requireTeamManager(actorId);
+    const invitation = await this.prisma.organizationInvitation.findFirst({
+      where: { id: invitationId, organizationId: actor.organizationId, status: 'pending' },
+    });
+    if (!invitation) throw new NotFoundException('Pending invitation not found');
+    if (actor.role !== 'owner' && invitation.role === 'co_owner') {
+      throw new ForbiddenException('Only the Owner can revoke a Co-owner invitation');
+    }
+    await this.prisma.organizationInvitation.update({
+      where: { id: invitation.id },
+      data: { status: 'revoked' },
+    });
+    await this.audit.log({
+      action: 'ORGANIZATION_INVITATION_REVOKED', entityType: 'OrganizationInvitation', entityId: invitation.id,
+      performedById: actorId, metadata: { organizationId: actor.organizationId, email: invitation.email, role: invitation.role },
+    }).catch(() => null);
+    return { revoked: true };
   }
 
   async getApprovalStatusForUser(

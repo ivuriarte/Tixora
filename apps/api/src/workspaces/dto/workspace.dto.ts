@@ -22,6 +22,13 @@ export class UpdateWorkspaceItemDto {
   @MaxLength(200)
   title?: string;
 
+  @ApiProperty({ required: false, description: 'Full task description shown in Workspace and My Tasks' })
+  @IsOptional()
+  @ValidateIf((o) => o.description !== null)
+  @IsString()
+  @MaxLength(5000)
+  description?: string | null;
+
   @ApiProperty({ required: false })
   @IsOptional()
   @IsString()
@@ -101,6 +108,12 @@ export class CreateWorkspaceItemDto {
   @MaxLength(200)
   title: string;
 
+  @ApiProperty({ required: false, description: 'Full task description shown in Workspace and My Tasks' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(5000)
+  description?: string;
+
   @ApiProperty({ required: false })
   @IsOptional()
   @IsString()
@@ -147,6 +160,19 @@ export class CreateWorkspaceItemDto {
   @IsOptional()
   @IsUUID()
   accountableToUserId?: string;
+}
+
+export class CreateWorkspaceTaskUpdateDto {
+  @ApiProperty({ required: false, description: 'Progress note visible to authorized event workspace members' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(2000)
+  message?: string;
+
+  @ApiProperty({ required: false, enum: VALID_STATUSES })
+  @IsOptional()
+  @IsIn(VALID_STATUSES)
+  status?: string;
 }
 
 export class CreateWorkspaceCategoryDto {

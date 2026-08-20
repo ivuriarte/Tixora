@@ -86,6 +86,7 @@ interface ApiEvent {
   tiers: ApiTier[];
   tagline?: string | null;
   customSections?: Array<{ title: string; description: string; imageUrl?: string; imageAlt?: string; isVisible?: boolean }> | null;
+  access: { role: 'platform_admin' | 'owner' | 'co_owner' | 'manager' | 'member'; canManageEvent: boolean };
 }
 
 interface WorkspaceSummary {
@@ -156,6 +157,7 @@ export default function AdminEventEditPage() {
     queryFn: () => api.get<{ data: ApiEvent }>(`/admin/events/${id}`).then((r) => r.data.data),
     enabled: !!id,
   });
+  const canManageEvent = event?.access.canManageEvent ?? false;
 
   const [draft, setDraft] = useState<EventDraft>(emptyDraft());
   const [tiers, setTiers] = useState<LocalTier[]>([]);
@@ -547,13 +549,14 @@ export default function AdminEventEditPage() {
   // ─── Top banner: status + cancel + delete ─────────────────────────────────
   const topBanner = event ? (
     <div className="space-y-3 mb-4">
+      {!canManageEvent && <div className="rounded-2xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800"><span className="font-semibold">View-only event access.</span> Only the organizer Owner can change event details, ticket configuration, publication status, or delete this event. You can still use Workspace and update your assigned tasks.</div>}
       {/* ── Status / Cancel / Delete row ──────────────────────────────── */}
       <div className="rounded-2xl border border-gray-200 bg-white px-4 py-3 flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3">
         <label className="text-sm font-medium text-gray-700">Status:</label>
-        {event.status === 'completed' ? (
+        {!canManageEvent || event.status === 'completed' ? (
           <span className="px-3 py-1 text-sm bg-gray-50 border border-gray-200 rounded-lg text-gray-600">
-            completed <span className="text-xs text-gray-400 ml-1">(auto)</span>
+            {event.status.replace('_', ' ')}{event.status === 'completed' && <span className="text-xs text-gray-400 ml-1">(auto)</span>}
           </span>
         ) : (
           <select
@@ -585,7 +588,7 @@ export default function AdminEventEditPage() {
         )}
         {statusMutation.isPending && <span className="text-xs text-primary">Saving…</span>}
       </div>
-      <div className="flex items-center gap-3">
+      {canManageEvent && <div className="flex items-center gap-3">
         <button
           type="button"
           onClick={() =>
@@ -618,7 +621,7 @@ export default function AdminEventEditPage() {
         >
           {deleteMutation.isPending ? 'Deleting…' : 'Delete Event'}
         </button>
-      </div>
+      </div>}
       </div>
 
       <div className="rounded-2xl border border-gray-200 bg-white px-4 py-3 flex flex-col gap-3">
@@ -639,6 +642,7 @@ export default function AdminEventEditPage() {
                 updateMutation.mutate({ onsiteRegistrationEnabled: enabled });
               }}
               className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+              disabled={!canManageEvent}
             />
             Enabled
           </label>
@@ -761,7 +765,7 @@ export default function AdminEventEditPage() {
         onCancel={() => setDialog(null)}
       />
       <WizardShell
-        title="Edit Event"
+        title={canManageEvent ? 'Edit Event' : 'Event Details'}
         draft={draft}
         tiers={tiers}
         submitLabel={updateMutation.isPending ? 'Saving…' : 'Save Changes'}
@@ -769,6 +773,7 @@ export default function AdminEventEditPage() {
         onSubmit={handleSubmit}
         onCancel={() => router.push('/admin')}
         topBanner={topBanner}
+        readOnly={!canManageEvent}
         renderStep={(step, jump) => {
           switch (step) {
             case 'basics': return <BasicsStep draft={draft} update={update} />;

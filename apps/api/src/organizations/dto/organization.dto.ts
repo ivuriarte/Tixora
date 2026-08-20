@@ -152,14 +152,14 @@ export class AddOrganizationMemberDto {
   @MaxLength(254)
   email: string;
 
-  @ApiPropertyOptional({ enum: ['admin', 'member'], default: 'member' })
+  @ApiPropertyOptional({ enum: ['co_owner', 'manager', 'member'], default: 'member' })
   @IsOptional()
-  @IsIn(['admin', 'member'])
-  role?: 'admin' | 'member';
+  @IsIn(['co_owner', 'manager', 'member'])
+  role?: 'co_owner' | 'manager' | 'member';
 }
 
 export class UpdateOrganizationMemberDto {
-  @ApiProperty({ enum: ['admin', 'member'] })
-  @IsIn(['admin', 'member'])
-  role: 'admin' | 'member';
+  @ApiProperty({ enum: ['co_owner', 'manager', 'member'] })
+  @IsIn(['co_owner', 'manager', 'member'])
+  role: 'co_owner' | 'manager' | 'member';
 }

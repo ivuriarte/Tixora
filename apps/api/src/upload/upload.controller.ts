@@ -13,13 +13,19 @@ import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { AdminGuard } from '../common/guards/admin.guard';
 import { UploadService } from './upload.service';
 import { Express } from 'express';
+import { CurrentUser } from '../common/decorators/current-user.decorator';
+import { JwtPayload } from '@axon-tickets/types';
+import { EventAccessService } from '../common/services/event-access.service';
 
 @ApiTags('upload')
 @Controller('upload')
 @UseGuards(JwtAuthGuard, AdminGuard)
 @ApiBearerAuth()
 export class UploadController {
-  constructor(private readonly uploadService: UploadService) {}
+  constructor(
+    private readonly uploadService: UploadService,
+    private readonly eventAccess: EventAccessService,
+  ) {}
 
   @Post('events/:eventId/image')
   @ApiOperation({ summary: 'Upload event cover image (admin only)' })
@@ -37,11 +43,13 @@ export class UploadController {
       },
     }),
   )
-  uploadEventImage(
+  async uploadEventImage(
     @Param('eventId') eventId: string,
     @UploadedFile() file: Express.Multer.File,
+    @CurrentUser() user: JwtPayload,
   ) {
     if (!file) throw new BadRequestException('Image file is required');
+    await this.eventAccess.assertEventMutationAccess(eventId, user);
     return this.uploadService.uploadEventImage(eventId, file.buffer, file.mimetype);
   }
 
@@ -61,11 +69,13 @@ export class UploadController {
       },
     }),
   )
-  uploadFeaturedImage(
+  async uploadFeaturedImage(
     @Param('eventId') eventId: string,
     @UploadedFile() file: Express.Multer.File,
+    @CurrentUser() user: JwtPayload,
   ) {
     if (!file) throw new BadRequestException('Image file is required');
+    await this.eventAccess.assertEventMutationAccess(eventId, user);
     return this.uploadService.uploadFeaturedImage(eventId, file.buffer);
   }
 
@@ -85,8 +95,12 @@ export class UploadController {
       },
     }),
   )
-  uploadPaymentQr(@UploadedFile() file: Express.Multer.File) {
+  async uploadPaymentQr(
+    @UploadedFile() file: Express.Multer.File,
+    @CurrentUser() user: JwtPayload,
+  ) {
     if (!file) throw new BadRequestException('Image file is required');
+    await this.eventAccess.assertOrganizerCapability(user, 'events.manage');
     return this.uploadService.uploadPaymentQr(file.buffer, file.mimetype);
   }
 
@@ -106,8 +120,12 @@ export class UploadController {
       },
     }),
   )
-  uploadEventCover(@UploadedFile() file: Express.Multer.File) {
+  async uploadEventCover(
+    @UploadedFile() file: Express.Multer.File,
+    @CurrentUser() user: JwtPayload,
+  ) {
     if (!file) throw new BadRequestException('Image file is required');
+    await this.eventAccess.assertOrganizerCapability(user, 'events.manage');
     return this.uploadService.uploadEventCover(file.buffer);
   }
 
@@ -127,8 +145,12 @@ export class UploadController {
       },
     }),
   )
-  uploadSponsorLogo(@UploadedFile() file: Express.Multer.File) {
+  async uploadSponsorLogo(
+    @UploadedFile() file: Express.Multer.File,
+    @CurrentUser() user: JwtPayload,
+  ) {
     if (!file) throw new BadRequestException('Image file is required');
+    await this.eventAccess.assertOrganizerCapability(user, 'events.manage');
     return this.uploadService.uploadSponsorLogo(file.buffer);
   }
 }
