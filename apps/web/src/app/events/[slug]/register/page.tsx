@@ -12,6 +12,7 @@ import { trackPixelCustomEvent } from '@/lib/metaPixel';
 import { trackInternalFunnelEvent, getOrCreateFunnelSessionId } from '@/lib/funnel';
 import toast from 'react-hot-toast';
 import { formatPHP } from '@axon-tickets/utils';
+import type { EventOptionalInclusion } from '@axon-tickets/types';
 
 const RESEND_COOLDOWN = 60;
 
@@ -64,6 +65,7 @@ interface EventData {
     merchandiseSizes?: string[];
     claimMethods?: Array<'self_claim' | 'delivery'>;
   } | null;
+  optionalInclusions?: EventOptionalInclusion[];
 }
 
 interface AttendeeFields {
@@ -782,6 +784,8 @@ export default function RegisterPage() {
   const [initialAttendees, setInitialAttendees] = useState<AttendeeFields[] | undefined>(undefined);
   const [initialNotes, setInitialNotes] = useState<string | undefined>(undefined);
   const [initialIsFree, setInitialIsFree] = useState<boolean | undefined>(undefined);
+  const [initialTotal, setInitialTotal] = useState<number | undefined>(undefined);
+  const [inclusionCheckoutStage, setInclusionCheckoutStage] = useState<'attendees' | 'addons'>('attendees');
   const [guestAccessToken, setGuestAccessToken] = useState<string | null>(null);
   const [showAccountActivation, setShowAccountActivation] = useState(false);
   const [paidGuestMode, setPaidGuestMode] = useState<'guest' | 'account' | null>(null);
@@ -884,6 +888,7 @@ export default function RegisterPage() {
         );
         setInitialNotes(regData.notes ?? '');
         setInitialIsFree(regData.isFree ?? false);
+        setInitialTotal(Number(regData.total ?? 0));
       }
     } catch {
       router.replace(`/events/${params.slug}`);
@@ -931,6 +936,14 @@ export default function RegisterPage() {
     const selectedTierId = searchParams.tierId ?? event.tiers[0]?.id;
     const selectedTier = event.tiers.find((item) => item.id === selectedTierId);
     if (!selectedTier) return;
+    const inclusionEnabledForTier = (event.optionalInclusions ?? []).some(
+      (inclusion) =>
+        !inclusion.eligibleTierIds?.length || inclusion.eligibleTierIds.includes(selectedTier.id),
+    );
+    // Inclusion-enabled events must collect attendees and add-ons before the
+    // authoritative quote creates a registration. UAT payment-first remains
+    // unchanged for events without add-ons.
+    if (inclusionEnabledForTier) return;
     if (isAuthenticated && dupCheck !== 'clear') return;
 
     intentStartedRef.current = true;
@@ -1006,6 +1019,18 @@ export default function RegisterPage() {
     return null;
   }
 
+  const eligibleOptionalInclusions = (event.optionalInclusions ?? [])
+    .filter((inclusion) =>
+      !inclusion.eligibleTierIds?.length || inclusion.eligibleTierIds.includes(tier.id),
+    )
+    .map((inclusion) => ({
+      ...inclusion,
+      maxPerRegistration:
+        inclusion.tierEligibility?.find((entry) => entry.tierId === tier.id)?.maxQuantityPerRegistration
+        ?? inclusion.maxPerRegistration,
+    }));
+  const hasOptionalInclusions = !existingRegistrationId && eligibleOptionalInclusions.length > 0;
+
   // ── Shared RegistrationForm props ─────────────────────────────────────────
 
   const registrationFormProps = {
@@ -1026,6 +1051,9 @@ export default function RegisterPage() {
     initialIsFree,
     eventType: event.eventType ?? 'standard',
     runningConfig: event.runningConfig ?? null,
+    initialTotal,
+    optionalInclusions: eligibleOptionalInclusions,
+    onCheckoutStepChange: setInclusionCheckoutStage,
   };
   const isPaidEvent = !event.isFree;
   const isLoggedInSinglePaidCheckout = Boolean(
@@ -1038,8 +1066,17 @@ export default function RegisterPage() {
 
       <div className="max-w-2xl mx-auto px-4 sm:px-6">
         <CheckoutStepper
-          current={isLoggedInSinglePaidCheckout ? 2 : isPaidEvent ? (paidCheckoutStage === 'details' ? 2 : 3) : 1}
+          current={
+            hasOptionalInclusions
+              ? inclusionCheckoutStage === 'addons' ? 2 : 1
+              : isLoggedInSinglePaidCheckout
+                ? 2
+                : isPaidEvent
+                  ? paidCheckoutStage === 'details' ? 2 : 3
+                  : 1
+          }
           flow={isLoggedInSinglePaidCheckout ? 'paid-single' : isPaidEvent ? 'paid-payment-first' : 'legacy'}
+          includesAddOns={hasOptionalInclusions}
         />
 
         <div className="mb-6">
@@ -1061,16 +1098,25 @@ export default function RegisterPage() {
           </span>
         </div>
         {tier.inclusions && tier.inclusions.length > 0 && (
-          <div className="mb-5 -mt-2 flex flex-wrap gap-1.5">
+          <div className="mb-5 -mt-2">
+            <p className="mb-2 text-[11px] font-bold uppercase tracking-[0.14em] text-emerald-700">Included benefits</p>
+            <div className="flex flex-wrap gap-1.5">
             {tier.inclusions.map((item) => (
               <span key={item.id ?? item.label} className="rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700">
                 {item.label}
               </span>
             ))}
+            </div>
+          </div>
+        )}
+        {hasOptionalInclusions && inclusionCheckoutStage === 'attendees' && (
+          <div className="mb-5 rounded-xl border border-[#d8cdee] bg-[#faf8ff] px-4 py-3 text-sm text-[#4f416c]">
+            <span className="font-semibold text-[#1a0533]">Optional add-ons are available.</span>{' '}
+            Choose variants for each attendee after completing their details.
           </div>
         )}
 
-        {!existingRegistrationId && isPaidEvent ? (
+        {!existingRegistrationId && isPaidEvent && !hasOptionalInclusions ? (
           <div className="rounded-2xl border border-gray-200 bg-white p-6 text-center">
             {intentError ? (
               <>
@@ -1150,7 +1196,15 @@ export default function RegisterPage() {
             />
           )
         ) : (
-          showAccountActivation ? (
+          hasOptionalInclusions ? (
+            <GuestWizard
+              event={event}
+              tier={tier}
+              qty={qty}
+              onOtpVerified={handleOtpVerified}
+              skipGate
+            />
+          ) : showAccountActivation ? (
             <GuestWizard
               event={event}
               tier={tier}

@@ -1,11 +1,12 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Optional } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { EmailService } from '../email/email.service';
 import { AuditService } from '../audit/audit.service';
 import { ConfigService } from '@nestjs/config';
 import { UploadService } from '../upload/upload.service';
-import { Prisma } from '@prisma/client';
 import { manilaDateKey, workspaceDueState } from '../workspaces/workspaces.service';
+import { OptionalInclusionsService } from '../optional-inclusions/optional-inclusions.service';
 
 @Injectable()
 export class SchedulerService {
@@ -17,6 +18,7 @@ export class SchedulerService {
     private readonly audit: AuditService,
     private readonly config: ConfigService,
     private readonly upload: UploadService,
+    @Optional() private readonly optionalInclusions?: OptionalInclusionsService,
   ) {}
 
   /**
@@ -50,27 +52,37 @@ export class SchedulerService {
     for (const reg of expired) {
       try {
         // Cancel the registration and release the seat.
-        await this.prisma.$transaction([
-          this.prisma.registration.update({
+        await this.prisma.$transaction(async (tx) => {
+          await tx.$queryRaw(Prisma.sql`SELECT id FROM registrations WHERE id = ${reg.id} FOR UPDATE`);
+          const current = await tx.registration.findUnique({ where: { id: reg.id }, select: { status: true } });
+          if (current?.status !== 'pending_payment') return;
+          await this.optionalInclusions?.releaseRegistrationReservationsTx(
+            tx,
+            reg.id,
+            'Ticket tier sale period ended',
+            'expire',
+          );
+          await tx.registration.update({
             where: { id: reg.id },
             data: { status: 'cancelled' },
-          }),
-          ...(reg.tierId
-            ? [
-                this.prisma.ticketTier.update({
-                  where: { id: reg.tierId },
-                  data: { soldQuantity: { decrement: reg.attendeeCount } },
-                }),
-              ]
-            : []),
-        ]);
-
-        await this.audit.log({
-          action: 'REGISTRATION_AUTO_CANCELLED',
-          entityType: 'Registration',
-          entityId: reg.id,
-          registrationId: reg.id,
-          metadata: { reason: 'Sale period ended', tierName: reg.tier?.name ?? null },
+          });
+          if (reg.tierId) {
+            await tx.$queryRaw(Prisma.sql`SELECT id FROM ticket_tiers WHERE id = ${reg.tierId} FOR UPDATE`);
+            const tier = await tx.ticketTier.findUnique({ where: { id: reg.tierId }, select: { soldQuantity: true } });
+            if (tier) {
+              await tx.ticketTier.update({
+                where: { id: reg.tierId },
+                data: { soldQuantity: Math.max(0, tier.soldQuantity - reg.attendeeCount) },
+              });
+            }
+          }
+          await this.audit.logWith(tx, {
+            action: 'REGISTRATION_AUTO_CANCELLED',
+            entityType: 'Registration',
+            entityId: reg.id,
+            registrationId: reg.id,
+            metadata: { reason: 'Sale period ended', tierName: reg.tier?.name ?? null },
+          });
         });
 
         const lead = reg.attendees[0];
@@ -398,6 +410,10 @@ export class SchedulerService {
    * reserved seats back to the tier's soldQuantity so inventory stays accurate.
    */
   async cleanupOrphanRegistrations(): Promise<void> {
+    const expiredInclusionHolds = await this.optionalInclusions?.expireDueReservations() ?? 0;
+    if (expiredInclusionHolds > 0) {
+      this.logger.log({ msg: 'Expired optional inclusion holds released', count: expiredInclusionHolds });
+    }
     const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000);
 
     const orphans = await this.prisma.registration.findMany({
@@ -418,20 +434,38 @@ export class SchedulerService {
 
     for (const reg of orphans) {
       try {
-        await this.prisma.$transaction([
-          this.prisma.registration.update({
+        await this.prisma.$transaction(async (tx) => {
+          await tx.$queryRaw(Prisma.sql`SELECT id FROM registrations WHERE id = ${reg.id} FOR UPDATE`);
+          const current = await tx.registration.findUnique({ where: { id: reg.id }, select: { status: true } });
+          if (current?.status !== 'pending_payment') return;
+          await this.optionalInclusions?.releaseRegistrationReservationsTx(
+            tx,
+            reg.id,
+            'Registration abandoned',
+            'expire',
+          );
+          await tx.registration.update({
             where: { id: reg.id },
             data: { status: 'cancelled' },
-          }),
-          ...(reg.tierId
-            ? [
-                this.prisma.ticketTier.update({
-                  where: { id: reg.tierId },
-                  data: { soldQuantity: { decrement: reg.attendeeCount } },
-                }),
-              ]
-            : []),
-        ]);
+          });
+          if (reg.tierId) {
+            await tx.$queryRaw(Prisma.sql`SELECT id FROM ticket_tiers WHERE id = ${reg.tierId} FOR UPDATE`);
+            const tier = await tx.ticketTier.findUnique({ where: { id: reg.tierId }, select: { soldQuantity: true } });
+            if (tier) {
+              await tx.ticketTier.update({
+                where: { id: reg.tierId },
+                data: { soldQuantity: Math.max(0, tier.soldQuantity - reg.attendeeCount) },
+              });
+            }
+          }
+          await this.audit.logWith(tx, {
+            action: 'REGISTRATION_AUTO_CANCELLED',
+            entityType: 'Registration',
+            entityId: reg.id,
+            registrationId: reg.id,
+            metadata: { reason: 'Registration abandoned' },
+          });
+        });
 
         this.logger.log({ msg: 'Orphan registration cancelled', id: reg.id });
       } catch (err: unknown) {

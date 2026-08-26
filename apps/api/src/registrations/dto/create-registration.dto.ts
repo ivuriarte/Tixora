@@ -18,6 +18,7 @@ import {
   Matches,
 } from 'class-validator';
 import { Type } from 'class-transformer';
+import { InclusionSelectionDto } from '../../optional-inclusions/dto/optional-inclusion.dto';
 
 export class DeliveryAddressDto {
   @IsString()
@@ -184,4 +185,15 @@ export class CreateRegistrationDto {
   @IsString()
   @MaxLength(32)
   referralCode?: string;
+
+  @IsOptional()
+  @IsUUID()
+  quoteToken?: string;
+
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(100)
+  @ValidateNested({ each: true })
+  @Type(() => InclusionSelectionDto)
+  inclusionSelections?: InclusionSelectionDto[];
 }

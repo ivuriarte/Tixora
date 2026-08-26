@@ -9,6 +9,7 @@ import { formatManila } from '@axon-tickets/utils';
 import Link from 'next/link';
 import Footer from '@/components/marketing/Footer';
 import { ErrorState } from '@/components/ScreenState';
+import type { RegistrationLineItem } from '@axon-tickets/types';
 
 interface TicketDetail {
   id: string;
@@ -19,6 +20,7 @@ interface TicketDetail {
   qrToken: string;
   status: string;
   checkedInAt?: string | null;
+  lineItems?: RegistrationLineItem[];
 }
 
 export default function TicketDetailPage() {
@@ -67,7 +69,7 @@ export default function TicketDetailPage() {
                     includeMargin
                   />
                   <p className="max-w-xs text-center text-xs text-[#756a92]">
-                    Keep this QR private. Show it only to authorized event staff at the entrance.
+                    Keep this QR private. It validates admission only; optional add-ons are fulfilled separately.
                   </p>
                 </>
               ) : (
@@ -96,6 +98,19 @@ export default function TicketDetailPage() {
                 <span className="font-mono text-xs text-gray-400">{ticket.id.slice(-8).toUpperCase()}</span>
               </div>
             </div>
+            {ticket.lineItems?.some((item) => item.kind === 'inclusion') && (
+              <div className="border-t border-[#e4dcf4] bg-[#faf8ff] px-6 py-4">
+                <p className="text-xs font-bold uppercase tracking-wide text-primary">Optional add-ons</p>
+                <div className="mt-2 space-y-2">
+                  {ticket.lineItems.filter((item) => item.kind === 'inclusion').map((item, index) => (
+                    <div key={item.id ?? index} className="flex items-start justify-between gap-3 text-sm">
+                      <span>{item.name}{item.variantName ? ` · ${item.variantName}` : ''} × {item.quantity}</span>
+                      <span className="shrink-0 text-xs font-semibold text-[#6b5b8a]">{(item.fulfillmentStatus ?? 'pending').replace(/_/g, ' ')}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         )}
       </main>

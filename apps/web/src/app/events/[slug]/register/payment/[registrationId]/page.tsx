@@ -143,6 +143,8 @@ export default function PaymentStepPage() {
   }
 
   const ev = reg.event;
+  const inclusionItems = reg.lineItems?.filter((item) => item.kind === 'inclusion') ?? [];
+  const hasAddOns = inclusionItems.length > 0;
   const methods = (ev.paymentMethods ?? []) as Array<{
     name: string;
     type?: string;
@@ -156,7 +158,11 @@ export default function PaymentStepPage() {
   return (
     <main className="min-h-screen bg-gray-50 py-10">
       <div className="max-w-2xl mx-auto px-4 sm:px-6">
-        <CheckoutStepper current={1} flow="paid-payment-first" />
+        <CheckoutStepper
+          current={hasAddOns ? 3 : 1}
+          flow="paid-payment-first"
+          includesAddOns={hasAddOns}
+        />
 
         {/* Back navigation */}
         {reg.status === 'pending_payment' && (
@@ -211,6 +217,34 @@ export default function PaymentStepPage() {
             reference number in the remarks.
           </p>
         </div>
+
+        {hasAddOns && reg.inclusionHoldExpiresAt && (
+          <div className="mb-5 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900" role="status">
+            <p className="font-semibold">Your add-on stock is held until {new Date(reg.inclusionHoldExpiresAt).toLocaleString('en-PH', { dateStyle: 'medium', timeStyle: 'short' })}.</p>
+            <p className="mt-1 text-xs text-amber-800">Upload one proof for the exact basket total before the hold expires. Expired add-on stock is released automatically.</p>
+          </div>
+        )}
+
+        {reg.lineItems && reg.lineItems.length > 0 && (
+          <section className="mb-5 rounded-2xl border border-gray-200 bg-white p-5">
+            <h2 className="font-semibold text-gray-900">Payment breakdown</h2>
+            <div className="mt-3 space-y-2 text-sm">
+              {reg.lineItems.map((item, index) => (
+                <div key={item.id ?? `${item.kind}-${index}`} className="flex justify-between gap-4 text-gray-600">
+                  <span>
+                    {item.name}{item.variantName ? ` · ${item.variantName}` : ''} × {item.quantity}
+                    {item.attendeeName && <span className="block text-xs text-gray-400">For {item.attendeeName}</span>}
+                  </span>
+                  <span>{item.total === 0 ? 'Free' : formatPHP(item.total)}</span>
+                </div>
+              ))}
+              <div className="flex justify-between border-t border-gray-100 pt-3 font-bold text-gray-900">
+                <span>Exact amount to transfer</span>
+                <span className="text-primary">{formatPHP(reg.total)}</span>
+              </div>
+            </div>
+          </section>
+        )}
 
         {/* Payment methods */}
         <section className="rounded-2xl border border-gray-200 bg-white p-5 mb-5 space-y-3">
@@ -375,7 +409,8 @@ export default function PaymentStepPage() {
             <h2 className="font-semibold text-gray-900">Upload Your Payment Screenshot</h2>
             <p className="text-xs text-gray-500 mt-0.5">
               Take a screenshot of your transfer confirmation and upload it here.
-              Once we check and approve it, your QR ticket will be emailed to you.
+              Once approved, your QR ticket will be emailed to you. The QR is for admission only;
+              add-ons follow the separate fulfillment instructions in your registration.
             </p>
           </header>
           <PaymentProofDropzone

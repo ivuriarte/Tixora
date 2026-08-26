@@ -28,6 +28,7 @@ import { CronModule } from './cron/cron.module';
 import { FunnelModule } from './funnel/funnel.module';
 import { OrganizationsModule } from './organizations/organizations.module';
 import { WorkspacesModule } from './workspaces/workspaces.module';
+import { OptionalInclusionsModule } from './optional-inclusions/optional-inclusions.module';
 
 const usePrettyLogs = process.env.APP_ENV === 'development' && process.env.VERCEL !== '1';
 
@@ -84,6 +85,7 @@ const usePrettyLogs = process.env.APP_ENV === 'development' && process.env.VERCE
     FunnelModule,
     OrganizationsModule,
     WorkspacesModule,
+    OptionalInclusionsModule,
     SchedulerModule,
     CronModule,
   ],

@@ -30,6 +30,7 @@ interface EventData {
   onsiteRegistrationEnabled: boolean;
   tiers: Tier[];
   agenda?: Array<{ id?: string; title?: string; time?: string; isSubEvent?: boolean }> | null;
+  optionalInclusions?: Array<{ id: string; name: string }>;
 }
 
 interface OnsiteResult {
@@ -225,6 +226,12 @@ export default function OnsiteRegistrationPage() {
           </section>
         ) : (
           <form onSubmit={handleSubmit} className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm space-y-4 sm:p-5">
+            {!!event.optionalInclusions?.length && (
+              <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm leading-relaxed text-amber-900">
+                <span className="font-semibold">Optional add-ons are unavailable at on-site registration.</span>{' '}
+                This form records admission only. Ask event staff about any separately available merchandise or services.
+              </div>
+            )}
             <div className="rounded-xl border border-blue-100 bg-blue-50 px-4 py-3 text-sm leading-relaxed text-blue-900">
               <span className="font-semibold">Please share your email if you have one.</span> We use it only for this event&apos;s registration, confirmation, and attendance records. This walk-in form does not create, verify, link, or update an Axon Tickets account. If you genuinely do not have an email address, choose <span className="font-semibold">Email not applicable</span> below and staff can still record your attendance.
             </div>

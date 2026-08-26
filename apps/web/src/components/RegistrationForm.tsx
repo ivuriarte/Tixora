@@ -5,7 +5,13 @@ import { useRouter } from 'next/navigation';
 import { formatPHP } from '@axon-tickets/utils';
 import api from '@/lib/api';
 import { useAuthStore } from '@/store/auth.store';
-import type { CreateRegistrationDto } from '@axon-tickets/types';
+import OptionalAddOnsStep from '@/components/OptionalAddOnsStep';
+import type {
+  CreateRegistrationDto,
+  EventOptionalInclusion,
+  InclusionQuote,
+  InclusionSelection,
+} from '@axon-tickets/types';
 
 interface ProfileData {
   firstName: string;
@@ -119,6 +125,8 @@ interface Props {
   registrationId?: string;
   /** Server-returned isFree for edit mode — used to decide post-submit routing. */
   initialIsFree?: boolean;
+  /** Server-returned payable total for edit mode. */
+  initialTotal?: number;
   /** Pre-filled attendee data for edit mode or post-OTP guest flow. */
   initialAttendees?: Array<Partial<AttendeeFields>>;
   /** Pre-filled notes for edit mode or post-OTP guest flow. */
@@ -132,6 +140,9 @@ interface Props {
   /** Paid checkout identity selected after payment proof. */
   checkoutMode?: 'authenticated' | 'guest' | 'account';
   onCheckoutStageChange?: (stage: 'details' | 'confirmation' | 'otp') => void;
+  /** Separately selectable products. Existing tier inclusions remain included benefits. */
+  optionalInclusions?: EventOptionalInclusion[];
+  onCheckoutStepChange?: (step: 'attendees' | 'addons') => void;
 }
 
 export default function RegistrationForm({
@@ -150,6 +161,7 @@ export default function RegistrationForm({
   subEvents = [],
   registrationId,
   initialIsFree,
+  initialTotal,
   initialAttendees,
   initialNotes,
   eventType = 'standard',
@@ -158,6 +170,8 @@ export default function RegistrationForm({
   existingAccountDetected = false,
   checkoutMode,
   onCheckoutStageChange,
+  optionalInclusions = [],
+  onCheckoutStepChange,
 }: Props) {
   const router = useRouter();
   const currentUser = useAuthStore((s) => s.user);
@@ -192,6 +206,11 @@ export default function RegistrationForm({
   const [pendingUserId, setPendingUserId] = useState('');
   const [duplicateConflicts, setDuplicateConflicts] = useState<GuestDuplicateConflict[]>([]);
   const otpVerificationRef = useRef(false);
+  const [inclusionCheckoutStage, setInclusionCheckoutStage] = useState<'attendees' | 'addons'>('attendees');
+  const [inclusionSelections, setInclusionSelections] = useState<InclusionSelection[]>([]);
+  const [quote, setQuote] = useState<InclusionQuote | null>(null);
+  const [quoteLoading, setQuoteLoading] = useState(false);
+  const [quoteError, setQuoteError] = useState<string | null>(null);
   // Synchronous guard — prevents duplicate submissions during the async gap
   // between the first click and React flushing the loading state update.
   const submittingRef = useRef(false);
@@ -209,7 +228,8 @@ export default function RegistrationForm({
   const feesPesos = Number(platformFee) || 0;
   const totalPesos = Math.max(0, subtotalPesos - referralDiscount) + feesPesos;
   const isFreeRegistration = unitPrice === 0 && feesPesos === 0;
-  const isPaymentIntentStep = !registrationId && !isFreeRegistration;
+  const hasOptionalInclusions = !registrationId && optionalInclusions.length > 0;
+  const isPaymentIntentStep = !hasOptionalInclusions && !registrationId && !isFreeRegistration;
   const promoCodesEnabled = false; // Release 2.0 is manual-payment proof only.
   const requiresSubEvent = !registrationId && subEvents.length > 0;
   const allSubEventsSelected = subEvents.length > 0 && selectedSubEventIds.length === subEvents.length;
@@ -223,6 +243,71 @@ export default function RegistrationForm({
     onCheckoutStageChange?.(stage);
     setError(null);
   };
+
+  const updateInclusionQuantity = (
+    inclusionId: string,
+    variantId: string,
+    attendeeIndex: number,
+    quantity: number,
+  ) => {
+    setInclusionSelections((current) => {
+      const next = current.filter(
+        (selection) =>
+          !(
+            selection.inclusionId === inclusionId &&
+            selection.variantId === variantId &&
+            selection.attendeeIndex === attendeeIndex
+          ),
+      );
+      if (quantity > 0) next.push({ inclusionId, variantId, attendeeIndex, quantity });
+      return next;
+    });
+    setQuote(null);
+    setQuoteError(null);
+  };
+
+  const refreshQuote = async () => {
+    if (!hasOptionalInclusions) return null;
+    setQuoteLoading(true);
+    setQuoteError(null);
+    try {
+      const response = await api.post(`/events/${eventId}/inclusion-quote`, {
+        tierId,
+        attendeeCount: qty,
+        selections: inclusionSelections,
+        ...(referralMessage && referralCode.trim() && { referralCode: referralCode.trim() }),
+      });
+      const nextQuote = (response.data?.data ?? response.data) as InclusionQuote;
+      setQuote(nextQuote);
+      setReferralDiscount(nextQuote.discount ?? 0);
+      if (referralMessage && referralCode.trim() && nextQuote.discount > 0) {
+        setReferralMessage(`${referralCode.trim().toUpperCase()} applied — you save ${formatPHP(nextQuote.discount)}.`);
+      }
+      return nextQuote;
+    } catch (err: unknown) {
+      const response = (err as { response?: { status?: number; data?: { message?: string | string[] } } }).response;
+      const raw = response?.data?.message;
+      const fallback =
+        response?.status === 409
+          ? 'One of your selected add-ons just sold out or no longer has enough stock.'
+          : response?.status === 410
+            ? 'This quote expired. Check availability again before continuing.'
+            : 'Prices or availability changed. Review your choices and try again.';
+      setQuoteError(Array.isArray(raw) ? raw.join(' ') : raw || fallback);
+      setQuote(null);
+      return null;
+    } finally {
+      setQuoteLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (inclusionCheckoutStage !== 'addons' || !hasOptionalInclusions) return;
+    const timer = window.setTimeout(() => void refreshQuote(), 250);
+    return () => window.clearTimeout(timer);
+    // Quote inputs are intentionally serialized so a new quote is obtained for every basket change.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [inclusionCheckoutStage, hasOptionalInclusions, inclusionSelections, referralMessage]);
 
   useEffect(() => {
     if (registrationId || subEvents.length === 0) return;
@@ -511,6 +596,17 @@ export default function RegistrationForm({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (hasOptionalInclusions && inclusionCheckoutStage === 'attendees') {
+      if (requiresSubEvent && selectedSubEventIds.length === 0) {
+        setError('Please choose at least one sub-event to attend.');
+        return;
+      }
+      setError(null);
+      setInclusionCheckoutStage('addons');
+      onCheckoutStepChange?.('addons');
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      return;
+    }
     // Synchronous guard — blocks any duplicate event fired before React
     // has had a chance to re-render with loading=true.
     if (submittingRef.current) return;
@@ -550,6 +646,15 @@ export default function RegistrationForm({
       if (isPaidCompletionFlow && checkoutStage === 'details') {
         changeCheckoutStage('confirmation');
         return;
+      }
+
+      if (hasOptionalInclusions) {
+        const expiresAt = quote ? new Date(quote.expiresAt).getTime() : 0;
+        if (!quote || expiresAt <= Date.now()) {
+          await refreshQuote();
+          setError('Your total needed to be refreshed. Review it, then confirm your registration again.');
+          return;
+        }
       }
 
       // Sync any edited profile fields back to the user's account
@@ -592,10 +697,11 @@ export default function RegistrationForm({
           attendees: attendeePayload,
           ...(notes.trim() && { notes: notes.trim() }),
           ...(referralDiscount > 0 && referralCode.trim() && { referralCode: referralCode.trim() }),
+          ...(quote && { quoteToken: quote.token, inclusionSelections }),
         };
         const res = await api.post('/registrations', payload);
         const reg = res.data?.data ?? res.data;
-        if (reg.isFree || reg.status === 'pending_approval') {
+        if (Number(reg.total) === 0 || reg.status === 'pending_approval') {
           router.push(`/registrations/${reg.id}`);
         } else {
           router.push(`/events/${eventSlug}/register/payment/${reg.id}`);
@@ -777,6 +883,8 @@ export default function RegistrationForm({
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
+      {inclusionCheckoutStage === 'attendees' ? (
+        <>
       {/* Order summary */}
       <div className="bg-white border border-gray-200 rounded-2xl p-5">
         <h2 className="font-semibold text-gray-900 mb-3">Order Summary</h2>
@@ -1350,6 +1458,19 @@ export default function RegistrationForm({
       </div>}
         </>
       )}
+        </>
+      ) : (
+        <OptionalAddOnsStep
+          inclusions={optionalInclusions}
+          attendees={attendees}
+          selections={inclusionSelections}
+          quote={quote}
+          quoteLoading={quoteLoading}
+          quoteError={quoteError}
+          onQuantityChange={updateInclusionQuantity}
+          onRefreshQuote={() => void refreshQuote()}
+        />
+      )}
 
       {error && (
         <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-xl px-4 py-3">
@@ -1357,19 +1478,49 @@ export default function RegistrationForm({
         </div>
       )}
 
-      <button
-        type="submit"
-        disabled={loading}
-        className="w-full py-3 rounded-xl bg-primary text-white font-semibold text-sm hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-      >
-        {loading
-          ? 'Saving your spot…'
-          : isPaymentIntentStep
-            ? `Continue to payment — ${formatPHP(totalPesos)}`
-            : registrationId
-              ? isPaidCompletionFlow ? 'Review Transaction Details' : 'Submit attendee details for review'
-              : `Confirm My Registration — ${isFreeRegistration ? 'Free' : formatPHP(totalPesos)}`}
-      </button>
+      {hasOptionalInclusions ? (
+        <div className="flex flex-col-reverse gap-3 sm:flex-row">
+          {inclusionCheckoutStage === 'addons' && (
+            <button
+              type="button"
+              onClick={() => {
+                setInclusionCheckoutStage('attendees');
+                onCheckoutStepChange?.('attendees');
+                setError(null);
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+              }}
+              className="min-h-12 rounded-xl border border-[#d8cdee] px-5 text-sm font-semibold text-[#4f416c] hover:border-primary hover:text-primary sm:w-auto"
+            >
+              Back to attendee details
+            </button>
+          )}
+          <button
+            type="submit"
+            disabled={loading || (inclusionCheckoutStage === 'addons' && (quoteLoading || !quote))}
+            className="min-h-12 flex-1 rounded-xl bg-primary px-5 text-sm font-semibold text-white transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {loading
+              ? 'Saving your spot…'
+              : inclusionCheckoutStage === 'attendees'
+                ? 'Continue to optional add-ons'
+                : `Confirm My Registration — ${quote?.total === 0 ? 'Free' : formatPHP(quote?.total ?? 0)}`}
+          </button>
+        </div>
+      ) : (
+        <button
+          type="submit"
+          disabled={loading}
+          className="w-full py-3 rounded-xl bg-primary text-white font-semibold text-sm hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+        >
+          {loading
+            ? 'Saving your spot…'
+            : isPaymentIntentStep
+              ? `Continue to payment — ${formatPHP(totalPesos)}`
+              : registrationId
+                ? isPaidCompletionFlow ? 'Review Transaction Details' : 'Submit attendee details for review'
+                : `Confirm My Registration — ${isFreeRegistration ? 'Free' : formatPHP(totalPesos)}`}
+        </button>
+      )}
     </form>
   );
 }

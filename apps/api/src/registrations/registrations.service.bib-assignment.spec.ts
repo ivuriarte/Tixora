@@ -19,6 +19,7 @@ describe('RegistrationsService running-event bib assignment', () => {
       attendeesCompletedAt: new Date(),
       createdAt: new Date(),
       proofs: [],
+      lineItems: [],
       attendees: [
         {
           id: 'attendee-1',

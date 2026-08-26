@@ -17,6 +17,16 @@ const TABS = [
     exact: true,
   },
   {
+    label: 'Optional Inclusions',
+    section: 'inclusions',
+    icon: (
+      <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={1.75} viewBox="0 0 24 24" aria-hidden="true">
+        <path strokeLinecap="round" strokeLinejoin="round" d="M12 3.75v16.5m8.25-8.25H3.75M6.75 6.75l10.5 10.5m0-10.5-10.5 10.5" />
+      </svg>
+    ),
+    exact: false,
+  },
+  {
     label: 'Workspace',
     section: 'workspace',
     icon: (
@@ -61,7 +71,7 @@ export default function EventDetailLayout({ children }: { children: React.ReactN
     <div>
       <div className="border-b border-gray-200 bg-white sticky top-0 z-20">
         <div className="max-w-5xl mx-auto px-6">
-          <nav className="flex" aria-label="Event sections">
+          <nav className="flex overflow-x-auto" aria-label="Event sections">
             {TABS.map((tab) => {
               const label = tab.section === 'event' && event?.access?.canManageEvent === false
                 ? 'Event Details'
@@ -72,17 +82,22 @@ export default function EventDetailLayout({ children }: { children: React.ReactN
                   ? `/admin/events/${id}/my-tasks`
                   : tab.section === 'icebreaker'
                     ? `/admin/events/${id}/icebreaker`
-                  : `/admin/events/${id}`;
+                  : tab.section === 'inclusions'
+                    ? `/admin/events/${id}/inclusions`
+                    : `/admin/events/${id}`;
               const isWorkspaceRoute = pathname.startsWith(`/admin/events/${id}/workspace`);
               const isMyTasksRoute = pathname.startsWith(`/admin/events/${id}/my-tasks`);
               const isIcebreakerRoute = pathname.startsWith(`/admin/events/${id}/icebreaker`);
+              const isInclusionsRoute = pathname.startsWith(`/admin/events/${id}/inclusions`);
               const isActive = tab.section === 'workspace'
                 ? isWorkspaceRoute
                 : tab.section === 'my-tasks'
                   ? isMyTasksRoute
                   : tab.section === 'icebreaker'
                     ? isIcebreakerRoute
-                    : !isWorkspaceRoute && !isMyTasksRoute && !isIcebreakerRoute;
+                  : tab.section === 'inclusions'
+                    ? isInclusionsRoute
+                    : !isWorkspaceRoute && !isMyTasksRoute && !isIcebreakerRoute && !isInclusionsRoute;
               return (
                 <Link
                   key={tab.section}

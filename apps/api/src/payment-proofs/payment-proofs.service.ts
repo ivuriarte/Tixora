@@ -4,12 +4,15 @@ import {
   NotFoundException,
   ForbiddenException,
   BadRequestException,
+  Optional,
 } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { UploadService } from '../upload/upload.service';
 import { AuditService } from '../audit/audit.service';
 import { FunnelService } from '../funnel/funnel.service';
 import { createHash, timingSafeEqual } from 'crypto';
+import { OptionalInclusionsService } from '../optional-inclusions/optional-inclusions.service';
 
 @Injectable()
 export class PaymentProofsService {
@@ -20,6 +23,7 @@ export class PaymentProofsService {
     private readonly upload: UploadService,
     private readonly audit: AuditService,
     private readonly funnel: FunnelService,
+    @Optional() private readonly optionalInclusions?: OptionalInclusionsService,
   ) {}
 
   async create(
@@ -68,11 +72,30 @@ export class PaymentProofsService {
         `Cannot upload proof for a ${reg.status} registration`,
       );
     }
+    if (reg.status === 'rejected') {
+      await this.optionalInclusions?.assertReservationsCanResubmit(registrationId);
+    }
 
     const { imageUrl, cloudinaryPublicId } =
       await this.upload.uploadPaymentProof(registrationId, buffer, mimeType);
 
+    let auditWrittenInTransaction = false;
     const proof = await this.prisma.$transaction(async (tx) => {
+      if (typeof tx.$queryRaw === 'function') {
+        await tx.$queryRaw(Prisma.sql`SELECT id FROM registrations WHERE id = ${registrationId} FOR UPDATE`);
+      }
+      const current = typeof tx.registration.findUnique === 'function'
+        ? await tx.registration.findUnique({
+            where: { id: registrationId },
+            select: { status: true },
+          })
+        : { status: reg.status };
+      if (!current || !['pending_payment', 'rejected'].includes(current.status)) {
+        throw new BadRequestException('Registration is no longer accepting payment proof');
+      }
+      if (current.status === 'rejected') {
+        await this.optionalInclusions?.assertReservationsCanResubmitTx(tx, registrationId);
+      }
       const created = await tx.paymentProof.create({
         data: {
           registrationId,
@@ -85,18 +108,33 @@ export class PaymentProofsService {
         where: { id: registrationId },
         data: { status: 'proof_submitted', rejectionReason: null },
       });
+      await this.optionalInclusions?.markProofSubmittedReviewTx(tx, registrationId);
+      if (typeof this.audit.logWith === 'function') {
+        await this.audit.logWith(tx, {
+          action: 'PROOF_SUBMITTED',
+          entityType: 'PaymentProof',
+          entityId: created.id,
+          registrationId,
+          performedById: userId ?? undefined,
+          ipAddress: ip,
+          metadata: { imageUrl },
+        });
+        auditWrittenInTransaction = true;
+      }
       return created;
     });
 
-    await this.audit.log({
-      action: 'PROOF_SUBMITTED',
-      entityType: 'PaymentProof',
-      entityId: proof.id,
-      registrationId,
-      performedById: userId ?? undefined,
-      ipAddress: ip,
-      metadata: { imageUrl },
-    });
+    if (!auditWrittenInTransaction) {
+      await this.audit.log({
+        action: 'PROOF_SUBMITTED',
+        entityType: 'PaymentProof',
+        entityId: proof.id,
+        registrationId,
+        performedById: userId ?? undefined,
+        ipAddress: ip,
+        metadata: { imageUrl },
+      });
+    }
 
     await this.funnel.track(
       {

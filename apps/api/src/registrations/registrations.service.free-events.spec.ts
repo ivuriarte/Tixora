@@ -68,8 +68,10 @@ function makeService(opts: {
     registration: {
       findFirst: jest.fn().mockResolvedValue(null),
       create: jest.fn().mockResolvedValue(createdReg),
+      findUniqueOrThrow: jest.fn().mockResolvedValue({ ...createdReg, lineItems: [] }),
       aggregate: jest.fn().mockResolvedValue({ _sum: { attendeeCount: 0 } }),
     },
+    registrationLineItem: { createMany: jest.fn().mockResolvedValue({ count: 1 }) },
     ticket: { count: jest.fn().mockResolvedValue(0) },
     ticketTier: { update: jest.fn().mockResolvedValue({}) },
     referralCode: { findFirst: jest.fn().mockResolvedValue(null) },
@@ -144,6 +146,7 @@ function mockRegForApprove(opts: { total: number; proofs?: object[] } = { total:
     attendeesCompletedAt: new Date(),
     createdAt: new Date(),
     proofs: opts.proofs ?? [],
+    lineItems: [],
     attendees: [{ id: 'att_1', isLead: true, email: 'ana@example.com', firstName: 'Ana', qrToken: null }],
     event: { id: 'evt_1', title: 'Free Fest', startsAt: new Date(), venue: 'Hall A', maxCapacity: null },
     user: { id: 'user_1', email: 'ana@example.com', firstName: 'Ana', lastName: 'Reyes' },

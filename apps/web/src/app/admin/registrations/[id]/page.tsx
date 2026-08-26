@@ -6,6 +6,7 @@ import { useParams, useRouter } from 'next/navigation';
 import api from '@/lib/api';
 import { formatManila, formatPHP } from '@axon-tickets/utils';
 import { ErrorState, ScreenSkeleton } from '@/components/ScreenState';
+import type { RegistrationLineItem } from '@axon-tickets/types';
 
 interface ProofRow {
   id: string;
@@ -44,6 +45,7 @@ interface AdminReg {
     checkedInAt: string | null;
   }>;
   proofs: ProofRow[];
+  lineItems?: RegistrationLineItem[];
   verifiedBy: { firstName: string; lastName: string } | null;
 }
 
@@ -236,6 +238,12 @@ export default function AdminRegistrationDetailPage() {
             </span>
             <span>{formatPHP(Number(reg.subtotal))}</span>
           </div>
+          {reg.lineItems?.filter((item) => item.kind === 'inclusion').map((item) => (
+            <div key={item.id} className="flex justify-between gap-4 text-[#5d5273]">
+              <span>{item.name}{item.variantName ? ` · ${item.variantName}` : ''} × {item.quantity}</span>
+              <span>{formatPHP(Number(item.total))}</span>
+            </div>
+          ))}
           <div className="flex justify-between text-gray-600">
             <span>Service fee</span>
             <span>{formatPHP(Number(reg.fees))}</span>

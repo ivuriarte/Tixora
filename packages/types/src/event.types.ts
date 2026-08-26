@@ -1,3 +1,5 @@
+import type { EventOptionalInclusion } from './inclusion.types';
+
 export type EventStatus =
   | 'draft'
   | 'published'
@@ -22,6 +24,13 @@ export interface EventTier {
   isVisible: boolean;
   sortOrder: number;
   isSoldOut: boolean;
+  /** Descriptive benefits bundled with admission; never a separately paid item. */
+  inclusions?: Array<{
+    id?: string;
+    label: string;
+    stubEnabled?: boolean;
+    sortOrder?: number;
+  }>;
 }
 
 export interface Event {
@@ -38,6 +47,8 @@ export interface Event {
   maxPerUser: number;
   platformFee: number;
   tiers: EventTier[];
+  optionalInclusionsEnabled?: boolean;
+  optionalInclusions?: EventOptionalInclusion[];
   createdAt: string;
 }
 

@@ -6,6 +6,7 @@ import api from '@/lib/api';
 import { useAuthStore } from '@/store/auth.store';
 import RegistrationPanel from '@/components/RegistrationPanel';
 import TierSelector from '@/components/TierSelector';
+import type { EventOptionalInclusion } from '@axon-tickets/types';
 
 interface Tier {
   id: string;
@@ -43,6 +44,7 @@ interface Props {
   eventTitle: string;
   eventSlug: string;
   tiers: Tier[];
+  optionalInclusions?: EventOptionalInclusion[];
   maxPerUser: number;
   // RegistrationPanel props
   useManualPayment: boolean;
@@ -63,6 +65,7 @@ export default function RegistrationGuard({
   eventTitle,
   eventSlug,
   tiers,
+  optionalInclusions = [],
   maxPerUser,
   useManualPayment,
   bankName,
@@ -188,13 +191,16 @@ export default function RegistrationGuard({
   // (manual bank transfer / GCash proof-of-payment flow).
   const onlinePaymentEnabled = process.env.NEXT_PUBLIC_ENABLE_ONLINE_PAYMENT === 'true';
 
-  if (useManualPayment || !onlinePaymentEnabled) {
+  // Inclusion-enabled events always use the registration quote flow. The legacy
+  // reservation checkout has no inclusion inventory or quote contract.
+  if (useManualPayment || !onlinePaymentEnabled || optionalInclusions.length > 0) {
     return (
       <RegistrationPanel
         eventId={eventId}
         eventTitle={eventTitle}
         eventSlug={eventSlug}
         tiers={tiers}
+        optionalInclusions={optionalInclusions}
         bankName={bankName ?? null}
         gcashNumber={gcashNumber ?? null}
         paymentMethods={paymentMethods ?? null}

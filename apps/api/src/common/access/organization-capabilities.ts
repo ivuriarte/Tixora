@@ -10,6 +10,12 @@ export type OrganizationCapability =
   | 'workspace.read'
   | 'workspace.manage'
   | 'workspace.task.update_assigned'
+  | 'inclusions.read'
+  | 'inclusions.manage'
+  | 'inclusions.inventory.manage'
+  | 'inclusions.fulfill'
+  | 'inclusions.finance.read'
+  | 'inclusions.finance.export'
   | 'organization.members.manage'
   | 'organization.co_owners.manage'
   | 'organization.profile.manage';
@@ -21,6 +27,12 @@ const ROLE_CAPABILITIES: Record<OrganizationRole, readonly OrganizationCapabilit
     'workspace.read',
     'workspace.manage',
     'workspace.task.update_assigned',
+    'inclusions.read',
+    'inclusions.manage',
+    'inclusions.inventory.manage',
+    'inclusions.fulfill',
+    'inclusions.finance.read',
+    'inclusions.finance.export',
     'organization.members.manage',
     'organization.co_owners.manage',
     'organization.profile.manage',
@@ -30,6 +42,12 @@ const ROLE_CAPABILITIES: Record<OrganizationRole, readonly OrganizationCapabilit
     'workspace.read',
     'workspace.manage',
     'workspace.task.update_assigned',
+    'inclusions.read',
+    'inclusions.manage',
+    'inclusions.inventory.manage',
+    'inclusions.fulfill',
+    'inclusions.finance.read',
+    'inclusions.finance.export',
     'organization.members.manage',
     'organization.profile.manage',
   ],
@@ -38,8 +56,17 @@ const ROLE_CAPABILITIES: Record<OrganizationRole, readonly OrganizationCapabilit
     'workspace.read',
     'workspace.manage',
     'workspace.task.update_assigned',
+    'inclusions.read',
+    'inclusions.inventory.manage',
+    'inclusions.fulfill',
   ],
-  member: ['events.read', 'workspace.read', 'workspace.task.update_assigned'],
+  member: [
+    'events.read',
+    'workspace.read',
+    'workspace.task.update_assigned',
+    'inclusions.read',
+    'inclusions.fulfill',
+  ],
 };
 
 export function organizationCapabilities(role: OrganizationRole): OrganizationCapability[] {

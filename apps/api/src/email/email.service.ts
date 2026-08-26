@@ -733,6 +733,12 @@ export class EmailService implements OnModuleDestroy {
       total?: number;
       organizerName?: string;
       eventCity?: string;
+      inclusions?: Array<{
+        name: string;
+        variantName?: string | null;
+        quantity: number;
+        total: number;
+      }>;
     },
   ): Promise<void> {
     // Build one PNG attachment per attendee.
@@ -808,7 +814,11 @@ export class EmailService implements OnModuleDestroy {
     if (receipt?.unitPrice !== undefined)
       receiptRows.push(`<tr><td style="padding:7px 0;color:#6b7280;font-size:14px">Price per ticket</td><td style="padding:7px 0;font-size:14px;font-weight:600;color:#111827;text-align:right">${fmt(receipt.unitPrice)}</td></tr>`);
     if (receipt?.subtotal !== undefined)
-      receiptRows.push(`<tr><td style="padding:7px 0;color:#6b7280;font-size:14px">Subtotal</td><td style="padding:7px 0;font-size:14px;color:#374151;text-align:right">${fmt(receipt.subtotal)}</td></tr>`);
+      receiptRows.push(`<tr><td style="padding:7px 0;color:#6b7280;font-size:14px">Admission subtotal</td><td style="padding:7px 0;font-size:14px;color:#374151;text-align:right">${fmt(receipt.subtotal)}</td></tr>`);
+    for (const inclusion of receipt?.inclusions ?? []) {
+      const label = `${inclusion.name}${inclusion.variantName ? ` · ${inclusion.variantName}` : ''} × ${inclusion.quantity}`;
+      receiptRows.push(`<tr><td style="padding:7px 0;color:#6b7280;font-size:14px">${this.escapeHtml(label)}</td><td style="padding:7px 0;font-size:14px;color:#374151;text-align:right">${fmt(inclusion.total)}</td></tr>`);
+    }
     if (receipt?.fees !== undefined)
       receiptRows.push(`<tr><td style="padding:7px 0;color:#6b7280;font-size:14px">Service fee</td><td style="padding:7px 0;font-size:14px;color:#374151;text-align:right">${fmt(receipt.fees)}</td></tr>`);
     if (receipt?.discount && receipt.discount > 0)
