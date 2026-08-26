@@ -12,6 +12,7 @@ import StickyEventCta from '@/components/StickyEventCta';
 import ShareEventButton from '@/components/ShareEventButton';
 import Footer from '@/components/marketing/Footer';
 import SponsorShowcase from '@/components/SponsorShowcase';
+import type { EventOptionalInclusion } from '@axon-tickets/types';
 
 interface Tier {
   id: string;
@@ -48,6 +49,7 @@ interface Event {
   status: string;
   maxPerUser: number;
   tiers: Tier[];
+  optionalInclusions?: EventOptionalInclusion[];
   isFree?: boolean;
   // Conference fields
   speakerName?: string | null;
@@ -274,6 +276,39 @@ export default async function EventPage({ params, searchParams }: { params: { sl
           <div className="lg:col-span-2 space-y-8">
             {event.description && <DescriptionSection description={event.description} />}
 
+            {event.optionalInclusions && event.optionalInclusions.length > 0 && (
+              <section className="overflow-hidden rounded-2xl border border-[#d8cdee] bg-white" aria-labelledby="optional-addons-title">
+                <div className="border-b border-[#e4dcf4] bg-[#faf8ff] px-5 py-4 sm:px-6">
+                  <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-primary">Available with registration</p>
+                  <h2 id="optional-addons-title" className="axon-display mt-1 text-2xl text-[#1a0533]">Optional add-ons</h2>
+                  <p className="mt-1 text-sm text-[#6b5b8a]">Personalize your booking after entering attendee details. Add-ons are separate from admission.</p>
+                </div>
+                <div className="grid gap-3 p-5 sm:grid-cols-2 sm:p-6">
+                  {event.optionalInclusions.map((inclusion) => {
+                    const availableVariants = inclusion.variants.filter(
+                      (variant) => variant.isActive !== false && !variant.isSoldOut && variant.availableQuantity > 0,
+                    );
+                    const fromPrice = availableVariants.length
+                      ? Math.min(...availableVariants.map((variant) => variant.price))
+                      : null;
+                    return (
+                      <article key={inclusion.id} className="rounded-xl border border-[#e4dcf4] bg-[#faf8ff] p-4">
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <h3 className="font-semibold text-gray-900">{inclusion.name}</h3>
+                            {inclusion.description && <p className="mt-1 text-xs leading-5 text-gray-500">{inclusion.description}</p>}
+                          </div>
+                          <span className="shrink-0 rounded-full bg-white px-2.5 py-1 text-xs font-bold text-primary ring-1 ring-[#d8cdee]">
+                            {fromPrice == null ? 'Sold out' : fromPrice === 0 ? 'Free' : `From ₱${fromPrice.toLocaleString('en-PH')}`}
+                          </span>
+                        </div>
+                      </article>
+                    );
+                  })}
+                </div>
+              </section>
+            )}
+
             {/* Location map */}
             <div>
               <h2 className="text-lg font-semibold text-gray-900 mb-3">Location</h2>
@@ -384,6 +419,7 @@ export default async function EventPage({ params, searchParams }: { params: { sl
               eventTitle={event.title}
               eventSlug={event.slug}
               tiers={event.tiers}
+              optionalInclusions={event.optionalInclusions ?? []}
               maxPerUser={event.maxPerUser}
               useManualPayment={!!(event.paymentMethods?.length || event.allowManualPayment)}
               bankName={event.bankName ?? null}

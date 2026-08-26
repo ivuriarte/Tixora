@@ -154,7 +154,7 @@ export default function CapacityTiersStep({
                       <p className="font-medium text-gray-800 text-sm">{tier.name}</p>
                       <p className="text-xs text-gray-500">
                         {draft.isFree ? 'Free' : `₱${parseFloat(tier.price || '0').toLocaleString()}`} · {tier.totalQuantity} total · max {tier.maxPerOrder}/order
-                        {tier.inclusions.length > 0 ? ` · ${tier.inclusions.length} inclusion${tier.inclusions.length === 1 ? '' : 's'}` : ''}
+                        {tier.inclusions.length > 0 ? ` · ${tier.inclusions.length} included benefit${tier.inclusions.length === 1 ? '' : 's'}` : ''}
                       </p>
                     </div>
                   </div>

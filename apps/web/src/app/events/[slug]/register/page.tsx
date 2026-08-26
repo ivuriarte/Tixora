@@ -12,6 +12,7 @@ import { trackPixelCustomEvent } from '@/lib/metaPixel';
 import { trackInternalFunnelEvent, getOrCreateFunnelSessionId } from '@/lib/funnel';
 import toast from 'react-hot-toast';
 import { formatPHP } from '@axon-tickets/utils';
+import type { EventOptionalInclusion } from '@axon-tickets/types';
 
 const RESEND_COOLDOWN = 60;
 
@@ -56,6 +57,7 @@ interface EventData {
   bankAccountNumber?: string | null;
   paymentInstructions?: string | null;
   agenda?: Array<{ id?: string; title?: string; time?: string; isSubEvent?: boolean }> | null;
+  optionalInclusions?: EventOptionalInclusion[];
 }
 
 interface AttendeeFields {
@@ -637,6 +639,8 @@ export default function RegisterPage({
   const [initialAttendees, setInitialAttendees] = useState<AttendeeFields[] | undefined>(undefined);
   const [initialNotes, setInitialNotes] = useState<string | undefined>(undefined);
   const [initialIsFree, setInitialIsFree] = useState<boolean | undefined>(undefined);
+  const [initialTotal, setInitialTotal] = useState<number | undefined>(undefined);
+  const [checkoutStage, setCheckoutStage] = useState<'attendees' | 'addons'>('attendees');
 
   // Holds attendee data collected by GuestWizard so RegistrationForm can pre-fill after OTP success.
   const pendingGuestData = useRef<{
@@ -719,6 +723,7 @@ export default function RegisterPage({
         );
         setInitialNotes(regData.notes ?? '');
         setInitialIsFree(regData.isFree ?? false);
+        setInitialTotal(Number(regData.total ?? 0));
       }
     } catch {
       router.replace(`/events/${params.slug}`);
@@ -798,6 +803,18 @@ export default function RegisterPage({
     return null;
   }
 
+  const eligibleOptionalInclusions = (event.optionalInclusions ?? [])
+    .filter((inclusion) =>
+      !inclusion.eligibleTierIds?.length || inclusion.eligibleTierIds.includes(tier.id),
+    )
+    .map((inclusion) => ({
+      ...inclusion,
+      maxPerRegistration:
+        inclusion.tierEligibility?.find((entry) => entry.tierId === tier.id)?.maxQuantityPerRegistration
+        ?? inclusion.maxPerRegistration,
+    }));
+  const hasOptionalInclusions = !existingRegistrationId && eligibleOptionalInclusions.length > 0;
+
   // ── Shared RegistrationForm props ─────────────────────────────────────────
 
   const registrationFormProps = {
@@ -816,6 +833,9 @@ export default function RegisterPage({
     subEvents,
     registrationId: existingRegistrationId,
     initialIsFree,
+    initialTotal,
+    optionalInclusions: eligibleOptionalInclusions,
+    onCheckoutStepChange: setCheckoutStage,
   };
 
   return (
@@ -823,7 +843,10 @@ export default function RegisterPage({
       <InAppBrowserBanner />
 
       <div className="max-w-2xl mx-auto px-4 sm:px-6">
-        <CheckoutStepper current={1} />
+        <CheckoutStepper
+          current={hasOptionalInclusions && checkoutStage === 'addons' ? 2 : 1}
+          includesAddOns={hasOptionalInclusions}
+        />
 
         <div className="mb-6">
           <a href={`/events/${event.slug}`} className="text-sm text-gray-500 hover:text-gray-700">
@@ -844,12 +867,21 @@ export default function RegisterPage({
           </span>
         </div>
         {tier.inclusions && tier.inclusions.length > 0 && (
-          <div className="mb-5 -mt-2 flex flex-wrap gap-1.5">
+          <div className="mb-5 -mt-2">
+            <p className="mb-2 text-[11px] font-bold uppercase tracking-[0.14em] text-emerald-700">Included benefits</p>
+            <div className="flex flex-wrap gap-1.5">
             {tier.inclusions.map((item) => (
               <span key={item.id ?? item.label} className="rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700">
                 {item.label}
               </span>
             ))}
+            </div>
+          </div>
+        )}
+        {hasOptionalInclusions && checkoutStage === 'attendees' && (
+          <div className="mb-5 rounded-xl border border-[#d8cdee] bg-[#faf8ff] px-4 py-3 text-sm text-[#4f416c]">
+            <span className="font-semibold text-[#1a0533]">Optional add-ons are available.</span>{' '}
+            Choose variants for each attendee after completing their details.
           </div>
         )}
 

@@ -1864,7 +1864,7 @@ export class WorkspacesService {
       this.prisma.registration.groupBy({
         by: ['tierId', 'tierName'],
         where: { eventId, status: 'verified', tierId: { not: null } },
-        _sum: { total: true },
+        _sum: { subtotal: true, discount: true, fees: true },
         _count: { _all: true },
       }),
       // Cap at 10,000 — sufficient for timeline/PM charts; large events should switch to SQL aggregation
@@ -2009,7 +2009,16 @@ export class WorkspacesService {
     const blockedItems = wsItems.filter((i) => i.status === 'blocked');
 
     // Tier revenue table
-    const tierRevMap = new Map(tierRevGroups.map((g) => [g.tierId, { rev: Number(g._sum.total ?? 0), regs: g._count._all }]));
+    const tierRevMap = new Map(tierRevGroups.map((g) => [g.tierId, {
+      // Tier revenue stays admission-only. Optional-inclusion revenue is
+      // reported by the dedicated inclusion report instead of being assigned
+      // to the selected admission tier.
+      rev: Math.max(
+        0,
+        Number(g._sum.subtotal ?? 0) - Number(g._sum.discount ?? 0) + Number(g._sum.fees ?? 0),
+      ),
+      regs: g._count._all,
+    }]));
 
     // ── PDF setup (mirrors generateStakeholderReport) ─────────────────────────
     const pdf = await PDFDocument.create();

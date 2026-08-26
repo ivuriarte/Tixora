@@ -168,7 +168,7 @@ export default function EventPreview({ draft, tiers }: EventPreviewProps) {
                   <div className="text-right pl-2">
                     <p className="text-xs font-bold text-primary">{draft.isFree ? 'Free' : `₱${(parseFloat(t.price) || 0).toLocaleString()}`}</p>
                     <p className="text-[10px] text-gray-400">{t.totalQuantity || 0} avail</p>
-                    {t.inclusions.length > 0 && <p className="text-[10px] text-emerald-700">{t.inclusions.length} inclusion{t.inclusions.length === 1 ? '' : 's'}</p>}
+                    {t.inclusions.length > 0 && <p className="text-[10px] text-emerald-700">{t.inclusions.length} included benefit{t.inclusions.length === 1 ? '' : 's'}</p>}
                   </div>
                 </div>
               ))}

@@ -38,4 +38,13 @@ describe('organization capabilities', () => {
     expect(workspaceRoleForOrganizationRole('manager')).toBe('manager');
     expect(workspaceRoleForOrganizationRole('member')).toBe('viewer');
   });
+
+  it('separates optional-inclusion catalog, inventory, fulfillment, and finance duties', () => {
+    expect(organizationRoleCan('owner', 'inclusions.manage')).toBe(true);
+    expect(organizationRoleCan('co_owner', 'inclusions.finance.read')).toBe(true);
+    expect(organizationRoleCan('manager', 'inclusions.manage')).toBe(false);
+    expect(organizationRoleCan('manager', 'inclusions.inventory.manage')).toBe(true);
+    expect(organizationRoleCan('member', 'inclusions.fulfill')).toBe(true);
+    expect(organizationRoleCan('member', 'inclusions.finance.read')).toBe(false);
+  });
 });

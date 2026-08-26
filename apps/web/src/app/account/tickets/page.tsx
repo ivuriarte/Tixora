@@ -366,6 +366,11 @@ function RegistrationCard({ reg }: { reg: RegistrationSummary }) {
           {reg.tierName && (
             <p className="text-xs text-gray-400 mt-1.5">{reg.tierName} · {reg.attendeeCount} attendee{reg.attendeeCount > 1 ? 's' : ''}</p>
           )}
+          {!!reg.inclusionCount && reg.inclusionCount > 0 && (
+            <p className="mt-1 text-xs font-medium text-primary">
+              {reg.inclusionCount} optional add-on{reg.inclusionCount === 1 ? '' : 's'} · separate fulfillment
+            </p>
+          )}
         </div>
         <div className="text-right shrink-0 flex flex-col items-end gap-2">
           <StatusChip dot={style.dot} chip={style.chip}>{REG_STATUS_LABELS[reg.status]}</StatusChip>

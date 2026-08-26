@@ -5,6 +5,7 @@ import Image from 'next/image';
 import toast from 'react-hot-toast';
 import api from '@/lib/api';
 import { formatManila, formatPHP } from '@axon-tickets/utils';
+import type { RegistrationLineItem } from '@axon-tickets/types';
 
 interface ProofRow {
   id: string;
@@ -39,6 +40,7 @@ interface AdminReg {
     isLead: boolean;
   }>;
   proofs: ProofRow[];
+  lineItems?: RegistrationLineItem[];
 }
 
 function unwrap<T>(res: { data: T | { data: T } }): T {
@@ -391,6 +393,20 @@ export default function VerificationDrawer({
                   )}
                 </div>
               </section>
+
+              {reg.lineItems?.some((item) => item.kind === 'inclusion') && (
+                <section className="rounded-2xl border border-[#ddd2f0] bg-[#faf8ff] p-4">
+                  <h3 className="text-sm font-semibold text-[#1a0533]">Optional add-ons in this payment</h3>
+                  <div className="mt-3 space-y-2 text-sm">
+                    {reg.lineItems.filter((item) => item.kind === 'inclusion').map((item) => (
+                      <div key={item.id} className="flex justify-between gap-4 text-[#5d5273]">
+                        <span>{item.name}{item.variantName ? ` · ${item.variantName}` : ''} × {item.quantity}</span>
+                        <span className="font-semibold">{formatPHP(Number(item.total))}</span>
+                      </div>
+                    ))}
+                  </div>
+                </section>
+              )}
 
               {/* Proof */}
               <section className="rounded-2xl border border-gray-200 p-4 space-y-3">

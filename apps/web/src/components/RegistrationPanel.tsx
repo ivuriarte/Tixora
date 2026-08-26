@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { formatPHP } from '@axon-tickets/utils';
 import { trackPixelCustomEvent } from '@/lib/metaPixel';
 import { trackInternalFunnelEvent } from '@/lib/funnel';
+import type { EventOptionalInclusion } from '@axon-tickets/types';
 
 /** Privacy: keep first letter of each word, mask the rest. "Ian Uriarte" -> "I•• U••••••" */
 function maskAccountName(name: string): string {
@@ -39,6 +40,7 @@ interface Props {
   eventTitle: string;
   eventSlug: string;
   tiers: Tier[];
+  optionalInclusions?: EventOptionalInclusion[];
   bankName: string | null;
   gcashNumber: string | null;
   paymentMethods?: Array<{
@@ -56,6 +58,7 @@ export default function RegistrationPanel({
   eventTitle,
   eventSlug,
   tiers,
+  optionalInclusions = [],
   bankName,
   gcashNumber,
   paymentMethods,
@@ -115,6 +118,13 @@ export default function RegistrationPanel({
     <div className="sticky top-24 space-y-4 rounded-lg border border-[#e4dcf4] bg-white p-5" aria-labelledby="ticket-panel-title">
       <h2 id="ticket-panel-title" className="axon-label text-sm text-[#1a0533]">Select Tickets</h2>
 
+      {optionalInclusions.length > 0 && (
+        <div className="rounded-xl border border-[#d8cdee] bg-[#faf8ff] px-3 py-3">
+          <p className="text-xs font-bold text-[#1a0533]">Optional add-ons available</p>
+          <p className="mt-1 text-xs leading-5 text-[#6b5b8a]">Choose add-ons for each attendee during registration. Admission prices shown below do not include add-ons.</p>
+        </div>
+      )}
+
       {/* Tier picker */}
       <div className="space-y-2">
         {tiers.map((tier) => {
@@ -143,12 +153,15 @@ export default function RegistrationPanel({
                 {soldOut ? 'Sold out' : `${tier.availableQuantity} slots left`}
               </p>
               {tier.inclusions && tier.inclusions.length > 0 && (
-                <div className="mt-2 flex flex-wrap gap-1.5">
+                <div className="mt-2">
+                  <p className="mb-1 text-[10px] font-bold uppercase tracking-wide text-emerald-700">Included benefits</p>
+                  <div className="flex flex-wrap gap-1.5">
                   {tier.inclusions.map((item) => (
                     <span key={item.id ?? item.label} className="rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-medium text-emerald-700">
                       {item.label}
                     </span>
                   ))}
+                  </div>
                 </div>
               )}
             </button>

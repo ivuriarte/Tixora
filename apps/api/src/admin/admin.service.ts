@@ -24,6 +24,7 @@ import { EmailService } from '../email/email.service';
 import { PDFDocument, PDFFont, PDFPage, StandardFonts, rgb } from 'pdf-lib';
 import { JwtPayload } from '@axon-tickets/types';
 import { CreateReferralCodeDto, UpdateReferralCodeDto } from './dto/referral-code.dto';
+import { organizationCapabilities } from '../common/access/organization-capabilities';
 
 type SelectedSubEventSnapshot = {
   id?: unknown;
@@ -224,6 +225,16 @@ export class AdminService {
       access: {
         role,
         canManageEvent: role === 'platform_admin' || role === 'owner',
+        capabilities: role === 'platform_admin'
+          ? [
+              'inclusions.read',
+              'inclusions.manage',
+              'inclusions.inventory.manage',
+              'inclusions.fulfill',
+              'inclusions.finance.read',
+              'inclusions.finance.export',
+            ]
+          : organizationCapabilities(role).filter((capability) => capability.startsWith('inclusions.')),
       },
     };
   }

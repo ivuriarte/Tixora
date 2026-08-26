@@ -9,6 +9,7 @@ import { WorkspacesService } from '../workspaces/workspaces.service';
 import { CreateEventDto, OnsiteProfileSuggestionDto, OnsiteRegistrationDto, UpdateEventDto } from './dto/event.dto';
 import { resolveAgendaSubEvent } from './agenda-sub-events';
 import { generateAttendeeQrToken, generateReferenceNumber, uniqueSlug } from '@axon-tickets/utils';
+import { OptionalInclusionsService } from '../optional-inclusions/optional-inclusions.service';
 
 const TIER_INVENTORY_PREFIX = 'ticket_tier:';
 const INVENTORY_SUFFIX = ':available';
@@ -37,6 +38,7 @@ export class EventsService {
     private readonly redis: RedisService,
     private readonly workspaces: WorkspacesService,
     private readonly config: ConfigService = { get: () => undefined } as unknown as ConfigService,
+    private readonly optionalInclusions?: OptionalInclusionsService,
   ) {}
 
   private checkInDateFor(date = new Date()): Date {
@@ -346,6 +348,10 @@ export class EventsService {
       }),
     );
 
+    const optionalInclusions = this.optionalInclusions
+      ? await this.optionalInclusions.listPublic(event.id)
+      : [];
+
     return {
       id: event.id,
       slug: event.slug,
@@ -367,6 +373,8 @@ export class EventsService {
       customSections: event.customSections ?? null,
       allowManualPayment: event.allowManualPayment,
       onsiteRegistrationEnabled: event.onsiteRegistrationEnabled,
+      optionalInclusionsEnabled: event.optionalInclusionsEnabled,
+      optionalInclusions,
       bankName: event.bankName ?? null,
       bankAccountNumber: event.bankAccountNumber ?? null,
       bankAccountName: event.bankAccountName ?? null,

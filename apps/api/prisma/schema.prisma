@@ -91,6 +91,58 @@ enum ReferralDiscountType {
   fixed_amount
 }
 
+enum EventInclusionStatus {
+  draft
+  active
+  archived
+}
+
+enum InclusionFulfillmentMethod {
+  pickup
+  delivery
+  digital
+  manual
+}
+
+enum CheckoutQuoteStatus {
+  active
+  consumed
+  expired
+  cancelled
+}
+
+enum RegistrationLineItemKind {
+  admission
+  inclusion
+  fee
+  discount
+}
+
+enum InclusionReservationStatus {
+  reserved
+  confirmed
+  released
+  expired
+}
+
+enum InclusionInventoryMovementType {
+  reserve
+  confirm
+  release
+  expire
+  adjust
+  fulfill
+  reverse
+  refund
+}
+
+enum InclusionFulfillmentStatus {
+  pending
+  fulfilled
+  reversed
+  cancelled
+}
+
 model User {
   id           String    @id @default(uuid())
   email        String    @unique
@@ -117,25 +169,29 @@ model User {
   tickets                     Ticket[]
   otpCodes                    OtpCode[]
   fraudFlags                  FraudFlag[]
-  events                      Event[]                     @relation("CreatedBy")
-  checkIns                    Ticket[]                    @relation("CheckedInBy")
-  attendanceCheckIns          AttendeeAttendance[]        @relation("AttendanceCheckedInBy")
-  confirmedOrders             Order[]                     @relation("ConfirmedByAdmin")
+  events                      Event[]                      @relation("CreatedBy")
+  checkIns                    Ticket[]                     @relation("CheckedInBy")
+  attendanceCheckIns          AttendeeAttendance[]         @relation("AttendanceCheckedInBy")
+  confirmedOrders             Order[]                      @relation("ConfirmedByAdmin")
   registrations               Registration[]
-  verifiedRegistrations       Registration[]              @relation("VerifiedBy")
-  reviewedProofs              PaymentProof[]              @relation("ReviewedBy")
-  auditLogs                   AuditLog[]                  @relation("AuditPerformedBy")
+  verifiedRegistrations       Registration[]               @relation("VerifiedBy")
+  reviewedProofs              PaymentProof[]               @relation("ReviewedBy")
+  auditLogs                   AuditLog[]                   @relation("AuditPerformedBy")
   funnelEvents                RegistrationFunnelEvent[]
-  organizationsCreated        Organization[]              @relation("OrgCreatedBy")
-  organizationsApproved       Organization[]              @relation("OrgApprovedBy")
+  organizationsCreated        Organization[]               @relation("OrgCreatedBy")
+  organizationsApproved       Organization[]               @relation("OrgApprovedBy")
   organizationMembers         OrganizationMember[]
-  organizationInvitationsSent OrganizationInvitation[]    @relation("OrganizationInvitationInvitedBy")
+  organizationInvitationsSent OrganizationInvitation[]     @relation("OrganizationInvitationInvitedBy")
   workspaceMembers            WorkspaceMember[]
-  workspacesClosed            EventWorkspace[]            @relation("WorkspaceClosedBy")
-  workspaceItemsResponsible   WorkspaceItem[]             @relation("WorkspaceItemResponsible")
-  workspaceItemsAccountable   WorkspaceItem[]             @relation("WorkspaceItemAccountable")
+  workspacesClosed            EventWorkspace[]             @relation("WorkspaceClosedBy")
+  workspaceItemsResponsible   WorkspaceItem[]              @relation("WorkspaceItemResponsible")
+  workspaceItemsAccountable   WorkspaceItem[]              @relation("WorkspaceItemAccountable")
   workspaceReminderDeliveries WorkspaceReminderDelivery[]
   workspaceTaskUpdates        WorkspaceTaskUpdate[]
+  inclusionQuotes             CheckoutQuote[]
+  inclusionFulfillments       InclusionFulfillment[]       @relation("InclusionFulfilledBy")
+  inclusionReversals          InclusionFulfillment[]       @relation("InclusionReversedBy")
+  inclusionInventoryMovements InclusionInventoryMovement[] @relation("InclusionInventoryMovementActor")
 
   @@map("users")
 }
@@ -175,6 +231,7 @@ model Event {
   paymentMethods            Json?       @map("payment_methods") // Array of PaymentMethod objects
   allowManualPayment        Boolean     @default(true) @map("allow_manual_payment")
   onsiteRegistrationEnabled Boolean     @default(false) @map("onsite_registration_enabled")
+  optionalInclusionsEnabled Boolean     @default(false) @map("optional_inclusions_enabled")
   bankName                  String?     @map("bank_name")
   bankAccountNumber         String?     @map("bank_account_number")
   bankAccountName           String?     @map("bank_account_name")
@@ -184,18 +241,20 @@ model Event {
   createdAt                 DateTime    @default(now()) @map("created_at")
   updatedAt                 DateTime    @updatedAt @map("updated_at")
 
-  createdBy         User                      @relation("CreatedBy", fields: [createdById], references: [id])
-  organization      Organization?             @relation(fields: [organizationId], references: [id], onDelete: SetNull)
-  tiers             TicketTier[]
-  reservations      Reservation[]
-  orders            Order[]
-  tickets           Ticket[]
-  registrations     Registration[]
-  attendanceRecords AttendeeAttendance[]
-  eventViews        EventView[]
-  funnelEvents      RegistrationFunnelEvent[]
-  workspace         EventWorkspace?
-  referralCodes     ReferralCode[]
+  createdBy          User                      @relation("CreatedBy", fields: [createdById], references: [id])
+  organization       Organization?             @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+  tiers              TicketTier[]
+  reservations       Reservation[]
+  orders             Order[]
+  tickets            Ticket[]
+  registrations      Registration[]
+  attendanceRecords  AttendeeAttendance[]
+  eventViews         EventView[]
+  funnelEvents       RegistrationFunnelEvent[]
+  workspace          EventWorkspace?
+  referralCodes      ReferralCode[]
+  optionalInclusions EventInclusion[]
+  inclusionQuotes    CheckoutQuote[]
 
   @@index([status, startsAt])
   @@index([slug])
@@ -220,12 +279,14 @@ model TicketTier {
   createdAt     DateTime  @default(now()) @map("created_at")
   updatedAt     DateTime  @updatedAt @map("updated_at")
 
-  event         Event                 @relation(fields: [eventId], references: [id], onDelete: Cascade)
-  inclusions    TicketTierInclusion[]
-  reservations  Reservation[]
-  orderItems    OrderItem[]
-  tickets       Ticket[]
-  registrations Registration[]
+  event                Event                      @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  inclusions           TicketTierInclusion[]
+  reservations         Reservation[]
+  orderItems           OrderItem[]
+  tickets              Ticket[]
+  registrations        Registration[]
+  inclusionEligibility InclusionTierEligibility[]
+  inclusionQuotes      CheckoutQuote[]
 
   @@index([eventId])
   @@map("ticket_tiers")
@@ -245,6 +306,195 @@ model TicketTierInclusion {
   @@unique([tierId, label])
   @@index([tierId, sortOrder])
   @@map("ticket_tier_inclusions")
+}
+
+model EventInclusion {
+  id                      String                     @id @default(uuid())
+  eventId                 String                     @map("event_id")
+  name                    String
+  description             String?
+  status                  EventInclusionStatus       @default(draft)
+  saleStartsAt            DateTime?                  @map("sale_starts_at")
+  saleEndsAt              DateTime?                  @map("sale_ends_at")
+  fulfillmentMethod       InclusionFulfillmentMethod @default(pickup) @map("fulfillment_method")
+  fulfillmentInstructions String?                    @map("fulfillment_instructions")
+  sortOrder               Int                        @default(0) @map("sort_order")
+  createdAt               DateTime                   @default(now()) @map("created_at")
+  updatedAt               DateTime                   @updatedAt @map("updated_at")
+  archivedAt              DateTime?                  @map("archived_at")
+
+  event         Event                      @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  variants      InclusionVariant[]
+  eligibleTiers InclusionTierEligibility[]
+
+  @@index([eventId, status, sortOrder])
+  @@map("event_inclusions")
+}
+
+model InclusionVariant {
+  id            String   @id @default(uuid())
+  inclusionId   String   @map("inclusion_id")
+  name          String
+  sku           String?
+  price         Decimal  @db.Decimal(10, 2)
+  currency      String   @default("PHP")
+  totalStock    Int      @map("total_stock")
+  reservedStock Int      @default(0) @map("reserved_stock")
+  soldStock     Int      @default(0) @map("sold_stock")
+  sortOrder     Int      @default(0) @map("sort_order")
+  isActive      Boolean  @default(true) @map("is_active")
+  version       Int      @default(0)
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  inclusion    EventInclusion                  @relation(fields: [inclusionId], references: [id], onDelete: Cascade)
+  reservations InclusionInventoryReservation[]
+  movements    InclusionInventoryMovement[]
+
+  @@unique([inclusionId, name])
+  @@unique([inclusionId, sku])
+  @@index([inclusionId, isActive, sortOrder])
+  @@map("inclusion_variants")
+}
+
+model InclusionTierEligibility {
+  inclusionId                String @map("inclusion_id")
+  ticketTierId               String @map("ticket_tier_id")
+  maxQuantityPerRegistration Int?   @map("max_quantity_per_registration")
+
+  inclusion  EventInclusion @relation(fields: [inclusionId], references: [id], onDelete: Cascade)
+  ticketTier TicketTier     @relation(fields: [ticketTierId], references: [id], onDelete: Cascade)
+
+  @@id([inclusionId, ticketTierId])
+  @@index([ticketTierId])
+  @@map("inclusion_tier_eligibility")
+}
+
+model CheckoutQuote {
+  id                String              @id @default(uuid())
+  token             String              @unique @default(uuid())
+  eventId           String              @map("event_id")
+  ticketTierId      String              @map("ticket_tier_id")
+  userId            String?             @map("user_id")
+  registrationId    String?             @unique @map("registration_id")
+  status            CheckoutQuoteStatus @default(active)
+  attendeeCount     Int                 @map("attendee_count")
+  admissionSubtotal Decimal             @map("admission_subtotal") @db.Decimal(10, 2)
+  inclusionSubtotal Decimal             @map("inclusion_subtotal") @db.Decimal(10, 2)
+  discount          Decimal             @default(0) @db.Decimal(10, 2)
+  fees              Decimal             @default(0) @db.Decimal(10, 2)
+  total             Decimal             @db.Decimal(10, 2)
+  currency          String              @default("PHP")
+  referralCode      String?             @map("referral_code")
+  pricingSnapshot   Json                @map("pricing_snapshot")
+  expiresAt         DateTime            @map("expires_at")
+  consumedAt        DateTime?           @map("consumed_at")
+  createdAt         DateTime            @default(now()) @map("created_at")
+
+  event        Event                           @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  ticketTier   TicketTier                      @relation(fields: [ticketTierId], references: [id], onDelete: Restrict)
+  user         User?                           @relation(fields: [userId], references: [id], onDelete: SetNull)
+  registration Registration?                   @relation(fields: [registrationId], references: [id], onDelete: SetNull)
+  reservations InclusionInventoryReservation[]
+
+  @@index([eventId, status, expiresAt])
+  @@index([userId, status])
+  @@map("checkout_quotes")
+}
+
+model RegistrationLineItem {
+  id                        String                      @id @default(uuid())
+  registrationId            String                      @map("registration_id")
+  kind                      RegistrationLineItemKind
+  sourceId                  String?                     @map("source_id")
+  nameSnapshot              String                      @map("name_snapshot")
+  variantSnapshot           String?                     @map("variant_snapshot")
+  assignedAttendeeId        String?                     @map("assigned_attendee_id")
+  quantity                  Int
+  unitPrice                 Decimal                     @map("unit_price") @db.Decimal(10, 2)
+  total                     Decimal                     @db.Decimal(10, 2)
+  fulfillmentMethodSnapshot InclusionFulfillmentMethod? @map("fulfillment_method_snapshot")
+  createdAt                 DateTime                    @default(now()) @map("created_at")
+
+  registration Registration                    @relation(fields: [registrationId], references: [id], onDelete: Cascade)
+  attendee     Attendee?                       @relation(fields: [assignedAttendeeId], references: [id], onDelete: SetNull)
+  reservations InclusionInventoryReservation[]
+  fulfillments InclusionFulfillment[]
+
+  @@index([registrationId, kind])
+  @@index([assignedAttendeeId])
+  @@map("registration_line_items")
+}
+
+model InclusionInventoryReservation {
+  id                  String                     @id @default(uuid())
+  registrationId      String                     @map("registration_id")
+  quoteId             String?                    @map("quote_id")
+  lineItemId          String                     @map("line_item_id")
+  variantId           String                     @map("variant_id")
+  quantity            Int
+  status              InclusionReservationStatus @default(reserved)
+  expiresAt           DateTime                   @map("expires_at")
+  confirmedAt         DateTime?                  @map("confirmed_at")
+  releasedAt          DateTime?                  @map("released_at")
+  rejectionGraceUntil DateTime?                  @map("rejection_grace_until")
+  idempotencyKey      String                     @unique @map("idempotency_key")
+  createdAt           DateTime                   @default(now()) @map("created_at")
+  updatedAt           DateTime                   @updatedAt @map("updated_at")
+
+  registration Registration                 @relation(fields: [registrationId], references: [id], onDelete: Cascade)
+  quote        CheckoutQuote?               @relation(fields: [quoteId], references: [id], onDelete: SetNull)
+  lineItem     RegistrationLineItem         @relation(fields: [lineItemId], references: [id], onDelete: Cascade)
+  variant      InclusionVariant             @relation(fields: [variantId], references: [id], onDelete: Restrict)
+  movements    InclusionInventoryMovement[]
+
+  @@index([registrationId, status])
+  @@index([variantId, status])
+  @@index([status, expiresAt])
+  @@index([status, rejectionGraceUntil])
+  @@map("inclusion_inventory_reservations")
+}
+
+model InclusionInventoryMovement {
+  id            String                         @id @default(uuid())
+  variantId     String                         @map("variant_id")
+  reservationId String?                        @map("reservation_id")
+  type          InclusionInventoryMovementType
+  quantity      Int
+  reason        String?
+  actorId       String?                        @map("actor_id")
+  metadata      Json?
+  createdAt     DateTime                       @default(now()) @map("created_at")
+
+  variant     InclusionVariant               @relation(fields: [variantId], references: [id], onDelete: Restrict)
+  reservation InclusionInventoryReservation? @relation(fields: [reservationId], references: [id], onDelete: SetNull)
+  actor       User?                          @relation("InclusionInventoryMovementActor", fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([variantId, createdAt])
+  @@index([reservationId])
+  @@map("inclusion_inventory_movements")
+}
+
+model InclusionFulfillment {
+  id             String                     @id @default(uuid())
+  lineItemId     String                     @unique @map("line_item_id")
+  status         InclusionFulfillmentStatus @default(pending)
+  quantity       Int
+  fulfilledById  String?                    @map("fulfilled_by_id")
+  fulfilledAt    DateTime?                  @map("fulfilled_at")
+  reversedById   String?                    @map("reversed_by_id")
+  reversedAt     DateTime?                  @map("reversed_at")
+  reversalReason String?                    @map("reversal_reason")
+  createdAt      DateTime                   @default(now()) @map("created_at")
+  updatedAt      DateTime                   @updatedAt @map("updated_at")
+
+  lineItem    RegistrationLineItem @relation(fields: [lineItemId], references: [id], onDelete: Cascade)
+  fulfilledBy User?                @relation("InclusionFulfilledBy", fields: [fulfilledById], references: [id], onDelete: SetNull)
+  reversedBy  User?                @relation("InclusionReversedBy", fields: [reversedById], references: [id], onDelete: SetNull)
+
+  @@index([lineItemId, status])
+  @@index([status, createdAt])
+  @@map("inclusion_fulfillments")
 }
 
 model Reservation {
@@ -410,16 +660,19 @@ model Registration {
   createdAt            DateTime           @default(now()) @map("created_at")
   updatedAt            DateTime           @updatedAt @map("updated_at")
 
-  user              User?                @relation(fields: [userId], references: [id])
-  event             Event                @relation(fields: [eventId], references: [id])
-  tier              TicketTier?          @relation(fields: [tierId], references: [id])
-  attendees         Attendee[]
-  attendanceRecords AttendeeAttendance[]
-  proofs            PaymentProof[]
-  verifiedBy        User?                @relation("VerifiedBy", fields: [verifiedById], references: [id])
-  auditLogs         AuditLog[]
-  referralCode      ReferralCode?        @relation(fields: [referralCodeId], references: [id], onDelete: SetNull)
-  referralUsage     ReferralCodeUsage?
+  user                  User?                           @relation(fields: [userId], references: [id])
+  event                 Event                           @relation(fields: [eventId], references: [id])
+  tier                  TicketTier?                     @relation(fields: [tierId], references: [id])
+  attendees             Attendee[]
+  attendanceRecords     AttendeeAttendance[]
+  proofs                PaymentProof[]
+  verifiedBy            User?                           @relation("VerifiedBy", fields: [verifiedById], references: [id])
+  auditLogs             AuditLog[]
+  referralCode          ReferralCode?                   @relation(fields: [referralCodeId], references: [id], onDelete: SetNull)
+  referralUsage         ReferralCodeUsage?
+  inclusionQuote        CheckoutQuote?
+  lineItems             RegistrationLineItem[]
+  inclusionReservations InclusionInventoryReservation[]
 
   @@index([userId, status])
   @@index([eventId, status])
@@ -455,8 +708,9 @@ model Attendee {
   checkInMethod     String?   @map("check_in_method")
   createdAt         DateTime  @default(now()) @map("created_at")
 
-  registration      Registration         @relation(fields: [registrationId], references: [id], onDelete: Cascade)
-  attendanceRecords AttendeeAttendance[]
+  registration       Registration           @relation(fields: [registrationId], references: [id], onDelete: Cascade)
+  attendanceRecords  AttendeeAttendance[]
+  inclusionLineItems RegistrationLineItem[]
 
   @@index([registrationId])
   @@index([email])

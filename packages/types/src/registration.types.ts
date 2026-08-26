@@ -1,3 +1,5 @@
+import type { InclusionSelection, RegistrationLineItem } from './inclusion.types';
+
 export type RegistrationStatus =
   | 'pending_payment'
   | 'proof_submitted'
@@ -81,6 +83,9 @@ export interface Registration {
   event: RegistrationEvent;
   attendees: RegistrationAttendee[];
   proofs: RegistrationProof[];
+  lineItems?: RegistrationLineItem[];
+  inclusionSubtotal?: number;
+  inclusionHoldExpiresAt?: string | null;
 }
 
 export interface RegistrationSummary {
@@ -98,6 +103,8 @@ export interface RegistrationSummary {
   status: RegistrationStatus;
   isFree: boolean;
   createdAt: string;
+  inclusionCount?: number;
+  inclusionSubtotal?: number;
 }
 
 export interface CreateRegistrationDto {
@@ -108,6 +115,8 @@ export interface CreateRegistrationDto {
   attendees: AttendeeInput[];
   notes?: string;
   referralCode?: string;
+  quoteToken?: string;
+  inclusionSelections?: InclusionSelection[];
 }
 
 export interface AttendeeInput {

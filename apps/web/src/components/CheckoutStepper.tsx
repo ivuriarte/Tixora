@@ -5,21 +5,30 @@ interface Step {
   label: string;
 }
 
-const STEPS: Step[] = [
+const STANDARD_STEPS: Step[] = [
   { id: 1, label: 'Attendee Details' },
   { id: 2, label: 'Payment & Proof' },
   { id: 3, label: 'Confirmation' },
 ];
 
+const ADD_ON_STEPS: Step[] = [
+  { id: 1, label: 'Attendees' },
+  { id: 2, label: 'Add-ons' },
+  { id: 3, label: 'Payment' },
+  { id: 4, label: 'Confirmation' },
+];
+
 interface Props {
-  current: 1 | 2 | 3;
+  current: 1 | 2 | 3 | 4;
+  includesAddOns?: boolean;
 }
 
-export default function CheckoutStepper({ current }: Props) {
+export default function CheckoutStepper({ current, includesAddOns = false }: Props) {
+  const steps = includesAddOns ? ADD_ON_STEPS : STANDARD_STEPS;
   return (
     <nav aria-label="Checkout progress" className="mb-6">
       <ol className="flex items-center gap-2 sm:gap-3">
-        {STEPS.map((step, idx) => {
+        {steps.map((step, idx) => {
           const isDone = step.id < current;
           const isActive = step.id === current;
           const dotBase =
@@ -64,7 +73,7 @@ export default function CheckoutStepper({ current }: Props) {
               <span className={`text-xs sm:text-sm whitespace-nowrap truncate transition-colors duration-200 ${labelCls}`}>
                 {step.label}
               </span>
-              {idx < STEPS.length - 1 && (
+              {idx < steps.length - 1 && (
                 <span
                   aria-hidden
                   className={`hidden sm:block h-px w-8 sm:w-12 transition-colors duration-500 ${

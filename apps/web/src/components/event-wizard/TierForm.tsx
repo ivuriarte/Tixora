@@ -106,7 +106,12 @@ export default function TierForm({ initial, onSave, onCancel, isFree = false }: 
         />
       </div>
       <div className="space-y-2">
-        <label className="block text-xs font-medium text-gray-600">Inclusions (optional)</label>
+        <div>
+          <label className="block text-xs font-medium text-gray-600">Included benefits (optional)</label>
+          <p className="mt-0.5 text-[11px] leading-relaxed text-gray-500">
+            Benefits bundled with admission. Separately sold add-ons are managed in Optional Inclusions after the event is created.
+          </p>
+        </div>
         {t.inclusions.length > 0 && (
           <div className="flex flex-wrap gap-2" aria-live="polite">
             {t.inclusions.map((item) => (

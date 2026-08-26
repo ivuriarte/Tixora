@@ -18,6 +18,7 @@ import { CreateRegistrationDto } from './dto/create-registration.dto';
 import { UpdateRegistrationAttendeesDto } from './dto/update-registration-attendees.dto';
 import { ValidateReferralCodeDto } from '../admin/dto/referral-code.dto';
 import { getAgendaSubEvents, resolveAgendaSubEvent } from '../events/agenda-sub-events';
+import { OptionalInclusionsService } from '../optional-inclusions/optional-inclusions.service';
 
 const ACTIVE_REGISTRATION_STATUSES = ['pending_payment', 'proof_submitted', 'pending_approval', 'verified'] as const;
 const VALID_TICKET_STATUSES = ['valid', 'used'] as const;
@@ -40,6 +41,7 @@ export class RegistrationsService {
     private readonly audit: AuditService,
     private readonly config: ConfigService,
     private readonly funnel: FunnelService,
+    private readonly optionalInclusions: OptionalInclusionsService,
   ) {}
 
   async create(dto: CreateRegistrationDto, userId: string, ip?: string) {
@@ -82,10 +84,38 @@ export class RegistrationsService {
       );
     }
 
+    if ((dto.inclusionSelections?.length ?? 0) > 0 && !dto.quoteToken) {
+      throw new BadRequestException('An authoritative quote is required for optional add-ons');
+    }
+    const quote = dto.quoteToken
+      ? await this.optionalInclusions.getConsumableQuote(
+          dto.quoteToken,
+          userId,
+          dto.eventId,
+          dto.tierId,
+          attendeeCount,
+        )
+      : null;
+    const quotedReferral = quote?.referralCode?.trim().toUpperCase() ?? null;
+    const submittedReferral = dto.referralCode?.trim().toUpperCase() ?? null;
+    if (quote && quotedReferral !== submittedReferral) {
+      throw new BadRequestException('Referral code does not match the checkout quote');
+    }
+
     const unitPrice = event.isFree ? 0 : Number(tier.price);
-    const subtotal = unitPrice * attendeeCount;
-    const isFreeEvent = event.isFree || (unitPrice === 0 && Number(event.platformFee ?? 50) === 0);
-    const fees = isFreeEvent ? 0 : Number(event.platformFee ?? 50);
+    const admissionSubtotal = quote ? Number(quote.admissionSubtotal) : unitPrice * attendeeCount;
+    // Preserve the established meaning of Registration.subtotal as admission
+    // subtotal. Optional products are represented by immutable line items and
+    // are included only in the authoritative basket total.
+    const subtotal = admissionSubtotal;
+    const fees = quote
+      ? Number(quote.fees)
+      : event.isFree || (unitPrice === 0 && Number(event.platformFee ?? 50) === 0)
+        ? 0
+        : Number(event.platformFee ?? 50);
+    const isFreeEvent = quote
+      ? quote.total.eq(0)
+      : event.isFree || (unitPrice === 0 && fees === 0);
 
     if (!isFreeEvent && !event.allowManualPayment) {
       throw new BadRequestException('Manual payment is not enabled for this event');
@@ -123,6 +153,21 @@ export class RegistrationsService {
               : activeRegistration.status === 'proof_submitted'
               ? 'You already have a registration awaiting review for this event.'
               : 'You already have an incomplete registration for this event. Please complete your existing registration or wait for it to expire.',
+          );
+        }
+
+        const rejectedRegistrationHoldingAddOns = await tx.registration.findFirst({
+          where: {
+            userId,
+            eventId: dto.eventId,
+            status: 'rejected',
+            inclusionReservations: { some: { status: 'reserved' } },
+          },
+          select: { id: true },
+        });
+        if (rejectedRegistrationHoldingAddOns) {
+          throw new BadRequestException(
+            'Your rejected registration still holds add-on stock. Resubmit its payment proof or cancel it before starting a new registration.',
           );
         }
 
@@ -185,18 +230,22 @@ export class RegistrationsService {
           data: { soldQuantity: occupied + attendeeCount },
         });
 
-        let discount = 0;
+        let discount = quote ? Number(quote.discount) : 0;
         let referral: Awaited<ReturnType<typeof tx.referralCode.findFirst>> = null;
-        if (dto.referralCode?.trim()) {
-          const normalizedCode = dto.referralCode.trim().toUpperCase();
+        const referralCode = quote?.referralCode ?? dto.referralCode;
+        if (referralCode?.trim()) {
+          const normalizedCode = referralCode.trim().toUpperCase();
           await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${dto.eventId}), hashtext(${normalizedCode}))`;
           referral = await tx.referralCode.findFirst({
             where: { eventId: dto.eventId, code: normalizedCode },
           });
-          const validation = await this.evaluateReferral(tx, referral, dto.tierId, subtotal);
-          discount = validation.discount;
+          const validation = await this.evaluateReferral(tx, referral, dto.tierId, admissionSubtotal);
+          if (quote && !new Prisma.Decimal(validation.discount).toDecimalPlaces(2).eq(quote.discount)) {
+            throw new BadRequestException('Referral availability changed; request a new quote');
+          }
+          discount = quote ? Number(quote.discount) : validation.discount;
         }
-        const total = Math.max(0, subtotal - discount) + fees;
+        const total = quote ? Number(quote.total) : Math.max(0, subtotal - discount) + fees;
 
         const created = await tx.registration.create({
           data: {
@@ -255,6 +304,22 @@ export class RegistrationsService {
             },
           });
         }
+        if (quote && dto.quoteToken) {
+          await this.optionalInclusions.consumeQuoteTx(
+            tx,
+            dto.quoteToken,
+            userId,
+            created.id,
+            dto.eventId,
+            dto.tierId,
+            created.attendees.map((attendee) => attendee.id),
+          );
+          if (isFreeEvent) {
+            await this.optionalInclusions.markProofSubmittedReviewTx(tx, created.id);
+          }
+        } else {
+          await this.createAdmissionLineItemsTx(tx, created.id, tier.id, tier.name, attendeeCount, unitPrice, fees, discount);
+        }
         const leadAttendee = dto.attendees[0];
         const profileDemographics: { birthday?: Date; gender?: string; city?: string } = {};
         if (leadAttendee.birthday) profileDemographics.birthday = new Date(`${leadAttendee.birthday}T00:00:00.000Z`);
@@ -266,7 +331,14 @@ export class RegistrationsService {
             data: profileDemographics,
           });
         }
-        return created;
+        return tx.registration.findUniqueOrThrow({
+          where: { id: created.id },
+          include: {
+            attendees: true,
+            event: true,
+            lineItems: { include: { fulfillments: true }, orderBy: { createdAt: 'asc' } },
+          },
+        });
       },
       { isolationLevel: 'ReadCommitted' },
     );
@@ -344,7 +416,64 @@ export class RegistrationsService {
       currency: registration.currency,
       status: registration.status,
       createdAt: registration.createdAt.toISOString(),
+      lineItems: registration.lineItems.map((item) => ({
+        id: item.id,
+        kind: item.kind,
+        name: item.nameSnapshot,
+        variantName: item.variantSnapshot,
+        quantity: item.quantity,
+        unitPrice: Number(item.unitPrice),
+        total: Number(item.total),
+        currency: registration.currency,
+        attendeeId: item.assignedAttendeeId,
+        fulfillmentMethod: item.fulfillmentMethodSnapshot,
+        fulfillmentStatus: item.fulfillments[0]?.status ?? null,
+      })),
     };
+  }
+
+  private async createAdmissionLineItemsTx(
+    tx: Prisma.TransactionClient,
+    registrationId: string,
+    tierId: string,
+    tierName: string,
+    attendeeCount: number,
+    unitPrice: number,
+    fees: number,
+    discount: number,
+  ) {
+    const lines: Prisma.RegistrationLineItemUncheckedCreateInput[] = [
+      {
+        registrationId,
+        kind: 'admission',
+        sourceId: tierId,
+        nameSnapshot: tierName,
+        quantity: attendeeCount,
+        unitPrice: new Prisma.Decimal(unitPrice),
+        total: new Prisma.Decimal(unitPrice).mul(attendeeCount).toDecimalPlaces(2),
+      },
+    ];
+    if (discount > 0) {
+      lines.push({
+        registrationId,
+        kind: 'discount',
+        nameSnapshot: 'Referral discount',
+        quantity: 1,
+        unitPrice: new Prisma.Decimal(discount).neg(),
+        total: new Prisma.Decimal(discount).neg(),
+      });
+    }
+    if (fees > 0) {
+      lines.push({
+        registrationId,
+        kind: 'fee',
+        nameSnapshot: 'Platform fee',
+        quantity: 1,
+        unitPrice: new Prisma.Decimal(fees),
+        total: new Prisma.Decimal(fees),
+      });
+    }
+    await tx.registrationLineItem.createMany({ data: lines });
   }
 
   private selectedSubEventsFromAgenda(agenda: Prisma.JsonValue, ids?: string[], fallbackId?: string): SelectedSubEvent[] {
@@ -453,6 +582,7 @@ export class RegistrationsService {
               imageUrl: true,
             },
           },
+          lineItems: { where: { kind: 'inclusion' }, select: { quantity: true, total: true } },
         },
       }),
     ]);
@@ -473,6 +603,8 @@ export class RegistrationsService {
         currency: r.currency,
         status: r.status,
         createdAt: r.createdAt.toISOString(),
+        inclusionCount: r.lineItems.reduce((sum, item) => sum + item.quantity, 0),
+        inclusionSubtotal: r.lineItems.reduce((sum, item) => sum + Number(item.total), 0),
       })),
       meta: {
         total,
@@ -549,6 +681,16 @@ export class RegistrationsService {
           },
           orderBy: { createdAt: 'desc' },
         },
+        lineItems: {
+          include: { attendee: true, fulfillments: true },
+          orderBy: { createdAt: 'asc' },
+        },
+        inclusionReservations: {
+          where: { status: 'reserved' },
+          select: { expiresAt: true },
+          orderBy: { expiresAt: 'asc' },
+          take: 1,
+        },
       },
     });
     if (!reg) throw new NotFoundException('Registration not found');
@@ -610,6 +752,26 @@ export class RegistrationsService {
         rejectionReason: p.rejectionReason,
         reviewedAt: p.reviewedAt?.toISOString() ?? null,
       })),
+      lineItems: reg.lineItems.map((item) => ({
+        id: item.id,
+        kind: item.kind,
+        name: item.nameSnapshot,
+        variantName: item.variantSnapshot,
+        quantity: item.quantity,
+        unitPrice: Number(item.unitPrice),
+        total: Number(item.total),
+        currency: reg.currency,
+        attendeeId: item.assignedAttendeeId,
+        attendeeName: item.attendee
+          ? `${item.attendee.firstName} ${item.attendee.lastName}`
+          : null,
+        fulfillmentMethod: item.fulfillmentMethodSnapshot,
+        fulfillmentStatus: item.fulfillments[0]?.status ?? null,
+      })),
+      inclusionSubtotal: reg.lineItems
+        .filter((item) => item.kind === 'inclusion')
+        .reduce((sum, item) => sum + Number(item.total), 0),
+      inclusionHoldExpiresAt: reg.inclusionReservations[0]?.expiresAt.toISOString() ?? null,
     };
   }
 
@@ -665,34 +827,34 @@ export class RegistrationsService {
       },
     });
     if (!reg) throw new NotFoundException('Registration not found');
-    if (!['pending_payment', 'proof_submitted', 'pending_approval'].includes(reg.status)) {
+    if (!['pending_payment', 'proof_submitted', 'pending_approval', 'rejected'].includes(reg.status)) {
       throw new BadRequestException(
         'Only pending or awaiting-approval registrations can be cancelled',
       );
     }
 
-    const ops: Prisma.PrismaPromise<unknown>[] = [
-      this.prisma.registration.update({
-        where: { id },
-        data: { status: 'cancelled' },
-      }),
-    ];
-    if (reg.tierId) {
-      ops.unshift(
-        this.prisma.ticketTier.update({
-          where: { id: reg.tierId },
-          data: { soldQuantity: { decrement: reg.attendeeCount } },
-        }),
+    await this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw(Prisma.sql`SELECT id FROM registrations WHERE id = ${id} FOR UPDATE`);
+      const current = await tx.registration.findUnique({ where: { id }, select: { status: true } });
+      if (!current || !['pending_payment', 'proof_submitted', 'pending_approval', 'rejected'].includes(current.status)) {
+        throw new BadRequestException('Registration is no longer cancellable');
+      }
+      await this.releaseAdmissionCapacityTx(tx, reg.tierId, reg.attendeeCount);
+      await this.optionalInclusions.releaseRegistrationReservationsTx(
+        tx,
+        id,
+        'Customer cancelled registration',
+        'release',
+        userId,
       );
-    }
-    await this.prisma.$transaction(ops);
-
-    await this.audit.log({
-      action: 'REGISTRATION_CANCELLED',
-      entityType: 'Registration',
-      entityId: id,
-      registrationId: id,
-      performedById: userId,
+      await tx.registration.update({ where: { id }, data: { status: 'cancelled' } });
+      await this.audit.logWith(tx, {
+        action: 'REGISTRATION_CANCELLED',
+        entityType: 'Registration',
+        entityId: id,
+        registrationId: id,
+        performedById: userId,
+      });
     });
 
     const lead = reg.attendees[0];
@@ -773,10 +935,29 @@ export class RegistrationsService {
         proofs: { orderBy: { createdAt: 'desc' } },
         user: { select: { id: true, email: true, firstName: true, lastName: true } },
         verifiedBy: { select: { firstName: true, lastName: true } },
+        lineItems: { include: { attendee: true, fulfillments: true }, orderBy: { createdAt: 'asc' } },
       },
     });
     if (!reg) throw new NotFoundException('Registration not found');
-    return reg;
+    return {
+      ...reg,
+      lineItems: reg.lineItems.map((item) => ({
+        id: item.id,
+        kind: item.kind,
+        name: item.nameSnapshot,
+        variantName: item.variantSnapshot,
+        quantity: item.quantity,
+        unitPrice: Number(item.unitPrice),
+        total: Number(item.total),
+        currency: reg.currency,
+        attendeeId: item.assignedAttendeeId,
+        attendeeName: item.attendee
+          ? `${item.attendee.firstName} ${item.attendee.lastName}`
+          : null,
+        fulfillmentMethod: item.fulfillmentMethodSnapshot,
+        fulfillmentStatus: item.fulfillments[0]?.status ?? null,
+      })),
+    };
   }
 
   async approve(id: string, adminUserId: string, ip?: string) {
@@ -815,8 +996,14 @@ export class RegistrationsService {
       return { id: a.id, qrToken };
     });
 
-    await this.prisma.$transaction([
-      this.prisma.registration.update({
+    await this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw(Prisma.sql`SELECT id FROM registrations WHERE id = ${id} FOR UPDATE`);
+      const current = await tx.registration.findUnique({ where: { id }, select: { status: true } });
+      if (!current || !['proof_submitted', 'pending_approval'].includes(current.status)) {
+        throw new BadRequestException('Registration is no longer awaiting approval');
+      }
+      await this.optionalInclusions.confirmRegistrationReservationsTx(tx, id, adminUserId);
+      await tx.registration.update({
         where: { id },
         data: {
           status: 'verified',
@@ -824,36 +1011,30 @@ export class RegistrationsService {
           verifiedAt: new Date(),
           rejectionReason: null,
         },
-      }),
-      ...(latestProof
-        ? [
-            this.prisma.paymentProof.update({
-              where: { id: latestProof.id },
-              data: {
-                status: 'approved',
-                reviewedById: adminUserId,
-                reviewedAt: new Date(),
-                rejectionReason: null,
-              },
-            }),
-          ]
-        : []),
-      ...attendeeUpdates.map((u) =>
-        this.prisma.attendee.update({
-          where: { id: u.id },
-          data: { qrToken: u.qrToken },
-        }),
-      ),
-    ]);
-
-    await this.audit.log({
-      action: 'REGISTRATION_APPROVED',
-      entityType: 'Registration',
-      entityId: id,
-      registrationId: id,
-      performedById: adminUserId,
-      ipAddress: ip,
-      metadata: { proofId: latestProof?.id ?? null, attendeeCount: reg.attendees.length, isFree: isFreeRegistration },
+      });
+      if (latestProof) {
+        await tx.paymentProof.update({
+          where: { id: latestProof.id },
+          data: {
+            status: 'approved',
+            reviewedById: adminUserId,
+            reviewedAt: new Date(),
+            rejectionReason: null,
+          },
+        });
+      }
+      for (const attendee of attendeeUpdates) {
+        await tx.attendee.update({ where: { id: attendee.id }, data: { qrToken: attendee.qrToken } });
+      }
+      await this.audit.logWith(tx, {
+        action: 'REGISTRATION_APPROVED',
+        entityType: 'Registration',
+        entityId: id,
+        registrationId: id,
+        performedById: adminUserId,
+        ipAddress: ip,
+        metadata: { proofId: latestProof?.id ?? null, attendeeCount: reg.attendees.length, isFree: isFreeRegistration },
+      });
     });
 
     await this.funnel.track({
@@ -911,15 +1092,18 @@ export class RegistrationsService {
     }
     const latestProof = reg.proofs[0];
 
-    const ops: Prisma.PrismaPromise<unknown>[] = [
-      this.prisma.registration.update({
+    await this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw(Prisma.sql`SELECT id FROM registrations WHERE id = ${id} FOR UPDATE`);
+      const current = await tx.registration.findUnique({ where: { id }, select: { status: true } });
+      if (!current || !['proof_submitted', 'pending_approval'].includes(current.status)) {
+        throw new BadRequestException('Registration is no longer awaiting review');
+      }
+      await tx.registration.update({
         where: { id },
         data: { status: 'rejected', rejectionReason: reason },
-      }),
-    ];
-    if (latestProof) {
-      ops.push(
-        this.prisma.paymentProof.update({
+      });
+      if (latestProof) {
+        await tx.paymentProof.update({
           where: { id: latestProof.id },
           data: {
             status: 'rejected',
@@ -927,19 +1111,18 @@ export class RegistrationsService {
             reviewedAt: new Date(),
             rejectionReason: reason,
           },
-        }),
-      );
-    }
-    await this.prisma.$transaction(ops);
-
-    await this.audit.log({
-      action: 'REGISTRATION_REJECTED',
-      entityType: 'Registration',
-      entityId: id,
-      registrationId: id,
-      performedById: adminUserId,
-      ipAddress: ip,
-      metadata: { reason, proofId: latestProof?.id ?? null },
+        });
+      }
+      await this.optionalInclusions.markProofRejectedGraceTx(tx, id);
+      await this.audit.logWith(tx, {
+        action: 'REGISTRATION_REJECTED',
+        entityType: 'Registration',
+        entityId: id,
+        registrationId: id,
+        performedById: adminUserId,
+        ipAddress: ip,
+        metadata: { reason, proofId: latestProof?.id ?? null },
+      });
     });
 
     // Send rejection email (await for Lambda reliability)
@@ -1152,6 +1335,7 @@ export class RegistrationsService {
       where: { id: registrationId },
       include: {
         attendees: { orderBy: [{ isLead: 'desc' }, { createdAt: 'asc' }] },
+        lineItems: { where: { kind: 'inclusion' }, orderBy: { createdAt: 'asc' } },
         event: {
           select: {
             id: true,
@@ -1186,6 +1370,12 @@ export class RegistrationsService {
       organizerName: reg.event.organization?.name ?? undefined,
       eventCity: reg.event.city,
       isFree: isFreeRegistration,
+      inclusions: reg.lineItems.map((item) => ({
+        name: item.nameSnapshot,
+        variantName: item.variantSnapshot,
+        quantity: item.quantity,
+        total: Number(item.total),
+      })),
     };
 
     // Send an individual QR email to every attendee at their own email address.
@@ -1236,6 +1426,21 @@ export class RegistrationsService {
           err: (r.reason as Error)?.message,
         });
       }
+    });
+  }
+
+  private async releaseAdmissionCapacityTx(
+    tx: Prisma.TransactionClient,
+    tierId: string | null,
+    attendeeCount: number,
+  ) {
+    if (!tierId) return;
+    await tx.$queryRaw(Prisma.sql`SELECT id FROM ticket_tiers WHERE id = ${tierId} FOR UPDATE`);
+    const tier = await tx.ticketTier.findUnique({ where: { id: tierId }, select: { soldQuantity: true } });
+    if (!tier) return;
+    await tx.ticketTier.update({
+      where: { id: tierId },
+      data: { soldQuantity: Math.max(0, tier.soldQuantity - attendeeCount) },
     });
   }
 }

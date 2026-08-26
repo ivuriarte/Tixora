@@ -67,8 +67,10 @@ function makeService(opts: {
     registration: {
       findFirst: jest.fn().mockResolvedValue(null),
       create: jest.fn().mockResolvedValue(createdReg),
+      findUniqueOrThrow: jest.fn().mockResolvedValue({ ...createdReg, lineItems: [] }),
       aggregate: jest.fn().mockResolvedValue({ _sum: { attendeeCount: 0 } }),
     },
+    registrationLineItem: { createMany: jest.fn().mockResolvedValue({ count: 1 }) },
     ticket: { count: jest.fn().mockResolvedValue(0) },
     ticketTier: { update: jest.fn().mockResolvedValue({}) },
     referralCode: { findFirst: jest.fn().mockResolvedValue(null) },
@@ -123,6 +125,7 @@ function makeService(opts: {
     mockAudit as any,
     mockConfig as any,
     mockFunnel as any,
+    {} as any,
   );
 
   return { service, mockTx, mockPrisma, mockEmail };
@@ -141,6 +144,7 @@ function mockRegForApprove(opts: { total: number; proofs?: object[] } = { total:
     attendeeCount: 1,
     createdAt: new Date(),
     proofs: opts.proofs ?? [],
+    lineItems: [],
     attendees: [{ id: 'att_1', isLead: true, email: 'ana@example.com', firstName: 'Ana', qrToken: null }],
     event: { id: 'evt_1', title: 'Free Fest', startsAt: new Date(), venue: 'Hall A', maxCapacity: null },
     user: { id: 'user_1', email: 'ana@example.com', firstName: 'Ana', lastName: 'Reyes' },
@@ -259,6 +263,7 @@ describe('RegistrationsService — approve()', () => {
       mockAudit as any,
       mockConfig as any,
       mockFunnel as any,
+      {} as any,
     );
     return { service, mockPrisma };
   }
@@ -290,7 +295,7 @@ describe('RegistrationsService — approve()', () => {
 
   it('throws NotFoundException when registration does not exist', async () => {
     const mockPrisma = { registration: { findUnique: jest.fn().mockResolvedValue(null) } };
-    const service = new RegistrationsService(mockPrisma as any, {} as any, {} as any, {} as any, {} as any);
+    const service = new RegistrationsService(mockPrisma as any, {} as any, {} as any, {} as any, {} as any, {} as any);
 
     await expect(service.approve('missing', 'admin_1'))
       .rejects.toBeInstanceOf(NotFoundException);

@@ -36,4 +36,11 @@ export const validationSchema = Joi.object({
   THROTTLE_TTL: Joi.number().default(60000),
   THROTTLE_LIMIT: Joi.number().default(60),
   OTP_HOURLY_LIMIT: Joi.number().integer().min(1).default(10),
+
+  OPTIONAL_INCLUSIONS_ENABLED: Joi.boolean().truthy('true').falsy('false').default(false),
+  INCLUSION_QUOTE_TTL_MINUTES: Joi.number().integer().min(5).max(60).default(15),
+  INCLUSION_PAYMENT_HOLD_MINUTES: Joi.number().integer().min(15).max(1440).default(120),
+  INCLUSION_REJECTION_GRACE_HOURS: Joi.number().integer().min(1).max(168).default(24),
+  INCLUSION_REVIEW_HOLD_HOURS: Joi.number().integer().min(1).max(336).default(168),
+  INCLUSION_DEFAULT_PLATFORM_FEE: Joi.number().precision(2).min(0).max(100000).default(50),
 });

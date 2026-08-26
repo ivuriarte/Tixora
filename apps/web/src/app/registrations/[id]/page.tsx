@@ -161,10 +161,11 @@ export default function RegistrationDetailPage() {
     );
   }
 
-  const canCancel = ['pending_payment', 'proof_submitted', 'pending_approval'].includes(reg.status);
-  const isFree = reg.isFree;
+  const canCancel = ['pending_payment', 'proof_submitted', 'pending_approval', 'rejected'].includes(reg.status);
+  const isFree = Number(reg.total) === 0;
+  const inclusionItems = reg.lineItems?.filter((item) => item.kind === 'inclusion') ?? [];
   const hasPaymentInfo =
-    !isFree && (reg.event.bankName || reg.event.bankAccountNumber || reg.event.gcashNumber);
+    reg.total > 0 && (reg.event.bankName || reg.event.bankAccountNumber || reg.event.gcashNumber);
 
   return (
     <main className="min-h-screen bg-gray-50 py-10">
@@ -274,10 +275,22 @@ export default function RegistrationDetailPage() {
         {/* Amount */}
         <div className="bg-white border border-gray-200 rounded-2xl p-5 text-sm space-y-2">
           <h2 className="font-semibold text-gray-900 mb-3">Order Breakdown</h2>
-          <div className="flex justify-between text-gray-600">
-            <span>{reg.tierName ?? 'Ticket'} × {reg.attendeeCount}</span>
-            <span>{formatPHP(reg.subtotal)}</span>
-          </div>
+          {reg.lineItems && reg.lineItems.length > 0 ? (
+            reg.lineItems.filter((item) => item.kind === 'admission' || item.kind === 'inclusion').map((item, index) => (
+              <div key={item.id ?? `${item.kind}-${index}`} className="flex justify-between gap-4 text-gray-600">
+                <span>
+                  {item.name}{item.variantName ? ` · ${item.variantName}` : ''} × {item.quantity}
+                  {item.attendeeName && <span className="block text-xs text-gray-400">For {item.attendeeName}</span>}
+                </span>
+                <span>{item.total === 0 ? 'Free' : formatPHP(item.total)}</span>
+              </div>
+            ))
+          ) : (
+            <div className="flex justify-between text-gray-600">
+              <span>{reg.tierName ?? 'Ticket'} × {reg.attendeeCount}</span>
+              <span>{formatPHP(reg.subtotal)}</span>
+            </div>
+          )}
           <div className="flex justify-between text-gray-600">
             <span>Service fee</span>
             <span>{formatPHP(reg.fees)}</span>
@@ -288,6 +301,41 @@ export default function RegistrationDetailPage() {
             <span className="text-primary">{formatPHP(reg.total)}</span>
           </div>
         </div>
+
+        {inclusionItems.length > 0 && (
+          <section className="overflow-hidden rounded-2xl border border-[#d8cdee] bg-white" aria-labelledby="addons-status-title">
+            <div className="border-b border-[#e4dcf4] bg-[#faf8ff] px-5 py-4">
+              <h2 id="addons-status-title" className="font-semibold text-[#1a0533]">Optional add-ons</h2>
+              <p className="mt-1 text-xs leading-5 text-[#6b5b8a]">
+                Admission check-in does not claim these items. Follow the separate instructions below.
+              </p>
+            </div>
+            <div className="space-y-3 p-5">
+              {inclusionItems.map((item, index) => {
+                const status = item.fulfillmentStatus ?? 'pending';
+                const fulfilled = status === 'fulfilled';
+                return (
+                  <article key={item.id ?? index} className="rounded-xl border border-gray-200 p-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <p className="text-sm font-semibold text-gray-900">
+                          {item.name}{item.variantName ? ` · ${item.variantName}` : ''} × {item.quantity}
+                        </p>
+                        {item.attendeeName && <p className="mt-0.5 text-xs text-gray-500">Assigned to {item.attendeeName}</p>}
+                      </div>
+                      <span className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold ${fulfilled ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-800'}`}>
+                        {fulfilled ? 'Fulfilled' : status.replace(/_/g, ' ')}
+                      </span>
+                    </div>
+                    {item.fulfillmentInstructions && (
+                      <p className="mt-3 rounded-lg bg-gray-50 px-3 py-2 text-xs leading-5 text-gray-600">{item.fulfillmentInstructions}</p>
+                    )}
+                  </article>
+                );
+              })}
+            </div>
+          </section>
+        )}
 
         {/* Attendees */}
         <div className="bg-white border border-gray-200 rounded-2xl p-5">
@@ -414,6 +462,11 @@ export default function RegistrationDetailPage() {
             <p className="text-green-700">
               Your QR ticket has been sent to your email. Open My Tickets to view it anytime.
             </p>
+            {inclusionItems.length > 0 && (
+              <p className="text-green-700 text-xs">
+                Your QR admits you to the event only. Optional add-ons are fulfilled separately as shown above.
+              </p>
+            )}
             <p className="text-green-700 text-xs">
               Can&apos;t find the email? Check your spam or promotions folder.
             </p>

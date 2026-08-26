@@ -33,6 +33,7 @@ export class TicketsService {
             select: {
               id: true,
               tierName: true,
+              lineItems: { where: { kind: 'inclusion' }, select: { quantity: true, total: true } },
               event: { select: { title: true, slug: true, startsAt: true, venue: true, imageUrl: true } },
             },
           },
@@ -69,6 +70,8 @@ export class TicketsService {
       status: a.checkedInAt ? 'used' : a.qrToken ? 'valid' : 'pending_qr',
       checkedInAt: a.checkedInAt?.toISOString() ?? null,
       createdAt: a.createdAt.toISOString(),
+      inclusionCount: (a.registration.lineItems ?? []).reduce((sum, item) => sum + item.quantity, 0),
+      inclusionSubtotal: (a.registration.lineItems ?? []).reduce((sum, item) => sum + Number(item.total), 0),
     }));
 
     // Merge and sort by event start date descending
@@ -129,6 +132,12 @@ export class TicketsService {
           select: {
             id: true,
             tierName: true,
+            currency: true,
+            lineItems: {
+              where: { kind: 'inclusion' },
+              include: { attendee: true, fulfillments: true },
+              orderBy: { createdAt: 'asc' },
+            },
             event: { select: { id: true, title: true, slug: true, startsAt: true, venue: true, imageUrl: true } },
           },
         },
@@ -169,6 +178,24 @@ export class TicketsService {
       status: attendee.checkedInAt ? 'used' : 'valid',
       checkedInAt: attendee.checkedInAt?.toISOString() ?? null,
       createdAt: attendee.createdAt.toISOString(),
+      lineItems: (attendee.registration.lineItems ?? [])
+        .filter((item) => !item.assignedAttendeeId || item.assignedAttendeeId === attendee.id)
+        .map((item) => ({
+          id: item.id,
+          kind: item.kind,
+          name: item.nameSnapshot,
+          variantName: item.variantSnapshot,
+          quantity: item.quantity,
+          unitPrice: Number(item.unitPrice),
+          total: Number(item.total),
+          currency: attendee.registration.currency ?? 'PHP',
+          attendeeId: item.assignedAttendeeId,
+          attendeeName: item.attendee
+            ? `${item.attendee.firstName} ${item.attendee.lastName}`
+            : null,
+          fulfillmentMethod: item.fulfillmentMethodSnapshot,
+          fulfillmentStatus: item.fulfillments[0]?.status ?? null,
+        })),
     };
   }
 }

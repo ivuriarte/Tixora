@@ -120,12 +120,15 @@ export default function TierSelector({ eventId, eventSlug, tiers, disabled }: Pr
               <span className="font-semibold shrink-0">{tier.price === 0 ? 'Free' : formatPHP(tier.price)}</span>
             </div>
             {tier.inclusions && tier.inclusions.length > 0 && (
-              <div className="mt-2 flex flex-wrap gap-1.5">
+              <div className="mt-2">
+                <p className="mb-1 text-[10px] font-bold uppercase tracking-wide text-emerald-700">Included benefits</p>
+                <div className="flex flex-wrap gap-1.5">
                 {tier.inclusions.map((item) => (
                   <span key={item.id ?? item.label} className="rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-medium text-emerald-700">
                     {item.label}
                   </span>
                 ))}
+                </div>
               </div>
             )}
           </button>

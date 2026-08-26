@@ -59,6 +59,15 @@ export default () => ({
     otpHourlyLimit: parseInt(process.env.OTP_HOURLY_LIMIT ?? '10', 10),
   },
 
+  optionalInclusions: {
+    enabled: process.env.OPTIONAL_INCLUSIONS_ENABLED === 'true',
+    quoteTtlMinutes: parseInt(process.env.INCLUSION_QUOTE_TTL_MINUTES ?? '15', 10),
+    paymentHoldMinutes: parseInt(process.env.INCLUSION_PAYMENT_HOLD_MINUTES ?? '120', 10),
+    rejectionGraceHours: parseInt(process.env.INCLUSION_REJECTION_GRACE_HOURS ?? '24', 10),
+    reviewHoldHours: parseInt(process.env.INCLUSION_REVIEW_HOLD_HOURS ?? '168', 10),
+    defaultPlatformFee: Number(process.env.INCLUSION_DEFAULT_PLATFORM_FEE ?? '50'),
+  },
+
   sentry: {
     dsn: process.env.SENTRY_DSN ?? '',
     environment: process.env.APP_ENV ?? 'development',
