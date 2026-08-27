@@ -1,12 +1,14 @@
 import { Prisma } from '@prisma/client';
 import { OptionalInclusionsService } from './optional-inclusions.service';
 
-function makeService(options: { isFree?: boolean; referral?: boolean } = {}) {
+function makeService(
+  options: { isFree?: boolean; referral?: boolean; platformFee?: number } = {},
+) {
   const event = {
     id: 'event-1',
     status: 'on_sale',
     isFree: options.isFree ?? false,
-    platformFee: new Prisma.Decimal(50),
+    platformFee: new Prisma.Decimal(options.platformFee ?? 50),
     maxPerUser: 4,
     tiers: [
       {
@@ -25,6 +27,7 @@ function makeService(options: { isFree?: boolean; referral?: boolean } = {}) {
     saleStartsAt: null,
     saleEndsAt: null,
     fulfillmentMethod: 'pickup',
+    fulfillmentInstructions: 'Claim at the merchandise desk.',
     eligibleTiers: [{ ticketTierId: 'tier-1', maxQuantityPerRegistration: 3 }],
   };
   const variant = {
@@ -110,6 +113,59 @@ describe('OptionalInclusionsService authoritative quote', () => {
     expect(quote.total).toBe(550);
   });
 
+  it('uses the configured add-on fee only for free admission when the event fee is zero', async () => {
+    const { service: freeEventService } = makeService({ isFree: true, platformFee: 0 });
+    const { service: paidEventService } = makeService({ isFree: false, platformFee: 0 });
+    const request = {
+      tierId: 'tier-1',
+      attendeeCount: 1,
+      selections: [
+        { inclusionId: 'inclusion-1', variantId: 'variant-1', quantity: 1, attendeeIndex: 0 },
+      ],
+    };
+
+    const freeEventQuote = await freeEventService.createQuote('event-1', request);
+    const paidEventQuote = await paidEventService.createQuote('event-1', request);
+
+    expect(freeEventQuote.fees).toBe(50);
+    expect(freeEventQuote.total).toBe(550);
+    expect(paidEventQuote.fees).toBe(0);
+    expect(paidEventQuote.total).toBe(1500);
+  });
+
+  it('captures fulfillment instructions in the immutable quote snapshot', async () => {
+    const { service, prisma } = makeService();
+
+    const quote = await service.createQuote('event-1', {
+      tierId: 'tier-1',
+      attendeeCount: 1,
+      selections: [
+        { inclusionId: 'inclusion-1', variantId: 'variant-1', quantity: 1, attendeeIndex: 0 },
+      ],
+    });
+
+    expect(quote.lineItems).toContainEqual(
+      expect.objectContaining({
+        kind: 'inclusion',
+        fulfillmentInstructions: 'Claim at the merchandise desk.',
+      }),
+    );
+    expect(prisma.checkoutQuote.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          pricingSnapshot: expect.objectContaining({
+            lines: expect.arrayContaining([
+              expect.objectContaining({
+                kind: 'inclusion',
+                fulfillmentInstructions: 'Claim at the merchandise desk.',
+              }),
+            ]),
+          }),
+        }),
+      }),
+    );
+  });
+
   it('applies referral discounts to admission only, never to add-ons', async () => {
     const { service } = makeService({ referral: true });
 
@@ -145,6 +201,40 @@ describe('OptionalInclusionsService authoritative quote', () => {
 });
 
 describe('OptionalInclusionsService organizer configuration', () => {
+  it('updates the event switch and its audit record in one transaction', async () => {
+    const updated = { id: 'event-1', optionalInclusionsEnabled: true };
+    const tx = { event: { update: jest.fn().mockResolvedValue(updated) } };
+    const prisma = {
+      $transaction: jest.fn().mockImplementation((callback) => callback(tx)),
+    };
+    const audit = { logWith: jest.fn().mockResolvedValue(undefined) };
+    const config = {
+      get: jest.fn((key: string) => key === 'optionalInclusions.enabled'),
+    };
+    const service = new OptionalInclusionsService(
+      prisma as never,
+      config as never,
+      audit as never,
+    );
+
+    await expect(service.setEventEnabled('event-1', true, 'organizer-1')).resolves.toEqual(
+      updated,
+    );
+    expect(tx.event.update).toHaveBeenCalledWith({
+      where: { id: 'event-1' },
+      data: { optionalInclusionsEnabled: true },
+      select: { id: true, optionalInclusionsEnabled: true },
+    });
+    expect(audit.logWith).toHaveBeenCalledWith(
+      tx,
+      expect.objectContaining({
+        action: 'OPTIONAL_INCLUSIONS_ENABLED',
+        entityId: 'event-1',
+        performedById: 'organizer-1',
+      }),
+    );
+  });
+
   it('persists tier eligibility and its per-registration limit together', async () => {
     const created = { id: 'inclusion-1', variants: [], eligibleTiers: [] };
     const tx = {
@@ -193,5 +283,106 @@ describe('OptionalInclusionsService organizer configuration', () => {
         'organizer-1',
       ),
     ).rejects.toThrow('Each eligible ticket tier may only be configured once');
+  });
+
+  it('prevents deactivating the last viable variant of an active inclusion', async () => {
+    const tx = {
+      $queryRaw: jest
+        .fn()
+        .mockResolvedValueOnce([{ id: 'inclusion-1' }])
+        .mockResolvedValueOnce([{ id: 'variant-1' }]),
+      eventInclusion: {
+        findUnique: jest.fn().mockResolvedValue({ status: 'active' }),
+      },
+      inclusionVariant: {
+        findFirst: jest.fn().mockResolvedValue({ id: 'variant-1' }),
+        update: jest.fn().mockResolvedValue({ id: 'variant-1', isActive: false }),
+        count: jest.fn().mockResolvedValue(0),
+      },
+    };
+    const prisma = {
+      $transaction: jest.fn().mockImplementation((callback) => callback(tx)),
+    };
+    const service = new OptionalInclusionsService(prisma as never, {} as never, {} as never);
+
+    await expect(
+      service.updateVariant(
+        'event-1',
+        'inclusion-1',
+        'variant-1',
+        { isActive: false },
+        'organizer-1',
+      ),
+    ).rejects.toThrow('An active inclusion requires at least one active variant with stock');
+  });
+});
+
+describe('OptionalInclusionsService checkout and fulfillment safeguards', () => {
+  it('rechecks the event switch inside the quote-consumption transaction', async () => {
+    const tx = {
+      $queryRaw: jest.fn().mockResolvedValue([
+        { id: 'event-1', optionalInclusionsEnabled: false },
+      ]),
+      checkoutQuote: { findUnique: jest.fn() },
+    };
+    const config = {
+      get: jest.fn((key: string) => key === 'optionalInclusions.enabled'),
+    };
+    const service = new OptionalInclusionsService({} as never, config as never, {} as never);
+
+    await expect(
+      service.consumeQuoteTx(
+        tx as never,
+        'quote-token',
+        'user-1',
+        'registration-1',
+        'event-1',
+        'tier-1',
+        ['attendee-1'],
+      ),
+    ).rejects.toThrow('Optional inclusions are not enabled for this event');
+    expect(tx.checkoutQuote.findUnique).not.toHaveBeenCalled();
+  });
+
+  it('allows a reversed line to be fulfilled again and clears reversal state', async () => {
+    const line = {
+      id: 'line-1',
+      registrationId: 'registration-1',
+      sourceId: 'variant-1',
+      quantity: 1,
+      fulfillments: [{ id: 'fulfillment-1', status: 'reversed' }],
+    };
+    const updated = { id: 'fulfillment-1', status: 'fulfilled' };
+    const tx = {
+      $queryRaw: jest.fn().mockResolvedValue([{ id: 'fulfillment-1' }]),
+      registrationLineItem: { findFirst: jest.fn().mockResolvedValue(line) },
+      inclusionFulfillment: { update: jest.fn().mockResolvedValue(updated) },
+      inclusionInventoryMovement: { create: jest.fn().mockResolvedValue({}) },
+    };
+    const prisma = {
+      $transaction: jest.fn().mockImplementation((callback) => callback(tx)),
+    };
+    const audit = { logWith: jest.fn().mockResolvedValue(undefined) };
+    const service = new OptionalInclusionsService(prisma as never, {} as never, audit as never);
+
+    await expect(
+      service.fulfill('event-1', 'line-1', { quantity: 1 }, 'organizer-1'),
+    ).resolves.toEqual(updated);
+    expect(tx.inclusionFulfillment.update).toHaveBeenCalledWith({
+      where: { id: 'fulfillment-1' },
+      data: expect.objectContaining({
+        status: 'fulfilled',
+        reversedById: null,
+        reversedAt: null,
+        reversalReason: null,
+      }),
+    });
+    expect(tx.inclusionInventoryMovement.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        variantId: 'variant-1',
+        type: 'fulfill',
+        quantity: 1,
+      }),
+    });
   });
 });

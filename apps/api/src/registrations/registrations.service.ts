@@ -505,6 +505,7 @@ export class RegistrationsService {
         currency: registration.currency,
         attendeeId: item.assignedAttendeeId,
         fulfillmentMethod: item.fulfillmentMethodSnapshot,
+        fulfillmentInstructions: item.fulfillmentInstructionsSnapshot,
         fulfillmentStatus: item.fulfillments[0]?.status ?? null,
       })),
     };
@@ -1439,6 +1440,7 @@ export class RegistrationsService {
           ? `${item.attendee.firstName} ${item.attendee.lastName}`
           : null,
         fulfillmentMethod: item.fulfillmentMethodSnapshot,
+        fulfillmentInstructions: item.fulfillmentInstructionsSnapshot,
         fulfillmentStatus: item.fulfillments[0]?.status ?? null,
       })),
       inclusionSubtotal: reg.lineItems
@@ -1714,6 +1716,7 @@ export class RegistrationsService {
           ? `${item.attendee.firstName} ${item.attendee.lastName}`
           : null,
         fulfillmentMethod: item.fulfillmentMethodSnapshot,
+        fulfillmentInstructions: item.fulfillmentInstructionsSnapshot,
         fulfillmentStatus: item.fulfillments[0]?.status ?? null,
       })),
     };

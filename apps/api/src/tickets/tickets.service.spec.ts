@@ -49,6 +49,21 @@ function makeAttendee(overrides: Partial<{
     event: ReturnType<typeof makeEvent>;
     userId: string;
     status: string;
+    currency?: string;
+    lineItems?: Array<{
+      id: string;
+      kind: string;
+      nameSnapshot: string;
+      variantSnapshot: string | null;
+      assignedAttendeeId: string | null;
+      quantity: number;
+      unitPrice: number;
+      total: number;
+      fulfillmentMethodSnapshot: string | null;
+      fulfillmentInstructionsSnapshot: string | null;
+      attendee: { firstName: string; lastName: string } | null;
+      fulfillments: Array<{ status: string }>;
+    }>;
   };
 }> = {}) {
   const reg = overrides.registration ?? {
@@ -221,6 +236,72 @@ describe('U-34: findByUser — pagination', () => {
   });
 });
 
+describe('findByUser — attendee-specific optional inclusions', () => {
+  it('counts only line items assigned to the ticket attendee', async () => {
+    const attendee = makeAttendee({
+      id: 'att_1',
+      registration: {
+        id: 'reg_1',
+        tierName: 'General',
+        event: makeEvent(),
+        userId: 'user_1',
+        status: 'verified',
+        lineItems: [
+          {
+            id: 'line-own',
+            kind: 'inclusion',
+            nameSnapshot: 'Event shirt',
+            variantSnapshot: 'Medium',
+            assignedAttendeeId: 'att_1',
+            quantity: 2,
+            unitPrice: 500,
+            total: 1000,
+            fulfillmentMethodSnapshot: 'pickup',
+            fulfillmentInstructionsSnapshot: 'Claim at the merchandise desk.',
+            attendee: { firstName: 'Alice', lastName: 'Smith' },
+            fulfillments: [{ status: 'pending' }],
+          },
+          {
+            id: 'line-other',
+            kind: 'inclusion',
+            nameSnapshot: 'Workshop',
+            variantSnapshot: 'Morning',
+            assignedAttendeeId: 'att_2',
+            quantity: 1,
+            unitPrice: 300,
+            total: 300,
+            fulfillmentMethodSnapshot: 'manual',
+            fulfillmentInstructionsSnapshot: null,
+            attendee: { firstName: 'Bob', lastName: 'Smith' },
+            fulfillments: [{ status: 'pending' }],
+          },
+          {
+            id: 'line-unassigned',
+            kind: 'inclusion',
+            nameSnapshot: 'Unassigned item',
+            variantSnapshot: null,
+            assignedAttendeeId: null,
+            quantity: 4,
+            unitPrice: 100,
+            total: 400,
+            fulfillmentMethodSnapshot: 'manual',
+            fulfillmentInstructionsSnapshot: null,
+            attendee: null,
+            fulfillments: [{ status: 'pending' }],
+          },
+        ],
+      },
+    });
+    const { service } = buildMocks([], [attendee]);
+
+    const result = await service.findByUser('user_1');
+
+    expect(result.data[0]).toEqual(
+      expect.objectContaining({ inclusionCount: 2, inclusionSubtotal: 1000 }),
+    );
+  });
+});
+
 // ── U-35: findOne — throws when not found ─────────────────────────────────
 
 describe('U-35: findOne — NotFoundException', () => {
@@ -253,6 +334,63 @@ describe('U-36: findOneAttendee — existing qrToken, no DB write', () => {
     const result = await service.findOneAttendee('att_abc', 'user_1');
     expect(result.id).toBe('att_att_abc');
     expect(result.source).toBe('registration');
+  });
+
+  it('returns only assigned add-ons with snapshotted fulfillment instructions', async () => {
+    const attendee = makeAttendee({
+      id: 'att_abc',
+      qrToken: 'tok',
+      registration: {
+        id: 'reg_1',
+        tierName: 'General',
+        event: makeEvent(),
+        userId: 'user_1',
+        status: 'verified',
+        currency: 'PHP',
+        lineItems: [
+          {
+            id: 'line-own',
+            kind: 'inclusion',
+            nameSnapshot: 'Event shirt',
+            variantSnapshot: 'Medium',
+            assignedAttendeeId: 'att_abc',
+            quantity: 1,
+            unitPrice: 500,
+            total: 500,
+            fulfillmentMethodSnapshot: 'pickup',
+            fulfillmentInstructionsSnapshot: 'Present this ticket at Booth 7.',
+            attendee: { firstName: 'Alice', lastName: 'Smith' },
+            fulfillments: [{ status: 'pending' }],
+          },
+          {
+            id: 'line-other',
+            kind: 'inclusion',
+            nameSnapshot: 'Other attendee item',
+            variantSnapshot: null,
+            assignedAttendeeId: 'att_other',
+            quantity: 1,
+            unitPrice: 250,
+            total: 250,
+            fulfillmentMethodSnapshot: 'manual',
+            fulfillmentInstructionsSnapshot: 'Ask the event host.',
+            attendee: { firstName: 'Bob', lastName: 'Smith' },
+            fulfillments: [{ status: 'pending' }],
+          },
+        ],
+      },
+    });
+    const { prisma, service } = buildMocks();
+    prisma.attendee.findFirst.mockResolvedValue(attendee);
+
+    const result = await service.findOneAttendee('att_abc', 'user_1');
+
+    expect(result.lineItems).toHaveLength(1);
+    expect(result.lineItems[0]).toEqual(
+      expect.objectContaining({
+        id: 'line-own',
+        fulfillmentInstructions: 'Present this ticket at Booth 7.',
+      }),
+    );
   });
 });
 

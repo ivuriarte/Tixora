@@ -18,11 +18,11 @@ Allow an organizer to offer event-level, optionally paid products or services wi
 
 1. Optional inclusions are event-level products with variants, exact prices, finite stock, ticket-tier eligibility, sale windows, and manual pickup/fulfillment instructions.
 2. The server owns all pricing. A persisted, expiring quote is required for any registration containing an optional inclusion.
-3. Referral discounts apply to admission only. The event platform fee applies when the final basket has a positive payable amount, including free admission with a paid inclusion.
+3. Referral discounts apply to admission only. A positive configured event platform fee applies when the basket is payable. When a free-admission event has a paid inclusion and its event fee is zero, the optional-inclusion default fee applies; a paid-admission event whose configured fee is zero remains fee-free.
 4. Inventory is reserved transactionally when a registration consumes a quote. Creating a quote alone does not reserve stock.
 5. A submitted proof keeps stock reserved during organizer review. A rejected proof enters a finite resubmission grace period; expiry releases the stock. A later retry must obtain a fresh quote and reservation.
-6. Admission check-in never fulfills an inclusion. Fulfillment and reversal are explicit, permission-controlled, audited operations.
-7. Historical line items are immutable snapshots. Catalog entries with sales are archived, not hard-deleted.
+6. Admission check-in never fulfills an inclusion. Fulfillment, reversal, and re-fulfillment after a reversal are explicit, permission-controlled, audited operations.
+7. Historical line items are immutable snapshots, including the organizer-provided fulfillment instructions. Catalog entries with sales are archived, not hard-deleted.
 8. Existing events and registrations without optional inclusions keep their current behavior.
 9. Running-event merchandise remains separate included race-kit metadata.
 10. Executive ticket counts remain admission-only. Inclusion revenue and units are reported separately.

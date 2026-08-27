@@ -58,6 +58,7 @@ export interface RegistrationLineItem {
   attendeeName?: string | null;
   fulfillmentMethod?: InclusionFulfillmentMethod | null;
   fulfillmentStatus?: InclusionFulfillmentStatus | null;
+  /** Immutable fulfillment directions captured when the checkout quote is consumed. */
   fulfillmentInstructions?: string | null;
 }
 

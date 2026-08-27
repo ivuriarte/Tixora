@@ -33,7 +33,10 @@ export class TicketsService {
             select: {
               id: true,
               tierName: true,
-              lineItems: { where: { kind: 'inclusion' }, select: { quantity: true, total: true } },
+              lineItems: {
+                where: { kind: 'inclusion' },
+                select: { assignedAttendeeId: true, quantity: true, total: true },
+              },
               event: { select: { title: true, slug: true, startsAt: true, venue: true, imageUrl: true } },
             },
           },
@@ -70,8 +73,12 @@ export class TicketsService {
       status: a.checkedInAt ? 'used' : a.qrToken ? 'valid' : 'pending_qr',
       checkedInAt: a.checkedInAt?.toISOString() ?? null,
       createdAt: a.createdAt.toISOString(),
-      inclusionCount: (a.registration.lineItems ?? []).reduce((sum, item) => sum + item.quantity, 0),
-      inclusionSubtotal: (a.registration.lineItems ?? []).reduce((sum, item) => sum + Number(item.total), 0),
+      inclusionCount: (a.registration.lineItems ?? [])
+        .filter((item) => item.assignedAttendeeId === a.id)
+        .reduce((sum, item) => sum + item.quantity, 0),
+      inclusionSubtotal: (a.registration.lineItems ?? [])
+        .filter((item) => item.assignedAttendeeId === a.id)
+        .reduce((sum, item) => sum + Number(item.total), 0),
     }));
 
     // Merge and sort by event start date descending
@@ -179,7 +186,7 @@ export class TicketsService {
       checkedInAt: attendee.checkedInAt?.toISOString() ?? null,
       createdAt: attendee.createdAt.toISOString(),
       lineItems: (attendee.registration.lineItems ?? [])
-        .filter((item) => !item.assignedAttendeeId || item.assignedAttendeeId === attendee.id)
+        .filter((item) => item.assignedAttendeeId === attendee.id)
         .map((item) => ({
           id: item.id,
           kind: item.kind,
@@ -194,6 +201,7 @@ export class TicketsService {
             ? `${item.attendee.firstName} ${item.attendee.lastName}`
             : null,
           fulfillmentMethod: item.fulfillmentMethodSnapshot,
+          fulfillmentInstructions: item.fulfillmentInstructionsSnapshot,
           fulfillmentStatus: item.fulfillments[0]?.status ?? null,
         })),
     };

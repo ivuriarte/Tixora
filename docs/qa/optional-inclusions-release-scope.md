@@ -12,7 +12,7 @@ The base SHA must be refreshed and the feature rebased or rebuilt if `origin/mai
 
 ## Expected change families
 
-- Optional-inclusion Prisma models and one additive migration
+- Optional-inclusion Prisma models and additive migrations, including the immutable fulfillment-instructions snapshot
 - Optional-inclusion Nest module, DTOs, services, lifecycle integration, and tests
 - Registration line-item, quote, inventory, proof, cancellation, scheduler, reporting, and email integration required by the feature
 - Shared optional-inclusion and registration contracts

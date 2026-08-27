@@ -46,8 +46,8 @@ This document lists every environment variable consumed by the API and Web apps,
 | `CLOUDINARY_CLOUD_NAME` | No | Dev cloud | UAT folder prefix `axon-tickets/uat/` | Production folder prefix `axon-tickets/prod/` | Same cloud account is OK; use separate folder prefixes. |
 | `CLOUDINARY_API_KEY` | **Yes** | Dev | UAT | Production | |
 | `CLOUDINARY_API_SECRET` | **Yes** | Dev | UAT | Production | |
-| `PAYMONGO_SECRET_KEY` | **Yes** | PayMongo test secret | PayMongo test secret | PayMongo live secret | UAT **must** use test keys. Startup assertion enforces this. |
-| `PAYMONGO_PUBLIC_KEY` | **Yes** | PayMongo test public key | PayMongo test public key | PayMongo live public key | |
+| `PAYMONGO_SECRET_KEY` | **Yes** | `sk_test_…` | `sk_test_…` | `sk_live_…` | UAT **must** use test keys. Startup assertion enforces this. |
+| `PAYMONGO_PUBLIC_KEY` | **Yes** | `pk_test_…` | `pk_test_…` | `pk_live_…` | |
 | `PAYMONGO_WEBHOOK_SECRET` | **Yes** | Dev webhook secret | UAT webhook secret | Production webhook secret | |
 | `HCAPTCHA_SECRET` | **Yes** | `0x0000000000000000000000000000000000000000` (test bypass) | Test key | Production key | |
 | `THROTTLE_TTL` | No | `60000` | `60000` | `60000` | |

@@ -31,6 +31,7 @@ type QuoteLine = {
   total: string;
   attendeeIndex?: number;
   fulfillmentMethod?: 'pickup' | 'delivery' | 'digital' | 'manual';
+  fulfillmentInstructions?: string | null;
 };
 
 type QuotePricingSnapshot = {
@@ -87,18 +88,20 @@ export class OptionalInclusionsService {
 
   async setEventEnabled(eventId: string, enabled: boolean, actorId: string) {
     if (enabled) this.assertGloballyEnabled();
-    const event = await this.prisma.event.update({
-      where: { id: eventId },
-      data: { optionalInclusionsEnabled: enabled },
-      select: { id: true, optionalInclusionsEnabled: true },
+    return this.prisma.$transaction(async (tx) => {
+      const event = await tx.event.update({
+        where: { id: eventId },
+        data: { optionalInclusionsEnabled: enabled },
+        select: { id: true, optionalInclusionsEnabled: true },
+      });
+      await this.audit.logWith(tx, {
+        action: enabled ? 'OPTIONAL_INCLUSIONS_ENABLED' : 'OPTIONAL_INCLUSIONS_DISABLED',
+        entityType: 'Event',
+        entityId: eventId,
+        performedById: actorId,
+      });
+      return event;
     });
-    await this.audit.log({
-      action: enabled ? 'OPTIONAL_INCLUSIONS_ENABLED' : 'OPTIONAL_INCLUSIONS_DISABLED',
-      entityType: 'Event',
-      entityId: eventId,
-      performedById: actorId,
-    });
-    return event;
   }
 
   async listOrganizer(eventId: string) {
@@ -239,14 +242,6 @@ export class OptionalInclusionsService {
     dto: UpdateEventInclusionDto,
     actorId: string,
   ) {
-    const existing = await this.prisma.eventInclusion.findFirst({
-      where: { id: inclusionId, eventId },
-    });
-    if (!existing) throw new NotFoundException('Optional inclusion not found');
-    this.validateSaleWindow(
-      dto.saleStartsAt ?? existing.saleStartsAt?.toISOString(),
-      dto.saleEndsAt ?? existing.saleEndsAt?.toISOString(),
-    );
     const updatesTierEligibility =
       dto.tierEligibility !== undefined || dto.eligibleTierIds !== undefined;
     const tierEligibility = updatesTierEligibility ? this.resolveTierEligibility(dto) : [];
@@ -256,16 +251,16 @@ export class OptionalInclusionsService {
         tierEligibility.map((entry) => entry.ticketTierId),
       );
     }
-    if (dto.status === 'active') {
-      const activeVariants = await this.prisma.inclusionVariant.count({
-        where: { inclusionId, isActive: true, totalStock: { gt: 0 } },
-      });
-      if (!activeVariants)
-        throw new BadRequestException(
-          'An active inclusion requires at least one active variant with stock',
-        );
-    }
     return this.prisma.$transaction(async (tx) => {
+      await this.lockInclusionAndVariantsTx(tx, eventId, inclusionId);
+      const existing = await tx.eventInclusion.findUniqueOrThrow({
+        where: { id: inclusionId },
+        select: { saleStartsAt: true, saleEndsAt: true },
+      });
+      this.validateSaleWindow(
+        dto.saleStartsAt ?? existing.saleStartsAt?.toISOString(),
+        dto.saleEndsAt ?? existing.saleEndsAt?.toISOString(),
+      );
       if (updatesTierEligibility) {
         await tx.inclusionTierEligibility.deleteMany({ where: { inclusionId } });
         if (tierEligibility.length) {
@@ -297,6 +292,7 @@ export class OptionalInclusionsService {
         },
         include: { variants: true, eligibleTiers: true },
       });
+      await this.assertActiveInclusionHasViableVariantTx(tx, inclusionId);
       await this.audit.logWith(tx, {
         action: 'EVENT_INCLUSION_UPDATED',
         entityType: 'EventInclusion',
@@ -337,11 +333,13 @@ export class OptionalInclusionsService {
     dto: UpdateInclusionVariantDto,
     actorId: string,
   ) {
-    const variant = await this.prisma.inclusionVariant.findFirst({
-      where: { id: variantId, inclusionId, inclusion: { eventId } },
-    });
-    if (!variant) throw new NotFoundException('Inclusion variant not found');
     return this.prisma.$transaction(async (tx) => {
+      await this.lockInclusionAndVariantsTx(tx, eventId, inclusionId);
+      const variant = await tx.inclusionVariant.findFirst({
+        where: { id: variantId, inclusionId },
+        select: { id: true },
+      });
+      if (!variant) throw new NotFoundException('Inclusion variant not found');
       const updated = await tx.inclusionVariant.update({
         where: { id: variantId },
         data: {
@@ -353,6 +351,7 @@ export class OptionalInclusionsService {
           version: { increment: 1 },
         },
       });
+      await this.assertActiveInclusionHasViableVariantTx(tx, inclusionId);
       await this.audit.logWith(tx, {
         action: 'INCLUSION_VARIANT_UPDATED',
         entityType: 'InclusionVariant',
@@ -373,14 +372,11 @@ export class OptionalInclusionsService {
   ) {
     if (dto.quantityDelta === 0) throw new BadRequestException('Stock adjustment cannot be zero');
     return this.prisma.$transaction(async (tx) => {
-      const rows = await tx.$queryRaw<Array<{ id: string }>>`
-        SELECT v.id FROM inclusion_variants v
-        JOIN event_inclusions i ON i.id = v.inclusion_id
-        WHERE v.id = ${variantId} AND v.inclusion_id = ${inclusionId} AND i.event_id = ${eventId}
-        FOR UPDATE
-      `;
-      if (!rows[0]) throw new NotFoundException('Inclusion variant not found');
-      const current = await tx.inclusionVariant.findUniqueOrThrow({ where: { id: variantId } });
+      await this.lockInclusionAndVariantsTx(tx, eventId, inclusionId);
+      const current = await tx.inclusionVariant.findFirst({
+        where: { id: variantId, inclusionId },
+      });
+      if (!current) throw new NotFoundException('Inclusion variant not found');
       const nextTotal = current.totalStock + dto.quantityDelta;
       if (nextTotal < current.reservedStock + current.soldStock) {
         throw new ConflictException('Stock cannot be reduced below reserved plus sold quantity');
@@ -389,6 +385,7 @@ export class OptionalInclusionsService {
         where: { id: variantId },
         data: { totalStock: nextTotal, version: { increment: 1 } },
       });
+      await this.assertActiveInclusionHasViableVariantTx(tx, inclusionId);
       await tx.inclusionInventoryMovement.create({
         data: {
           variantId,
@@ -493,6 +490,7 @@ export class OptionalInclusionsService {
         total: lineTotal.toFixed(2),
         attendeeIndex: selection.attendeeIndex,
         fulfillmentMethod: inclusion.fulfillmentMethod,
+        fulfillmentInstructions: inclusion.fulfillmentInstructions,
       });
     }
     for (const variant of variants) {
@@ -536,9 +534,14 @@ export class OptionalInclusionsService {
         total: discount.neg().toFixed(2),
       });
     const payableBeforeFee = admissionSubtotal.sub(discount).add(inclusionSubtotal);
+    const defaultFreeAdmissionAddOnFee = new Prisma.Decimal(
+      this.config.get<number>('optionalInclusions.defaultPlatformFee') ?? 50,
+    );
     const configuredFee = event.platformFee.gt(0)
       ? event.platformFee
-      : new Prisma.Decimal(this.config.get<number>('optionalInclusions.defaultPlatformFee') ?? 50);
+      : event.isFree && inclusionSubtotal.gt(0)
+        ? defaultFreeAdmissionAddOnFee
+        : new Prisma.Decimal(0);
     const fees = payableBeforeFee.gt(0) ? configuredFee.toDecimalPlaces(2) : new Prisma.Decimal(0);
     if (fees.gt(0))
       lines.push({
@@ -606,6 +609,9 @@ export class OptionalInclusionsService {
     tierId: string,
     attendeeIds: string[],
   ) {
+    // Lock order for checkout is event feature switch -> quote -> variants (sorted by id).
+    // A shared event lock keeps concurrent checkouts concurrent while making a disable wait.
+    await this.assertEventEnabledTx(tx, eventId);
     const locked = await tx.$queryRaw<Array<{ id: string }>>`
       SELECT id FROM checkout_quotes WHERE token = ${token} FOR UPDATE
     `;
@@ -687,6 +693,7 @@ export class OptionalInclusionsService {
           unitPrice: new Prisma.Decimal(line.unitPrice),
           total: new Prisma.Decimal(line.total),
           fulfillmentMethodSnapshot: line.fulfillmentMethod ?? null,
+          fulfillmentInstructionsSnapshot: line.fulfillmentInstructions ?? null,
         },
       });
       if (line.kind !== 'inclusion' || !line.sourceId) continue;
@@ -1003,17 +1010,24 @@ export class OptionalInclusionsService {
           'Optional Inclusions v1 requires the purchased line to be fulfilled in full',
         );
       }
-      const pending = line.fulfillments.find((item) => item.status === 'pending');
-      if (!pending || line.fulfillments.some((item) => item.status === 'fulfilled')) {
-        throw new ConflictException('This inclusion line is not pending fulfillment');
+      const fulfillmentRecord = line.fulfillments[0];
+      if (
+        !fulfillmentRecord ||
+        fulfillmentRecord.status === 'fulfilled' ||
+        fulfillmentRecord.status === 'cancelled'
+      ) {
+        throw new ConflictException('This inclusion line is not available for fulfillment');
       }
       const fulfillment = await tx.inclusionFulfillment.update({
-        where: { id: pending.id },
+        where: { id: fulfillmentRecord.id },
         data: {
           quantity: dto.quantity,
           status: 'fulfilled',
           fulfilledById: actorId,
           fulfilledAt: new Date(),
+          reversedById: null,
+          reversedAt: null,
+          reversalReason: null,
         },
       });
       if (line.sourceId)
@@ -1200,6 +1214,67 @@ export class OptionalInclusionsService {
         availableStock: variant.totalStock - variant.reservedStock - variant.soldStock,
       })),
     };
+  }
+
+  private async lockInclusionAndVariantsTx(
+    tx: Prisma.TransactionClient,
+    eventId: string,
+    inclusionId: string,
+  ): Promise<void> {
+    const inclusionRows = await tx.$queryRaw<Array<{ id: string }>>(Prisma.sql`
+      SELECT id
+      FROM event_inclusions
+      WHERE id = ${inclusionId} AND event_id = ${eventId}
+      FOR UPDATE
+    `);
+    if (!inclusionRows[0]) throw new NotFoundException('Optional inclusion not found');
+
+    await tx.$queryRaw<Array<{ id: string }>>(Prisma.sql`
+      SELECT id
+      FROM inclusion_variants
+      WHERE inclusion_id = ${inclusionId}
+      ORDER BY id
+      FOR UPDATE
+    `);
+  }
+
+  private async assertActiveInclusionHasViableVariantTx(
+    tx: Prisma.TransactionClient,
+    inclusionId: string,
+  ): Promise<void> {
+    const inclusion = await tx.eventInclusion.findUnique({
+      where: { id: inclusionId },
+      select: { status: true },
+    });
+    if (inclusion?.status !== 'active') return;
+
+    const viableVariantCount = await tx.inclusionVariant.count({
+      where: { inclusionId, isActive: true, totalStock: { gt: 0 } },
+    });
+    if (viableVariantCount === 0) {
+      throw new BadRequestException(
+        'An active inclusion requires at least one active variant with stock',
+      );
+    }
+  }
+
+  private async assertEventEnabledTx(
+    tx: Prisma.TransactionClient,
+    eventId: string,
+  ): Promise<void> {
+    this.assertGloballyEnabled();
+    const events = await tx.$queryRaw<Array<{ id: string; optionalInclusionsEnabled: boolean }>>(
+      Prisma.sql`
+        SELECT id, optional_inclusions_enabled AS "optionalInclusionsEnabled"
+        FROM events
+        WHERE id = ${eventId}
+        FOR SHARE
+      `,
+    );
+    if (!events[0]) throw new NotFoundException('Event not found');
+    if (!events[0].optionalInclusionsEnabled) {
+      throw new NotFoundException('Optional inclusions are not enabled for this event');
+    }
   }
 
   private validateConsumableQuote(
