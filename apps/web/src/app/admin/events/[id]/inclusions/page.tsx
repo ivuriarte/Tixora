@@ -486,9 +486,13 @@ export default function OptionalInclusionsPage() {
         `/admin/events/${eventId}/optional-inclusions/fulfillments/${fulfillment.lineItemId ?? fulfillment.id}`,
         { quantity: fulfillment.quantity },
       ),
-    onSuccess: () => {
+    onSuccess: (_response, fulfillment) => {
       refreshFulfillment();
-      toast.success('Inclusion fulfilled. Admission check-in was not changed.');
+      toast.success(
+        fulfillment.status.toUpperCase() === 'REVERSED'
+          ? 'Reversed inclusion fulfilled again. Admission check-in was not changed.'
+          : 'Inclusion fulfilled. Admission check-in was not changed.',
+      );
     },
     onError: () => toast.error('This inclusion could not be fulfilled.'),
   });
@@ -1131,7 +1135,9 @@ export default function OptionalInclusionsPage() {
                                   <span
                                     className={`rounded-full px-2.5 py-1 text-xs font-bold ${normalizedStatus === 'FULFILLED' ? 'bg-emerald-100 text-emerald-700' : normalizedStatus === 'PENDING' ? 'bg-amber-100 text-amber-800' : 'bg-gray-100 text-gray-600'}`}
                                   >
-                                    {item.status.toLowerCase().replaceAll('_', ' ')}
+                                    {normalizedStatus === 'REVERSED'
+                                      ? 'reversed · ready to fulfill again'
+                                      : item.status.toLowerCase().replaceAll('_', ' ')}
                                   </span>
                                 </td>
                                 <td className="px-4 py-4 text-xs text-gray-500">
@@ -1140,7 +1146,8 @@ export default function OptionalInclusionsPage() {
                                     : 'Not yet fulfilled'}
                                 </td>
                                 <td className="px-5 py-4 text-right">
-                                  {normalizedStatus === 'PENDING' ? (
+                                  {normalizedStatus === 'PENDING' ||
+                                  normalizedStatus === 'REVERSED' ? (
                                     <button
                                       type="button"
                                       disabled={!canFulfill || fulfillItem.isPending}
@@ -1148,7 +1155,7 @@ export default function OptionalInclusionsPage() {
                                       className="inline-flex min-h-10 items-center gap-1.5 rounded-full bg-emerald-600 px-4 text-xs font-bold uppercase tracking-[0.06em] text-white hover:bg-emerald-700 disabled:opacity-50"
                                     >
                                       <Check className="h-3.5 w-3.5" />
-                                      Fulfill
+                                      {normalizedStatus === 'REVERSED' ? 'Re-fulfill' : 'Fulfill'}
                                     </button>
                                   ) : normalizedStatus === 'FULFILLED' ? (
                                     <button

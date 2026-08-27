@@ -9,6 +9,7 @@ import toast from 'react-hot-toast';
 import { formatManila, formatPHP } from '@axon-tickets/utils';
 import api from '@/lib/api';
 import PaymentProofUpload from '@/components/PaymentProofUpload';
+import FulfillmentInstructions from '@/components/FulfillmentInstructions';
 import type { Registration, RegistrationStatus } from '@axon-tickets/types';
 import { trackPixelCustomEvent, trackPixelEvent } from '@/lib/metaPixel';
 import { ErrorState, ScreenSkeleton } from '@/components/ScreenState';
@@ -327,9 +328,7 @@ export default function RegistrationDetailPage() {
                         {fulfilled ? 'Fulfilled' : status.replace(/_/g, ' ')}
                       </span>
                     </div>
-                    {item.fulfillmentInstructions && (
-                      <p className="mt-3 rounded-lg bg-gray-50 px-3 py-2 text-xs leading-5 text-gray-600">{item.fulfillmentInstructions}</p>
-                    )}
+                    <FulfillmentInstructions instructions={item.fulfillmentInstructions} />
                   </article>
                 );
               })}

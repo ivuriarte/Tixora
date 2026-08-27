@@ -403,18 +403,19 @@ model CheckoutQuote {
 }
 
 model RegistrationLineItem {
-  id                        String                      @id @default(uuid())
-  registrationId            String                      @map("registration_id")
-  kind                      RegistrationLineItemKind
-  sourceId                  String?                     @map("source_id")
-  nameSnapshot              String                      @map("name_snapshot")
-  variantSnapshot           String?                     @map("variant_snapshot")
-  assignedAttendeeId        String?                     @map("assigned_attendee_id")
-  quantity                  Int
-  unitPrice                 Decimal                     @map("unit_price") @db.Decimal(10, 2)
-  total                     Decimal                     @db.Decimal(10, 2)
-  fulfillmentMethodSnapshot InclusionFulfillmentMethod? @map("fulfillment_method_snapshot")
-  createdAt                 DateTime                    @default(now()) @map("created_at")
+  id                              String                      @id @default(uuid())
+  registrationId                  String                      @map("registration_id")
+  kind                            RegistrationLineItemKind
+  sourceId                        String?                     @map("source_id")
+  nameSnapshot                    String                      @map("name_snapshot")
+  variantSnapshot                 String?                     @map("variant_snapshot")
+  assignedAttendeeId              String?                     @map("assigned_attendee_id")
+  quantity                        Int
+  unitPrice                       Decimal                     @map("unit_price") @db.Decimal(10, 2)
+  total                           Decimal                     @db.Decimal(10, 2)
+  fulfillmentMethodSnapshot       InclusionFulfillmentMethod? @map("fulfillment_method_snapshot")
+  fulfillmentInstructionsSnapshot String?                     @map("fulfillment_instructions_snapshot")
+  createdAt                       DateTime                    @default(now()) @map("created_at")
 
   registration Registration                    @relation(fields: [registrationId], references: [id], onDelete: Cascade)
   attendee     Attendee?                       @relation(fields: [assignedAttendeeId], references: [id], onDelete: SetNull)

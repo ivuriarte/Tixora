@@ -9,19 +9,8 @@ import { formatManila } from '@axon-tickets/utils';
 import Link from 'next/link';
 import Footer from '@/components/marketing/Footer';
 import { ErrorState } from '@/components/ScreenState';
-import type { RegistrationLineItem } from '@axon-tickets/types';
-
-interface TicketDetail {
-  id: string;
-  eventTitle: string;
-  eventStartsAt: string;
-  eventVenue: string;
-  tierName: string;
-  qrToken: string;
-  status: string;
-  checkedInAt?: string | null;
-  lineItems?: RegistrationLineItem[];
-}
+import FulfillmentInstructions from '@/components/FulfillmentInstructions';
+import type { AccountTicketDetail } from '@axon-tickets/types';
 
 export default function TicketDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -29,7 +18,7 @@ export default function TicketDetailPage() {
   const { data: ticket, isLoading, isError, refetch } = useQuery({
     queryKey: ['ticket', id],
     queryFn: () =>
-      api.get<{ data: TicketDetail }>(`/tickets/${id}`).then((r) => r.data.data),
+      api.get<{ data: AccountTicketDetail }>(`/tickets/${id}`).then((r) => r.data.data),
   });
 
   return (
@@ -103,10 +92,13 @@ export default function TicketDetailPage() {
                 <p className="text-xs font-bold uppercase tracking-wide text-primary">Optional add-ons</p>
                 <div className="mt-2 space-y-2">
                   {ticket.lineItems.filter((item) => item.kind === 'inclusion').map((item, index) => (
-                    <div key={item.id ?? index} className="flex items-start justify-between gap-3 text-sm">
-                      <span>{item.name}{item.variantName ? ` · ${item.variantName}` : ''} × {item.quantity}</span>
-                      <span className="shrink-0 text-xs font-semibold text-[#6b5b8a]">{(item.fulfillmentStatus ?? 'pending').replace(/_/g, ' ')}</span>
-                    </div>
+                    <article key={item.id ?? index} className="rounded-lg border border-[#e4dcf4] bg-white p-3 text-sm">
+                      <div className="flex items-start justify-between gap-3">
+                        <span>{item.name}{item.variantName ? ` · ${item.variantName}` : ''} × {item.quantity}</span>
+                        <span className="shrink-0 text-xs font-semibold capitalize text-[#6b5b8a]">{(item.fulfillmentStatus ?? 'pending').replace(/_/g, ' ')}</span>
+                      </div>
+                      <FulfillmentInstructions instructions={item.fulfillmentInstructions} />
+                    </article>
                   ))}
                 </div>
               </div>

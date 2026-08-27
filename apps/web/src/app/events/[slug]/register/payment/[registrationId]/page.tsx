@@ -11,6 +11,7 @@ import { formatPHP } from '@axon-tickets/utils';
 import { trackPixelCustomEvent, trackPixelEvent } from '@/lib/metaPixel';
 import { trackInternalFunnelEvent } from '@/lib/funnel';
 import { ErrorState, ScreenSkeleton } from '@/components/ScreenState';
+import FulfillmentInstructions from '@/components/FulfillmentInstructions';
 
 export default function PaymentStepPage() {
   const router = useRouter();
@@ -214,11 +215,14 @@ export default function PaymentStepPage() {
             <h2 className="font-semibold text-gray-900">Payment breakdown</h2>
             <div className="mt-3 space-y-2 text-sm">
               {reg.lineItems.map((item, index) => (
-                <div key={item.id ?? `${item.kind}-${index}`} className="flex justify-between gap-4 text-gray-600">
-                  <span>
-                    {item.name}{item.variantName ? ` · ${item.variantName}` : ''} × {item.quantity}
+                <div key={item.id ?? `${item.kind}-${index}`} className="flex items-start justify-between gap-4 text-gray-600">
+                  <div className="min-w-0 flex-1">
+                    <span>{item.name}{item.variantName ? ` · ${item.variantName}` : ''} × {item.quantity}</span>
                     {item.attendeeName && <span className="block text-xs text-gray-400">For {item.attendeeName}</span>}
-                  </span>
+                    {item.kind === 'inclusion' && (
+                      <FulfillmentInstructions instructions={item.fulfillmentInstructions} />
+                    )}
+                  </div>
                   <span>{item.total === 0 ? 'Free' : formatPHP(item.total)}</span>
                 </div>
               ))}

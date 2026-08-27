@@ -9,20 +9,7 @@ import { ErrorState as QueryErrorState } from '@/components/ScreenState';
 import Link from 'next/link';
 import Image from 'next/image';
 import { formatManila, formatPHP } from '@axon-tickets/utils';
-import type { RegistrationSummary, RegistrationStatus } from '@axon-tickets/types';
-
-interface Ticket {
-  id: string;
-  source: 'order' | 'registration';
-  eventTitle: string;
-  eventSlug: string;
-  eventStartsAt: string;
-  eventVenue: string;
-  eventImageUrl?: string | null;
-  tierName: string;
-  attendeeName?: string;
-  status: string;
-}
+import type { AccountTicketSummary, RegistrationSummary, RegistrationStatus } from '@axon-tickets/types';
 
 const REG_STATUS_LABELS: Record<RegistrationStatus, string> = {
   pending_payment:   'Waiting for Payment',
@@ -141,7 +128,7 @@ export default function MyEventsPage() {
 
   const { data: tickets, isLoading: ticketsLoading, isError: ticketsError, refetch: refetchTickets } = useQuery({
     queryKey: ['my-tickets'],
-    queryFn: () => api.get<{ data: { data: Ticket[] } }>('/tickets').then((r) => r.data.data.data),
+    queryFn: () => api.get<{ data: { data: AccountTicketSummary[] } }>('/tickets').then((r) => r.data.data.data),
   });
 
   const { data: registrations, isLoading: regsLoading, isError: regsError, refetch: refetchRegistrations } = useQuery({
@@ -156,8 +143,8 @@ export default function MyEventsPage() {
 
   const { upcomingTickets, pastTickets } = useMemo(() => {
     const now = Date.now();
-    const upcoming: Ticket[] = [];
-    const past: Ticket[] = [];
+    const upcoming: AccountTicketSummary[] = [];
+    const past: AccountTicketSummary[] = [];
     (tickets ?? []).forEach((t) => {
       (new Date(t.eventStartsAt).getTime() >= now ? upcoming : past).push(t);
     });
@@ -310,7 +297,7 @@ export default function MyEventsPage() {
 
 // ── Card components ─────────────────────────────────────────────────────────
 
-function TicketCard({ ticket, muted = false }: { ticket: Ticket; muted?: boolean }) {
+function TicketCard({ ticket, muted = false }: { ticket: AccountTicketSummary; muted?: boolean }) {
   const style = TICKET_STATUS_STYLES[ticket.status] ?? { dot: 'bg-gray-400', chip: 'bg-gray-100 text-gray-600 ring-gray-500/20', label: ticket.status };
   // Registration-based tickets use att_ prefix — route to the attendee detail page
   const href =
@@ -336,6 +323,11 @@ function TicketCard({ ticket, muted = false }: { ticket: Ticket; muted?: boolean
             <span className="ml-1.5 text-gray-400">· {ticket.attendeeName}</span>
           )}
         </p>
+        {!!ticket.inclusionCount && ticket.inclusionCount > 0 && (
+          <p className="mt-1 text-xs font-medium text-primary">
+            {ticket.inclusionCount} optional add-on{ticket.inclusionCount === 1 ? '' : 's'} · separate fulfillment
+          </p>
+        )}
       </div>
       <div className="flex flex-col items-end gap-2 shrink-0">
         <StatusChip dot={style.dot} chip={style.chip}>{style.label}</StatusChip>
