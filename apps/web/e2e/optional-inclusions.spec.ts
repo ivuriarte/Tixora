@@ -98,6 +98,18 @@ test.describe('Optional Inclusions v1 — UAT release gate', () => {
   test('customer pages distinguish optional add-ons from admission and onsite sales', async ({
     page,
   }) => {
+    // Vercel protection applies to the web deployment only. Keeping its bypass
+    // headers on cross-origin API calls would trigger a rejected CORS preflight.
+    if (process.env.VERCEL_AUTOMATION_BYPASS_SECRET) {
+      const apiOrigin = new URL(API_URL).origin;
+      await page.route(`${apiOrigin}/**`, async (route) => {
+        const headers = { ...route.request().headers() };
+        delete headers['x-vercel-protection-bypass'];
+        delete headers['x-vercel-set-bypass-cookie'];
+        await route.continue({ headers });
+      });
+    }
+
     await page.goto(`/events/${EVENT_SLUG}`);
     await expect(page.getByRole('heading', { name: 'Optional add-ons' })).toBeVisible();
 
