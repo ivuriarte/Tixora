@@ -88,7 +88,7 @@ export default defineConfig({
     },
     {
       name: 'admin',
-      testMatch: /admin-(flows|live-lifecycle)\.spec\.ts/,
+      testMatch: /(admin-(flows|live-lifecycle)|icebreaker)\.spec\.ts/,
       dependencies: ['admin-setup'],
       use: {
         ...devices['Desktop Chrome'],

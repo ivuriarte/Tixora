@@ -281,10 +281,8 @@ jobs:
           npx playwright test
           e2e/admin-flows.spec.ts
           e2e/admin-live-lifecycle.spec.ts
+          e2e/icebreaker.spec.ts
           --project=admin
-
-      - name: Run authenticated Icebreaker suite
-        run: npx playwright test e2e/icebreaker.spec.ts --project=chromium
 
       - name: Upload admin Playwright evidence
         if: always()
