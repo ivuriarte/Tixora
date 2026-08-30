@@ -283,6 +283,9 @@ jobs:
           e2e/admin-live-lifecycle.spec.ts
           --project=admin
 
+      - name: Run authenticated Icebreaker suite
+        run: npx playwright test e2e/icebreaker.spec.ts --project=chromium
+
       - name: Upload admin Playwright evidence
         if: always()
         uses: actions/upload-artifact@v4
