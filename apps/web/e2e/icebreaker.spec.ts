@@ -39,7 +39,7 @@ async function gotoAdmin(page: Page, path: string) {
 test.describe('Icebreaker tab', () => {
   test.skip(!HAS_ADMIN_CREDENTIALS, 'Admin credentials not configured');
 
-  test('navigates to icebreaker tab and renders the wheel', async ({ page }) => {
+  test('navigates to icebreaker tab and renders the wheel', async ({ adminPage: page }) => {
     // Go to admin events list to find an event
     await gotoAdmin(page, '/admin/events');
 
@@ -69,7 +69,7 @@ test.describe('Icebreaker tab', () => {
     ).toBeVisible();
   });
 
-  test('switches between wheel and raffle modes', async ({ page }) => {
+  test('switches between wheel and raffle modes', async ({ adminPage: page }) => {
     await gotoAdmin(page, '/admin/events');
 
     const eventLink = page.locator('a[href*="/admin/events/"]').first();
@@ -98,7 +98,7 @@ test.describe('Icebreaker tab', () => {
     ).toBeVisible();
   });
 
-  test('icebreaker tab appears in event detail navigation', async ({ page }) => {
+  test('icebreaker tab appears in event detail navigation', async ({ adminPage: page }) => {
     await gotoAdmin(page, '/admin/events');
 
     const eventLink = page.locator('a[href*="/admin/events/"]').first();
