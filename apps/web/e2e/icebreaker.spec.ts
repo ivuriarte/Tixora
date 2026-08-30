@@ -58,8 +58,8 @@ test.describe('Icebreaker tab', () => {
     await expect(page.getByRole('heading', { name: 'Icebreaker' })).toBeVisible();
 
     // Verify mode switcher is present with Wheel and Raffle buttons
-    await expect(page.getByRole('button', { name: 'Wheel' })).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Raffle' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Wheel', exact: true })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Raffle', exact: true })).toBeVisible();
 
     // Verify the spin button is present (wheel mode is default)
     await expect(page.getByRole('button', { name: /spin the wheel/i })).toBeVisible();
@@ -82,11 +82,11 @@ test.describe('Icebreaker tab', () => {
     await expect(page.getByRole('button', { name: /spin the wheel/i })).toBeVisible();
 
     // Switch to raffle mode
-    await page.getByRole('button', { name: 'Raffle' }).click();
+    await page.getByRole('button', { name: 'Raffle', exact: true }).click();
     await expect(page.getByRole('button', { name: /draw winners/i })).toBeVisible();
 
     // Switch back to wheel
-    await page.getByRole('button', { name: 'Wheel' }).click();
+    await page.getByRole('button', { name: 'Wheel', exact: true }).click();
     await expect(page.getByRole('button', { name: /spin the wheel/i })).toBeVisible();
   });
 
