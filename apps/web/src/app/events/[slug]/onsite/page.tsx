@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, useMemo, useState, type FormEvent } from 'react';
+import { useEffect, useId, useMemo, useState, type FormEvent } from 'react';
+import { useParams, useSearchParams } from 'next/navigation';
 import axios from 'axios';
 import { ScreenSkeleton } from '@/components/ScreenState';
 
@@ -54,19 +55,6 @@ const blankForm = {
   jobTitle: '',
 };
 
-interface ProfileSuggestion {
-  firstName: string;
-  lastName: string;
-  email: string;
-  contactNumber: string;
-  gender: string;
-  birthday: string;
-  city: string;
-  company: string;
-  jobTitle: string;
-  maskedEmail: string;
-}
-
 function getSubEvents(event?: EventData | null): AgendaSubEvent[] {
   return Array.isArray(event?.agenda)
     ? event.agenda
@@ -83,18 +71,10 @@ function statusLabel(status?: string) {
   return (status || '').replace(/_/g, ' ');
 }
 
-function firstSearchParam(value?: string | string[]) {
-  return Array.isArray(value) ? value[0] ?? '' : value ?? '';
-}
-
-export default function OnsiteRegistrationPage({
-  params,
-  searchParams,
-}: {
-  params: { slug: string };
-  searchParams?: { eventId?: string | string[] };
-}) {
-  const eventId = firstSearchParam(searchParams?.eventId).trim();
+export default function OnsiteRegistrationPage() {
+  const params = useParams<{ slug: string }>();
+  const searchParams = useSearchParams();
+  const eventId = (searchParams.get('eventId') ?? '').trim();
   const eventQuery = eventId ? `?eventId=${encodeURIComponent(eventId)}` : '';
   const [event, setEvent] = useState<EventData | null>(null);
   const [form, setForm] = useState(blankForm);
@@ -102,10 +82,7 @@ export default function OnsiteRegistrationPage({
   const [submitting, setSubmitting] = useState(false);
   const [result, setResult] = useState<OnsiteResult | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [suggestion, setSuggestion] = useState<ProfileSuggestion | null>(null);
-  const [checkingSuggestion, setCheckingSuggestion] = useState(false);
   const subEvents = useMemo<AgendaSubEvent[]>(() => getSubEvents(event), [event]);
-  const registrationOpen = event?.onsiteRegistrationEnabled === true && event.status === 'on_sale';
 
   useEffect(() => {
     let cancelled = false;
@@ -195,43 +172,6 @@ export default function OnsiteRegistrationPage({
     }
   }
 
-  useEffect(() => {
-    if (!registrationOpen || result || form.emailNotApplicable) {
-      if (form.emailNotApplicable) setSuggestion(null);
-      return;
-    }
-    const firstName = form.firstName.trim();
-    const lastName = form.lastName.trim();
-    if (firstName.length < 2 || lastName.length < 2) {
-      setSuggestion(null);
-      return;
-    }
-
-    let cancelled = false;
-    const timer = window.setTimeout(() => {
-      setCheckingSuggestion(true);
-      axios
-        .post<{ data: { match: ProfileSuggestion | null } }>(
-          `${API_URL}/events/${params.slug}/onsite-registration/suggestions`,
-          { firstName, lastName, eventId: eventId || undefined },
-        )
-        .then((res) => {
-          if (!cancelled) setSuggestion(res.data.data.match);
-        })
-        .catch(() => {
-          if (!cancelled) setSuggestion(null);
-        })
-        .finally(() => {
-          if (!cancelled) setCheckingSuggestion(false);
-        });
-    }, 500);
-
-    return () => {
-      cancelled = true;
-      window.clearTimeout(timer);
-    };
-  }, [eventId, form.emailNotApplicable, form.firstName, form.lastName, params.slug, registrationOpen, result]);
-
   if (loading) {
     return (
       <main className="min-h-screen bg-[#f5f0ff] px-4 py-8">
@@ -293,12 +233,13 @@ export default function OnsiteRegistrationPage({
               </div>
             )}
             <div className="rounded-xl border border-blue-100 bg-blue-50 px-4 py-3 text-sm leading-relaxed text-blue-900">
-              <span className="font-semibold">Please share your email if you have one.</span> We use it only to create your Axon Tickets account, send event confirmations, and make future event-day check-ins faster. If you genuinely do not have an email address, choose <span className="font-semibold">Email not applicable</span> below and staff can still record your attendance.
+              <span className="font-semibold">Please share your email if you have one.</span> We use it only for this event&apos;s registration, confirmation, and attendance records. This walk-in form does not create, verify, link, or update an Axon Tickets account. If you genuinely do not have an email address, choose <span className="font-semibold">Email not applicable</span> below and staff can still record your attendance.
             </div>
             {event.tiers.length > 1 && (
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Registration type</label>
+                <label htmlFor="onsite-registration-tier" className="block text-sm font-medium text-gray-700 mb-1">Registration type</label>
                 <select
+                  id="onsite-registration-tier"
                   value={form.tierId}
                   onChange={(e) => field('tierId', e.target.value)}
                   className="w-full rounded-xl border border-gray-300 px-3 py-3 text-base focus:outline-none focus:ring-2 focus:ring-primary sm:py-2.5 sm:text-sm"
@@ -334,54 +275,23 @@ export default function OnsiteRegistrationPage({
                   onChange={(e) => {
                     const checked = e.target.checked;
                     setForm((current) => ({ ...current, emailNotApplicable: checked, email: checked ? '' : current.email }));
-                    setSuggestion(null);
                   }}
                   className="mt-0.5 h-4 w-4 shrink-0 rounded border-amber-300 text-primary focus:ring-primary"
                 />
                 <span>
                   <span className="font-semibold">Email not applicable</span>
                   <span className="mt-1 block text-xs leading-relaxed text-amber-800">
-                    Use this only when the attendee genuinely has no email address. Without an email, we cannot create an Axon Tickets account or send digital confirmations for them.
+                    Use this only when the attendee genuinely has no email address. Without an email, we cannot send digital confirmations for this event.
                   </span>
                 </span>
               </label>
             </div>
-            {checkingSuggestion && (
-              <p className="text-xs text-gray-500">Checking saved attendee details…</p>
-            )}
-            {suggestion && (
-              <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3">
-                <p className="text-sm font-semibold text-emerald-900">Saved details found for {suggestion.firstName} {suggestion.lastName}</p>
-                <p className="mt-1 text-xs text-emerald-800">Use saved details from {suggestion.maskedEmail}, then choose today&apos;s sub-events.</p>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setForm((current) => ({
-                      ...current,
-                      firstName: suggestion.firstName,
-                      lastName: suggestion.lastName,
-                      email: suggestion.email,
-                      emailNotApplicable: false,
-                      contactNumber: suggestion.contactNumber,
-                      gender: suggestion.gender,
-                      birthday: suggestion.birthday,
-                      city: suggestion.city,
-                      company: suggestion.company,
-                      jobTitle: suggestion.jobTitle,
-                    }));
-                    setSuggestion(null);
-                  }}
-                  className="mt-3 min-h-11 rounded-lg bg-emerald-700 px-4 text-sm font-semibold text-white hover:bg-emerald-800"
-                >
-                  Fill in my details
-                </button>
-              </div>
-            )}
             <Field label="Contact number" type="tel" value={form.contactNumber} onChange={(v) => field('contactNumber', v)} autoComplete="tel" />
             <div className="grid gap-3 sm:grid-cols-2">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Gender</label>
+                <label htmlFor="onsite-registration-gender" className="block text-sm font-medium text-gray-700 mb-1">Gender</label>
                 <select
+                  id="onsite-registration-gender"
                   value={form.gender}
                   onChange={(e) => field('gender', e.target.value)}
                   className="w-full rounded-xl border border-gray-300 px-3 py-3 text-base focus:outline-none focus:ring-2 focus:ring-primary sm:py-2.5 sm:text-sm"
@@ -488,12 +398,15 @@ function Field({
   autoComplete?: string;
   disabled?: boolean;
 }) {
+  const id = useId();
+
   return (
     <div>
-      <label className="block text-sm font-medium text-gray-700 mb-1">
+      <label htmlFor={id} className="block text-sm font-medium text-gray-700 mb-1">
         {label}{required && <span className="text-red-500"> *</span>}
       </label>
       <input
+        id={id}
         type={type}
         value={value}
         onChange={(e) => onChange(e.target.value)}

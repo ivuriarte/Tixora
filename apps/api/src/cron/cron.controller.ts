@@ -122,6 +122,17 @@ export class CronController {
     return { ok: true };
   }
 
+  @Post('enforce-attendee-retention')
+  @HttpCode(HttpStatus.OK)
+  async enforceAttendeeRetention(
+    @Headers('x-cron-secret') secret: string | undefined,
+  ) {
+    this.verifySecret(secret);
+    this.logger.log({ msg: 'External cron: enforce-attendee-retention triggered' });
+    const result = await this.schedulerService.enforceAttendeeRetention();
+    return { ok: true, ...result };
+  }
+
   /** Daily at 08:00 Asia/Manila. Sends idempotent due-date digests to the
    * verified Responsible and Accountable members linked to each task. */
   @Get('workspace-due-reminders')

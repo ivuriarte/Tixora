@@ -110,9 +110,12 @@ export interface RegistrationSummary {
 export interface CreateRegistrationDto {
   eventId: string;
   tierId: string;
+  guestEmail?: string;
   subEventId?: string;
   subEventIds?: string[];
-  attendees: AttendeeInput[];
+  attendees?: AttendeeInput[];
+  attendeeCount?: number;
+  accountConsent?: boolean;
   notes?: string;
   referralCode?: string;
   quoteToken?: string;
@@ -129,4 +132,19 @@ export interface AttendeeInput {
   birthday?: string;
   gender?: 'female' | 'male' | 'non_binary' | 'prefer_not_to_say' | 'self_described';
   city?: string;
+  raceDistance?: string;
+  raceDivision?: string;
+  genderIdentity?: string;
+  emergencyContactName?: string;
+  emergencyContactPhone?: string;
+  emergencyContactRelationship?: string;
+  merchandiseSize?: string;
+  claimMethod?: 'self_claim' | 'delivery';
+  deliveryAddress?: {
+    line1: string;
+    line2?: string;
+    city: string;
+    province: string;
+    postalCode: string;
+  };
 }

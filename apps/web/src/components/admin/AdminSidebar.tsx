@@ -135,6 +135,16 @@ const SECTIONS: NavSection[] = [
           </svg>
         ),
       },
+      {
+        href: '/admin/executive-analytics',
+        label: 'Executive analytics',
+        adminOnly: true,
+        icon: (
+          <svg className="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth={1.75} viewBox="0 0 24 24" aria-hidden>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M3 3v18h18M7 16l4-5 3 3 5-7" />
+          </svg>
+        ),
+      },
     ],
   },
   {
@@ -258,12 +268,11 @@ export default function AdminSidebar({ isOpen, onClose }: { isOpen: boolean; onC
         <div>
           <Link href="/admin" className="flex items-center" onClick={onClose}>
             <Image
-              src="/axon-logo.svg"
+              src="/axon-tickets-logo.png"
               alt="Axon Tickets"
               width={120}
-              height={24}
+              height={34}
               priority
-              unoptimized
             />
           </Link>
           <p className="text-[11px] text-gray-400 mt-1.5">{user?.isAdmin ? 'Admin panel' : 'Organizer workspace'}</p>

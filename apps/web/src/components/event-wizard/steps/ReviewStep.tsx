@@ -26,7 +26,7 @@ function Section({
   title, onEdit, hasError, children,
 }: {
   title: string;
-  onEdit: () => void;
+  onEdit?: () => void;
   hasError?: boolean;
   children: React.ReactNode;
 }) {
@@ -39,7 +39,7 @@ function Section({
             <span className="text-[10px] uppercase tracking-wider text-red-600 bg-red-100 px-1.5 py-0.5 rounded">Needs attention</span>
           )}
         </h3>
-        <button type="button" onClick={onEdit} className="text-xs text-primary hover:underline font-medium">Edit</button>
+        {onEdit && <button type="button" onClick={onEdit} className="text-xs text-primary hover:underline font-medium">Edit</button>}
       </div>
       <div className="text-sm text-gray-700 space-y-1">{children}</div>
     </div>
@@ -53,6 +53,7 @@ export default function ReviewStep({ draft, tiers, paymentMethods, onJump }: Rev
   const basicsErr = validateStep('basics', draft, tiers);
   const locationErr = validateStep('location', draft, tiers);
   const capacityErr = validateStep('capacity', draft, tiers);
+  const paymentErr = validateStep('payment', draft, tiers, paymentMethods);
 
   return (
     <>
@@ -106,9 +107,15 @@ export default function ReviewStep({ draft, tiers, paymentMethods, onJump }: Rev
           )}
         </Section>
 
-        <Section title="Payment Methods (optional)" onEdit={() => onJump('payment')}>
+        <Section
+          title={draft.isFree ? 'Payment Methods (skipped)' : 'Payment Methods (required)'}
+          onEdit={draft.isFree ? undefined : () => onJump('payment')}
+          hasError={!draft.isFree && !!paymentErr}
+        >
           {paymentMethods.length === 0 ? (
-            <em className="text-gray-400 text-xs">Skipped</em>
+            <em className={draft.isFree ? 'text-gray-400 text-xs' : 'text-xs font-semibold text-red-600'}>
+              {draft.isFree ? 'Not required for this free event' : 'Add a payment method before publishing'}
+            </em>
           ) : (
             <ul className="text-xs space-y-0.5">
               {paymentMethods.map((pm) => (

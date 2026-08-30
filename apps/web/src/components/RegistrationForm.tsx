@@ -29,25 +29,61 @@ interface AttendeeFields {
   firstName: string;
   lastName: string;
   email: string;
+  confirmEmail: string;
   phone: string;
   company: string;
   jobTitle: string;
   birthday: string;
   gender: string;
   city: string;
+  raceDistance: string;
+  raceDivision: string;
+  genderIdentity: string;
+  emergencyContactName: string;
+  emergencyContactPhone: string;
+  emergencyContactRelationship: string;
+  merchandiseSize: string;
+  claimMethod: string;
+  deliveryLine1: string;
+  deliveryLine2: string;
+  deliveryCity: string;
+  deliveryProvince: string;
+  deliveryPostalCode: string;
 }
 
 const emptyAttendee = (): AttendeeFields => ({
   firstName: '',
   lastName: '',
   email: '',
+  confirmEmail: '',
   phone: '',
   company: '',
   jobTitle: '',
   birthday: '',
   gender: '',
   city: '',
+  raceDistance: '',
+  raceDivision: '',
+  genderIdentity: '',
+  emergencyContactName: '',
+  emergencyContactPhone: '',
+  emergencyContactRelationship: '',
+  merchandiseSize: '',
+  claimMethod: '',
+  deliveryLine1: '',
+  deliveryLine2: '',
+  deliveryCity: '',
+  deliveryProvince: '',
+  deliveryPostalCode: '',
 });
+
+interface RunningConfig {
+  distances?: Array<{ name: string; code: string }>;
+  raceDivisions?: string[];
+  genderIdentityOptions?: string[];
+  merchandiseSizes?: string[];
+  claimMethods?: Array<'self_claim' | 'delivery'>;
+}
 
 interface PaymentMethod {
   name: string;
@@ -61,6 +97,13 @@ interface AgendaSubEventOption {
   id: string;
   title: string;
   time?: string;
+}
+
+interface GuestDuplicateConflict {
+  email: string;
+  attendeeName: string;
+  transactionDate: string;
+  referenceNumber: string;
 }
 
 interface Props {
@@ -85,11 +128,18 @@ interface Props {
   /** Server-returned payable total for edit mode. */
   initialTotal?: number;
   /** Pre-filled attendee data for edit mode or post-OTP guest flow. */
-  initialAttendees?: AttendeeFields[];
+  initialAttendees?: Array<Partial<AttendeeFields>>;
   /** Pre-filled notes for edit mode or post-OTP guest flow. */
   initialNotes?: string;
+  eventType?: 'standard' | 'running';
+  runningConfig?: RunningConfig | null;
+  /** Scoped token for a consent-free guest registration. Never persisted outside sessionStorage. */
+  guestAccessToken?: string;
   /** True when a guest used "I'm new here" but the email matched an existing verified account. */
   existingAccountDetected?: boolean;
+  /** Paid checkout identity selected after payment proof. */
+  checkoutMode?: 'authenticated' | 'guest' | 'account';
+  onCheckoutStageChange?: (stage: 'details' | 'confirmation' | 'otp') => void;
   /** Separately selectable products. Existing tier inclusions remain included benefits. */
   optionalInclusions?: EventOptionalInclusion[];
   onCheckoutStepChange?: (step: 'attendees' | 'addons') => void;
@@ -114,17 +164,30 @@ export default function RegistrationForm({
   initialTotal,
   initialAttendees,
   initialNotes,
+  eventType = 'standard',
+  runningConfig,
+  guestAccessToken,
   existingAccountDetected = false,
+  checkoutMode,
+  onCheckoutStageChange,
   optionalInclusions = [],
   onCheckoutStepChange,
 }: Props) {
   const router = useRouter();
   const currentUser = useAuthStore((s) => s.user);
+  const setAuth = useAuthStore((s) => s.setAuth);
+  const skipDetailsForAuthenticatedSingle = Boolean(
+    registrationId && checkoutMode === 'authenticated' && qty === 1,
+  );
   const [attendees, setAttendees] = useState<AttendeeFields[]>(() =>
-    initialAttendees?.map((attendee) => ({ ...emptyAttendee(), ...attendee })) ?? Array.from({ length: qty }, emptyAttendee),
+    initialAttendees?.map((attendee) => ({
+      ...emptyAttendee(),
+      ...attendee,
+      confirmEmail: attendee.confirmEmail ?? attendee.email ?? '',
+    })) ?? Array.from({ length: qty }, emptyAttendee),
   );
   // Default ON unless we're in edit mode (initialAttendees already provides the data)
-  const [useMyDetails, setUseMyDetails] = useState(!initialAttendees);
+  const [useMyDetails, setUseMyDetails] = useState(Boolean(currentUser && !initialAttendees));
   const [profileData, setProfileData] = useState<ProfileData | null>(null);
   const [profileLoading, setProfileLoading] = useState(false);
   const [notes, setNotes] = useState(initialNotes ?? '');
@@ -136,7 +199,14 @@ export default function RegistrationForm({
   const [referralMessage, setReferralMessage] = useState<string | null>(null);
   const [referralError, setReferralError] = useState<string | null>(null);
   const [checkingReferral, setCheckingReferral] = useState(false);
-  const [checkoutStage, setCheckoutStage] = useState<'attendees' | 'addons'>('attendees');
+  const [checkoutStage, setCheckoutStage] = useState<'details' | 'confirmation' | 'otp'>(
+    skipDetailsForAuthenticatedSingle ? 'confirmation' : 'details',
+  );
+  const [checkoutOtp, setCheckoutOtp] = useState('');
+  const [pendingUserId, setPendingUserId] = useState('');
+  const [duplicateConflicts, setDuplicateConflicts] = useState<GuestDuplicateConflict[]>([]);
+  const otpVerificationRef = useRef(false);
+  const [inclusionCheckoutStage, setInclusionCheckoutStage] = useState<'attendees' | 'addons'>('attendees');
   const [inclusionSelections, setInclusionSelections] = useState<InclusionSelection[]>([]);
   const [quote, setQuote] = useState<InclusionQuote | null>(null);
   const [quoteLoading, setQuoteLoading] = useState(false);
@@ -159,8 +229,20 @@ export default function RegistrationForm({
   const totalPesos = Math.max(0, subtotalPesos - referralDiscount) + feesPesos;
   const isFreeRegistration = unitPrice === 0 && feesPesos === 0;
   const hasOptionalInclusions = !registrationId && optionalInclusions.length > 0;
+  const isPaymentIntentStep = !hasOptionalInclusions && !registrationId && !isFreeRegistration;
+  const promoCodesEnabled = false; // Release 2.0 is manual-payment proof only.
   const requiresSubEvent = !registrationId && subEvents.length > 0;
   const allSubEventsSelected = subEvents.length > 0 && selectedSubEventIds.length === subEvents.length;
+  const isPaidCompletionFlow = Boolean(registrationId && checkoutMode && !isFreeRegistration);
+  const confirmationReady = attendees.every((attendee) =>
+    attendee.firstName.trim() && attendee.lastName.trim() && attendee.email.trim(),
+  );
+
+  const changeCheckoutStage = (stage: 'details' | 'confirmation' | 'otp') => {
+    setCheckoutStage(stage);
+    onCheckoutStageChange?.(stage);
+    setError(null);
+  };
 
   const updateInclusionQuantity = (
     inclusionId: string,
@@ -220,12 +302,12 @@ export default function RegistrationForm({
   };
 
   useEffect(() => {
-    if (checkoutStage !== 'addons' || !hasOptionalInclusions) return;
+    if (inclusionCheckoutStage !== 'addons' || !hasOptionalInclusions) return;
     const timer = window.setTimeout(() => void refreshQuote(), 250);
     return () => window.clearTimeout(timer);
     // Quote inputs are intentionally serialized so a new quote is obtained for every basket change.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [checkoutStage, hasOptionalInclusions, inclusionSelections, referralMessage]);
+  }, [inclusionCheckoutStage, hasOptionalInclusions, inclusionSelections, referralMessage]);
 
   useEffect(() => {
     if (registrationId || subEvents.length === 0) return;
@@ -268,9 +350,11 @@ export default function RegistrationForm({
       setAttendees((prev) => {
         const next = [...prev];
         next[0] = {
+          ...emptyAttendee(),
           firstName: profile?.firstName ?? currentUser?.firstName ?? '',
           lastName: profile?.lastName ?? currentUser?.lastName ?? '',
           email: profile?.email ?? currentUser?.email ?? '',
+          confirmEmail: profile?.email ?? currentUser?.email ?? '',
           phone: profile?.phone ?? '',
           company: profile?.company ?? '',
           jobTitle: profile?.jobTitle ?? '',
@@ -323,15 +407,202 @@ export default function RegistrationForm({
     bankAccountNumber ||
     paymentInstructions;
 
+  const buildAttendeePayload = () => attendees.map((a) => ({
+    firstName: a.firstName.trim(),
+    lastName: a.lastName.trim(),
+    email: a.email.trim().toLowerCase(),
+    ...(a.phone.trim() && { phone: a.phone.trim() }),
+    ...(a.company.trim() && { company: a.company.trim() }),
+    ...(a.jobTitle.trim() && { jobTitle: a.jobTitle.trim() }),
+    ...(a.birthday && { birthday: a.birthday }),
+    ...(a.gender && { gender: a.gender as 'female' | 'male' | 'non_binary' | 'prefer_not_to_say' | 'self_described' }),
+    ...(a.city.trim() && { city: a.city.trim() }),
+    ...(a.raceDistance && { raceDistance: a.raceDistance }),
+    ...(a.raceDivision && { raceDivision: a.raceDivision }),
+    ...(a.genderIdentity && { genderIdentity: a.genderIdentity }),
+    ...(a.emergencyContactName.trim() && { emergencyContactName: a.emergencyContactName.trim() }),
+    ...(a.emergencyContactPhone.trim() && { emergencyContactPhone: a.emergencyContactPhone.trim() }),
+    ...(a.emergencyContactRelationship.trim() && { emergencyContactRelationship: a.emergencyContactRelationship.trim() }),
+    ...(a.merchandiseSize && { merchandiseSize: a.merchandiseSize }),
+    ...(a.claimMethod && { claimMethod: a.claimMethod as 'self_claim' | 'delivery' }),
+    ...(a.claimMethod === 'delivery' && {
+      deliveryAddress: {
+        line1: a.deliveryLine1.trim(),
+        ...(a.deliveryLine2.trim() && { line2: a.deliveryLine2.trim() }),
+        city: a.deliveryCity.trim(),
+        province: a.deliveryProvince.trim(),
+        postalCode: a.deliveryPostalCode.trim(),
+      },
+    }),
+  }));
+
+  const attendeeUpdatePayload = () => ({
+    attendees: buildAttendeePayload(),
+    ...(notes.trim() && { notes: notes.trim() }),
+  });
+
+  async function syncAuthenticatedProfile() {
+    if (!currentUser) return;
+    const lead = attendees[0];
+    const profilePatch = {
+      firstName: lead.firstName.trim(),
+      lastName: lead.lastName.trim(),
+      phone: lead.phone.trim(),
+      company: lead.company.trim(),
+      jobTitle: lead.jobTitle.trim(),
+      city: lead.city.trim(),
+      ...(lead.birthday && { birthday: lead.birthday }),
+      ...(lead.gender && { gender: lead.gender }),
+    };
+    try {
+      await api.patch('/users/me', profilePatch);
+    } catch {
+      // The registration remains valid if an optional profile sync fails.
+    }
+  }
+
+  async function confirmPaidCheckout() {
+    if (!registrationId || !checkoutMode || !guestAccessToken && checkoutMode !== 'authenticated') return;
+    setLoading(true);
+    setError(null);
+    try {
+      if (checkoutMode === 'authenticated') {
+        await api.patch(`/registrations/${registrationId}/attendees`, attendeeUpdatePayload());
+        await syncAuthenticatedProfile();
+        router.push(`/events/${eventSlug}/register/complete?registrationId=${registrationId}&scenario=authenticated`);
+        return;
+      }
+
+      const leadEmail = attendees[0]?.email.trim().toLowerCase();
+      if (checkoutMode === 'guest') {
+        const duplicateResponse = await api.post<{ data?: { conflicts: GuestDuplicateConflict[] }; conflicts?: GuestDuplicateConflict[] }>(
+          `/registrations/guest/${registrationId}/check-duplicates`,
+          { emails: attendees.map((attendee) => attendee.email.trim().toLowerCase()) },
+          { headers: { 'x-registration-token': guestAccessToken } },
+        );
+        const conflicts = duplicateResponse.data.data?.conflicts ?? duplicateResponse.data.conflicts ?? [];
+        if (conflicts.length > 0) {
+          setDuplicateConflicts(conflicts);
+          return;
+        }
+        await api.post(
+          `/registrations/guest/${registrationId}/request-confirmation-code`,
+          { email: leadEmail },
+          { headers: { 'x-registration-token': guestAccessToken } },
+        );
+      } else {
+        const response = await api.post<{ data: { userId: string } }>('/auth/request-access', {
+          email: leadEmail,
+          eventId,
+          eventSlug,
+        });
+        setPendingUserId(response.data.data.userId);
+      }
+      setCheckoutOtp('');
+      changeCheckoutStage('otp');
+    } catch (err: unknown) {
+      const responseData = (err as { response?: { data?: { message?: string | string[]; conflicts?: GuestDuplicateConflict[] } } })?.response?.data;
+      if (responseData?.conflicts?.length) setDuplicateConflicts(responseData.conflicts);
+      const message =
+        responseData?.message ??
+        'We could not send the confirmation code.';
+      setError(Array.isArray(message) ? message.join(' ') : message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function verifyPaidCheckout() {
+    if (
+      !registrationId ||
+      !checkoutMode ||
+      checkoutMode === 'authenticated' ||
+      checkoutOtp.length !== 6 ||
+      !guestAccessToken ||
+      otpVerificationRef.current
+    ) return;
+    otpVerificationRef.current = true;
+    setLoading(true);
+    setError(null);
+    try {
+      const leadEmail = attendees[0].email.trim().toLowerCase();
+      if (checkoutMode === 'guest') {
+        const response = await api.post<{ data?: { referenceNumber?: string }; referenceNumber?: string }>(
+          `/registrations/guest/${registrationId}/confirm`,
+          { email: leadEmail, otp: checkoutOtp, ...attendeeUpdatePayload() },
+          { headers: { 'x-registration-token': guestAccessToken } },
+        );
+        const referenceNumber = response.data.data?.referenceNumber ?? response.data.referenceNumber ?? '';
+        router.push(`/events/${eventSlug}/register/complete?registrationId=${registrationId}&scenario=guest&reference=${encodeURIComponent(referenceNumber)}`);
+        return;
+      }
+
+      const verification = await api.post<{
+        data: {
+          user: {
+            id: string;
+            email: string;
+            firstName: string | null;
+            lastName: string | null;
+            isAdmin: boolean;
+            isOrganizer?: boolean;
+            isVerified: boolean;
+          };
+          accessToken: string;
+          refreshToken: string;
+        };
+      }>('/auth/verify-access', { userId: pendingUserId, otp: checkoutOtp, eventId, eventSlug });
+      const { user, accessToken, refreshToken } = verification.data.data;
+      setAuth(
+        {
+          id: user.id,
+          email: user.email,
+          firstName: user.firstName ?? '',
+          lastName: user.lastName ?? '',
+          isAdmin: user.isAdmin,
+          isOrganizer: Boolean(user.isOrganizer),
+          isVerified: user.isVerified,
+          loginPortal: 'customer',
+        },
+        accessToken,
+        refreshToken,
+      );
+      const completion = await api.patch<{ data?: { referenceNumber?: string }; referenceNumber?: string }>(
+        `/registrations/${registrationId}/claim-and-complete`,
+        attendeeUpdatePayload(),
+        { headers: { 'x-registration-token': guestAccessToken } },
+      );
+      const referenceNumber = completion.data.data?.referenceNumber ?? completion.data.referenceNumber ?? '';
+      window.sessionStorage.removeItem(`axon_guest_registration_${registrationId}`);
+      router.push(`/events/${eventSlug}/register/complete?registrationId=${registrationId}&scenario=account&reference=${encodeURIComponent(referenceNumber)}`);
+    } catch (err: unknown) {
+      const message =
+        (err as { response?: { data?: { message?: string | string[] } } })?.response?.data?.message ??
+        'The code could not be verified.';
+      setError(Array.isArray(message) ? message.join(' ') : message);
+      setCheckoutOtp('');
+      otpVerificationRef.current = false;
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    if (checkoutStage === 'otp' && checkoutOtp.length === 6) {
+      void verifyPaidCheckout();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [checkoutOtp, checkoutStage]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (hasOptionalInclusions && checkoutStage === 'attendees') {
+    if (hasOptionalInclusions && inclusionCheckoutStage === 'attendees') {
       if (requiresSubEvent && selectedSubEventIds.length === 0) {
         setError('Please choose at least one sub-event to attend.');
         return;
       }
       setError(null);
-      setCheckoutStage('addons');
+      setInclusionCheckoutStage('addons');
       onCheckoutStepChange?.('addons');
       window.scrollTo({ top: 0, behavior: 'smooth' });
       return;
@@ -344,8 +615,36 @@ export default function RegistrationForm({
     setLoading(true);
 
     try {
+      if (isPaymentIntentStep) {
+        const payload: CreateRegistrationDto = {
+          eventId,
+          tierId,
+          attendeeCount: qty,
+          accountConsent: true,
+        };
+        const res = await api.post('/registrations', payload);
+        const reg = res.data?.data ?? res.data;
+        router.push(`/events/${eventSlug}/register/payment/${reg.id}`);
+        return;
+      }
+
       if (requiresSubEvent && selectedSubEventIds.length === 0) {
         setError('Please choose at least one sub-event to attend.');
+        return;
+      }
+
+      const attendeePayload = buildAttendeePayload();
+
+      const emailMismatch = checkoutMode === 'guest' ? undefined : attendees.find((attendee) =>
+        attendee.email.trim().toLowerCase() !== attendee.confirmEmail.trim().toLowerCase(),
+      );
+      if (emailMismatch) {
+        setError('Email and Confirm Email must match for every attendee.');
+        return;
+      }
+
+      if (isPaidCompletionFlow && checkoutStage === 'details') {
+        changeCheckoutStage('confirmation');
         return;
       }
 
@@ -357,18 +656,6 @@ export default function RegistrationForm({
           return;
         }
       }
-
-      const attendeePayload = attendees.map((a) => ({
-        firstName: a.firstName.trim(),
-        lastName: a.lastName.trim(),
-        email: a.email.trim(),
-        ...(a.phone.trim() && { phone: a.phone.trim() }),
-        ...(a.company.trim() && { company: a.company.trim() }),
-        ...(a.jobTitle.trim() && { jobTitle: a.jobTitle.trim() }),
-        ...(a.birthday && { birthday: a.birthday }),
-        ...(a.gender && { gender: a.gender as 'female' | 'male' | 'non_binary' | 'prefer_not_to_say' | 'self_described' }),
-        ...(a.city.trim() && { city: a.city.trim() }),
-      }));
 
       // Sync any edited profile fields back to the user's account
       if (useMyDetails && profileData && currentUser && !registrationId) {
@@ -389,14 +676,18 @@ export default function RegistrationForm({
 
       if (registrationId) {
         // Edit mode: update existing registration attendee details
-        await api.patch(`/registrations/${registrationId}/attendees`, {
+        const attendeeUpdate = {
           attendees: attendeePayload,
           ...(notes.trim() && { notes: notes.trim() }),
-        });
-        if ((initialTotal ?? (initialIsFree ? 0 : 1)) === 0) {
-          router.push(`/registrations/${registrationId}`);
+        };
+        if (guestAccessToken) {
+          await api.patch(`/registrations/guest/${registrationId}/attendees`, attendeeUpdate, {
+            headers: { 'x-registration-token': guestAccessToken },
+          });
+          router.push(`/events/${eventSlug}/register/complete`);
         } else {
-          router.push(`/events/${eventSlug}/register/payment/${registrationId}`);
+          await api.patch(`/registrations/${registrationId}/attendees`, attendeeUpdate);
+          router.push(`/registrations/${registrationId}`);
         }
       } else {
         const payload: CreateRegistrationDto = {
@@ -427,9 +718,172 @@ export default function RegistrationForm({
     }
   };
 
+  if (isPaidCompletionFlow && checkoutStage === 'confirmation') {
+    return (
+      <div className="space-y-5">
+        <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-5">
+          <p className="text-xs font-semibold uppercase tracking-wide text-emerald-700">Payment & Proof</p>
+          <h2 className="mt-1 font-semibold text-emerald-950">Proof uploaded successfully</h2>
+          <p className="mt-1 text-sm text-emerald-800">
+            Review the complete order below. Nothing is finalized until you confirm.
+          </p>
+        </div>
+
+        <section className="rounded-2xl border border-gray-200 bg-white p-5">
+          <h2 className="font-semibold text-gray-900">Order Summary</h2>
+          <div className="mt-3 flex justify-between text-sm text-gray-600">
+            <span>{tierName} × {qty}</span>
+            <span>{formatPHP(subtotalPesos)}</span>
+          </div>
+          <div className="mt-1 flex justify-between text-sm text-gray-600">
+            <span>Service fee</span>
+            <span>{formatPHP(feesPesos)}</span>
+          </div>
+          <div className="mt-3 flex justify-between border-t border-gray-100 pt-3 font-semibold text-gray-900">
+            <span>Total</span>
+            <span className="text-primary">{formatPHP(totalPesos)}</span>
+          </div>
+        </section>
+
+        <section className="rounded-2xl border border-gray-200 bg-white p-5">
+          <div className="flex items-center justify-between">
+            <h2 className="font-semibold text-gray-900">{skipDetailsForAuthenticatedSingle ? 'Registrant Details' : 'Attendee Details'}</h2>
+            {!skipDetailsForAuthenticatedSingle && (
+              <button
+                type="button"
+                onClick={() => changeCheckoutStage('details')}
+                className="min-h-[44px] text-sm font-semibold text-primary hover:underline"
+              >
+                Edit details
+              </button>
+            )}
+          </div>
+          <div className="mt-3 divide-y divide-gray-100">
+            {attendees.map((attendee, index) => (
+              <div key={`${attendee.email}-${index}`} className="py-3 text-sm">
+                <p className="font-medium text-gray-900">
+                  {index + 1}. {attendee.firstName} {attendee.lastName}
+                </p>
+                <p className="mt-0.5 text-gray-500">{attendee.email}{attendee.phone ? ` · ${attendee.phone}` : ''}</p>
+                {eventType === 'running' && (
+                  <p className="mt-0.5 text-gray-500">
+                    {attendee.raceDistance} · {attendee.raceDivision} · {attendee.claimMethod.replace('_', ' ')}
+                  </p>
+                )}
+              </div>
+            ))}
+          </div>
+          {notes.trim() && <p className="mt-3 text-sm text-gray-600"><span className="font-medium">Notes:</span> {notes}</p>}
+        </section>
+
+        {checkoutMode !== 'authenticated' && (
+          <div className="rounded-xl border border-primary/20 bg-primary/5 px-4 py-3 text-sm text-gray-700">
+            {checkoutMode === 'guest'
+              ? 'After you confirm, Axon will send a one-time code to the lead attendee email. The code locks this transaction without creating an account.'
+              : 'After you confirm, Axon will send a one-time code to the lead attendee email. Only after verification will the order be linked and the profile created or updated.'}
+          </div>
+        )}
+
+        {error && <div role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>}
+        {!confirmationReady && skipDetailsForAuthenticatedSingle && (
+          <div role="status" className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">Loading the registrant details from your verified profile…</div>
+        )}
+
+        {duplicateConflicts.length > 0 && (
+          <div role="dialog" aria-modal="true" aria-labelledby="duplicate-title" className="fixed inset-0 z-50 flex items-center justify-center bg-[#0d021c]/70 p-4 backdrop-blur-sm">
+            <div className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl">
+              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-amber-100 text-xl text-amber-700">!</div>
+              <h2 id="duplicate-title" className="mt-4 text-xl font-bold text-gray-900">Registration protected from duplicate purchases</h2>
+              <p className="mt-2 text-sm leading-6 text-gray-600">
+                This guest transaction is blocked because an attendee email already has an active registration for this event. This protection limits bulk purchasing by scalpers and keeps tickets available to more genuine attendees.
+              </p>
+              <div className="mt-4 space-y-2">
+                {duplicateConflicts.map((conflict) => (
+                  <div key={`${conflict.email}-${conflict.referenceNumber}`} className="rounded-xl bg-gray-50 p-3 text-sm text-gray-600">
+                    <p className="font-semibold text-gray-900">{conflict.attendeeName}</p>
+                    <p>{new Date(conflict.transactionDate).toLocaleDateString('en-PH')} · Ref {conflict.referenceNumber}</p>
+                  </div>
+                ))}
+              </div>
+              <p className="mt-3 text-xs text-gray-500">Details are partially masked until email ownership is verified.</p>
+              <button type="button" onClick={() => setDuplicateConflicts([])} className="mt-5 w-full rounded-xl bg-primary py-3 text-sm font-semibold text-white">Return to attendee details</button>
+            </div>
+          </div>
+        )}
+
+        <button
+          type="button"
+          disabled={loading || !confirmationReady}
+          onClick={() => void confirmPaidCheckout()}
+          className="w-full rounded-xl bg-primary py-3 text-sm font-semibold text-white transition hover:bg-primary/90 disabled:opacity-50"
+        >
+          {loading
+            ? checkoutMode === 'authenticated' ? 'Confirming transaction…' : 'Sending confirmation code…'
+            : checkoutMode === 'authenticated' ? 'Confirm Transaction' : 'Confirm and Send My Code'}
+        </button>
+      </div>
+    );
+  }
+
+  if (isPaidCompletionFlow && checkoutStage === 'otp') {
+    return (
+      <div className="space-y-5 rounded-2xl border border-gray-200 bg-white p-6">
+        <div className="text-center">
+          <h2 className="text-xl font-bold text-gray-900">Confirm your email</h2>
+          <p className="mt-1 text-sm text-gray-500">
+            Enter the 6-digit code sent to <span className="font-semibold text-gray-700">{attendees[0]?.email}</span>.
+          </p>
+          <p className="mt-1 text-xs text-gray-400">
+            The order is not locked until this code is verified.
+          </p>
+        </div>
+        <input
+          type="text"
+          inputMode="numeric"
+          pattern="\d{6}"
+          maxLength={6}
+          autoFocus
+          autoComplete="one-time-code"
+          value={checkoutOtp}
+          onChange={(event) => {
+            otpVerificationRef.current = false;
+            setCheckoutOtp(event.target.value.replace(/\D/g, '').slice(0, 6));
+          }}
+          disabled={loading}
+          aria-label="Six-digit confirmation code"
+          placeholder="000000"
+          className="w-full rounded-xl border border-gray-300 px-4 py-4 text-center font-mono text-3xl tracking-[0.45em] focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/30 disabled:opacity-50"
+        />
+        {loading && <p className="text-center text-sm text-gray-500">Verifying and locking your transaction…</p>}
+        {error && <div role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-center text-sm text-red-700">{error}</div>}
+        <div className="flex flex-col items-center gap-1">
+          <button
+            type="button"
+            disabled={loading}
+            onClick={() => void confirmPaidCheckout()}
+            className="min-h-[44px] text-sm font-semibold text-primary hover:underline disabled:opacity-50"
+          >
+            Send a new code
+          </button>
+          <button
+            type="button"
+            disabled={loading}
+            onClick={() => {
+              setCheckoutOtp('');
+              changeCheckoutStage('confirmation');
+            }}
+            className="min-h-[44px] text-sm text-gray-500 hover:text-gray-800"
+          >
+            ← Back to review
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
-      {checkoutStage === 'attendees' ? (
+      {inclusionCheckoutStage === 'attendees' ? (
         <>
       {/* Order summary */}
       <div className="bg-white border border-gray-200 rounded-2xl p-5">
@@ -458,7 +912,7 @@ export default function RegistrationForm({
         </div>
       </div>
 
-      {!registrationId && (
+      {!registrationId && promoCodesEnabled && (
         <div className="rounded-2xl border border-emerald-200 bg-emerald-50/60 p-5">
           <label htmlFor="referral-code" className="block text-sm font-semibold text-gray-900">Have a referral code?</label>
           <p className="mt-1 text-xs text-gray-600">Apply it before confirming to preview your final total.</p>
@@ -575,8 +1029,10 @@ export default function RegistrationForm({
         </div>
       )}
 
+      {!isPaymentIntentStep && (
+        <>
       {/* Autofill toggle */}
-      {currentUser && (
+      {currentUser && !guestAccessToken && (
         <div className="bg-white border border-gray-200 rounded-2xl p-4 flex items-center justify-between gap-3">
           <div>
             <p className="text-sm font-medium text-gray-900">Use my account details for Attendee 1</p>
@@ -629,6 +1085,11 @@ export default function RegistrationForm({
       )}
 
       {/* Attendee forms */}
+      {qty > 1 && (
+        <div className="rounded-2xl border border-violet-200 bg-violet-50 p-4 text-sm leading-6 text-violet-900">
+          <strong>Why we need each attendee’s details:</strong> every ticket receives its own named QR code. Enter the correct name and email for each recipient so their ticket and status updates reach the right person.
+        </div>
+      )}
       {attendees.map((att, i) => (
         <div
           key={i}
@@ -661,8 +1122,105 @@ export default function RegistrationForm({
               </p>
             );
 
+            if (checkoutMode === 'guest') {
+              const guestEmailId = `attendee-${i + 1}-guest-email`;
+              const guestFirstNameId = `attendee-${i + 1}-guest-first-name`;
+              const guestLastNameId = `attendee-${i + 1}-guest-last-name`;
+              return (
+                <>
+                  <div>
+                    <label htmlFor={guestEmailId} className="block text-xs font-medium text-gray-600 mb-1">Email *</label>
+                    <input
+                      id={guestEmailId}
+                      type="email"
+                      required
+                      autoFocus={i === 0}
+                      autoComplete={i === 0 ? 'email' : 'off'}
+                      value={att.email}
+                      onChange={(e) => {
+                        updateAttendee(i, 'email', e.target.value);
+                        updateAttendee(i, 'confirmEmail', e.target.value);
+                      }}
+                      className={`w-full border rounded-lg px-3 py-2 text-sm ${normalCls}`}
+                    />
+                    {i === 0 && <p className="mt-1 text-[11px] text-gray-500">Used only for this transaction, review updates, and ticket delivery. No account or customer profile is created.</p>}
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label htmlFor={guestFirstNameId} className="block text-xs font-medium text-gray-600 mb-1">First Name *</label>
+                      <input id={guestFirstNameId} required value={att.firstName} onChange={(e) => updateAttendee(i, 'firstName', e.target.value)} className={`w-full border rounded-lg px-3 py-2 text-sm ${normalCls}`} />
+                    </div>
+                    <div>
+                      <label htmlFor={guestLastNameId} className="block text-xs font-medium text-gray-600 mb-1">Last Name *</label>
+                      <input id={guestLastNameId} required value={att.lastName} onChange={(e) => updateAttendee(i, 'lastName', e.target.value)} className={`w-full border rounded-lg px-3 py-2 text-sm ${normalCls}`} />
+                    </div>
+                  </div>
+                  {eventType === 'running' && (
+                    <div className="space-y-4 rounded-xl border border-violet-200 bg-violet-50/60 p-4">
+                      <div>
+                        <p className="text-sm font-semibold text-violet-950">Race-required details</p>
+                        <p className="mt-1 text-xs leading-5 text-violet-800">These event-specific fields are needed for race assignment, safety, merchandise, and claiming. Axon does not use them to create a guest profile.</p>
+                      </div>
+                      <div className="grid gap-4 sm:grid-cols-2">
+                        <label className="text-xs font-medium text-gray-700">Distance *<select required value={att.raceDistance} onChange={(e) => updateAttendee(i, 'raceDistance', e.target.value)} className={`mt-1 w-full border rounded-lg px-3 py-2 text-sm ${normalCls}`}><option value="">Select distance</option>{runningConfig?.distances?.map((item) => <option key={item.code} value={item.code}>{item.name}</option>)}</select></label>
+                        <label className="text-xs font-medium text-gray-700">Race Division *<select required value={att.raceDivision} onChange={(e) => updateAttendee(i, 'raceDivision', e.target.value)} className={`mt-1 w-full border rounded-lg px-3 py-2 text-sm ${normalCls}`}><option value="">Select division</option>{runningConfig?.raceDivisions?.map((item) => <option key={item} value={item}>{item}</option>)}</select></label>
+                        <label className="text-xs font-medium text-gray-700">Gender Identity <span className="font-normal text-gray-400">(optional)</span><select value={att.genderIdentity} onChange={(e) => updateAttendee(i, 'genderIdentity', e.target.value)} className={`mt-1 w-full border rounded-lg px-3 py-2 text-sm ${normalCls}`}><option value="">Prefer not to provide</option>{runningConfig?.genderIdentityOptions?.map((item) => <option key={item} value={item}>{item}</option>)}</select></label>
+                        <label className="text-xs font-medium text-gray-700">Merchandise size *<select required value={att.merchandiseSize} onChange={(e) => updateAttendee(i, 'merchandiseSize', e.target.value)} className={`mt-1 w-full border rounded-lg px-3 py-2 text-sm ${normalCls}`}><option value="">Select size</option>{runningConfig?.merchandiseSizes?.map((item) => <option key={item} value={item}>{item}</option>)}</select></label>
+                      </div>
+                      <div className="grid gap-3 sm:grid-cols-3">
+                        <input required aria-label="Emergency contact name" placeholder="Emergency contact name" value={att.emergencyContactName} onChange={(e) => updateAttendee(i, 'emergencyContactName', e.target.value)} className={`border rounded-lg px-3 py-2 text-sm ${normalCls}`} />
+                        <input required type="tel" aria-label="Emergency contact phone" placeholder="Emergency contact phone" value={att.emergencyContactPhone} onChange={(e) => updateAttendee(i, 'emergencyContactPhone', e.target.value)} className={`border rounded-lg px-3 py-2 text-sm ${normalCls}`} />
+                        <input required aria-label="Emergency contact relationship" placeholder="Relationship" value={att.emergencyContactRelationship} onChange={(e) => updateAttendee(i, 'emergencyContactRelationship', e.target.value)} className={`border rounded-lg px-3 py-2 text-sm ${normalCls}`} />
+                      </div>
+                      <label className="block text-xs font-medium text-gray-700">Claim method *<select required value={att.claimMethod} onChange={(e) => updateAttendee(i, 'claimMethod', e.target.value)} className={`mt-1 w-full border rounded-lg px-3 py-2 text-sm ${normalCls}`}><option value="">Select claim method</option>{runningConfig?.claimMethods?.includes('self_claim') && <option value="self_claim">Claim at event</option>}{runningConfig?.claimMethods?.includes('delivery') && <option value="delivery">Delivery</option>}</select></label>
+                      {att.claimMethod === 'delivery' && (
+                        <div className="grid gap-3 sm:grid-cols-2">
+                          <input required aria-label="Delivery address line 1" placeholder="Address line 1" value={att.deliveryLine1} onChange={(e) => updateAttendee(i, 'deliveryLine1', e.target.value)} className={`border rounded-lg px-3 py-2 text-sm sm:col-span-2 ${normalCls}`} />
+                          <input aria-label="Delivery address line 2" placeholder="Address line 2 (optional)" value={att.deliveryLine2} onChange={(e) => updateAttendee(i, 'deliveryLine2', e.target.value)} className={`border rounded-lg px-3 py-2 text-sm sm:col-span-2 ${normalCls}`} />
+                          <input required aria-label="Delivery city" placeholder="City" value={att.deliveryCity} onChange={(e) => updateAttendee(i, 'deliveryCity', e.target.value)} className={`border rounded-lg px-3 py-2 text-sm ${normalCls}`} />
+                          <input required aria-label="Delivery province" placeholder="Province" value={att.deliveryProvince} onChange={(e) => updateAttendee(i, 'deliveryProvince', e.target.value)} className={`border rounded-lg px-3 py-2 text-sm ${normalCls}`} />
+                          <input required aria-label="Delivery postal code" placeholder="Postal code" value={att.deliveryPostalCode} onChange={(e) => updateAttendee(i, 'deliveryPostalCode', e.target.value)} className={`border rounded-lg px-3 py-2 text-sm ${normalCls}`} />
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </>
+              );
+            }
+
             return (
               <>
+                {i === 0 && checkoutMode === 'account' && (
+                  <div>
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <div>
+                        <label className="block text-xs font-medium text-gray-600 mb-1">Email *</label>
+                        <input
+                          type="email"
+                          required
+                          autoFocus
+                          autoComplete="email"
+                          value={att.email}
+                          onChange={(e) => updateAttendee(i, 'email', e.target.value)}
+                          className={`w-full border rounded-lg px-3 py-2 text-sm ${normalCls}`}
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-gray-600 mb-1">Confirm Email *</label>
+                        <input
+                          type="email"
+                          required
+                          autoComplete="email"
+                          value={att.confirmEmail}
+                          onChange={(e) => updateAttendee(i, 'confirmEmail', e.target.value)}
+                          className={`w-full border rounded-lg px-3 py-2 text-sm ${normalCls}`}
+                        />
+                      </div>
+                    </div>
+                    <p className="mt-1 text-[11px] text-gray-500">Axon checks and links this email only after you verify the final one-time code.</p>
+                  </div>
+                )}
+
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="block text-xs font-medium text-gray-600 mb-1">First Name *</label>
@@ -686,18 +1244,33 @@ export default function RegistrationForm({
                   </div>
                 </div>
 
-                <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Email *</label>
-                  <input
-                    type="email"
-                    required
-                    value={att.email}
-                    onChange={(e) => updateAttendee(i, 'email', e.target.value)}
-                    readOnly={auto}
-                    className={`w-full border rounded-lg px-3 py-2 text-sm ${auto ? 'border-gray-200 bg-gray-50 text-gray-500 cursor-not-allowed' : normalCls}`}
-                  />
-                  {auto && !att.email.trim() && <MissingHint />}
-                </div>
+                {!(i === 0 && checkoutMode === 'account') && <div>
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 mb-1">Email *</label>
+                      <input
+                        type="email"
+                        required
+                        value={att.email}
+                        onChange={(e) => updateAttendee(i, 'email', e.target.value)}
+                        readOnly={auto}
+                        className={`w-full border rounded-lg px-3 py-2 text-sm ${auto ? 'border-gray-200 bg-gray-50 text-gray-500 cursor-not-allowed' : normalCls}`}
+                      />
+                      {auto && !att.email.trim() && <MissingHint />}
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 mb-1">Confirm Email *</label>
+                      <input
+                        type="email"
+                        required
+                        value={att.confirmEmail}
+                        onChange={(e) => updateAttendee(i, 'confirmEmail', e.target.value)}
+                        readOnly={auto}
+                        className={`w-full border rounded-lg px-3 py-2 text-sm ${auto ? 'border-gray-200 bg-gray-50 text-gray-500 cursor-not-allowed' : normalCls}`}
+                      />
+                    </div>
+                  </div>
+                </div>}
 
                 <div className="grid grid-cols-2 gap-4">
                   <div>
@@ -753,6 +1326,67 @@ export default function RegistrationForm({
                     <input value={att.city} onChange={(e) => updateAttendee(i, 'city', e.target.value)} placeholder="Davao City" className={`w-full border rounded-lg px-3 py-2 text-sm ${normalCls}`} />
                   </div>
                 </div>
+
+                {eventType === 'running' && (
+                  <div className="rounded-xl border border-violet-200 bg-violet-50/50 p-4 space-y-4">
+                    <div>
+                      <p className="text-sm font-semibold text-gray-900">Race details</p>
+                      <p className="text-xs text-gray-500">Race Division is used for results. Gender Identity is optional and stored separately.</p>
+                    </div>
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <label className="text-xs font-medium text-gray-600">
+                        Distance *
+                        <select required value={att.raceDistance} onChange={(e) => updateAttendee(i, 'raceDistance', e.target.value)} className={`mt-1 w-full border rounded-lg px-3 py-2 text-sm ${normalCls}`}>
+                          <option value="">Select distance</option>
+                          {runningConfig?.distances?.map((item) => <option key={item.code} value={item.code}>{item.name}</option>)}
+                        </select>
+                      </label>
+                      <label className="text-xs font-medium text-gray-600">
+                        Race Division *
+                        <select required value={att.raceDivision} onChange={(e) => updateAttendee(i, 'raceDivision', e.target.value)} className={`mt-1 w-full border rounded-lg px-3 py-2 text-sm ${normalCls}`}>
+                          <option value="">Select division</option>
+                          {runningConfig?.raceDivisions?.map((item) => <option key={item} value={item}>{item}</option>)}
+                        </select>
+                      </label>
+                      <label className="text-xs font-medium text-gray-600">
+                        Gender Identity <span className="font-normal text-gray-400">(optional)</span>
+                        <select value={att.genderIdentity} onChange={(e) => updateAttendee(i, 'genderIdentity', e.target.value)} className={`mt-1 w-full border rounded-lg px-3 py-2 text-sm ${normalCls}`}>
+                          <option value="">Prefer not to provide</option>
+                          {runningConfig?.genderIdentityOptions?.map((item) => <option key={item} value={item}>{item}</option>)}
+                        </select>
+                      </label>
+                      <label className="text-xs font-medium text-gray-600">
+                        Merchandise size *
+                        <select required value={att.merchandiseSize} onChange={(e) => updateAttendee(i, 'merchandiseSize', e.target.value)} className={`mt-1 w-full border rounded-lg px-3 py-2 text-sm ${normalCls}`}>
+                          <option value="">Select size</option>
+                          {runningConfig?.merchandiseSizes?.map((item) => <option key={item} value={item}>{item}</option>)}
+                        </select>
+                      </label>
+                    </div>
+                    <div className="grid gap-4 sm:grid-cols-3">
+                      <input required aria-label="Emergency contact name" placeholder="Emergency contact name" value={att.emergencyContactName} onChange={(e) => updateAttendee(i, 'emergencyContactName', e.target.value)} className={`border rounded-lg px-3 py-2 text-sm ${normalCls}`} />
+                      <input required type="tel" aria-label="Emergency contact phone" placeholder="Emergency contact phone" value={att.emergencyContactPhone} onChange={(e) => updateAttendee(i, 'emergencyContactPhone', e.target.value)} className={`border rounded-lg px-3 py-2 text-sm ${normalCls}`} />
+                      <input required aria-label="Emergency contact relationship" placeholder="Relationship" value={att.emergencyContactRelationship} onChange={(e) => updateAttendee(i, 'emergencyContactRelationship', e.target.value)} className={`border rounded-lg px-3 py-2 text-sm ${normalCls}`} />
+                    </div>
+                    <label className="block text-xs font-medium text-gray-600">
+                      Claim method *
+                      <select required value={att.claimMethod} onChange={(e) => updateAttendee(i, 'claimMethod', e.target.value)} className={`mt-1 w-full border rounded-lg px-3 py-2 text-sm ${normalCls}`}>
+                        <option value="">Select claim method</option>
+                        {runningConfig?.claimMethods?.includes('self_claim') && <option value="self_claim">Claim at event</option>}
+                        {runningConfig?.claimMethods?.includes('delivery') && <option value="delivery">Delivery (no logistics fee in Release 2.0)</option>}
+                      </select>
+                    </label>
+                    {att.claimMethod === 'delivery' && (
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        <input required aria-label="Delivery address line 1" placeholder="Address line 1" value={att.deliveryLine1} onChange={(e) => updateAttendee(i, 'deliveryLine1', e.target.value)} className={`border rounded-lg px-3 py-2 text-sm sm:col-span-2 ${normalCls}`} />
+                        <input aria-label="Delivery address line 2" placeholder="Address line 2 (optional)" value={att.deliveryLine2} onChange={(e) => updateAttendee(i, 'deliveryLine2', e.target.value)} className={`border rounded-lg px-3 py-2 text-sm sm:col-span-2 ${normalCls}`} />
+                        <input required aria-label="Delivery city" placeholder="City" value={att.deliveryCity} onChange={(e) => updateAttendee(i, 'deliveryCity', e.target.value)} className={`border rounded-lg px-3 py-2 text-sm ${normalCls}`} />
+                        <input required aria-label="Delivery province" placeholder="Province" value={att.deliveryProvince} onChange={(e) => updateAttendee(i, 'deliveryProvince', e.target.value)} className={`border rounded-lg px-3 py-2 text-sm ${normalCls}`} />
+                        <input required aria-label="Delivery postal code" placeholder="Postal code" value={att.deliveryPostalCode} onChange={(e) => updateAttendee(i, 'deliveryPostalCode', e.target.value)} className={`border rounded-lg px-3 py-2 text-sm ${normalCls}`} />
+                      </div>
+                    )}
+                  </div>
+                )}
               </>
             );
           })()}
@@ -812,7 +1446,7 @@ export default function RegistrationForm({
       )}
 
       {/* Notes */}
-      <div className="bg-white border border-gray-200 rounded-2xl p-5">
+      {checkoutMode !== 'guest' && <div className="bg-white border border-gray-200 rounded-2xl p-5">
         <label className="block text-xs font-medium text-gray-600 mb-1">Notes (optional)</label>
         <textarea
           rows={3}
@@ -821,7 +1455,9 @@ export default function RegistrationForm({
           placeholder="Anything we should know? e.g. food allergies, wheelchair access needed, etc."
           className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary resize-none"
         />
-      </div>
+      </div>}
+        </>
+      )}
         </>
       ) : (
         <OptionalAddOnsStep
@@ -842,41 +1478,49 @@ export default function RegistrationForm({
         </div>
       )}
 
-      <div className="flex flex-col-reverse gap-3 sm:flex-row">
-        {checkoutStage === 'addons' && (
+      {hasOptionalInclusions ? (
+        <div className="flex flex-col-reverse gap-3 sm:flex-row">
+          {inclusionCheckoutStage === 'addons' && (
+            <button
+              type="button"
+              onClick={() => {
+                setInclusionCheckoutStage('attendees');
+                onCheckoutStepChange?.('attendees');
+                setError(null);
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+              }}
+              className="min-h-12 rounded-xl border border-[#d8cdee] px-5 text-sm font-semibold text-[#4f416c] hover:border-primary hover:text-primary sm:w-auto"
+            >
+              Back to attendee details
+            </button>
+          )}
           <button
-            type="button"
-            onClick={() => {
-              setCheckoutStage('attendees');
-              onCheckoutStepChange?.('attendees');
-              setError(null);
-              window.scrollTo({ top: 0, behavior: 'smooth' });
-            }}
-            className="min-h-12 rounded-xl border border-[#d8cdee] px-5 text-sm font-semibold text-[#4f416c] hover:border-primary hover:text-primary sm:w-auto"
+            type="submit"
+            disabled={loading || (inclusionCheckoutStage === 'addons' && (quoteLoading || !quote))}
+            className="min-h-12 flex-1 rounded-xl bg-primary px-5 text-sm font-semibold text-white transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
           >
-            Back to attendee details
+            {loading
+              ? 'Saving your spot…'
+              : inclusionCheckoutStage === 'attendees'
+                ? 'Continue to optional add-ons'
+                : `Confirm My Registration — ${quote?.total === 0 ? 'Free' : formatPHP(quote?.total ?? 0)}`}
           </button>
-        )}
+        </div>
+      ) : (
         <button
           type="submit"
-          disabled={loading || (checkoutStage === 'addons' && (quoteLoading || !quote))}
-          className="min-h-12 flex-1 rounded-xl bg-primary px-5 text-sm font-semibold text-white transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
+          disabled={loading}
+          className="w-full py-3 rounded-xl bg-primary text-white font-semibold text-sm hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
         >
           {loading
             ? 'Saving your spot…'
-            : checkoutStage === 'attendees' && hasOptionalInclusions
-              ? 'Continue to optional add-ons'
-              : `Confirm My Registration — ${
-                  checkoutStage === 'addons' && quote
-                    ? quote.total === 0
-                      ? 'Free'
-                      : formatPHP(quote.total)
-                    : isFreeRegistration
-                      ? 'Free'
-                      : formatPHP(totalPesos)
-                }`}
+            : isPaymentIntentStep
+              ? `Continue to payment — ${formatPHP(totalPesos)}`
+              : registrationId
+                ? isPaidCompletionFlow ? 'Review Transaction Details' : 'Submit attendee details for review'
+                : `Confirm My Registration — ${isFreeRegistration ? 'Free' : formatPHP(totalPesos)}`}
         </button>
-      </div>
+      )}
     </form>
   );
 }

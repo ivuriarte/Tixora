@@ -9,6 +9,8 @@ import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { EmailService } from '../email/email.service';
 import { RegisterOrganizationDto, UpdateOrganizationDto } from './dto/organization.dto';
+import { Prisma } from '@prisma/client';
+import { uniqueSlug } from '@axon-tickets/utils';
 import {
   normalizeOrganizationRole,
   organizationCapabilities,
@@ -43,6 +45,11 @@ export class OrganizationsService {
       registrationNumber: dto.registrationNumber?.trim() ?? null,
       website: dto.website?.trim() ?? null,
       facebookUrl: dto.facebookUrl?.trim() ?? null,
+      logoUrl: dto.logoUrl?.trim() ?? null,
+      socialLinks:
+        (dto.socialLinks as unknown as Prisma.InputJsonValue | undefined) ??
+        Prisma.JsonNull,
+      isPublic: dto.isPublic ?? true,
     };
 
     // Block if user already has a pending or approved org; rejected records are reusable.
@@ -80,6 +87,8 @@ export class OrganizationsService {
           rejectedAt: null,
           approvedById: null,
           approvedAt: null,
+          publicSlug: uniqueSlug(dto.name),
+          profileUpdatedAt: new Date(),
         },
       });
 
@@ -106,6 +115,8 @@ export class OrganizationsService {
       data: {
         ...data,
         createdById: userId,
+        publicSlug: uniqueSlug(dto.name),
+        profileUpdatedAt: new Date(),
       },
     });
 
@@ -154,6 +165,10 @@ export class OrganizationsService {
             registrationNumber: true,
             website: true,
             facebookUrl: true,
+            publicSlug: true,
+            logoUrl: true,
+            socialLinks: true,
+            isPublic: true,
             approvalStatus: true,
             rejectionReason: true,
             approvedAt: true,
@@ -181,6 +196,10 @@ export class OrganizationsService {
       registrationNumber: org.registrationNumber,
       website: org.website,
       facebookUrl: org.facebookUrl,
+      publicSlug: org.publicSlug,
+      logoUrl: org.logoUrl,
+      socialLinks: org.socialLinks,
+      isPublic: org.isPublic,
       approvalStatus: org.approvalStatus,
       rejectionReason: org.rejectionReason,
       approvedAt: org.approvedAt?.toISOString() ?? null,
@@ -207,7 +226,7 @@ export class OrganizationsService {
       throw new ForbiddenException('Only an Owner or Co-owner can update the organizer profile');
     }
 
-    const data: Record<string, string | null> = {};
+    const data: Prisma.OrganizationUpdateInput = {};
     if (dto.name !== undefined) data.name = dto.name.trim();
     if (dto.description !== undefined) data.description = dto.description.trim();
     if (dto.contactName !== undefined) data.contactName = dto.contactName.trim();
@@ -219,6 +238,13 @@ export class OrganizationsService {
     if (dto.registrationNumber !== undefined) data.registrationNumber = dto.registrationNumber?.trim() || null;
     if (dto.website !== undefined) data.website = dto.website?.trim() || null;
     if (dto.facebookUrl !== undefined) data.facebookUrl = dto.facebookUrl?.trim() || null;
+    if (dto.logoUrl !== undefined) data.logoUrl = dto.logoUrl?.trim() || null;
+    if (dto.socialLinks !== undefined) {
+      data.socialLinks =
+        (dto.socialLinks as unknown as Prisma.InputJsonValue) ?? Prisma.JsonNull;
+    }
+    if (dto.isPublic !== undefined) data.isPublic = dto.isPublic;
+    data.profileUpdatedAt = new Date();
 
     await this.prisma.organization.update({
       where: { id: membership.organization.id },
@@ -230,10 +256,76 @@ export class OrganizationsService {
       entityType: 'Organization',
       entityId: membership.organization.id,
       performedById: userId,
-      metadata: { fields: Object.keys(data) },
+        metadata: { fields: Object.keys(data) },
     }).catch(() => null);
 
     return this.getMyOrganization(userId);
+  }
+
+  async getPublicProfile(slug: string) {
+    const organization = await this.prisma.organization.findFirst({
+      where: {
+        publicSlug: slug.trim().toLowerCase(),
+        approvalStatus: 'approved',
+        isPublic: true,
+        hiddenAt: null,
+      },
+      select: {
+        id: true,
+        name: true,
+        description: true,
+        publicSlug: true,
+        logoUrl: true,
+        website: true,
+        facebookUrl: true,
+        socialLinks: true,
+        createdAt: true,
+        events: {
+          where: {
+            status: { in: ['on_sale', 'sold_out'] },
+            startsAt: { gte: new Date() },
+          },
+          orderBy: { startsAt: 'asc' },
+          take: 12,
+          select: {
+            id: true,
+            slug: true,
+            title: true,
+            imageUrl: true,
+            city: true,
+            venue: true,
+            startsAt: true,
+            endsAt: true,
+            category: true,
+            eventType: true,
+            isOnline: true,
+            isFree: true,
+            status: true,
+          },
+        },
+      },
+    });
+    if (!organization) throw new NotFoundException('Organizer profile not found');
+    return {
+      id: organization.id,
+      name: organization.name,
+      about: organization.description,
+      slug: organization.publicSlug,
+      logoUrl: organization.logoUrl,
+      website: organization.website,
+      facebookUrl: organization.facebookUrl,
+      socialLinks: organization.socialLinks,
+      since: organization.createdAt.toLocaleDateString('en-PH', {
+        month: 'long',
+        year: 'numeric',
+        timeZone: 'Asia/Manila',
+      }),
+      upcomingEvents: organization.events.map((event) => ({
+        ...event,
+        startsAt: event.startsAt.toISOString(),
+        endsAt: event.endsAt?.toISOString() ?? null,
+      })),
+    };
   }
 
   private async requireTeamManager(userId: string) {

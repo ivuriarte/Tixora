@@ -148,6 +148,17 @@ export class UploadService {
     return { imageUrl: result.secure_url, cloudinaryPublicId: result.public_id };
   }
 
+  async deleteStoredImage(publicId: string): Promise<void> {
+    if (!publicId.trim()) return;
+    const result = await cloudinary.uploader.destroy(publicId, {
+      resource_type: 'image',
+      invalidate: true,
+    });
+    if (result.result !== 'ok' && result.result !== 'not found') {
+      throw new Error(`Cloudinary deletion failed for ${publicId}`);
+    }
+  }
+
   async uploadPaymentQr(buffer: Buffer, mimeType: string): Promise<{ url: string }> {
     void mimeType;
     const result = await new Promise<UploadApiResponse>((resolve, reject) => {

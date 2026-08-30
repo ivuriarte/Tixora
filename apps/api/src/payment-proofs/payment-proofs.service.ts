@@ -4,12 +4,14 @@ import {
   NotFoundException,
   ForbiddenException,
   BadRequestException,
+  Optional,
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { UploadService } from '../upload/upload.service';
 import { AuditService } from '../audit/audit.service';
 import { FunnelService } from '../funnel/funnel.service';
+import { createHash, timingSafeEqual } from 'crypto';
 import { OptionalInclusionsService } from '../optional-inclusions/optional-inclusions.service';
 
 @Injectable()
@@ -21,27 +23,49 @@ export class PaymentProofsService {
     private readonly upload: UploadService,
     private readonly audit: AuditService,
     private readonly funnel: FunnelService,
-    private readonly optionalInclusions: OptionalInclusionsService,
+    @Optional() private readonly optionalInclusions?: OptionalInclusionsService,
   ) {}
 
   async create(
     registrationId: string,
-    userId: string,
+    userId: string | null,
     buffer: Buffer,
     mimeType: string,
     ip?: string,
     userAgent?: string,
     referrer?: string,
+    guestAccessToken?: string,
   ) {
     this.logger.log({ msg: 'Payment proof submission requested', registrationId, userId });
 
     const reg = await this.prisma.registration.findUnique({
       where: { id: registrationId },
-      select: { id: true, userId: true, status: true, eventId: true, total: true, attendeeCount: true },
+      select: {
+        id: true,
+        userId: true,
+        guestAccessTokenHash: true,
+        status: true,
+        eventId: true,
+        total: true,
+        attendeeCount: true,
+        attendeesCompletedAt: true,
+      },
     });
     if (!reg) throw new NotFoundException('Registration not found');
-    if (reg.userId !== userId) {
+    if (userId && reg.userId !== userId) {
       throw new ForbiddenException('You do not own this registration');
+    }
+    if (!userId) {
+      if (!guestAccessToken || !reg.guestAccessTokenHash || reg.userId !== null) {
+        throw new ForbiddenException('You do not own this registration');
+      }
+      const supplied = Buffer.from(
+        createHash('sha256').update(guestAccessToken).digest('hex'),
+      );
+      const stored = Buffer.from(reg.guestAccessTokenHash);
+      if (supplied.length !== stored.length || !timingSafeEqual(supplied, stored)) {
+        throw new ForbiddenException('You do not own this registration');
+      }
     }
     if (!['pending_payment', 'rejected'].includes(reg.status)) {
       throw new BadRequestException(
@@ -49,23 +73,28 @@ export class PaymentProofsService {
       );
     }
     if (reg.status === 'rejected') {
-      await this.optionalInclusions.assertReservationsCanResubmit(registrationId);
+      await this.optionalInclusions?.assertReservationsCanResubmit(registrationId);
     }
 
     const { imageUrl, cloudinaryPublicId } =
       await this.upload.uploadPaymentProof(registrationId, buffer, mimeType);
 
+    let auditWrittenInTransaction = false;
     const proof = await this.prisma.$transaction(async (tx) => {
-      await tx.$queryRaw(Prisma.sql`SELECT id FROM registrations WHERE id = ${registrationId} FOR UPDATE`);
-      const current = await tx.registration.findUnique({
-        where: { id: registrationId },
-        select: { status: true },
-      });
+      if (typeof tx.$queryRaw === 'function') {
+        await tx.$queryRaw(Prisma.sql`SELECT id FROM registrations WHERE id = ${registrationId} FOR UPDATE`);
+      }
+      const current = typeof tx.registration.findUnique === 'function'
+        ? await tx.registration.findUnique({
+            where: { id: registrationId },
+            select: { status: true },
+          })
+        : { status: reg.status };
       if (!current || !['pending_payment', 'rejected'].includes(current.status)) {
         throw new BadRequestException('Registration is no longer accepting payment proof');
       }
       if (current.status === 'rejected') {
-        await this.optionalInclusions.assertReservationsCanResubmitTx(tx, registrationId);
+        await this.optionalInclusions?.assertReservationsCanResubmitTx(tx, registrationId);
       }
       const created = await tx.paymentProof.create({
         data: {
@@ -79,18 +108,33 @@ export class PaymentProofsService {
         where: { id: registrationId },
         data: { status: 'proof_submitted', rejectionReason: null },
       });
-      await this.optionalInclusions.markProofSubmittedReviewTx(tx, registrationId);
-      await this.audit.logWith(tx, {
+      await this.optionalInclusions?.markProofSubmittedReviewTx(tx, registrationId);
+      if (typeof this.audit.logWith === 'function') {
+        await this.audit.logWith(tx, {
+          action: 'PROOF_SUBMITTED',
+          entityType: 'PaymentProof',
+          entityId: created.id,
+          registrationId,
+          performedById: userId ?? undefined,
+          ipAddress: ip,
+          metadata: { imageUrl },
+        });
+        auditWrittenInTransaction = true;
+      }
+      return created;
+    });
+
+    if (!auditWrittenInTransaction) {
+      await this.audit.log({
         action: 'PROOF_SUBMITTED',
         entityType: 'PaymentProof',
-        entityId: created.id,
+        entityId: proof.id,
         registrationId,
-        performedById: userId,
+        performedById: userId ?? undefined,
         ipAddress: ip,
         metadata: { imageUrl },
       });
-      return created;
-    });
+    }
 
     await this.funnel.track(
       {
@@ -107,19 +151,21 @@ export class PaymentProofsService {
       { userAgent, referrer },
     );
 
-    await this.funnel.track(
-      {
-        eventId: reg.eventId,
-        userId,
-        step: 'registration_submitted_for_review',
-        status: 'success',
-        metadata: {
-          registrationId,
-          amount: Number(reg.total),
+    if (reg.attendeesCompletedAt) {
+      await this.funnel.track(
+        {
+          eventId: reg.eventId,
+          userId,
+          step: 'registration_submitted_for_review',
+          status: 'success',
+          metadata: {
+            registrationId,
+            amount: Number(reg.total),
+          },
         },
-      },
-      { userAgent, referrer },
-    );
+        { userAgent, referrer },
+      );
+    }
 
     this.logger.log({
       msg: 'Payment proof submitted',
@@ -134,5 +180,26 @@ export class PaymentProofsService {
       status: proof.status,
       uploadedAt: proof.createdAt.toISOString(),
     };
+  }
+
+  createForGuest(
+    registrationId: string,
+    guestAccessToken: string | undefined,
+    buffer: Buffer,
+    mimeType: string,
+    ip?: string,
+    userAgent?: string,
+    referrer?: string,
+  ) {
+    return this.create(
+      registrationId,
+      null,
+      buffer,
+      mimeType,
+      ip,
+      userAgent,
+      referrer,
+      guestAccessToken,
+    );
   }
 }

@@ -62,4 +62,35 @@ describe('RegistrationsService referral pricing', () => {
     const { service } = makeService();
     expect(() => (service as any).validateAttendeeDemographics([{}])).not.toThrow();
   });
+
+  it('classifies age using the event date and returns an immutable snapshot', () => {
+    const { service } = makeService();
+    const event = {
+      eventType: 'running',
+      startsAt: new Date('2026-09-14T23:00:00.000Z'),
+      runningConfig: {
+        ageGroups: [
+          { name: 'Junior', minAge: 12, maxAge: 17 },
+          { name: 'Open', minAge: 18, maxAge: 39 },
+        ],
+      },
+    };
+
+    expect((service as any).runningAgeGroupSnapshot(event, { birthday: '2008-09-16' }))
+      .toEqual({ age: 17, name: 'Junior' });
+    expect((service as any).runningAgeGroupSnapshot(event, { birthday: '2008-09-15' }))
+      .toEqual({ age: 18, name: 'Open' });
+  });
+
+  it('rejects a runner whose event-day age is outside configured groups', () => {
+    const { service } = makeService();
+    const event = {
+      eventType: 'running',
+      startsAt: new Date('2026-09-14T23:00:00.000Z'),
+      runningConfig: { ageGroups: [{ name: 'Adult', minAge: 18, maxAge: 99 }] },
+    };
+
+    expect(() => (service as any).runningAgeGroupSnapshot(event, { birthday: '2012-01-01' }))
+      .toThrow('not covered by a configured age group');
+  });
 });

@@ -8,7 +8,7 @@ import {
   HttpException,
   HttpStatus,
 } from '@nestjs/common';
-import { JwtService } from '@nestjs/jwt';
+import { JwtService, type JwtSignOptions } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcryptjs';
 import { createHash, randomInt } from 'crypto';
@@ -281,7 +281,11 @@ export class AuthService {
     const userAgent = req?.headers['user-agent'] as string | undefined;
     const referrer = (req?.headers['referer'] as string | undefined) ?? undefined;
 
-    this.logger.log({ msg: 'OTP send requested', email, eventId: dto.eventId ?? null });
+    this.logger.log({
+      msg: 'OTP send requested',
+      emailHash: createHash('sha256').update(email).digest('hex').slice(0, 12),
+      eventId: dto.eventId ?? null,
+    });
 
     let user = await this.prisma.user.findUnique({ where: { email } });
 
@@ -678,7 +682,8 @@ export class AuthService {
     const payload: JwtPayload = { sub: userId, email, isAdmin };
     return this.jwt.signAsync(payload, {
       algorithm: 'RS256',
-      expiresIn: this.config.get<string>('jwt.accessExpiry') ?? '15m',
+      expiresIn: (this.config.get<string>('jwt.accessExpiry') ??
+        '15m') as JwtSignOptions['expiresIn'],
     });
   }
 
@@ -700,7 +705,10 @@ export class AuthService {
 
     const token = await this.jwt.signAsync(
       { sub: userId, jti },
-      { algorithm: 'RS256', expiresIn: refreshExpiry },
+      {
+        algorithm: 'RS256',
+        expiresIn: refreshExpiry as JwtSignOptions['expiresIn'],
+      },
     );
 
     await this.redis.set(`refresh:${userId}:${jti}`, '1', ttlSeconds);

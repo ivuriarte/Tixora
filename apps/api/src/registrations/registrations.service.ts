@@ -3,19 +3,25 @@ import {
   Logger,
   NotFoundException,
   BadRequestException,
+  ConflictException,
+  Optional,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Prisma } from '@prisma/client';
+import * as bcrypt from 'bcryptjs';
 import { PrismaService } from '../prisma/prisma.service';
 import { EmailService } from '../email/email.service';
 import { AuditService } from '../audit/audit.service';
 import { FunnelService } from '../funnel/funnel.service';
+import { RedisService } from '../redis/redis.service';
 import {
   generateReferenceNumber,
   generateAttendeeQrToken,
 } from '@axon-tickets/utils';
-import { CreateRegistrationDto } from './dto/create-registration.dto';
+import { createHash, randomBytes, randomInt, timingSafeEqual } from 'crypto';
+import { AttendeeDto, CreateRegistrationDto } from './dto/create-registration.dto';
 import { UpdateRegistrationAttendeesDto } from './dto/update-registration-attendees.dto';
+import { ConfirmGuestCheckoutDto } from './dto/checkout-confirmation.dto';
 import { ValidateReferralCodeDto } from '../admin/dto/referral-code.dto';
 import { getAgendaSubEvents, resolveAgendaSubEvent } from '../events/agenda-sub-events';
 import { OptionalInclusionsService } from '../optional-inclusions/optional-inclusions.service';
@@ -24,6 +30,8 @@ const ACTIVE_REGISTRATION_STATUSES = ['pending_payment', 'proof_submitted', 'pen
 const VALID_TICKET_STATUSES = ['valid', 'used'] as const;
 const DUPLICATE_SUCCESSFUL_REGISTRATION_MESSAGE =
   'You have already successfully registered for this event. You cannot register twice for the same event.';
+const GUEST_CHECKOUT_OTP_TTL_SECONDS = 300;
+const GUEST_CHECKOUT_OTP_MAX_ATTEMPTS = 5;
 
 type SelectedSubEvent = {
   id: string;
@@ -41,7 +49,8 @@ export class RegistrationsService {
     private readonly audit: AuditService,
     private readonly config: ConfigService,
     private readonly funnel: FunnelService,
-    private readonly optionalInclusions: OptionalInclusionsService,
+    private readonly redis: RedisService,
+    @Optional() private readonly optionalInclusions?: OptionalInclusionsService,
   ) {}
 
   async create(dto: CreateRegistrationDto, userId: string, ip?: string) {
@@ -58,8 +67,56 @@ export class RegistrationsService {
     }
   }
 
-  private async createImpl(dto: CreateRegistrationDto, userId: string, ip?: string) {
-    this.validateAttendeeDemographics(dto.attendees);
+  async createGuest(dto: CreateRegistrationDto, ip?: string) {
+    if (!dto.guestEmail?.trim()) {
+      throw new BadRequestException('Guest email is required.');
+    }
+    if (dto.accountConsent === true) {
+      throw new BadRequestException('Use account activation when account consent is granted.');
+    }
+    const guestAccessToken = randomBytes(32).toString('base64url');
+    const guestAccessTokenHash = createHash('sha256').update(guestAccessToken).digest('hex');
+    const registration = await this.createImpl(
+      dto,
+      null,
+      ip,
+      dto.guestEmail.trim().toLowerCase(),
+      guestAccessTokenHash,
+    );
+    return { ...registration, guestAccessToken };
+  }
+
+  async createGuestIntent(dto: CreateRegistrationDto, ip?: string) {
+    if (dto.guestEmail || dto.attendees?.length) {
+      throw new BadRequestException('Guest contact and attendee details are collected after payment proof.');
+    }
+    if (dto.accountConsent === true) {
+      throw new BadRequestException('Account consent is collected after payment proof.');
+    }
+
+    const guestAccessToken = randomBytes(32).toString('base64url');
+    const guestAccessTokenHash = createHash('sha256').update(guestAccessToken).digest('hex');
+    const registration = await this.createImpl(
+      { ...dto, accountConsent: false },
+      null,
+      ip,
+      undefined,
+      guestAccessTokenHash,
+      true,
+    );
+    return { ...registration, guestAccessToken };
+  }
+
+  private async createImpl(
+    dto: CreateRegistrationDto,
+    userId: string | null,
+    ip?: string,
+    guestEmail?: string,
+    guestAccessTokenHash?: string,
+    requirePaid = false,
+  ) {
+    const attendees = dto.attendees ?? [];
+    this.validateAttendeeDemographics(attendees);
     const event = await this.prisma.event.findUnique({
       where: { id: dto.eventId },
       include: { tiers: { where: { id: dto.tierId } } },
@@ -68,8 +125,9 @@ export class RegistrationsService {
     if (!['published', 'on_sale'].includes(event.status)) {
       throw new BadRequestException('Event is not open for registration');
     }
+    this.validateRunningAttendees(event, attendees);
     const selectedSubEvents = this.selectedSubEventsFromAgenda(event.agenda, dto.subEventIds, dto.subEventId);
-    if (getAgendaSubEvents(event.agenda).length > 0 && selectedSubEvents.length === 0) {
+    if (attendees.length > 0 && getAgendaSubEvents(event.agenda).length > 0 && selectedSubEvents.length === 0) {
       throw new BadRequestException('Please choose at least one sub-event to attend.');
     }
     const primarySubEvent = selectedSubEvents[0] ?? null;
@@ -77,10 +135,18 @@ export class RegistrationsService {
     const tier = event.tiers[0];
     if (!tier) throw new NotFoundException('Ticket tier not found');
 
-    const attendeeCount = dto.attendees.length;
+    const attendeeCount = attendees.length || dto.attendeeCount || 0;
+    if (attendeeCount < 1) {
+      throw new BadRequestException('At least one attendee is required.');
+    }
     if (attendeeCount > tier.maxPerOrder) {
       throw new BadRequestException(
         `Maximum ${tier.maxPerOrder} attendees per registration for this tier`,
+      );
+    }
+    if (dto.quoteToken && attendees.length !== attendeeCount) {
+      throw new BadRequestException(
+        'Optional add-on checkout requires attendee details before payment.',
       );
     }
 
@@ -88,9 +154,9 @@ export class RegistrationsService {
       throw new BadRequestException('An authoritative quote is required for optional add-ons');
     }
     const quote = dto.quoteToken
-      ? await this.optionalInclusions.getConsumableQuote(
+      ? await this.optionalInclusions!.getConsumableQuote(
           dto.quoteToken,
-          userId,
+          userId ?? '',
           dto.eventId,
           dto.tierId,
           attendeeCount,
@@ -117,6 +183,9 @@ export class RegistrationsService {
       ? quote.total.eq(0)
       : event.isFree || (unitPrice === 0 && fees === 0);
 
+    if (requirePaid && isFreeEvent) {
+      throw new BadRequestException('Use the free-event registration flow for this ticket.');
+    }
     if (!isFreeEvent && !event.allowManualPayment) {
       throw new BadRequestException('Manual payment is not enabled for this event');
     }
@@ -130,20 +199,26 @@ export class RegistrationsService {
         // click, auto-submit firing twice, network retry) could both pass the
         // duplicate-registration check below before either one commits.
         // pg_advisory_xact_lock auto-releases when this transaction ends.
-        await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${userId}), hashtext(${dto.eventId}))`;
+        const ownerKey = userId ?? guestEmail ?? guestAccessTokenHash!;
+        await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${ownerKey}), hashtext(${dto.eventId}))`;
 
         // Duplicate registration guard: block if user already has an active
         // registration for this event.
         // Now inside the lock above, so a concurrent request can't slip
         // through before this one commits.
-        const activeRegistration = await tx.registration.findFirst({
-          where: {
-            userId,
-            eventId: dto.eventId,
-            status: { in: [...ACTIVE_REGISTRATION_STATUSES] as any[] },
-          },
-          select: { id: true, status: true },
-        });
+        const activeRegistration =
+          userId || guestEmail
+            ? await tx.registration.findFirst({
+                where: {
+                  ...(userId
+                    ? { userId }
+                    : { guestEmail: { equals: guestEmail!, mode: 'insensitive' as const } }),
+                  eventId: dto.eventId,
+                  status: { in: [...ACTIVE_REGISTRATION_STATUSES] as any[] },
+                },
+                select: { id: true, status: true },
+              })
+            : null;
         if (activeRegistration) {
           throw new BadRequestException(
             activeRegistration.status === 'verified'
@@ -174,10 +249,12 @@ export class RegistrationsService {
         // Anti-scalper #1: per-account cap across the WHOLE event (not just
         // this registration). Sums attendees from all non-cancelled /
         // non-rejected registrations this user already has for the event.
-        if (maxPerUser > 0) {
+        if (maxPerUser > 0 && (userId || guestEmail)) {
           const existing = await tx.registration.aggregate({
             where: {
-              userId,
+              ...(userId
+                ? { userId }
+                : { guestEmail: { equals: guestEmail!, mode: 'insensitive' as const } }),
               eventId: dto.eventId,
               status: { notIn: ['cancelled', 'rejected'] },
             },
@@ -251,6 +328,8 @@ export class RegistrationsService {
           data: {
             referenceNumber,
             userId,
+            guestEmail: guestEmail ?? null,
+            guestAccessTokenHash: guestAccessTokenHash ?? null,
             eventId: dto.eventId,
             tierId: dto.tierId,
             tierName: tier.name,
@@ -273,24 +352,23 @@ export class RegistrationsService {
             }),
             currency: tier.currency,
             notes: dto.notes,
-            attendees: {
-              create: dto.attendees.map((a, i) => ({
-                firstName: a.firstName,
-                lastName: a.lastName,
-                email: a.email,
-                phone: a.phone,
-                company: a.company,
-                jobTitle: a.jobTitle,
-                birthday: a.birthday ? new Date(`${a.birthday}T00:00:00.000Z`) : null,
-                gender: a.gender || null,
-                city: a.city?.trim() || null,
-                subEventId: primarySubEvent?.id ?? null,
-                subEventTitle: this.summarizeSubEvents(selectedSubEvents),
-                subEventTime: selectedSubEvents.length === 1 ? primarySubEvent?.time ?? null : null,
-                selectedSubEvents: selectedSubEvents.length > 0 ? (selectedSubEvents as unknown as Prisma.InputJsonValue) : Prisma.JsonNull,
-                isLead: i === 0,
-              })),
-            },
+            accountConsent: dto.accountConsent === true,
+            accountConsentAt: dto.accountConsent === true ? new Date() : null,
+            attendeesCompletedAt: attendees.length > 0 ? new Date() : null,
+            ...(attendees.length > 0 && {
+              attendees: {
+                create: attendees.map((a, i) => ({
+                  ...this.toAttendeeData(a, i, event),
+                  subEventId: primarySubEvent?.id ?? null,
+                  subEventTitle: this.summarizeSubEvents(selectedSubEvents),
+                  subEventTime: selectedSubEvents.length === 1 ? primarySubEvent?.time ?? null : null,
+                  selectedSubEvents: selectedSubEvents.length > 0
+                    ? (selectedSubEvents as unknown as Prisma.InputJsonValue)
+                    : Prisma.JsonNull,
+                  event: { connect: { id: dto.eventId } },
+                })),
+              },
+            }),
           },
           include: { attendees: true, event: true },
         });
@@ -305,27 +383,27 @@ export class RegistrationsService {
           });
         }
         if (quote && dto.quoteToken) {
-          await this.optionalInclusions.consumeQuoteTx(
+          await this.optionalInclusions!.consumeQuoteTx(
             tx,
             dto.quoteToken,
-            userId,
+            userId ?? '',
             created.id,
             dto.eventId,
             dto.tierId,
             created.attendees.map((attendee) => attendee.id),
           );
           if (isFreeEvent) {
-            await this.optionalInclusions.markProofSubmittedReviewTx(tx, created.id);
+            await this.optionalInclusions!.markProofSubmittedReviewTx(tx, created.id);
           }
         } else {
           await this.createAdmissionLineItemsTx(tx, created.id, tier.id, tier.name, attendeeCount, unitPrice, fees, discount);
         }
-        const leadAttendee = dto.attendees[0];
+        const leadAttendee = attendees[0];
         const profileDemographics: { birthday?: Date; gender?: string; city?: string } = {};
-        if (leadAttendee.birthday) profileDemographics.birthday = new Date(`${leadAttendee.birthday}T00:00:00.000Z`);
-        if (leadAttendee.gender) profileDemographics.gender = leadAttendee.gender;
-        if (leadAttendee.city?.trim()) profileDemographics.city = leadAttendee.city.trim();
-        if (Object.keys(profileDemographics).length > 0) {
+        if (leadAttendee?.birthday) profileDemographics.birthday = new Date(`${leadAttendee.birthday}T00:00:00.000Z`);
+        if (leadAttendee?.gender) profileDemographics.gender = leadAttendee.gender;
+        if (leadAttendee?.city?.trim()) profileDemographics.city = leadAttendee.city.trim();
+        if (userId && Object.keys(profileDemographics).length > 0) {
           await tx.user.update({
             where: { id: userId },
             data: profileDemographics,
@@ -383,7 +461,7 @@ export class RegistrationsService {
       entityType: 'Registration',
       entityId: registration.id,
       registrationId: registration.id,
-      performedById: userId,
+      performedById: userId ?? undefined,
       ipAddress: ip,
       metadata: {
         referralCode: (registration.referralCodeSnapshot as any)?.code ?? null,
@@ -430,6 +508,472 @@ export class RegistrationsService {
         fulfillmentInstructions: item.fulfillmentInstructionsSnapshot,
         fulfillmentStatus: item.fulfillments[0]?.status ?? null,
       })),
+    };
+  }
+
+  private async assertGuestAccess(id: string, token?: string) {
+    if (!token) throw new NotFoundException('Registration not found');
+    const registration = await this.prisma.registration.findFirst({
+      where: { id, userId: null, guestAccessTokenHash: { not: null } },
+      select: { id: true, guestAccessTokenHash: true },
+    });
+    if (!registration?.guestAccessTokenHash) {
+      throw new NotFoundException('Registration not found');
+    }
+    const supplied = Buffer.from(createHash('sha256').update(token).digest('hex'));
+    const stored = Buffer.from(registration.guestAccessTokenHash);
+    if (supplied.length !== stored.length || !timingSafeEqual(supplied, stored)) {
+      throw new NotFoundException('Registration not found');
+    }
+  }
+
+  async findGuestById(id: string, token?: string) {
+    await this.assertGuestAccess(id, token);
+    const registration = await this.prisma.registration.findUnique({
+      where: { id },
+      include: {
+        event: {
+          select: {
+            id: true,
+            slug: true,
+            title: true,
+            startsAt: true,
+            venue: true,
+            isFree: true,
+            platformFee: true,
+            paymentMethods: true,
+            bankName: true,
+            bankAccountName: true,
+            bankAccountNumber: true,
+            runningConfig: true,
+            eventType: true,
+          },
+        },
+        tier: { select: { id: true, name: true } },
+        attendees: { orderBy: [{ isLead: 'desc' }, { createdAt: 'asc' }] },
+        proofs: {
+          select: { id: true, status: true, createdAt: true },
+          orderBy: { createdAt: 'desc' },
+        },
+      },
+    });
+    if (!registration) throw new NotFoundException('Registration not found');
+    const { guestAccessTokenHash: _secret, ...safe } = registration;
+    return safe;
+  }
+
+  async updateGuestAttendees(
+    id: string,
+    token: string | undefined,
+    dto: UpdateRegistrationAttendeesDto,
+  ) {
+    await this.assertGuestAccess(id, token);
+    const registration = await this.prisma.registration.findUnique({
+      where: { id },
+      select: { guestEmail: true, total: true },
+    });
+    if (registration && !registration.guestEmail && Number(registration.total) > 0) {
+      throw new BadRequestException(
+        'Paid guest checkout must be finalized with the email confirmation code.',
+      );
+    }
+    return this.updateAttendeesForRegistration(id, null, dto);
+  }
+
+  async requestGuestConfirmationCode(
+    id: string,
+    token: string | undefined,
+    email: string,
+  ) {
+    await this.assertGuestAccess(id, token);
+    const registration = await this.prisma.registration.findUnique({
+      where: { id },
+      select: {
+        status: true,
+        total: true,
+        attendeesCompletedAt: true,
+      },
+    });
+    if (
+      !registration ||
+      registration.status !== 'proof_submitted' ||
+      Number(registration.total) <= 0 ||
+      registration.attendeesCompletedAt
+    ) {
+      throw new BadRequestException('This checkout is not ready for guest confirmation.');
+    }
+
+    const normalizedEmail = email.trim().toLowerCase();
+    const conflicts = await this.findGuestDuplicateConflicts(id, [normalizedEmail]);
+    if (conflicts.length > 0) {
+      throw new ConflictException({
+        message: 'This guest transaction is blocked because the email already has an active registration for this event.',
+        conflicts,
+      });
+    }
+    const cooldownKey = `guest-checkout-otp-cooldown:${id}`;
+    const accepted = await this.redis.setIfNotExists(cooldownKey, '1', 60);
+    if (!accepted) {
+      throw new BadRequestException('Please wait 60 seconds before requesting a new code.');
+    }
+
+    const code = randomInt(0, 1_000_000).toString().padStart(6, '0');
+    const codeHash = await bcrypt.hash(code, 10);
+    const record = JSON.stringify({
+      codeHash,
+      emailHash: this.hashGuestEmail(normalizedEmail),
+    });
+    const otpKey = `guest-checkout-otp:${id}`;
+    await this.redis.set(otpKey, record, GUEST_CHECKOUT_OTP_TTL_SECONDS);
+
+    const sent = await this.emailService.sendOtpEmail(normalizedEmail, code);
+    if (!sent) {
+      await Promise.all([this.redis.del(otpKey), this.redis.del(cooldownKey)]);
+      throw new BadRequestException('Could not send code right now. Please try again.');
+    }
+
+    return { message: 'If the address is valid, a confirmation code has been sent.' };
+  }
+
+  async confirmGuestCheckout(
+    id: string,
+    token: string | undefined,
+    dto: ConfirmGuestCheckoutDto,
+  ) {
+    await this.assertGuestAccess(id, token);
+    const normalizedEmail = dto.email.trim().toLowerCase();
+    const otpKey = `guest-checkout-otp:${id}`;
+    const attemptsKey = `guest-checkout-otp-attempts:${id}`;
+    const rawRecord = await this.redis.get(otpKey);
+    if (!rawRecord) {
+      throw new BadRequestException('Code expired or invalid. Request a new one.');
+    }
+
+    let record: { codeHash: string; emailHash: string };
+    try {
+      record = JSON.parse(rawRecord) as { codeHash: string; emailHash: string };
+    } catch {
+      await this.redis.del(otpKey);
+      throw new BadRequestException('Code expired or invalid. Request a new one.');
+    }
+
+    const attempts = Number.parseInt((await this.redis.get(attemptsKey)) ?? '0', 10);
+    if (attempts >= GUEST_CHECKOUT_OTP_MAX_ATTEMPTS) {
+      throw new BadRequestException('Too many failed attempts. Request a new code.');
+    }
+
+    const emailMatches = this.safeHashEquals(
+      record.emailHash,
+      this.hashGuestEmail(normalizedEmail),
+    );
+    const codeMatches = emailMatches && (await bcrypt.compare(dto.otp, record.codeHash));
+    if (!codeMatches) {
+      const next = await this.redis.incrementWithTtl(
+        attemptsKey,
+        GUEST_CHECKOUT_OTP_TTL_SECONDS,
+      );
+      if (next.count >= GUEST_CHECKOUT_OTP_MAX_ATTEMPTS) {
+        await this.redis.del(otpKey);
+        throw new BadRequestException('Too many failed attempts. Request a new code.');
+      }
+      throw new BadRequestException('Incorrect code. Please try again.');
+    }
+
+    const leadEmail = dto.attendees[0]?.email?.trim().toLowerCase();
+    if (!leadEmail || leadEmail !== normalizedEmail) {
+      throw new BadRequestException('The confirmation email must match Attendee 1.');
+    }
+
+    const conflicts = await this.findGuestDuplicateConflicts(
+      id,
+      dto.attendees.map((attendee) => attendee.email),
+    );
+    if (conflicts.length > 0) {
+      throw new ConflictException({
+        message: 'This guest transaction is blocked because one or more attendee emails already have an active registration for this event.',
+        conflicts,
+      });
+    }
+
+    const result = await this.updateAttendeesForRegistration(id, null, dto, true);
+    await Promise.all([
+      this.redis.del(otpKey),
+      this.redis.del(attemptsKey),
+      this.redis.del(`guest-checkout-otp-cooldown:${id}`),
+    ]);
+    await this.audit.log({
+      action: 'GUEST_REGISTRATION_CONFIRMED',
+      entityType: 'Registration',
+      entityId: id,
+      registrationId: id,
+      metadata: { emailStoredAsAttendeeContactOnly: true },
+    });
+    return result;
+  }
+
+  async claimAndComplete(
+    id: string,
+    token: string | undefined,
+    userId: string,
+    dto: UpdateRegistrationAttendeesDto,
+  ) {
+    await this.assertGuestAccess(id, token);
+    this.validateAttendeeDemographics(dto.attendees);
+
+    const [registration, user] = await Promise.all([
+      this.prisma.registration.findUnique({
+        where: { id },
+        include: {
+          attendees: { orderBy: { isLead: 'desc' } },
+          event: { select: { id: true, title: true, slug: true, eventType: true, runningConfig: true, startsAt: true } },
+        },
+      }),
+      this.prisma.user.findUnique({ where: { id: userId } }),
+    ]);
+    if (!registration || !user) throw new NotFoundException('Registration not found');
+    if (
+      registration.userId !== null ||
+      registration.status !== 'proof_submitted' ||
+      registration.attendeesCompletedAt
+    ) {
+      throw new BadRequestException('This checkout can no longer be linked to an account.');
+    }
+    if (dto.attendees.length !== registration.attendeeCount) {
+      throw new BadRequestException(
+        `Expected ${registration.attendeeCount} attendee(s) — cannot change quantity`,
+      );
+    }
+    const lead = dto.attendees[0];
+    if (lead.email.trim().toLowerCase() !== user.email.toLowerCase()) {
+      throw new BadRequestException('Attendee 1 email must match the verified account email.');
+    }
+    this.validateRunningAttendees(registration.event, dto.attendees);
+
+    const duplicate = await this.prisma.registration.findFirst({
+      where: {
+        id: { not: id },
+        userId,
+        eventId: registration.eventId,
+        status: { in: [...ACTIVE_REGISTRATION_STATUSES] as any[] },
+      },
+      select: { id: true },
+    });
+    if (duplicate) {
+      throw new BadRequestException(
+        'This account already has an active registration for the event.',
+      );
+    }
+
+    const profileUpdate: Prisma.UserUpdateInput = {
+      firstName: lead.firstName.trim(),
+      lastName: lead.lastName.trim(),
+      phone: lead.phone?.trim() || null,
+      company: lead.company?.trim() || null,
+      jobTitle: lead.jobTitle?.trim() || null,
+      city: lead.city?.trim() || null,
+      birthday: lead.birthday ? new Date(`${lead.birthday}T00:00:00.000Z`) : null,
+      gender: lead.gender || null,
+    };
+
+    await this.prisma.$transaction(async (tx) => {
+      if (registration.attendees.length > 0) {
+        await tx.attendee.deleteMany({ where: { registrationId: id } });
+      }
+      await tx.attendee.createMany({
+        data: dto.attendees.map((attendee, index) => ({
+          ...this.toAttendeeData(attendee, index, registration.event),
+          registrationId: id,
+          eventId: registration.eventId,
+        })),
+      });
+      await tx.registration.update({
+        where: { id },
+        data: {
+          userId,
+          guestEmail: null,
+          guestAccessTokenHash: null,
+          accountConsent: true,
+          accountConsentAt: new Date(),
+          attendeesCompletedAt: new Date(),
+          status: 'pending_approval',
+          ...(dto.notes !== undefined ? { notes: dto.notes } : {}),
+        },
+      });
+      await tx.user.update({ where: { id: userId }, data: profileUpdate });
+    });
+
+    await this.audit.log({
+      action: 'REGISTRATION_LINKED_TO_VERIFIED_ACCOUNT',
+      entityType: 'Registration',
+      entityId: id,
+      registrationId: id,
+      performedById: userId,
+    });
+    await this.sendSubmissionEmails(
+      registration.referenceNumber,
+      registration.event.title,
+      registration.event.slug,
+      dto.attendees,
+      id,
+      'activated',
+    );
+    return {
+      message: 'Registration confirmed and account updated.',
+      registrationId: id,
+      referenceNumber: registration.referenceNumber,
+      status: 'pending_approval',
+    };
+  }
+
+  async checkGuestDuplicates(
+    id: string,
+    token: string | undefined,
+    emails: string[],
+  ) {
+    await this.assertGuestAccess(id, token);
+    return { conflicts: await this.findGuestDuplicateConflicts(id, emails) };
+  }
+
+  async claimCompletedGuest(id: string, token: string | undefined, userId: string) {
+    await this.assertGuestAccess(id, token);
+    const [registration, user] = await Promise.all([
+      this.prisma.registration.findUnique({
+        where: { id },
+        include: { attendees: { where: { isLead: true }, take: 1 } },
+      }),
+      this.prisma.user.findUnique({ where: { id: userId } }),
+    ]);
+    if (!registration || !user) throw new NotFoundException('Registration not found');
+    if (
+      registration.userId !== null
+      || registration.status !== 'pending_approval'
+      || !registration.attendeesCompletedAt
+    ) {
+      throw new BadRequestException('This guest registration can no longer be linked.');
+    }
+    const leadEmail = registration.attendees[0]?.email?.toLowerCase();
+    if (!leadEmail || leadEmail !== user.email.toLowerCase()) {
+      throw new BadRequestException('Verify the lead registrant email before linking this registration.');
+    }
+    const duplicate = await this.prisma.registration.findFirst({
+      where: {
+        id: { not: id },
+        userId,
+        eventId: registration.eventId,
+        status: { in: [...ACTIVE_REGISTRATION_STATUSES] as any[] },
+      },
+      select: { id: true },
+    });
+    if (duplicate) throw new ConflictException('This account already has an active registration for the event.');
+
+    await this.prisma.registration.update({
+      where: { id },
+      data: {
+        userId,
+        guestEmail: null,
+        guestAccessTokenHash: null,
+        accountConsent: true,
+        accountConsentAt: new Date(),
+      },
+    });
+    await this.audit.log({
+      action: 'COMPLETED_GUEST_REGISTRATION_LINKED',
+      entityType: 'Registration',
+      entityId: id,
+      registrationId: id,
+      performedById: userId,
+    });
+    return { registrationId: id, referenceNumber: registration.referenceNumber };
+  }
+
+  private async findGuestDuplicateConflicts(id: string, emails: string[]) {
+    const normalizedEmails = [...new Set(emails.map((email) => email.trim().toLowerCase()).filter(Boolean))];
+    if (normalizedEmails.length === 0) return [];
+    const current = await this.prisma.registration.findUnique({
+      where: { id },
+      select: { eventId: true },
+    });
+    if (!current) throw new NotFoundException('Registration not found');
+    const matches = await this.prisma.registration.findMany({
+      where: {
+        id: { not: id },
+        eventId: current.eventId,
+        status: { in: [...ACTIVE_REGISTRATION_STATUSES] as any[] },
+        OR: [
+          { guestEmail: { in: normalizedEmails, mode: 'insensitive' } },
+          { attendees: { some: { email: { in: normalizedEmails, mode: 'insensitive' } } } },
+        ],
+      },
+      select: {
+        referenceNumber: true,
+        createdAt: true,
+        guestEmail: true,
+        attendees: {
+          where: { email: { in: normalizedEmails, mode: 'insensitive' } },
+          select: { firstName: true, lastName: true, email: true },
+          take: 10,
+        },
+      },
+      take: 10,
+    });
+    return matches.flatMap((registration) => {
+      if (registration.attendees.length > 0) {
+        return registration.attendees.map((attendee) => ({
+          email: attendee.email ?? '',
+          attendeeName: `${attendee.firstName.slice(0, 1)}*** ${attendee.lastName.slice(0, 1)}***`,
+          transactionDate: registration.createdAt.toISOString(),
+          referenceNumber: `••••${registration.referenceNumber.slice(-4)}`,
+        }));
+      }
+      return [{
+        email: registration.guestEmail ?? '',
+        attendeeName: 'Previous guest registrant',
+        transactionDate: registration.createdAt.toISOString(),
+        referenceNumber: `••••${registration.referenceNumber.slice(-4)}`,
+      }];
+    });
+  }
+
+  private hashGuestEmail(email: string) {
+    return createHash('sha256').update(email).digest('hex');
+  }
+
+  private safeHashEquals(left: string, right: string) {
+    const leftBuffer = Buffer.from(left);
+    const rightBuffer = Buffer.from(right);
+    return leftBuffer.length === rightBuffer.length && timingSafeEqual(leftBuffer, rightBuffer);
+  }
+
+  private toAttendeeData(
+    attendee: AttendeeDto,
+    index: number,
+    event?: { eventType: string; runningConfig: Prisma.JsonValue; startsAt: Date },
+  ) {
+    const ageGroup = event ? this.runningAgeGroupSnapshot(event, attendee) : null;
+    return {
+      firstName: attendee.firstName.trim(),
+      lastName: attendee.lastName.trim(),
+      email: attendee.email.trim().toLowerCase(),
+      phone: attendee.phone?.trim() || null,
+      company: attendee.company?.trim() || null,
+      jobTitle: attendee.jobTitle?.trim() || null,
+      birthday: attendee.birthday ? new Date(`${attendee.birthday}T00:00:00.000Z`) : null,
+      ageAtEvent: ageGroup?.age ?? null,
+      ageGroupName: ageGroup?.name ?? null,
+      gender: attendee.gender || null,
+      city: attendee.city?.trim() || null,
+      raceDistance: attendee.raceDistance?.trim() || null,
+      raceDivision: attendee.raceDivision?.trim() || null,
+      genderIdentity: attendee.genderIdentity?.trim() || null,
+      emergencyContactName: attendee.emergencyContactName?.trim() || null,
+      emergencyContactPhone: attendee.emergencyContactPhone?.trim() || null,
+      emergencyContactRelationship: attendee.emergencyContactRelationship?.trim() || null,
+      merchandiseSize: attendee.merchandiseSize?.trim() || null,
+      claimMethod: attendee.claimMethod ?? null,
+      deliveryAddress: attendee.deliveryAddress
+        ? (attendee.deliveryAddress as unknown as Prisma.InputJsonValue)
+        : Prisma.JsonNull,
+      isLead: index === 0,
     };
   }
 
@@ -559,6 +1103,135 @@ export class RegistrationsService {
         throw new BadRequestException('Birthday must be a valid past date within the last 120 years.');
       }
     }
+  }
+
+  private validateRunningAttendees(
+    event: { eventType: string; runningConfig: Prisma.JsonValue; startsAt: Date },
+    attendees: CreateRegistrationDto['attendees'],
+  ) {
+    if (event.eventType !== 'running' || !attendees?.length) return;
+    if (!event.runningConfig || typeof event.runningConfig !== 'object' || Array.isArray(event.runningConfig)) {
+      throw new BadRequestException('This running event is missing its registration configuration.');
+    }
+    const config = event.runningConfig as Record<string, unknown>;
+    const distances = Array.isArray(config.distances)
+      ? config.distances
+          .flatMap((item) =>
+            item && typeof item === 'object' && !Array.isArray(item)
+              ? [
+                  String((item as Record<string, unknown>).name ?? ''),
+                  String((item as Record<string, unknown>).code ?? ''),
+                ]
+              : [],
+          )
+          .filter(Boolean)
+      : [];
+    const divisions = Array.isArray(config.raceDivisions)
+      ? config.raceDivisions.filter((item): item is string => typeof item === 'string')
+      : [];
+    const identities = Array.isArray(config.genderIdentityOptions)
+      ? config.genderIdentityOptions.filter((item): item is string => typeof item === 'string')
+      : [];
+    const sizes = Array.isArray(config.merchandiseSizes)
+      ? config.merchandiseSizes.filter((item): item is string => typeof item === 'string')
+      : [];
+    const claimMethods = Array.isArray(config.claimMethods)
+      ? config.claimMethods.filter((item): item is string => typeof item === 'string')
+      : [];
+
+    attendees.forEach((attendee, index) => {
+      const label = `Attendee ${index + 1}`;
+      if (!attendee.birthday) {
+        throw new BadRequestException(`${label} requires a birthday for event-day age classification.`);
+      }
+      this.runningAgeGroupSnapshot(event, attendee, label);
+      if (!attendee.raceDistance || !distances.includes(attendee.raceDistance)) {
+        throw new BadRequestException(`${label} must select a configured race distance.`);
+      }
+      if (!attendee.raceDivision || !divisions.includes(attendee.raceDivision)) {
+        throw new BadRequestException(`${label} must select a configured race division.`);
+      }
+      if (attendee.genderIdentity && !identities.includes(attendee.genderIdentity)) {
+        throw new BadRequestException(`${label} selected an unsupported gender identity option.`);
+      }
+      if (!attendee.emergencyContactName || !attendee.emergencyContactPhone) {
+        throw new BadRequestException(`${label} requires an emergency contact name and phone number.`);
+      }
+      if (!attendee.merchandiseSize || !sizes.includes(attendee.merchandiseSize)) {
+        throw new BadRequestException(`${label} must select a configured merchandise size.`);
+      }
+      if (!attendee.claimMethod || !claimMethods.includes(attendee.claimMethod)) {
+        throw new BadRequestException(`${label} must select a supported claim method.`);
+      }
+      if (attendee.claimMethod === 'delivery' && !attendee.deliveryAddress) {
+        throw new BadRequestException(`${label} requires a delivery address.`);
+      }
+    });
+  }
+
+  private runningAgeGroupSnapshot(
+    event: { eventType: string; runningConfig: Prisma.JsonValue; startsAt: Date },
+    attendee: Pick<AttendeeDto, 'birthday'>,
+    label = 'Attendee',
+  ) {
+    if (event.eventType !== 'running' || !attendee.birthday) return null;
+    const birthdayMatch = /^(\d{4})-(\d{2})-(\d{2})$/.exec(attendee.birthday);
+    const birthday = new Date(`${attendee.birthday}T00:00:00.000Z`);
+    if (!birthdayMatch || !Number.isFinite(birthday.getTime())) {
+      throw new BadRequestException(`${label} must provide a valid birthday.`);
+    }
+    const eventParts = new Intl.DateTimeFormat('en-US', {
+      timeZone: 'Asia/Manila',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).formatToParts(event.startsAt);
+    const eventYear = Number(eventParts.find((part) => part.type === 'year')?.value);
+    const eventMonth = Number(eventParts.find((part) => part.type === 'month')?.value);
+    const eventDay = Number(eventParts.find((part) => part.type === 'day')?.value);
+    const birthdayYear = Number(birthdayMatch[1]);
+    const birthdayMonth = Number(birthdayMatch[2]);
+    const birthdayDay = Number(birthdayMatch[3]);
+    let age = eventYear - birthdayYear;
+    const birthdayHasNotOccurred =
+      eventMonth < birthdayMonth ||
+      (eventMonth === birthdayMonth && eventDay < birthdayDay);
+    if (birthdayHasNotOccurred) age -= 1;
+
+    const config = event.runningConfig as Record<string, unknown> | null;
+    const groups = Array.isArray(config?.ageGroups)
+      ? config.ageGroups.filter(
+          (item): item is { name: string; minAge: number; maxAge: number } =>
+            Boolean(item) && typeof item === 'object' && !Array.isArray(item) &&
+            typeof (item as Record<string, unknown>).name === 'string' &&
+            typeof (item as Record<string, unknown>).minAge === 'number' &&
+            typeof (item as Record<string, unknown>).maxAge === 'number',
+        )
+      : [];
+    const group = groups.find((item) => age >= item.minAge && age <= item.maxAge);
+    if (!group) {
+      throw new BadRequestException(
+        `${label}'s age on the event date (${age}) is not covered by a configured age group.`,
+      );
+    }
+    return { age, name: group.name };
+  }
+
+  private distanceCode(runningConfig: Prisma.JsonValue, distanceName: string) {
+    if (!runningConfig || typeof runningConfig !== 'object' || Array.isArray(runningConfig)) {
+      return distanceName.replace(/[^A-Za-z0-9]/g, '').toUpperCase().slice(0, 12) || 'RACE';
+    }
+    const distances = (runningConfig as Record<string, unknown>).distances;
+    if (!Array.isArray(distances)) return 'RACE';
+    const match = distances.find((item) => {
+      if (!item || typeof item !== 'object' || Array.isArray(item)) return false;
+      return String((item as Record<string, unknown>).name ?? '') === distanceName;
+    });
+    if (!match || typeof match !== 'object' || Array.isArray(match)) return 'RACE';
+    return String((match as Record<string, unknown>).code ?? 'RACE')
+      .replace(/[^A-Za-z0-9]/g, '')
+      .toUpperCase()
+      .slice(0, 12) || 'RACE';
   }
 
   async findMine(userId: string, page = 1, limit = 20) {
@@ -778,46 +1451,132 @@ export class RegistrationsService {
   }
 
   async updateAttendees(id: string, userId: string, dto: UpdateRegistrationAttendeesDto) {
+    return this.updateAttendeesForRegistration(id, userId, dto);
+  }
+
+  private async updateAttendeesForRegistration(
+    id: string,
+    userId: string | null,
+    dto: UpdateRegistrationAttendeesDto,
+    claimGuestEmails = false,
+  ) {
     this.validateAttendeeDemographics(dto.attendees);
     const reg = await this.prisma.registration.findFirst({
       where: { id, userId },
-      include: { attendees: { orderBy: { isLead: 'desc' } } },
+      include: {
+        attendees: { orderBy: { isLead: 'desc' } },
+        event: { select: { id: true, title: true, slug: true, eventType: true, runningConfig: true, startsAt: true } },
+      },
     });
     if (!reg) throw new NotFoundException('Registration not found');
-    if (reg.status !== 'pending_payment') {
+    const canCompleteFreeGuestIntent =
+      reg.status === 'pending_approval' &&
+      reg.userId === null &&
+      !reg.attendeesCompletedAt &&
+      Number(reg.total) === 0;
+    if (!['pending_payment', 'proof_submitted'].includes(reg.status) && !canCompleteFreeGuestIntent) {
       throw new BadRequestException(
-        'Attendee details can only be updated before payment is submitted',
+        'Attendee details can only be completed before final approval review',
       );
     }
-    if (dto.attendees.length !== reg.attendees.length) {
+    this.validateRunningAttendees(reg.event, dto.attendees);
+    if (dto.attendees.length !== reg.attendeeCount) {
       throw new BadRequestException(
-        `Expected ${reg.attendees.length} attendee(s) — cannot change quantity`,
+        `Expected ${reg.attendeeCount} attendee(s) — cannot change quantity`,
       );
     }
 
-    await this.prisma.$transaction([
-      ...reg.attendees.map((a, i) =>
-        this.prisma.attendee.update({
-          where: { id: a.id },
+    try {
+      await this.prisma.$transaction(async (tx) => {
+        if (claimGuestEmails) {
+          await tx.guestRegistrationEmailClaim.createMany({
+            data: [...new Set(dto.attendees.map((attendee) => attendee.email.trim().toLowerCase()))]
+              .map((email) => ({
+                eventId: reg.event.id,
+                registrationId: reg.id,
+                emailHash: this.hashGuestEmail(email),
+              })),
+          });
+        }
+        if (reg.attendees.length === 0) {
+          await tx.attendee.createMany({
+            data: dto.attendees.map((attendee, index) => ({
+              ...this.toAttendeeData(attendee, index, reg.event),
+              registrationId: reg.id,
+              eventId: reg.event.id,
+            })),
+          });
+        } else {
+          await Promise.all(
+            reg.attendees.map((attendee, index) =>
+              tx.attendee.update({
+                where: { id: attendee.id },
+                data: this.toAttendeeData(dto.attendees[index], index, reg.event),
+              }),
+            ),
+          );
+        }
+        await tx.registration.update({
+          where: { id },
           data: {
-            firstName: dto.attendees[i].firstName,
-            lastName: dto.attendees[i].lastName,
-            email: dto.attendees[i].email,
-            phone: dto.attendees[i].phone ?? null,
-            company: dto.attendees[i].company ?? null,
-            jobTitle: dto.attendees[i].jobTitle ?? null,
-            birthday: dto.attendees[i].birthday ? new Date(`${dto.attendees[i].birthday}T00:00:00.000Z`) : null,
-            gender: dto.attendees[i].gender || null,
-            city: dto.attendees[i].city?.trim() || null,
+            ...(dto.notes !== undefined ? { notes: dto.notes } : {}),
+            attendeesCompletedAt: new Date(),
+            ...(reg.status === 'proof_submitted' ? { status: 'pending_approval' } : {}),
           },
-        }),
-      ),
-      ...(dto.notes !== undefined
-        ? [this.prisma.registration.update({ where: { id }, data: { notes: dto.notes } })]
-        : []),
-    ]);
+        });
+      });
+    } catch (transactionError: unknown) {
+      if (transactionError instanceof Prisma.PrismaClientKnownRequestError && transactionError.code === 'P2002' && claimGuestEmails) {
+        throw new ConflictException('This guest transaction is blocked because an attendee email was just used for another active registration.');
+      }
+      throw transactionError;
+    }
 
-    return { message: 'Attendees updated' };
+    await this.sendSubmissionEmails(
+      reg.referenceNumber,
+      reg.event.title,
+      reg.event.slug,
+      dto.attendees,
+      userId ? id : undefined,
+      userId ? 'authenticated' : 'guest',
+    );
+    return {
+      message: 'Attendees updated',
+      registrationId: id,
+      referenceNumber: reg.referenceNumber,
+      status: reg.status === 'proof_submitted' ? 'pending_approval' : reg.status,
+    };
+  }
+
+  private async sendSubmissionEmails(
+    referenceNumber: string,
+    eventTitle: string,
+    eventSlug: string,
+    attendees: AttendeeDto[],
+    registrationId?: string,
+    scenario: 'guest' | 'authenticated' | 'activated' = 'guest',
+  ) {
+    const webBase = this.config.get<string>('webUrl') ?? 'https://axontickets.online';
+    const registrationUrl = registrationId
+      ? `${webBase}/registrations/${registrationId}`
+      : undefined;
+    const recipients = new Map<string, string>();
+    for (const attendee of attendees) {
+      const email = attendee.email.trim().toLowerCase();
+      if (!recipients.has(email)) recipients.set(email, `${attendee.firstName} ${attendee.lastName}`.trim());
+    }
+    await Promise.all(
+      [...recipients.entries()].map(([email, name]) =>
+        this.emailService.sendRegistrationSubmittedEmail(
+          email,
+          name,
+          eventTitle,
+          referenceNumber,
+          scenario,
+          registrationUrl,
+        ),
+      ),
+    );
   }
 
   async cancel(id: string, userId: string) {
@@ -842,7 +1601,7 @@ export class RegistrationsService {
         throw new BadRequestException('Registration is no longer cancellable');
       }
       await this.releaseAdmissionCapacityTx(tx, reg.tierId, reg.attendeeCount);
-      await this.optionalInclusions.releaseRegistrationReservationsTx(
+      await this.optionalInclusions?.releaseRegistrationReservationsTx(
         tx,
         id,
         'Customer cancelled registration',
@@ -970,7 +1729,15 @@ export class RegistrationsService {
         proofs: { orderBy: { createdAt: 'desc' }, take: 1 },
         attendees: { orderBy: [{ isLead: 'desc' }, { createdAt: 'asc' }] },
         event: {
-          select: { id: true, title: true, startsAt: true, venue: true, maxCapacity: true },
+          select: {
+            id: true,
+            title: true,
+            startsAt: true,
+            venue: true,
+            maxCapacity: true,
+            eventType: true,
+            runningConfig: true,
+          },
         },
       },
     });
@@ -984,6 +1751,9 @@ export class RegistrationsService {
     const latestProof = reg.proofs[0];
     if (!isFreeRegistration && !latestProof) {
       throw new BadRequestException('No payment proof found on this registration');
+    }
+    if (reg.attendees.length !== reg.attendeeCount || !reg.attendeesCompletedAt) {
+      throw new BadRequestException('Attendee details must be completed before approval.');
     }
 
     const qrSecret = this.config.get<string>('qr.hmacSecret') ?? '';
@@ -999,15 +1769,15 @@ export class RegistrationsService {
       return { id: a.id, qrToken };
     });
 
+    const bibAssignments: Array<{ attendeeId: string; bibNumber: string; distance: string }> = [];
+    let approvalAuditWrittenInTransaction = false;
     await this.prisma.$transaction(async (tx) => {
-      await tx.$queryRaw(Prisma.sql`SELECT id FROM registrations WHERE id = ${id} FOR UPDATE`);
-      const current = await tx.registration.findUnique({ where: { id }, select: { status: true } });
-      if (!current || !['proof_submitted', 'pending_approval'].includes(current.status)) {
-        throw new BadRequestException('Registration is no longer awaiting approval');
+      if (typeof tx.$queryRaw === 'function') {
+        await tx.$queryRaw(Prisma.sql`SELECT id FROM registrations WHERE id = ${id} FOR UPDATE`);
       }
-      await this.optionalInclusions.confirmRegistrationReservationsTx(tx, id, adminUserId);
-      await tx.registration.update({
-        where: { id },
+      await this.optionalInclusions?.confirmRegistrationReservationsTx(tx, id, adminUserId);
+      const updated = await tx.registration.updateMany({
+        where: { id, status: { in: ['proof_submitted', 'pending_approval'] } },
         data: {
           status: 'verified',
           verifiedById: adminUserId,
@@ -1015,6 +1785,9 @@ export class RegistrationsService {
           rejectionReason: null,
         },
       });
+      if (updated.count !== 1) {
+        throw new BadRequestException('This registration was already reviewed by another administrator.');
+      }
       if (latestProof) {
         await tx.paymentProof.update({
           where: { id: latestProof.id },
@@ -1026,10 +1799,69 @@ export class RegistrationsService {
           },
         });
       }
-      for (const attendee of attendeeUpdates) {
-        await tx.attendee.update({ where: { id: attendee.id }, data: { qrToken: attendee.qrToken } });
+
+      for (const attendee of reg.attendees) {
+        const qr = attendeeUpdates.find((item) => item.id === attendee.id)!;
+        let bibData: {
+          bibNumber?: string;
+          bibSequence?: number;
+          bibAssignedAt?: Date;
+        } = {};
+        if (
+          reg.event.eventType === 'running' &&
+          attendee.raceDistance &&
+          !attendee.bibNumber
+        ) {
+          await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${reg.event.id}), hashtext(${attendee.raceDistance}))`;
+          const counter = await tx.raceBibCounter.upsert({
+            where: {
+              eventId_distance: {
+                eventId: reg.event.id,
+                distance: attendee.raceDistance,
+              },
+            },
+            create: {
+              eventId: reg.event.id,
+              distance: attendee.raceDistance,
+              nextValue: 2,
+            },
+            update: { nextValue: { increment: 1 } },
+            select: { nextValue: true },
+          });
+          const allocated = counter.nextValue - 1;
+          const code = this.distanceCode(reg.event.runningConfig, attendee.raceDistance);
+          const bibNumber = `${code}-${String(allocated).padStart(4, '0')}`;
+          bibData = {
+            bibNumber,
+            bibSequence: allocated,
+            bibAssignedAt: new Date(),
+          };
+          bibAssignments.push({
+            attendeeId: attendee.id,
+            bibNumber,
+            distance: attendee.raceDistance,
+          });
+        }
+        await tx.attendee.update({
+          where: { id: attendee.id },
+          data: { qrToken: qr.qrToken, ...bibData },
+        });
       }
-      await this.audit.logWith(tx, {
+      if (typeof this.audit.logWith === 'function') {
+        await this.audit.logWith(tx, {
+          action: 'REGISTRATION_APPROVED',
+          entityType: 'Registration',
+          entityId: id,
+          registrationId: id,
+          performedById: adminUserId,
+          ipAddress: ip,
+          metadata: { proofId: latestProof?.id ?? null, attendeeCount: reg.attendees.length, isFree: isFreeRegistration },
+        });
+        approvalAuditWrittenInTransaction = true;
+      }
+    });
+    if (!approvalAuditWrittenInTransaction) {
+      await this.audit.log({
         action: 'REGISTRATION_APPROVED',
         entityType: 'Registration',
         entityId: id,
@@ -1038,7 +1870,24 @@ export class RegistrationsService {
         ipAddress: ip,
         metadata: { proofId: latestProof?.id ?? null, attendeeCount: reg.attendees.length, isFree: isFreeRegistration },
       });
-    });
+    }
+    await Promise.all(
+      bibAssignments.map((assignment) =>
+        this.audit.log({
+          action: 'BIB_ASSIGNED',
+          entityType: 'Attendee',
+          entityId: assignment.attendeeId,
+          registrationId: id,
+          performedById: adminUserId,
+          ipAddress: ip,
+          metadata: {
+            eventId: reg.event.id,
+            distance: assignment.distance,
+            bibNumber: assignment.bibNumber,
+          },
+        }),
+      ),
+    );
 
     await this.funnel.track({
       eventId: reg.event.id,
@@ -1116,7 +1965,7 @@ export class RegistrationsService {
           },
         });
       }
-      await this.optionalInclusions.markProofRejectedGraceTx(tx, id);
+      await this.optionalInclusions?.markProofRejectedGraceTx(tx, id);
       await this.audit.logWith(tx, {
         action: 'REGISTRATION_REJECTED',
         entityType: 'Registration',

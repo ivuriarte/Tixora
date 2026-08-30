@@ -3,7 +3,12 @@ import Footer from '@/components/marketing/Footer';
 import ShareEventButton from '@/components/ShareEventButton';
 import Link from 'next/link';
 
-export default function OrderSuccessPage({ params }: { params: { id: string } }) {
+export default async function OrderSuccessPage({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
+  const { id } = await params;
   return (
     <>
       <Navbar />
@@ -17,7 +22,7 @@ export default function OrderSuccessPage({ params }: { params: { id: string } })
 
           <div className="mx-auto mt-10 max-w-md rounded-lg border border-white/15 bg-white/5 p-5 text-left">
             <p className="axon-label text-[10px] text-[#a78bfa]">Order confirmed</p>
-            <p className="mt-2 font-mono text-xs text-[#c4b5fd]">Reference {params.id.slice(-8).toUpperCase()}</p>
+            <p className="mt-2 font-mono text-xs text-[#c4b5fd]">Reference {id.slice(-8).toUpperCase()}</p>
             <p className="mt-5 text-sm text-white">Your private QR ticket is only available in My Events and your confirmation email.</p>
           </div>
 

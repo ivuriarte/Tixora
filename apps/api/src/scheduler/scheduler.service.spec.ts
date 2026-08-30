@@ -11,12 +11,14 @@ function makeScheduler(pendingRegs: object[] = []) {
   };
   const mockAudit = { log: jest.fn() };
   const mockConfig = { get: jest.fn().mockReturnValue('https://axontickets.online') };
+  const mockUpload = { deleteStoredImage: jest.fn().mockResolvedValue(undefined) };
 
   const service = new SchedulerService(
     mockPrisma as any,
     mockEmail as any,
     mockAudit as any,
     mockConfig as any,
+    mockUpload as any,
   );
   return { service, mockPrisma, mockEmail };
 }
@@ -90,6 +92,69 @@ describe('SchedulerService — remindPendingRegistrations()', () => {
   });
 });
 
+describe('SchedulerService — enforceAttendeeRetention()', () => {
+  it('anonymizes only records selected past the two-year cutoff and deletes stored proofs', async () => {
+    const oldCreatedAt = new Date('2023-01-01T00:00:00.000Z');
+    const attendeeUpdate = jest.fn().mockResolvedValue(undefined);
+    const proofDelete = jest.fn().mockResolvedValue({ count: 1 });
+    const registrationUpdate = jest.fn().mockResolvedValue(undefined);
+    const tx = {
+      attendee: { update: attendeeUpdate },
+      paymentProof: { deleteMany: proofDelete },
+      registration: { update: registrationUpdate },
+    };
+    const prisma = {
+      registration: {
+        findMany: jest.fn().mockResolvedValue([
+          {
+            id: 'reg_old',
+            createdAt: oldCreatedAt,
+            attendees: [{ id: 'attendee_old' }],
+            proofs: [{ id: 'proof_old', cloudinaryPublicId: 'proofs/old' }],
+          },
+        ]),
+      },
+      $transaction: jest.fn(async (callback: (client: typeof tx) => unknown) => callback(tx)),
+    };
+    const upload = { deleteStoredImage: jest.fn().mockResolvedValue(undefined) };
+    const audit = { log: jest.fn().mockResolvedValue(undefined) };
+    const service = new SchedulerService(
+      prisma as any,
+      {} as any,
+      audit as any,
+      { get: jest.fn() } as any,
+      upload as any,
+    );
+
+    await expect(service.enforceAttendeeRetention()).resolves.toEqual({
+      anonymized: 1,
+      proofsDeleted: 1,
+    });
+    expect(upload.deleteStoredImage).toHaveBeenCalledWith('proofs/old');
+    expect(attendeeUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 'attendee_old' },
+        data: expect.objectContaining({
+          email: null,
+          phone: null,
+          deliveryAddress: expect.anything(),
+          qrToken: null,
+        }),
+      }),
+    );
+    expect(proofDelete).toHaveBeenCalledWith({ where: { registrationId: 'reg_old' } });
+    expect(registrationUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 'reg_old' },
+        data: expect.objectContaining({ guestEmail: null, guestAccessTokenHash: null, notes: null }),
+      }),
+    );
+    expect(audit.log).toHaveBeenCalledWith(
+      expect.objectContaining({ action: 'ATTENDEE_RETENTION_ENFORCED' }),
+    );
+  });
+});
+
 describe('SchedulerService — sendWorkspaceDueReminders()', () => {
   it('consolidates Responsible and Accountable into one digest and records delivery only after success', async () => {
     const user = { id: 'user_1', email: 'owner@example.com', firstName: 'Ana', lastName: 'Reyes', isVerified: true };
@@ -108,6 +173,7 @@ describe('SchedulerService — sendWorkspaceDueReminders()', () => {
       email as any,
       { log: jest.fn() } as any,
       { get: jest.fn().mockReturnValue('https://uat.axontickets.online') } as any,
+      { deleteStoredImage: jest.fn() } as any,
     );
     const result = await service.sendWorkspaceDueReminders(new Date('2026-08-18T20:00:00Z'));
     expect(result).toEqual({ recipients: 1, tasks: 1 });
@@ -129,6 +195,7 @@ describe('SchedulerService — sendWorkspaceDueReminders()', () => {
       { sendWorkspaceDueDigest: jest.fn().mockResolvedValue(false) } as any,
       { log: jest.fn() } as any,
       { get: jest.fn().mockReturnValue('https://uat.axontickets.online') } as any,
+      { deleteStoredImage: jest.fn() } as any,
     );
     await expect(service.sendWorkspaceDueReminders(new Date('2026-08-18T20:00:00Z'))).resolves.toEqual({ recipients: 0, tasks: 0 });
     expect(prisma.workspaceReminderDelivery.createMany).not.toHaveBeenCalled();

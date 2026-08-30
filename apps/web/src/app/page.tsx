@@ -4,12 +4,7 @@ import Navbar from '@/components/Navbar';
 import EventCard from '@/components/EventCard';
 import AdminRedirect from '@/components/AdminRedirect';
 import FeaturedHeroCarousel from '@/components/FeaturedHeroCarousel';
-import OrganizerCtaSection from '@/components/OrganizerCtaSection';
-import HowItWorksSection from '@/components/marketing/HowItWorksSection';
-import TrustSection from '@/components/marketing/TrustSection';
-import EventCategoryCards from '@/components/marketing/EventCategoryCards';
 import Footer from '@/components/marketing/Footer';
-import { iconPaths } from '@/components/marketing/icons';
 import Link from 'next/link';
 import Image from 'next/image';
 
@@ -103,6 +98,56 @@ interface FeaturedApiEvent {
   featuredOrder?: number | null;
 }
 
+interface DiscoveryEvent {
+  id: string;
+  slug: string;
+  title: string;
+  venue: string;
+  city: string;
+  startsAt: string;
+  endsAt?: string | null;
+  imageUrl?: string | null;
+  status: string;
+  category: string;
+  eventType: string;
+  isOnline: boolean;
+  isFree: boolean;
+  lowestPrice?: number | null;
+  totalAvailable: number;
+  labels: string[];
+  organizer?: { name: string; slug?: string | null } | null;
+}
+
+interface DiscoveryResponse {
+  categories: string[];
+  sections: {
+    happeningNow: DiscoveryEvent[];
+    happeningSoon: DiscoveryEvent[];
+    upcomingEvents: DiscoveryEvent[];
+    eventsYouMissed: DiscoveryEvent[];
+    hottestRightNow: DiscoveryEvent[];
+  };
+  generatedAt: string;
+}
+
+async function getDiscovery(category = 'all', query = ''): Promise<DiscoveryResponse | null> {
+  const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'https://api.axontickets.online/api/v1';
+  try {
+    const params = new URLSearchParams();
+    if (category && category !== 'all') params.set('category', category);
+    if (query) params.set('q', query);
+    const res = await fetch(`${baseUrl}/events/discovery?${params.toString()}`, {
+      cache: 'no-store',
+      signal: AbortSignal.timeout(8000),
+    });
+    if (!res.ok) return null;
+    const json = await res.json();
+    return json.data ?? json;
+  } catch {
+    return null;
+  }
+}
+
 async function getFeaturedEvents(): Promise<FeaturedApiEvent[]> {
   const baseUrl = (process.env.NEXT_PUBLIC_API_URL || 'https://api.axontickets.online/api/v1');
   try {
@@ -120,7 +165,12 @@ async function getFeaturedEvents(): Promise<FeaturedApiEvent[]> {
   }
 }
 
-export default async function HomePage({ searchParams }: { searchParams: { page?: string; q?: string } }) {
+export default async function HomePage({
+  searchParams,
+}: {
+  searchParams: Promise<{ page?: string; q?: string; category?: string }>;
+}) {
+  const resolvedSearchParams = await searchParams;
   const featuredSlug = process.env.NEXT_PUBLIC_FEATURED_EVENT_SLUG;
   const enableMarketplace = process.env.NEXT_PUBLIC_ENABLE_MARKETPLACE !== 'false';
 
@@ -250,84 +300,144 @@ export default async function HomePage({ searchParams }: { searchParams: { page?
     }
   }
 
-  // Marketplace mode: brand hero + featured carousel + event grid + marketing sections
-  const page = parseInt(searchParams.page ?? '1', 10) || 1;
-  const query = searchParams.q?.trim().slice(0, 120) ?? '';
-  const [featuredEvents, publicStats] = await Promise.all([getFeaturedEvents(), getPublicStats()]);
-  const showPublicStats = Boolean(
-    publicStats &&
-    publicStats.eventsHosted >= 10 &&
-    publicStats.attendeesCheckedIn >= 100 &&
-    publicStats.verifiedOrganizers >= 1,
-  );
+  // Event-first marketplace mode
+  const query = resolvedSearchParams.q?.trim().slice(0, 120) ?? '';
+  const category = resolvedSearchParams.category?.trim().toLowerCase() || 'all';
+  const [featuredEvents, discovery] = await Promise.all([
+    getFeaturedEvents(),
+    enableMarketplace ? getDiscovery(category, query) : Promise.resolve(null),
+  ]);
 
   return (
     <>
       <AdminRedirect />
-      <Navbar />
+      <Navbar initialSearchQuery={query} />
       <main className="min-h-screen bg-white">
         <FeaturedHeroCarousel events={featuredEvents} />
 
-        {publicStats && showPublicStats && (
-          <section aria-label="Axon Tickets activity" className="border-b border-[#e4dcf4] bg-white">
-            <div className="mx-auto grid max-w-7xl grid-cols-1 divide-y divide-[#e4dcf4] px-4 sm:grid-cols-3 sm:divide-x sm:divide-y-0 sm:px-6 lg:px-8">
-              {[
-                [publicStats.eventsHosted, 'Events Hosted'],
-                [publicStats.attendeesCheckedIn, 'Attendees Checked In'],
-                [publicStats.verifiedOrganizers, 'KYC-Verified Organizers'],
-              ].map(([value, label]) => (
-                <div key={label} className="px-5 py-6 text-center">
-                  <p className="font-mono text-3xl font-black tabular-nums text-primary">{Number(value).toLocaleString('en-PH')}</p>
-                  <p className="axon-label mt-1 text-[10px] text-[#756a92]">{label}</p>
-                </div>
-              ))}
+        <section id="events" className="mx-auto max-w-7xl scroll-mt-20 px-4 py-10 sm:px-6 md:py-14 lg:px-8">
+          <div className="border-b border-[#e4dcf4] pb-7">
+            <div>
+              <p className="axon-label text-xs text-primary">Discover Axon Events</p>
+              <h2 className="axon-display mt-2 text-3xl text-[#1a0533] sm:text-4xl">
+                What&apos;s happening
+              </h2>
             </div>
-          </section>
-        )}
+          </div>
 
-        {/* Upcoming events */}
-        <section id="upcoming-events" className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 md:py-16 scroll-mt-20">
-          <Suspense fallback={<EventsGridSkeleton />}>
-            <EventsGrid page={page} query={query} enableMarketplace={enableMarketplace} />
-          </Suspense>
+          <nav aria-label="Event categories" className="flex gap-2 overflow-x-auto py-6">
+            {(discovery?.categories ?? ['all', 'sports', 'business', 'workshops', 'music', 'theater', 'parties']).map((item) => {
+              const params = new URLSearchParams();
+              if (item !== 'all') params.set('category', item);
+              if (query) params.set('q', query);
+              const active = item === category;
+              return (
+                <Link
+                  key={item}
+                  href={`/?${params.toString()}#events`}
+                  aria-current={active ? 'page' : undefined}
+                  className={`shrink-0 rounded-full border px-4 py-2 text-xs font-bold capitalize transition ${
+                    active
+                      ? 'border-primary bg-primary text-white'
+                      : 'border-[#d8cdee] bg-white text-[#4f3f70] hover:border-primary hover:text-primary'
+                  }`}
+                >
+                  {item === 'all' ? 'All' : item}
+                </Link>
+              );
+            })}
+          </nav>
+
+          {!discovery ? (
+            <div className="axon-card px-6 py-20 text-center text-[#6b5b8a]">
+              <p className="axon-display text-2xl text-[#1a0533]">Couldn&apos;t load events</p>
+              <p className="mt-3">Check your connection and refresh to try again.</p>
+            </div>
+          ) : (
+            <div className="space-y-14">
+              <DiscoverySection
+                id="hottest-right-now"
+                eyebrow="Trending"
+                title="Hottest Right Now"
+                description="The events gaining the most approved registrations and unique registrants over the last seven days."
+                events={discovery.sections.hottestRightNow}
+                hideWhenEmpty
+              />
+              <DiscoverySection
+                id="happening-now"
+                eyebrow="Live"
+                title="Happening Now"
+                description="Events currently in progress."
+                events={discovery.sections.happeningNow}
+              />
+              <DiscoverySection
+                id="happening-soon"
+                eyebrow="Next 30 days"
+                title="Happening Soon"
+                description="Plan for events starting within the next month."
+                events={discovery.sections.happeningSoon}
+              />
+              <DiscoverySection
+                id="upcoming-events"
+                eyebrow="On the horizon"
+                title="Upcoming Events"
+                description="Explore events starting more than 30 days from now."
+                events={discovery.sections.upcomingEvents}
+              />
+              <DiscoverySection
+                id="events-you-missed"
+                eyebrow="Archive"
+                title="Events You Missed"
+                description="A look back at recently concluded Axon events."
+                events={discovery.sections.eventsYouMissed}
+              />
+            </div>
+          )}
         </section>
-
-        <HowItWorksSection />
-
-        <TrustSection
-          heading="Everything you need to run an event"
-          subheading="All of this is live on the platform today."
-          features={homeFeatures}
-          background="white"
-        />
-
-        <EventCategoryCards />
-
-        {/* ── Become an Organizer CTA (hidden for authenticated users) ── */}
-        <OrganizerCtaSection
-          heading="Ready to run your next event with Axon Tickets?"
-          description="Create your event page, collect registrations and payment proofs, issue QR tickets, and manage check-in from one platform."
-          buttonLabel="Start Organizing"
-          dataTrack="homepage-start-organizing"
-          feeNote="Free events have no processing fee. Paid registrations use a flat ₱50 per-transaction processing fee."
-        />
       </main>
       <Footer />
     </>
   );
 }
 
-const homeFeatures = [
-  { title: 'Public event pages', description: 'Every event gets a shareable page with details, agenda, and sponsors.', iconPath: iconPaths.eventPage },
-  { title: 'Online registration', description: 'Attendees register from any device in a few taps.', iconPath: iconPaths.registration },
-  { title: 'OTP email verification', description: 'Registrations are verified by a one-time code, so attendee lists stay real.', iconPath: iconPaths.otp },
-  { title: 'QR code tickets', description: 'Confirmed attendees receive a unique QR ticket by email.', iconPath: iconPaths.ticket },
-  { title: 'QR check-in validation', description: 'Scan tickets at the door and catch invalid or reused codes.', iconPath: iconPaths.checkin },
-  { title: 'Email confirmations', description: 'Confirmations and tickets are sent automatically — no manual follow-ups.', iconPath: iconPaths.email },
-  { title: 'Organizer dashboard', description: 'Manage events, registrations, and check-ins from one place.', iconPath: iconPaths.dashboard },
-  { title: 'Payment proof collection', description: 'Collect GCash or bank transfer proof and verify it before issuing tickets.', iconPath: iconPaths.paymentProof },
-  { title: 'Attendee records & reports', description: 'A complete record of who registered and who showed up.', iconPath: iconPaths.reports },
-];
+function DiscoverySection({
+  id,
+  eyebrow,
+  title,
+  description,
+  events,
+  hideWhenEmpty = false,
+}: {
+  id: string;
+  eyebrow: string;
+  title: string;
+  description: string;
+  events: DiscoveryEvent[];
+  hideWhenEmpty?: boolean;
+}) {
+  if (hideWhenEmpty && events.length === 0) return null;
+  return (
+    <section id={id} aria-labelledby={`${id}-title`} className="scroll-mt-24">
+      <div className="mb-5 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <p className="axon-label text-[10px] text-primary">{eyebrow}</p>
+          <h3 id={`${id}-title`} className="axon-display mt-1 text-2xl text-[#1a0533] sm:text-3xl">{title}</h3>
+          <p className="mt-1 max-w-2xl text-sm text-[#6b5b8a]">{description}</p>
+        </div>
+        {events.length > 0 && <p className="text-xs font-semibold text-[#756a92]">{events.length} event{events.length === 1 ? '' : 's'}</p>}
+      </div>
+      {events.length === 0 ? (
+        <div className="rounded-2xl border border-dashed border-[#d8cdee] bg-[#faf8ff] px-5 py-9 text-sm text-[#756a92]">
+          No events in this section right now.
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          {events.map((event) => <EventCard key={event.id} event={event} />)}
+        </div>
+      )}
+    </section>
+  );
+}
 
 async function EventsGrid({ page, query, enableMarketplace }: { page: number; query: string; enableMarketplace: boolean }) {
   const result = enableMarketplace ? await getEvents(page, query) : { data: [], meta: { total: 0, totalPages: 0 } };

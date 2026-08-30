@@ -9,14 +9,14 @@ import { getRefreshToken } from '@/lib/auth';
 import { useRouter, usePathname } from 'next/navigation';
 import toast from 'react-hot-toast';
 
-export default function Navbar() {
+export default function Navbar({ initialSearchQuery = '' }: { initialSearchQuery?: string }) {
   const { user, isAuthenticated, isHydrating, logout } = useAuthStore();
   const router = useRouter();
   const pathname = usePathname();
   const [pendingCount, setPendingCount] = useState<number>(0);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isLoginOpen, setIsLoginOpen] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
+  const [searchQuery, setSearchQuery] = useState(initialSearchQuery);
   const loginRef = useRef<HTMLDivElement>(null);
   const isStaff = Boolean(user?.isAdmin || user?.loginPortal === 'organizer');
   const dashboardLabel = user?.isAdmin ? 'Admin Dashboard' : 'Organizer Dashboard';
@@ -26,6 +26,10 @@ export default function Navbar() {
     setIsMenuOpen(false);
     setIsLoginOpen(false);
   }, [pathname]);
+
+  useEffect(() => {
+    setSearchQuery(initialSearchQuery);
+  }, [initialSearchQuery]);
 
   // Close login dropdown when clicking outside
   useEffect(() => {
@@ -75,25 +79,22 @@ export default function Navbar() {
   function handleSearch(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const query = searchQuery.trim();
-    router.push(query ? `/?q=${encodeURIComponent(query)}#upcoming-events` : '/#upcoming-events');
+    router.push(query ? `/?q=${encodeURIComponent(query)}#events` : '/#events');
     setIsMenuOpen(false);
   }
 
   return (
     <nav className="sticky top-0 z-50 border-b border-[#e4dcf4] bg-white/95 backdrop-blur" aria-label="Primary navigation">
       <div className="mx-auto flex min-h-[72px] max-w-7xl items-center gap-5 px-4 sm:px-6 lg:px-8">
-        <Link href="/" className="flex shrink-0 flex-col justify-center rounded-sm">
+        <Link href="/" className="flex shrink-0 items-center rounded-sm">
           <Image
-            src="/axon-logo.svg"
+            src="/axon-tickets-logo.png"
             alt="Axon Tickets"
-            width={148}
-            height={30}
+            width={166}
+            height={48}
             priority
-            unoptimized
+            className="h-auto w-[148px] sm:w-[166px]"
           />
-          <span className="mt-0.5 text-[9px] font-bold uppercase tracking-[0.14em] text-[#756a92]">
-            Philippine Event Ticketing
-          </span>
         </Link>
 
         <form role="search" onSubmit={handleSearch} className="hidden min-w-0 max-w-md flex-1 md:block">
@@ -187,7 +188,7 @@ export default function Navbar() {
                 {isLoginOpen && (
                   <div className="absolute right-0 mt-2 w-52 bg-white border border-gray-200 rounded-xl shadow-lg py-1.5 z-50">
                     <Link
-                      href="/auth/login"
+                      href="/auth/access"
                       className="flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
                     >
                       <svg className="w-4 h-4 text-gray-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
@@ -301,7 +302,7 @@ export default function Navbar() {
                 Become Organizer
               </Link>
               <p className="px-4 pb-1 pt-5 text-[11px] font-bold uppercase tracking-[0.18em] text-[#a78bfa]">Log in as</p>
-              <Link href="/auth/login" className="flex min-h-[56px] items-center border-b border-white/10 px-4 text-sm font-bold text-white transition-colors hover:bg-white/10">
+              <Link href="/auth/access" className="flex min-h-[56px] items-center border-b border-white/10 px-4 text-sm font-bold text-white transition-colors hover:bg-white/10">
                 Customer
               </Link>
               <Link href="/auth/organizer?redirect=/become-organizer" className="flex min-h-[56px] items-center justify-between border-b border-white/10 px-4 text-sm font-bold text-white transition-colors hover:bg-white/10">

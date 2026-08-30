@@ -17,6 +17,8 @@ interface OrgRow {
   website: string | null;
   city: string | null;
   approvalStatus: ApprovalStatus;
+  isPublic: boolean;
+  hiddenAt: string | null;
   rejectionReason: string | null;
   createdBy: { id: string; email: string; name: string };
   approvedBy: { id: string; email: string } | null;
@@ -120,8 +122,8 @@ function ConfirmModal({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/40" onClick={onCancel} />
-      <div className="relative bg-white rounded-2xl shadow-xl w-full max-w-sm p-6 space-y-4">
-        <h3 className="text-base font-semibold text-gray-900">{title}</h3>
+      <div role="dialog" aria-modal="true" aria-labelledby="confirm-modal-title" className="relative bg-white rounded-2xl shadow-xl w-full max-w-sm p-6 space-y-4">
+        <h3 id="confirm-modal-title" className="text-base font-semibold text-gray-900">{title}</h3>
         <p className="text-sm text-gray-600">{description}</p>
         {requireReason && (
           <textarea
@@ -154,7 +156,7 @@ function ConfirmModal({
 
 // ── Drawer ───────────────────────────────────────────────────────────────────
 
-type ModalAction = 'suspend' | 'delete' | 'reinstate' | null;
+type ModalAction = 'suspend' | 'delete' | 'reinstate' | 'hideProfile' | 'restoreProfile' | null;
 
 function OrgDrawer({
   orgId,
@@ -228,6 +230,12 @@ function OrgDrawer({
     onError: () => { toast.error('Could not reinstate. Please try again.'); setModalAction(null); },
   });
 
+  const profileVisibilityMutation = useMutation({
+    mutationFn: ({ visible, reason }: { visible: boolean; reason: string }) => api.patch(`/admin/organizers/${orgId}/profile-visibility`, { visible, reason }),
+    onSuccess: (_, variables) => { toast.success(variables.visible ? 'Public organizer profile restored.' : 'Public organizer profile hidden.'); setModalAction(null); invalidate(); },
+    onError: () => { toast.error('Profile visibility could not be updated.'); setModalAction(null); },
+  });
+
   const addMemberMutation = useMutation({
     mutationFn: () =>
       api.post(`/admin/organizers/${orgId}/members`, {
@@ -294,6 +302,19 @@ function OrgDrawer({
           onConfirm={() => reinstateMutation.mutate()}
           onCancel={() => setModalAction(null)}
           isPending={reinstateMutation.isPending}
+        />
+      )}
+      {(modalAction === 'hideProfile' || modalAction === 'restoreProfile') && (
+        <ConfirmModal
+          title={modalAction === 'hideProfile' ? 'Hide public organizer profile' : 'Restore public organizer profile'}
+          description={modalAction === 'hideProfile' ? 'The public organizer page will be taken down immediately. Events and organizer access are not changed.' : 'The organizer profile will be visible to the public again.'}
+          confirmLabel={modalAction === 'hideProfile' ? 'Hide profile' : 'Restore profile'}
+          confirmClass={modalAction === 'hideProfile' ? 'bg-red-600 hover:bg-red-700' : 'bg-violet-600 hover:bg-violet-700'}
+          requireReason={true}
+          reasonPlaceholder="Record the governance reason for this change…"
+          onConfirm={(reason) => profileVisibilityMutation.mutate({ visible: modalAction === 'restoreProfile', reason: reason ?? '' })}
+          onCancel={() => setModalAction(null)}
+          isPending={profileVisibilityMutation.isPending}
         />
       )}
 
@@ -471,6 +492,14 @@ function OrgDrawer({
               </div>
 
               {/* Actions */}
+              {org.approvalStatus === 'approved' && (
+                <div className="rounded-lg border border-violet-100 bg-violet-50 px-4 py-3">
+                  <div className="flex items-center justify-between gap-4">
+                    <div><p className="text-xs font-semibold uppercase tracking-wider text-violet-700">Public profile</p><p className="text-xs text-violet-800">{org.isPublic && !org.hiddenAt ? 'Visible to customers' : 'Hidden by Super Admin'}</p></div>
+                    <button type="button" onClick={() => setModalAction(org.isPublic && !org.hiddenAt ? 'hideProfile' : 'restoreProfile')} className="rounded-lg border border-violet-300 bg-white px-3 py-2 text-xs font-bold text-violet-700 hover:bg-violet-100">{org.isPublic && !org.hiddenAt ? 'Hide profile' : 'Restore profile'}</button>
+                  </div>
+                </div>
+              )}
               {org.approvalStatus === 'pending' && (
                 <div className="pt-2 border-t border-gray-100 space-y-3">
                   {!showRejectInput ? (

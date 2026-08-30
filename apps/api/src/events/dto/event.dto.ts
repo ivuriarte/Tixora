@@ -11,10 +11,13 @@ import {
   IsBoolean,
   IsUrl,
   IsArray,
+  ArrayMinSize,
+  ArrayMaxSize,
   ValidateNested,
   ValidateIf,
   IsIn,
   Matches,
+  ArrayUnique,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ApiProperty } from '@nestjs/swagger';
@@ -27,7 +30,10 @@ import { ApiProperty } from '@nestjs/swagger';
 // to `[]` (data loss).
 
 export class AgendaItemDto {
-  @ApiProperty({ required: false, description: 'Stable agenda item id used for sub-event registration selections' })
+  @ApiProperty({
+    required: false,
+    description: 'Stable agenda item id used for sub-event registration selections',
+  })
   @IsOptional()
   @IsString()
   @MaxLength(100)
@@ -50,7 +56,11 @@ export class AgendaItemDto {
   @MaxLength(1000)
   description?: string;
 
-  @ApiProperty({ required: false, default: false, description: 'When true, attendees can choose this agenda item during registration.' })
+  @ApiProperty({
+    required: false,
+    default: false,
+    description: 'When true, attendees can choose this agenda item during registration.',
+  })
   @IsOptional()
   @IsBoolean()
   isSubEvent?: boolean;
@@ -168,6 +178,97 @@ export class PaymentMethodItemDto {
   instructions?: string;
 }
 
+export const EVENT_CATEGORIES = [
+  'sports',
+  'business',
+  'workshops',
+  'music',
+  'theater',
+  'parties',
+] as const;
+
+export const EVENT_TYPES = ['standard', 'running'] as const;
+
+export class RaceDistanceDto {
+  @IsString()
+  @MinLength(1)
+  @MaxLength(80)
+  name!: string;
+
+  @IsString()
+  @Matches(/^[A-Z0-9]{1,12}$/, {
+    message: 'Distance code must use 1-12 uppercase letters or numbers',
+  })
+  code!: string;
+}
+
+export class RaceAgeGroupDto {
+  @IsString()
+  @MinLength(1)
+  @MaxLength(80)
+  name!: string;
+
+  @IsInt()
+  @Min(0)
+  @Max(120)
+  minAge!: number;
+
+  @IsInt()
+  @Min(0)
+  @Max(120)
+  maxAge!: number;
+}
+
+export class RunningConfigDto {
+  @IsArray()
+  @ArrayMinSize(1)
+  @ArrayMaxSize(20)
+  @ValidateNested({ each: true })
+  @Type(() => RaceDistanceDto)
+  distances!: RaceDistanceDto[];
+
+  @IsArray()
+  @ArrayMinSize(1)
+  @ArrayMaxSize(30)
+  @ValidateNested({ each: true })
+  @Type(() => RaceAgeGroupDto)
+  ageGroups!: RaceAgeGroupDto[];
+
+  @IsArray()
+  @ArrayMinSize(1)
+  @ArrayMaxSize(30)
+  @ArrayUnique()
+  @IsString({ each: true })
+  @MinLength(1, { each: true })
+  @MaxLength(80, { each: true })
+  raceDivisions!: string[];
+
+  @IsArray()
+  @ArrayMinSize(1)
+  @ArrayMaxSize(30)
+  @ArrayUnique()
+  @IsString({ each: true })
+  @MinLength(1, { each: true })
+  @MaxLength(80, { each: true })
+  genderIdentityOptions!: string[];
+
+  @IsArray()
+  @ArrayMinSize(1)
+  @ArrayMaxSize(30)
+  @ArrayUnique()
+  @IsString({ each: true })
+  @MinLength(1, { each: true })
+  @MaxLength(40, { each: true })
+  merchandiseSizes!: string[];
+
+  @IsArray()
+  @ArrayMinSize(1)
+  @ArrayMaxSize(2)
+  @ArrayUnique()
+  @IsIn(['self_claim', 'delivery'], { each: true })
+  claimMethods!: Array<'self_claim' | 'delivery'>;
+}
+
 export class CreateEventDto {
   @ApiProperty({ example: 'Francis Kong: Build to Lead' })
   @IsString()
@@ -272,13 +373,21 @@ export class CreateEventDto {
   @Type(() => CustomSectionDto)
   customSections?: CustomSectionDto[];
 
-  @ApiProperty({ required: false, default: 50, description: 'Flat platform fee per registration transaction in PHP' })
+  @ApiProperty({
+    required: false,
+    default: 50,
+    description: 'Flat platform fee per registration transaction in PHP',
+  })
   @IsOptional()
   @IsNumber()
   @Min(0)
   platformFee?: number;
 
-  @ApiProperty({ required: false, default: false, description: 'Marks the event as free and suppresses platform fees at registration.' })
+  @ApiProperty({
+    required: false,
+    default: false,
+    description: 'Marks the event as free and suppresses platform fees at registration.',
+  })
   @IsOptional()
   @IsBoolean()
   isFree?: boolean;
@@ -289,12 +398,37 @@ export class CreateEventDto {
   @MaxLength(500)
   imageUrl?: string;
 
+  @ApiProperty({ required: false, enum: EVENT_CATEGORIES, default: 'business' })
+  @IsOptional()
+  @IsIn(EVENT_CATEGORIES)
+  category?: (typeof EVENT_CATEGORIES)[number];
+
+  @ApiProperty({ required: false, enum: EVENT_TYPES, default: 'standard' })
+  @IsOptional()
+  @IsIn(EVENT_TYPES)
+  eventType?: (typeof EVENT_TYPES)[number];
+
+  @ApiProperty({ required: false, default: false })
+  @IsOptional()
+  @IsBoolean()
+  isOnline?: boolean;
+
+  @ApiProperty({ required: false, type: RunningConfigDto })
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => RunningConfigDto)
+  runningConfig?: RunningConfigDto;
+
   @ApiProperty({ required: false, default: true })
   @IsOptional()
   @IsBoolean()
   allowManualPayment?: boolean;
 
-  @ApiProperty({ required: false, default: false, description: 'Allow public QR-initiated on-site registration and daily attendance check-in.' })
+  @ApiProperty({
+    required: false,
+    default: false,
+    description: 'Allow public QR-initiated on-site registration and daily attendance check-in.',
+  })
   @IsOptional()
   @IsBoolean()
   onsiteRegistrationEnabled?: boolean;
@@ -331,13 +465,21 @@ export class CreateEventDto {
   paymentMethods?: PaymentMethodItemDto[];
 
   // ── Featured hero fields ────────────────────────────────────────────────
-  @ApiProperty({ required: false, example: 'FULL-DAY LEADERSHIP CONFERENCE', description: 'Badge text shown above the event title in the homepage hero' })
+  @ApiProperty({
+    required: false,
+    example: 'FULL-DAY LEADERSHIP CONFERENCE',
+    description: 'Badge text shown above the event title in the homepage hero',
+  })
   @IsOptional()
   @IsString()
   @MaxLength(100)
   tagline?: string;
 
-  @ApiProperty({ required: false, default: false, description: 'Pin this event as a featured hero on the homepage' })
+  @ApiProperty({
+    required: false,
+    default: false,
+    description: 'Pin this event as a featured hero on the homepage',
+  })
   @IsOptional()
   @IsBoolean()
   isFeatured?: boolean;
@@ -349,7 +491,10 @@ export class CreateEventDto {
   @Max(99)
   featuredOrder?: number;
 
-  @ApiProperty({ required: false, description: 'ISO date after which the event is automatically removed from the featured hero' })
+  @ApiProperty({
+    required: false,
+    description: 'ISO date after which the event is automatically removed from the featured hero',
+  })
   @IsOptional()
   @IsDateString()
   featuredUntil?: string;
@@ -461,6 +606,23 @@ export class UpdateEventDto {
   imageUrl?: string;
 
   @IsOptional()
+  @IsIn(EVENT_CATEGORIES)
+  category?: (typeof EVENT_CATEGORIES)[number];
+
+  @IsOptional()
+  @IsIn(EVENT_TYPES)
+  eventType?: (typeof EVENT_TYPES)[number];
+
+  @IsOptional()
+  @IsBoolean()
+  isOnline?: boolean;
+
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => RunningConfigDto)
+  runningConfig?: RunningConfigDto;
+
+  @IsOptional()
   @IsBoolean()
   allowManualPayment?: boolean;
 
@@ -522,11 +684,6 @@ export class OnsiteRegistrationDto {
   eventId?: string;
 
   @IsOptional()
-  @IsString()
-  @MaxLength(100)
-  attendeeId?: string;
-
-  @IsOptional()
   @IsBoolean()
   emailNotApplicable?: boolean;
 
@@ -546,37 +703,31 @@ export class OnsiteRegistrationDto {
   @MaxLength(100, { each: true })
   subEventIds?: string[];
 
-  @ValidateIf((dto: OnsiteRegistrationDto) => !dto.attendeeId)
   @IsString()
   @MinLength(1)
   @MaxLength(100)
   firstName?: string;
 
-  @ValidateIf((dto: OnsiteRegistrationDto) => !dto.attendeeId)
   @IsString()
   @MinLength(1)
   @MaxLength(100)
   lastName?: string;
 
-  @ValidateIf((dto: OnsiteRegistrationDto) => !dto.attendeeId && !dto.emailNotApplicable)
+  @ValidateIf((dto: OnsiteRegistrationDto) => !dto.emailNotApplicable)
   @Matches(/^[^\s@]+@[^\s@]+\.[^\s@]+$/)
   email?: string;
 
-  @ValidateIf((dto: OnsiteRegistrationDto) => !dto.attendeeId)
   @IsString()
   @MinLength(7)
   @MaxLength(20)
   contactNumber?: string;
 
-  @ValidateIf((dto: OnsiteRegistrationDto) => !dto.attendeeId)
   @IsIn(['female', 'male', 'non_binary', 'prefer_not_to_say', 'self_described'])
   gender?: string;
 
-  @ValidateIf((dto: OnsiteRegistrationDto) => !dto.attendeeId)
   @IsDateString()
   birthday?: string;
 
-  @ValidateIf((dto: OnsiteRegistrationDto) => !dto.attendeeId)
   @IsString()
   @MinLength(2)
   @MaxLength(100)

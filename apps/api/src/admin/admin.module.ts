@@ -7,10 +7,11 @@ import { OrdersModule } from '../orders/orders.module';
 import { RegistrationsModule } from '../registrations/registrations.module';
 import { AuditModule } from '../audit/audit.module';
 import { OrganizationsModule } from '../organizations/organizations.module';
+import { ExecutiveAnalyticsService } from './executive-analytics.service';
 
 @Module({
   imports: [EventsModule, TicketTiersModule, OrdersModule, RegistrationsModule, AuditModule, OrganizationsModule],
   controllers: [AdminController],
-  providers: [AdminService],
+  providers: [AdminService, ExecutiveAnalyticsService],
 })
 export class AdminModule {}

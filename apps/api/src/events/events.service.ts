@@ -1,4 +1,9 @@
-import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Prisma } from '@prisma/client';
 import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
@@ -6,18 +11,37 @@ import * as QRCode from 'qrcode';
 import { PrismaService } from '../prisma/prisma.service';
 import { RedisService } from '../redis/redis.service';
 import { WorkspacesService } from '../workspaces/workspaces.service';
-import { CreateEventDto, OnsiteProfileSuggestionDto, OnsiteRegistrationDto, UpdateEventDto } from './dto/event.dto';
+import {
+  CreateEventDto,
+  OnsiteProfileSuggestionDto,
+  OnsiteRegistrationDto,
+  UpdateEventDto,
+} from './dto/event.dto';
 import { resolveAgendaSubEvent } from './agenda-sub-events';
 import { generateAttendeeQrToken, generateReferenceNumber, uniqueSlug } from '@axon-tickets/utils';
 import { OptionalInclusionsService } from '../optional-inclusions/optional-inclusions.service';
 
 const TIER_INVENTORY_PREFIX = 'ticket_tier:';
 const INVENTORY_SUFFIX = ':available';
-const ACTIVE_REGISTRATION_STATUSES = ['pending_payment', 'proof_submitted', 'pending_approval', 'verified'] as const;
+const ACTIVE_REGISTRATION_STATUSES = [
+  'pending_payment',
+  'proof_submitted',
+  'pending_approval',
+  'verified',
+] as const;
 const VALID_TICKET_STATUSES = ['valid', 'used'] as const;
 const ONSITE_DUPLICATE_REGISTRATION_MESSAGE =
   'You have already successfully registered for this event. You cannot register twice for the same event.';
 const CUSTOMER_EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const EVENT_CATEGORIES = [
+  'sports',
+  'business',
+  'workshops',
+  'music',
+  'theater',
+  'parties',
+] as const;
+const DAY_MS = 24 * 60 * 60 * 1000;
 
 type TierInventory = {
   id: string;
@@ -57,9 +81,13 @@ export class EventsService {
   private validateBirthday(birthdayValue: string): Date {
     const birthday = new Date(`${birthdayValue}T00:00:00.000Z`);
     const today = new Date();
-    const earliest = new Date(Date.UTC(today.getUTCFullYear() - 120, today.getUTCMonth(), today.getUTCDate()));
+    const earliest = new Date(
+      Date.UTC(today.getUTCFullYear() - 120, today.getUTCMonth(), today.getUTCDate()),
+    );
     if (!Number.isFinite(birthday.getTime()) || birthday > today || birthday < earliest) {
-      throw new BadRequestException('Birthday must be a valid past date within the last 120 years.');
+      throw new BadRequestException(
+        'Birthday must be a valid past date within the last 120 years.',
+      );
     }
     return birthday;
   }
@@ -68,13 +96,60 @@ export class EventsService {
     return status.replace(/_/g, ' ');
   }
 
+  private validateCategory(category?: string) {
+    const normalized = category?.trim().toLowerCase();
+    if (!normalized || normalized === 'all') return undefined;
+    if (!EVENT_CATEGORIES.includes(normalized as (typeof EVENT_CATEGORIES)[number])) {
+      throw new BadRequestException('Unsupported event category');
+    }
+    return normalized;
+  }
+
+  private validateRunningConfig(dto: CreateEventDto | UpdateEventDto) {
+    if (dto.eventType !== 'running' && dto.runningConfig === undefined) return;
+    if (!dto.runningConfig) {
+      throw new BadRequestException(
+        'Running events require distances, age groups, race divisions, gender identity options, merchandise sizes, and claim methods.',
+      );
+    }
+
+    const distanceCodes = dto.runningConfig.distances.map((item) => item.code.trim().toUpperCase());
+    if (new Set(distanceCodes).size !== distanceCodes.length) {
+      throw new BadRequestException('Running-event distance codes must be unique.');
+    }
+
+    const sorted = [...dto.runningConfig.ageGroups].sort((a, b) => a.minAge - b.minAge);
+    for (let index = 0; index < sorted.length; index += 1) {
+      const current = sorted[index];
+      if (current.minAge > current.maxAge) {
+        throw new BadRequestException(
+          `Age group "${current.name}" has a minimum age greater than its maximum age.`,
+        );
+      }
+      const previous = sorted[index - 1];
+      if (previous && current.minAge <= previous.maxAge) {
+        throw new BadRequestException(
+          `Age groups "${previous.name}" and "${current.name}" overlap.`,
+        );
+      }
+      if (previous && current.minAge !== previous.maxAge + 1) {
+        throw new BadRequestException(
+          `Age groups "${previous.name}" and "${current.name}" leave an uncovered age gap.`,
+        );
+      }
+    }
+  }
+
   private canonicalWebUrl() {
     const configured = this.config.get<string>('webUrl') || '';
     const appEnv = this.config.get<string>('appEnv') || 'production';
     if (configured.includes('tixora-online-ticket-app.vercel.app')) {
       return appEnv === 'uat' ? 'https://uat.axontickets.online' : 'https://axontickets.online';
     }
-    return (configured || (appEnv === 'uat' ? 'https://uat.axontickets.online' : 'https://axontickets.online')).replace(/\/$/, '');
+    return (
+      configured ||
+      (appEnv === 'uat' ? 'https://uat.axontickets.online' : 'https://axontickets.online')
+    ).replace(/\/$/, '');
   }
 
   private onsiteUrl(slug: string, eventId?: string) {
@@ -87,14 +162,26 @@ export class EventsService {
     return id ? { id } : { slug };
   }
 
-  private selectedSubEventsFromAgenda(agenda: Prisma.JsonValue, ids?: string[], fallbackId?: string): SelectedSubEvent[] {
-    const requestedIds = [...new Set([...(ids ?? []), fallbackId].filter((id): id is string => Boolean(id?.trim())).map((id) => id.trim()))];
+  private selectedSubEventsFromAgenda(
+    agenda: Prisma.JsonValue,
+    ids?: string[],
+    fallbackId?: string,
+  ): SelectedSubEvent[] {
+    const requestedIds = [
+      ...new Set(
+        [...(ids ?? []), fallbackId]
+          .filter((id): id is string => Boolean(id?.trim()))
+          .map((id) => id.trim()),
+      ),
+    ];
     if (requestedIds.length === 0) return [];
 
     const resolved = requestedIds.map((id) => resolveAgendaSubEvent(agenda, id));
     const missing = requestedIds.filter((_, index) => !resolved[index]);
     if (missing.length > 0) {
-      throw new BadRequestException('One or more selected sub-events are no longer available. Please refresh the form and choose again.');
+      throw new BadRequestException(
+        'One or more selected sub-events are no longer available. Please refresh the form and choose again.',
+      );
     }
 
     return resolved
@@ -107,57 +194,25 @@ export class EventsService {
   }
 
   private agendaHasSubEvents(agenda: Prisma.JsonValue) {
-    return Array.isArray(agenda) && agenda.some((item) => {
-      if (!item || typeof item !== 'object' || Array.isArray(item)) return false;
-      const candidate = item as Record<string, unknown>;
-      return candidate.isSubEvent === true && typeof candidate.id === 'string' && typeof candidate.title === 'string';
-    });
+    return (
+      Array.isArray(agenda) &&
+      agenda.some((item) => {
+        if (!item || typeof item !== 'object' || Array.isArray(item)) return false;
+        const candidate = item as Record<string, unknown>;
+        return (
+          candidate.isSubEvent === true &&
+          typeof candidate.id === 'string' &&
+          typeof candidate.title === 'string'
+        );
+      })
+    );
   }
 
   private summarizeSubEvents(items: SelectedSubEvent[]) {
     if (items.length === 0) return null;
-    if (items.length === 1) return items[0].time ? `${items[0].time} - ${items[0].title}` : items[0].title;
+    if (items.length === 1)
+      return items[0].time ? `${items[0].time} - ${items[0].title}` : items[0].title;
     return `${items.length} sub-events selected`;
-  }
-
-  private async profileSuggestionForName(firstName: string, lastName: string) {
-    const attendee = await this.prisma.attendee.findFirst({
-      where: {
-        firstName: { equals: firstName, mode: 'insensitive' },
-        lastName: { equals: lastName, mode: 'insensitive' },
-        email: { not: null },
-        registration: {
-          status: 'verified',
-          paymentMethod: { in: ['onsite_qr', 'walk_in'] },
-        },
-      },
-      orderBy: { createdAt: 'desc' },
-      select: {
-        firstName: true,
-        lastName: true,
-        email: true,
-        phone: true,
-        gender: true,
-        birthday: true,
-        city: true,
-        company: true,
-        jobTitle: true,
-      },
-    });
-
-    if (!attendee?.email) return null;
-    return {
-      firstName: attendee.firstName,
-      lastName: attendee.lastName,
-      email: attendee.email,
-      contactNumber: attendee.phone ?? '',
-      gender: attendee.gender ?? '',
-      birthday: attendee.birthday?.toISOString().slice(0, 10) ?? '',
-      city: attendee.city ?? '',
-      company: attendee.company ?? '',
-      jobTitle: attendee.jobTitle ?? '',
-      maskedEmail: (attendee.email ?? '').replace(/^(.).+(@.+)$/, '$1***$2'),
-    };
   }
 
   private async createDailyAttendance(
@@ -211,10 +266,7 @@ export class EventsService {
     await this.prisma.event.updateMany({
       where: {
         status: { in: ['on_sale', 'sold_out'] as any[] },
-        OR: [
-          { endsAt: { lt: now } },
-          { endsAt: null, startsAt: { lt: graceCutoff } },
-        ],
+        OR: [{ endsAt: { lt: now } }, { endsAt: null, startsAt: { lt: graceCutoff } }],
       },
       data: { status: 'completed' as any },
     });
@@ -222,7 +274,9 @@ export class EventsService {
 
   async getPublicStats() {
     const [eventsHosted, ticketCheckIns, attendeeCheckIns, verifiedOrganizers] = await Promise.all([
-      this.prisma.event.count({ where: { status: { in: ['on_sale', 'sold_out', 'completed'] as any[] } } }),
+      this.prisma.event.count({
+        where: { status: { in: ['on_sale', 'sold_out', 'completed'] as any[] } },
+      }),
       this.prisma.ticket.count({ where: { checkedInAt: { not: null } } }),
       this.prisma.attendee.count({ where: { checkedInAt: { not: null } } }),
       this.prisma.organization.count({ where: { approvalStatus: 'approved' } }),
@@ -235,14 +289,16 @@ export class EventsService {
     };
   }
 
-  async findAll(page = 1, limit = 20, query?: string) {
+  async findAll(page = 1, limit = 20, query?: string, category?: string) {
     await this.autoCompleteExpiredEvents();
     const safePage = Math.max(1, page);
     const safeLimit = Math.min(Math.max(1, limit), 100);
     const skip = (safePage - 1) * safeLimit;
     const q = query?.trim().slice(0, 120);
+    const normalizedCategory = this.validateCategory(category);
     const where: Prisma.EventWhereInput = {
       status: 'on_sale' as any,
+      ...(normalizedCategory ? { category: normalizedCategory } : {}),
       ...(q
         ? {
             OR: [
@@ -271,9 +327,7 @@ export class EventsService {
       }),
     ]);
 
-    const tiersByEvent = await Promise.all(
-      events.map((e) => this.withLiveInventory(e.tiers)),
-    );
+    const tiersByEvent = await Promise.all(events.map((e) => this.withLiveInventory(e.tiers)));
 
     const data = events.map((e, index) => {
       const tiers = tiersByEvent[index];
@@ -286,12 +340,12 @@ export class EventsService {
         startsAt: e.startsAt.toISOString(),
         imageUrl: e.imageUrl,
         status: e.status,
+        category: e.category,
+        eventType: e.eventType,
+        isOnline: e.isOnline,
         isFree: e.isFree,
         lowestPrice: e.isFree ? 0 : e.tiers[0] ? Number(e.tiers[0].price) : null,
-        totalAvailable: tiers.reduce(
-          (sum: number, t) => sum + t.availableQuantity,
-          0,
-        ),
+        totalAvailable: tiers.reduce((sum: number, t) => sum + t.availableQuantity, 0),
       };
     });
 
@@ -308,6 +362,213 @@ export class EventsService {
     };
   }
 
+  /**
+   * Event-first home-page source. Sections are mutually exclusive and every
+   * urgency/popularity label is derived from authoritative event, inventory,
+   * and payment-proof-approved registration data.
+   */
+  async findDiscovery(category?: string, query?: string) {
+    await this.autoCompleteExpiredEvents();
+    const now = new Date();
+    const sevenDaysAgo = new Date(now.getTime() - 7 * DAY_MS);
+    const seventyTwoHoursAgo = new Date(now.getTime() - 3 * DAY_MS);
+    const thirtyDaysFromNow = new Date(now.getTime() + 30 * DAY_MS);
+    const seventyTwoHoursFromNow = new Date(now.getTime() + 3 * DAY_MS);
+    const normalizedCategory = this.validateCategory(category);
+    const q = query?.trim().slice(0, 120);
+
+    const events = await this.prisma.event.findMany({
+      where: {
+        status: { in: ['on_sale', 'sold_out', 'completed'] as any[] },
+        ...(normalizedCategory ? { category: normalizedCategory } : {}),
+        ...(q
+          ? {
+              OR: [
+                { title: { contains: q, mode: 'insensitive' } },
+                { venue: { contains: q, mode: 'insensitive' } },
+                { city: { contains: q, mode: 'insensitive' } },
+              ],
+            }
+          : {}),
+      },
+      orderBy: [{ startsAt: 'asc' }],
+      take: 120,
+      include: {
+        tiers: {
+          where: { isVisible: true },
+          select: {
+            id: true,
+            price: true,
+            totalQuantity: true,
+            soldQuantity: true,
+            saleEndsAt: true,
+          },
+          orderBy: { price: 'asc' },
+        },
+        registrations: {
+          where: {
+            status: 'verified',
+            verifiedAt: { gte: sevenDaysAgo },
+          },
+          select: {
+            id: true,
+            userId: true,
+            guestEmail: true,
+            attendeeCount: true,
+            verifiedAt: true,
+          },
+        },
+        organization: {
+          select: { name: true, publicSlug: true },
+        },
+      },
+    });
+
+    const inventoryByEvent = await Promise.all(
+      events.map((event) => this.withLiveInventory(event.tiers)),
+    );
+
+    const rankedInputs = events
+      .map((event) => {
+        const sevenDayApproved = event.registrations.filter(
+          (registration) => registration.verifiedAt && registration.verifiedAt >= sevenDaysAgo,
+        );
+        const velocity =
+          sevenDayApproved.reduce((sum, registration) => sum + registration.attendeeCount, 0) / 7;
+        const uniquePurchasers = new Set(
+          sevenDayApproved.map(
+            (registration) =>
+              registration.userId ?? registration.guestEmail?.toLowerCase() ?? registration.id,
+          ),
+        ).size;
+        return {
+          eventId: event.id,
+          eligible: event.status === 'on_sale' && sevenDayApproved.length >= 10,
+          velocity,
+          uniquePurchasers,
+        };
+      })
+      .filter((input) => input.eligible);
+    const maxVelocity = Math.max(1, ...rankedInputs.map((input) => input.velocity));
+    const maxUnique = Math.max(1, ...rankedInputs.map((input) => input.uniquePurchasers));
+    const hottestScores = new Map(
+      rankedInputs.map((input) => [
+        input.eventId,
+        0.7 * (input.velocity / maxVelocity) + 0.3 * (input.uniquePurchasers / maxUnique),
+      ]),
+    );
+
+    const cards = events.map((event, index) => {
+      const inventory = inventoryByEvent[index];
+      const capacity = inventory.reduce((sum, tier) => sum + tier.totalQuantity, 0);
+      const available = inventory.reduce((sum, tier) => sum + tier.availableQuantity, 0);
+      const approvedSevenDays = event.registrations.filter(
+        (registration) => registration.verifiedAt && registration.verifiedAt >= sevenDaysAgo,
+      );
+      const approvedSeventyTwoHours = approvedSevenDays.filter(
+        (registration) => registration.verifiedAt && registration.verifiedAt >= seventyTwoHoursAgo,
+      );
+      const approvedVolume72h = approvedSeventyTwoHours.reduce(
+        (sum, registration) => sum + registration.attendeeCount,
+        0,
+      );
+      const soldRatio = capacity > 0 ? (capacity - available) / capacity : 0;
+      const dailyVelocity = approvedVolume72h / 3;
+      const projectedDaysToSellout =
+        dailyVelocity > 0 ? available / dailyVelocity : Number.POSITIVE_INFINITY;
+      const effectiveEnd = event.endsAt ?? new Date(event.startsAt.getTime() + DAY_MS);
+      const isHappening =
+        event.startsAt <= now && effectiveEnd > now && event.status !== 'completed';
+      const registrationClosed =
+        event.status === 'sold_out' ||
+        (event.tiers.length > 0 &&
+          event.tiers.every((tier) => tier.saleEndsAt && tier.saleEndsAt <= now));
+      const labels: string[] = [];
+      if (event.publishedAt && event.publishedAt >= sevenDaysAgo) labels.push('New');
+      if (
+        event.tiers.some(
+          (tier) =>
+            tier.saleEndsAt && tier.saleEndsAt > now && tier.saleEndsAt <= seventyTwoHoursFromNow,
+        )
+      )
+        labels.push('Sales End Soon');
+      if (capacity > 0 && available > 0 && available / capacity <= 0.1)
+        labels.push('Few Remaining');
+      if (approvedSevenDays.length >= 10 && soldRatio >= 0.2 && projectedDaysToSellout <= 7)
+        labels.push('Selling Fast');
+      if (event.isOnline) labels.push('Online');
+      if (registrationClosed && effectiveEnd > now)
+        labels.push(event.status === 'sold_out' ? 'Sold Out' : 'Registration Closed');
+      if (effectiveEnd <= now || event.status === 'completed') labels.push('Event Concluded');
+      if (hottestScores.has(event.id)) labels.push('Hottest Right Now');
+
+      return {
+        id: event.id,
+        slug: event.slug,
+        title: event.title,
+        venue: event.venue,
+        city: event.city,
+        startsAt: event.startsAt.toISOString(),
+        endsAt: event.endsAt?.toISOString() ?? null,
+        imageUrl: event.imageUrl,
+        status: event.status,
+        category: event.category,
+        eventType: event.eventType,
+        isOnline: event.isOnline,
+        isFree: event.isFree,
+        lowestPrice: event.isFree ? 0 : event.tiers[0] ? Number(event.tiers[0].price) : null,
+        totalAvailable: available,
+        labels,
+        organizer: event.organization
+          ? { name: event.organization.name, slug: event.organization.publicSlug }
+          : null,
+        hottestScore: hottestScores.get(event.id) ?? null,
+        isHappening,
+        registrationClosed,
+      };
+    });
+
+    const happeningNow = cards.filter((event) => event.isHappening);
+    const happeningSoon = cards.filter(
+      (event) =>
+        !event.isHappening &&
+        !event.registrationClosed &&
+        new Date(event.startsAt) > now &&
+        new Date(event.startsAt) <= thirtyDaysFromNow &&
+        event.status !== 'completed',
+    );
+    const upcomingEvents = cards.filter(
+      (event) =>
+        !event.isHappening &&
+        !event.registrationClosed &&
+        new Date(event.startsAt) > thirtyDaysFromNow &&
+        event.status !== 'completed',
+    );
+    const eventsYouMissed = cards.filter(
+      (event) =>
+        !event.isHappening &&
+        (event.status === 'completed' ||
+          event.registrationClosed ||
+          new Date(event.endsAt ?? new Date(new Date(event.startsAt).getTime() + DAY_MS)) <= now),
+    );
+    const hottestRightNow = cards
+      .filter((event) => event.hottestScore !== null)
+      .sort((a, b) => (b.hottestScore ?? 0) - (a.hottestScore ?? 0))
+      .slice(0, 6);
+
+    return {
+      categories: ['all', ...EVENT_CATEGORIES],
+      sections: {
+        happeningNow: happeningNow.slice(0, 24),
+        happeningSoon: happeningSoon.slice(0, 24),
+        upcomingEvents: upcomingEvents.slice(0, 24),
+        eventsYouMissed: eventsYouMissed.slice(0, 24),
+        hottestRightNow: hottestRightNow.length >= 3 ? hottestRightNow : [],
+      },
+      generatedAt: now.toISOString(),
+    };
+  }
+
   async findBySlug(slug: string, eventId?: string) {
     const event = await this.prisma.event.findUnique({
       where: this.eventWhereForQr(slug, eventId),
@@ -317,36 +578,34 @@ export class EventsService {
           include: { inclusions: { orderBy: { sortOrder: 'asc' } } },
           orderBy: { sortOrder: 'asc' },
         },
-        organization: { select: { id: true, name: true } },
+        organization: { select: { id: true, name: true, publicSlug: true } },
       },
     });
     if (!event) throw new NotFoundException('Event not found');
 
-    const tiersWithAvailable = (await this.withLiveInventory(event.tiers)).map(
-      (tier) => ({
-        id: tier.id,
-        eventId: tier.eventId,
-        name: tier.name,
-        description: tier.description,
-        price: event.isFree ? 0 : Number(tier.price),
-        currency: tier.currency,
-        totalQuantity: tier.totalQuantity,
-        soldQuantity: tier.soldQuantity,
-        availableQuantity: tier.availableQuantity,
-        maxPerOrder: tier.maxPerOrder,
-        saleStartsAt: tier.saleStartsAt?.toISOString() ?? null,
-        saleEndsAt: tier.saleEndsAt?.toISOString() ?? null,
-        isVisible: tier.isVisible,
-        sortOrder: tier.sortOrder,
-        isSoldOut: tier.availableQuantity <= 0,
-        inclusions: tier.inclusions.map((item) => ({
-          id: item.id,
-          label: item.label,
-          stubEnabled: item.stubEnabled,
-          sortOrder: item.sortOrder,
-        })),
-      }),
-    );
+    const tiersWithAvailable = (await this.withLiveInventory(event.tiers)).map((tier) => ({
+      id: tier.id,
+      eventId: tier.eventId,
+      name: tier.name,
+      description: tier.description,
+      price: event.isFree ? 0 : Number(tier.price),
+      currency: tier.currency,
+      totalQuantity: tier.totalQuantity,
+      soldQuantity: tier.soldQuantity,
+      availableQuantity: tier.availableQuantity,
+      maxPerOrder: tier.maxPerOrder,
+      saleStartsAt: tier.saleStartsAt?.toISOString() ?? null,
+      saleEndsAt: tier.saleEndsAt?.toISOString() ?? null,
+      isVisible: tier.isVisible,
+      sortOrder: tier.sortOrder,
+      isSoldOut: tier.availableQuantity <= 0,
+      inclusions: tier.inclusions.map((item) => ({
+        id: item.id,
+        label: item.label,
+        stubEnabled: item.stubEnabled,
+        sortOrder: item.sortOrder,
+      })),
+    }));
 
     const optionalInclusions = this.optionalInclusions
       ? await this.optionalInclusions.listPublic(event.id)
@@ -364,6 +623,10 @@ export class EventsService {
       endsAt: event.endsAt?.toISOString() ?? null,
       imageUrl: event.imageUrl,
       status: event.status,
+      category: event.category,
+      eventType: event.eventType,
+      isOnline: event.isOnline,
+      runningConfig: event.runningConfig ?? null,
       maxPerUser: event.maxPerUser,
       maxCapacity: event.maxCapacity ?? null,
       speakerName: event.speakerName ?? null,
@@ -387,6 +650,7 @@ export class EventsService {
       longitude: event.longitude ? Number(event.longitude) : null,
       tiers: tiersWithAvailable,
       organizerName: event.organization?.name ?? null,
+      organizerSlug: event.organization?.publicSlug ?? null,
       createdAt: event.createdAt.toISOString(),
     };
   }
@@ -406,26 +670,13 @@ export class EventsService {
       throw new BadRequestException('On-site registration is not enabled for this event.');
     }
     if (event.status !== 'on_sale') {
-      throw new BadRequestException(`Registration is not open yet. This event is currently ${this.readableStatus(event.status)}.`);
+      throw new BadRequestException(
+        `Registration is not open yet. This event is currently ${this.readableStatus(event.status)}.`,
+      );
     }
 
     const now = new Date();
     const result = await this.prisma.$transaction(async (tx) => {
-      if (dto.attendeeId?.trim()) {
-        const attendee = await tx.attendee.findFirst({
-          where: {
-            id: dto.attendeeId.trim(),
-            registration: { eventId: event.id, status: 'verified' },
-          },
-          include: {
-            registration: { select: { id: true, referenceNumber: true, tierName: true } },
-          },
-        });
-        if (!attendee) throw new NotFoundException('Attendee not found for this event.');
-        const attendance = await this.createDailyAttendance(tx, attendee, event.id, 'onsite_qr', now);
-        return { attendee, registration: attendee.registration, attendance, created: false };
-      }
-
       const emailNotApplicable = dto.emailNotApplicable === true;
       const email = emailNotApplicable ? null : dto.email?.trim().toLowerCase();
       const firstName = dto.firstName?.trim();
@@ -433,7 +684,15 @@ export class EventsService {
       const phone = dto.contactNumber?.trim();
       const gender = dto.gender?.trim();
       const city = dto.city?.trim();
-      if ((!emailNotApplicable && !email) || !firstName || !lastName || !phone || !gender || !dto.birthday || !city) {
+      if (
+        (!emailNotApplicable && !email) ||
+        !firstName ||
+        !lastName ||
+        !phone ||
+        !gender ||
+        !dto.birthday ||
+        !city
+      ) {
         throw new BadRequestException('Required attendee details are missing.');
       }
       if (emailNotApplicable && dto.email?.trim()) {
@@ -443,7 +702,11 @@ export class EventsService {
         throw new BadRequestException('Please enter a valid email address.');
       }
       const birthday = this.validateBirthday(dto.birthday);
-      const selectedSubEvents = this.selectedSubEventsFromAgenda(event.agenda, dto.subEventIds, dto.subEventId);
+      const selectedSubEvents = this.selectedSubEventsFromAgenda(
+        event.agenda,
+        dto.subEventIds,
+        dto.subEventId,
+      );
       if (this.agendaHasSubEvents(event.agenda) && selectedSubEvents.length === 0) {
         throw new BadRequestException('Please choose at least one sub-event to attend.');
       }
@@ -458,6 +721,14 @@ export class EventsService {
         },
       ];
 
+      // Serialize identical attendee submissions before the duplicate lookup.
+      // This closes the check-then-create race when two event-day devices send
+      // the same person at nearly the same time.
+      const identityLockKey = email
+        ? `email:${email}`
+        : `person:${firstName.toLowerCase()}:${lastName.toLowerCase()}:${dto.birthday}`;
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${event.id}), hashtext(${identityLockKey}))`;
+
       const existing = await tx.attendee.findFirst({
         where: {
           registration: {
@@ -467,7 +738,9 @@ export class EventsService {
           OR: duplicateClauses,
         },
         include: {
-          registration: { select: { id: true, referenceNumber: true, tierName: true, status: true } },
+          registration: {
+            select: { id: true, referenceNumber: true, tierName: true, status: true },
+          },
         },
       });
 
@@ -480,7 +753,10 @@ export class EventsService {
       }
 
       const tier = event.tiers.find((item) => item.id === dto.tierId) ?? event.tiers[0];
-      if (!tier) throw new BadRequestException('No visible ticket tier is available for on-site registration.');
+      if (!tier)
+        throw new BadRequestException(
+          'No visible ticket tier is available for on-site registration.',
+        );
 
       await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${event.id}), hashtext(${tier.id}))`;
       const registrationUsage = await tx.registration.aggregate({
@@ -498,39 +774,15 @@ export class EventsService {
         throw new BadRequestException('No seats are available for this ticket tier.');
       }
 
-      const user = email
-        ? await tx.user.upsert({
-            where: { email },
-            create: {
-              email,
-              phone,
-              firstName,
-              lastName,
-              isVerified: true,
-              birthday,
-              gender,
-              city,
-              company: dto.company?.trim() || null,
-              jobTitle: dto.jobTitle?.trim() || null,
-            },
-            update: {
-              phone,
-              birthday,
-              gender,
-              city,
-              ...(dto.company !== undefined ? { company: dto.company.trim() || null } : {}),
-              ...(dto.jobTitle !== undefined ? { jobTitle: dto.jobTitle.trim() || null } : {}),
-            },
-            select: { id: true },
-          })
-        : null;
-
       const unitPrice = event.isFree ? 0 : Number(tier.price);
       const fees = event.isFree ? 0 : Number(event.platformFee ?? 0);
       const registration = await tx.registration.create({
         data: {
           referenceNumber: generateReferenceNumber(),
-          userId: user?.id ?? null,
+          // The public event-day form cannot prove ownership of the supplied
+          // email. Keep it as event transaction data only; never create,
+          // verify, link, or mutate a customer account from this endpoint.
+          userId: null,
           eventId: event.id,
           tierId: tier.id,
           tierName: tier.name,
@@ -557,10 +809,14 @@ export class EventsService {
               jobTitle: dto.jobTitle?.trim() || null,
               subEventId: primarySubEvent?.id ?? null,
               subEventTitle: this.summarizeSubEvents(selectedSubEvents),
-              subEventTime: selectedSubEvents.length === 1 ? primarySubEvent?.time ?? null : null,
-              selectedSubEvents: selectedSubEvents.length > 0 ? (selectedSubEvents as unknown as Prisma.InputJsonValue) : Prisma.JsonNull,
+              subEventTime: selectedSubEvents.length === 1 ? (primarySubEvent?.time ?? null) : null,
+              selectedSubEvents:
+                selectedSubEvents.length > 0
+                  ? (selectedSubEvents as unknown as Prisma.InputJsonValue)
+                  : Prisma.JsonNull,
               isLead: true,
-            } as any,
+              event: { connect: { id: event.id } },
+            },
           },
         },
         include: { attendees: true },
@@ -581,7 +837,13 @@ export class EventsService {
         where: { id: attendee.id },
         data: { qrToken },
       });
-      const attendance = await this.createDailyAttendance(tx, updatedAttendee, event.id, 'onsite_qr', now);
+      const attendance = await this.createDailyAttendance(
+        tx,
+        updatedAttendee,
+        event.id,
+        'onsite_qr',
+        now,
+      );
       return {
         attendee: updatedAttendee,
         registration: {
@@ -625,22 +887,27 @@ export class EventsService {
       throw new BadRequestException('On-site registration is not enabled for this event.');
     }
     if (event.status !== 'on_sale') {
-      throw new BadRequestException(`Registration is not open yet. This event is currently ${this.readableStatus(event.status)}.`);
+      throw new BadRequestException(
+        `Registration is not open yet. This event is currently ${this.readableStatus(event.status)}.`,
+      );
     }
 
-    const firstName = dto.firstName.trim();
-    const lastName = dto.lastName.trim();
-    if (firstName.length < 2 || lastName.length < 2) {
-      return { match: null };
-    }
-
-    return { match: await this.profileSuggestionForName(firstName, lastName) };
+    // Name-only lookup previously returned full PII to an unauthenticated
+    // browser. Repeat attendance is handled by signed attendee QR tokens.
+    return { match: null };
   }
 
   async generateOnsiteQrPdf(slug: string, eventId?: string) {
     const event = await this.prisma.event.findUnique({
       where: this.eventWhereForQr(slug, eventId),
-      select: { id: true, title: true, slug: true, venue: true, startsAt: true, onsiteRegistrationEnabled: true },
+      select: {
+        id: true,
+        title: true,
+        slug: true,
+        venue: true,
+        startsAt: true,
+        onsiteRegistrationEnabled: true,
+      },
     });
     if (!event) throw new NotFoundException('Event not found');
     if (!event.onsiteRegistrationEnabled) {
@@ -648,7 +915,12 @@ export class EventsService {
     }
 
     const scanUrl = this.onsiteUrl(event.slug, event.id);
-    const qrPng = await QRCode.toBuffer(scanUrl, { type: 'png', width: 900, margin: 2, errorCorrectionLevel: 'H' });
+    const qrPng = await QRCode.toBuffer(scanUrl, {
+      type: 'png',
+      width: 900,
+      margin: 2,
+      errorCorrectionLevel: 'H',
+    });
     const pdf = await PDFDocument.create();
     const page = pdf.addPage([595.28, 841.89]);
     const font = await pdf.embedFont(StandardFonts.Helvetica);
@@ -726,7 +998,12 @@ export class EventsService {
     };
   }
 
-  private wrapPdfText(text: string, font: { widthOfTextAtSize(value: string, size: number): number }, size: number, maxWidth: number) {
+  private wrapPdfText(
+    text: string,
+    font: { widthOfTextAtSize(value: string, size: number): number },
+    size: number,
+    maxWidth: number,
+  ) {
     const words = text.split(/\s+/);
     const lines: string[] = [];
     let current = '';
@@ -744,17 +1021,25 @@ export class EventsService {
   }
 
   async create(dto: CreateEventDto, createdById: string, organizationId?: string) {
+    this.validateRunningConfig(dto);
     const slug = uniqueSlug(dto.title);
     const platformFee = dto.isFree
       ? 0
       : dto.platformFee !== undefined
-      ? dto.platformFee
-      : await this.prisma.platformConfig.findUnique({ where: { key: 'service_fee' } }).then((r) => (r ? Number(r.value) : 50));
+        ? dto.platformFee
+        : await this.prisma.platformConfig
+            .findUnique({ where: { key: 'service_fee' } })
+            .then((r) => (r ? Number(r.value) : 50));
     const event = await this.prisma.event.create({
       data: {
         slug,
         title: dto.title,
         description: dto.description,
+        category: dto.category ?? 'business',
+        eventType: dto.eventType ?? 'standard',
+        isOnline: dto.isOnline ?? false,
+        runningConfig:
+          (dto.runningConfig as unknown as Prisma.InputJsonValue | undefined) ?? Prisma.JsonNull,
         venue: dto.venue,
         address: dto.address ?? null,
         landmark: dto.landmark ?? null,
@@ -769,18 +1054,24 @@ export class EventsService {
         agenda: (dto.agenda as unknown as Prisma.InputJsonValue | undefined) ?? Prisma.JsonNull,
         sponsors: (dto.sponsors as unknown as Prisma.InputJsonValue | undefined) ?? Prisma.JsonNull,
         faqs: (dto.faqs as unknown as Prisma.InputJsonValue | undefined) ?? Prisma.JsonNull,
-        customSections: (dto.customSections as unknown as Prisma.InputJsonValue | undefined) ?? Prisma.JsonNull,
+        customSections:
+          (dto.customSections as unknown as Prisma.InputJsonValue | undefined) ?? Prisma.JsonNull,
         isFree: dto.isFree ?? false,
         platformFee,
         ...(dto.imageUrl && { imageUrl: dto.imageUrl }),
         ...(dto.allowManualPayment !== undefined && { allowManualPayment: dto.allowManualPayment }),
-        ...(dto.onsiteRegistrationEnabled !== undefined && { onsiteRegistrationEnabled: dto.onsiteRegistrationEnabled }),
+        ...(dto.onsiteRegistrationEnabled !== undefined && {
+          onsiteRegistrationEnabled: dto.onsiteRegistrationEnabled,
+        }),
         ...(dto.bankName !== undefined && { bankName: dto.bankName }),
         ...(dto.bankAccountNumber !== undefined && { bankAccountNumber: dto.bankAccountNumber }),
         ...(dto.bankAccountName !== undefined && { bankAccountName: dto.bankAccountName }),
         ...(dto.gcashNumber !== undefined && { gcashNumber: dto.gcashNumber }),
         ...(dto.landmark !== undefined && { landmark: dto.landmark }),
-        ...(dto.paymentMethods !== undefined && { paymentMethods: (dto.paymentMethods as unknown as Prisma.InputJsonValue | null) ?? Prisma.JsonNull }),
+        ...(dto.paymentMethods !== undefined && {
+          paymentMethods:
+            (dto.paymentMethods as unknown as Prisma.InputJsonValue | null) ?? Prisma.JsonNull,
+        }),
         createdById,
         ...(organizationId ? { organizationId } : {}),
       },
@@ -794,22 +1085,55 @@ export class EventsService {
 
   async update(id: string, dto: UpdateEventDto) {
     const existing = await this.findById(id);
+    this.validateRunningConfig({
+      ...dto,
+      eventType: dto.eventType ?? (existing.eventType as 'standard' | 'running'),
+      runningConfig:
+        dto.runningConfig ??
+        (existing.runningConfig as unknown as CreateEventDto['runningConfig']) ??
+        undefined,
+    });
     if (dto.status === 'on_sale' && !(dto.imageUrl?.trim() || existing.imageUrl)) {
       throw new BadRequestException('Upload an event cover image before publishing.');
+    }
+    const resultingStatus = dto.status ?? existing.status;
+    const resultingIsFree = dto.isFree ?? existing.isFree;
+    if (['published', 'on_sale'].includes(resultingStatus) && !resultingIsFree) {
+      const manualPaymentEnabled = dto.allowManualPayment ?? existing.allowManualPayment;
+      const methods =
+        dto.paymentMethods !== undefined ? dto.paymentMethods : existing.paymentMethods;
+      const configuredMethods = Array.isArray(methods) ? methods : [];
+      const allMethodsComplete =
+        configuredMethods.length > 0 &&
+        configuredMethods.every((method) => {
+          if (!method || typeof method !== 'object' || Array.isArray(method)) return false;
+          const item = method as Record<string, unknown>;
+          return Boolean(
+            ['bank', 'ewallet'].includes(String(item.type ?? '')) &&
+            String(item.name ?? '').trim() &&
+            String(item.accountName ?? '').trim() &&
+            String(item.accountNumber ?? '').trim() &&
+            String(item.qrImageUrl ?? '').trim(),
+          );
+        });
+      if (!manualPaymentEnabled || !allMethodsComplete) {
+        throw new BadRequestException(
+          'Paid events require at least one complete bank or e-wallet payment method. Method name, account name, account number, and QR code are all required.',
+        );
+      }
     }
     if (dto.isFeatured === true && !existing.isFeatured) {
       const activeFeaturedCount = await this.prisma.event.count({
         where: {
           id: { not: id },
           isFeatured: true,
-          OR: [
-            { featuredUntil: null },
-            { featuredUntil: { gt: new Date() } },
-          ],
+          OR: [{ featuredUntil: null }, { featuredUntil: { gt: new Date() } }],
         },
       });
       if (activeFeaturedCount >= 3) {
-        throw new BadRequestException('The homepage supports up to 3 featured events. Disable one before adding another.');
+        throw new BadRequestException(
+          'The homepage supports up to 3 featured events. Disable one before adding another.',
+        );
       }
     }
     return this.prisma.event.update({
@@ -827,33 +1151,56 @@ export class EventsService {
         ...(dto.maxPerUser && { maxPerUser: dto.maxPerUser }),
         ...(dto.maxCapacity !== undefined && { maxCapacity: dto.maxCapacity }),
         ...(dto.status && { status: dto.status as any }),
+        ...(dto.status === 'on_sale' && !existing.publishedAt ? { publishedAt: new Date() } : {}),
+        ...(dto.category !== undefined && { category: dto.category }),
+        ...(dto.eventType !== undefined && { eventType: dto.eventType }),
+        ...(dto.isOnline !== undefined && { isOnline: dto.isOnline }),
+        ...(dto.runningConfig !== undefined && {
+          runningConfig:
+            (dto.runningConfig as unknown as Prisma.InputJsonValue | null) ?? Prisma.JsonNull,
+        }),
         ...(dto.speakerName !== undefined && { speakerName: dto.speakerName }),
-        ...(dto.agenda !== undefined && { agenda: (dto.agenda as unknown as Prisma.InputJsonValue | null) ?? Prisma.JsonNull }),
-        ...(dto.sponsors !== undefined && { sponsors: (dto.sponsors as unknown as Prisma.InputJsonValue | null) ?? Prisma.JsonNull }),
-        ...(dto.faqs !== undefined && { faqs: (dto.faqs as unknown as Prisma.InputJsonValue | null) ?? Prisma.JsonNull }),
-        ...(dto.customSections !== undefined && { customSections: (dto.customSections as unknown as Prisma.InputJsonValue | null) ?? Prisma.JsonNull }),
+        ...(dto.agenda !== undefined && {
+          agenda: (dto.agenda as unknown as Prisma.InputJsonValue | null) ?? Prisma.JsonNull,
+        }),
+        ...(dto.sponsors !== undefined && {
+          sponsors: (dto.sponsors as unknown as Prisma.InputJsonValue | null) ?? Prisma.JsonNull,
+        }),
+        ...(dto.faqs !== undefined && {
+          faqs: (dto.faqs as unknown as Prisma.InputJsonValue | null) ?? Prisma.JsonNull,
+        }),
+        ...(dto.customSections !== undefined && {
+          customSections:
+            (dto.customSections as unknown as Prisma.InputJsonValue | null) ?? Prisma.JsonNull,
+        }),
         ...(dto.isFree !== undefined && { isFree: dto.isFree }),
         ...(dto.isFree === true
           ? { platformFee: 0 }
           : dto.platformFee !== undefined
-          ? { platformFee: dto.platformFee }
-          : {}),
+            ? { platformFee: dto.platformFee }
+            : {}),
         ...(dto.imageUrl !== undefined && { imageUrl: dto.imageUrl }),
         ...(dto.allowManualPayment !== undefined && { allowManualPayment: dto.allowManualPayment }),
-        ...(dto.onsiteRegistrationEnabled !== undefined && { onsiteRegistrationEnabled: dto.onsiteRegistrationEnabled }),
+        ...(dto.onsiteRegistrationEnabled !== undefined && {
+          onsiteRegistrationEnabled: dto.onsiteRegistrationEnabled,
+        }),
         ...(dto.bankName !== undefined && { bankName: dto.bankName }),
         ...(dto.bankAccountNumber !== undefined && { bankAccountNumber: dto.bankAccountNumber }),
         ...(dto.bankAccountName !== undefined && { bankAccountName: dto.bankAccountName }),
         ...(dto.gcashNumber !== undefined && { gcashNumber: dto.gcashNumber }),
         ...(dto.landmark !== undefined && { landmark: dto.landmark }),
-        ...(dto.paymentMethods !== undefined && { paymentMethods: (dto.paymentMethods as unknown as Prisma.InputJsonValue | null) ?? Prisma.JsonNull }),
+        ...(dto.paymentMethods !== undefined && {
+          paymentMethods:
+            (dto.paymentMethods as unknown as Prisma.InputJsonValue | null) ?? Prisma.JsonNull,
+        }),
         ...(dto.tagline !== undefined && { tagline: dto.tagline }),
         ...(dto.isFeatured !== undefined && { isFeatured: dto.isFeatured }),
         ...(dto.featuredOrder !== undefined && { featuredOrder: dto.featuredOrder }),
-        ...(dto.featuredUntil !== undefined && { featuredUntil: dto.featuredUntil ? new Date(dto.featuredUntil) : null }),
-        // Turning featuring off must also remove ordering and expiry metadata.
-        // Keeping an expired date here would make a later quick re-enable appear
-        // successful in admin while remaining absent from the public carousel.
+        ...(dto.featuredUntil !== undefined && {
+          featuredUntil: dto.featuredUntil ? new Date(dto.featuredUntil) : null,
+        }),
+        // Disabling a featured event must also clear its stale carousel metadata.
+        // Otherwise a later re-enable can remain hidden because of an expired date.
         ...(dto.isFeatured === false && { featuredOrder: null, featuredUntil: null }),
       },
     });
@@ -875,15 +1222,9 @@ export class EventsService {
       where: {
         isFeatured: true,
         status: { in: ['on_sale', 'sold_out'] as any[] },
-        OR: [
-          { featuredUntil: null },
-          { featuredUntil: { gt: now } },
-        ],
+        OR: [{ featuredUntil: null }, { featuredUntil: { gt: now } }],
       },
-      orderBy: [
-        { featuredOrder: { sort: 'asc', nulls: 'last' } },
-        { startsAt: 'asc' },
-      ],
+      orderBy: [{ featuredOrder: { sort: 'asc', nulls: 'last' } }, { startsAt: 'asc' }],
       take: 3,
       include: {
         tiers: {
@@ -894,9 +1235,7 @@ export class EventsService {
       },
     });
 
-    const tiersByEvent = await Promise.all(
-      events.map((e) => this.withLiveInventory(e.tiers)),
-    );
+    const tiersByEvent = await Promise.all(events.map((e) => this.withLiveInventory(e.tiers)));
 
     return events.map((e, index) => {
       const tiers = tiersByEvent[index];
@@ -917,12 +1256,10 @@ export class EventsService {
         maxCapacity: e.maxCapacity,
         featuredOrder: e.featuredOrder,
         isFree: e.isFree,
-        primaryTierId: tiers.find((tier) => tier.availableQuantity > 0)?.id ?? e.tiers[0]?.id ?? null,
+        primaryTierId:
+          tiers.find((tier) => tier.availableQuantity > 0)?.id ?? e.tiers[0]?.id ?? null,
         lowestPrice: e.isFree ? 0 : e.tiers[0] ? Number(e.tiers[0].price) : null,
-        totalAvailable: tiers.reduce(
-          (sum: number, t) => sum + t.availableQuantity,
-          0,
-        ),
+        totalAvailable: tiers.reduce((sum: number, t) => sum + t.availableQuantity, 0),
       };
     });
   }
@@ -933,11 +1270,17 @@ export class EventsService {
     await this.redis.set(key, quantity.toString());
   }
 
-  async withLiveInventory<T extends TierInventory>(tiers: T[]): Promise<Array<T & {
-    soldQuantity: number;
-    availableQuantity: number;
-    isSoldOut: boolean;
-  }>> {
+  async withLiveInventory<T extends TierInventory>(
+    tiers: T[],
+  ): Promise<
+    Array<
+      T & {
+        soldQuantity: number;
+        availableQuantity: number;
+        isSoldOut: boolean;
+      }
+    >
+  > {
     if (tiers.length === 0) return [];
 
     const tierIds = tiers.map((tier) => tier.id);

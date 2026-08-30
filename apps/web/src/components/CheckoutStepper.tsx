@@ -5,7 +5,7 @@ interface Step {
   label: string;
 }
 
-const STANDARD_STEPS: Step[] = [
+const LEGACY_STEPS: Step[] = [
   { id: 1, label: 'Attendee Details' },
   { id: 2, label: 'Payment & Proof' },
   { id: 3, label: 'Confirmation' },
@@ -20,11 +20,25 @@ const ADD_ON_STEPS: Step[] = [
 
 interface Props {
   current: 1 | 2 | 3 | 4;
+  flow?: 'legacy' | 'paid-payment-first' | 'paid-single';
   includesAddOns?: boolean;
 }
 
-export default function CheckoutStepper({ current, includesAddOns = false }: Props) {
-  const steps = includesAddOns ? ADD_ON_STEPS : STANDARD_STEPS;
+export default function CheckoutStepper({ current, flow = 'legacy', includesAddOns = false }: Props) {
+  const steps: Step[] = includesAddOns
+    ? ADD_ON_STEPS
+    : flow === 'paid-single'
+      ? [
+          { id: 1, label: 'Payment & Proof' },
+          { id: 2, label: 'Confirmation' },
+        ]
+      : flow === 'paid-payment-first'
+        ? [
+            { id: 1, label: 'Payment & Proof' },
+            { id: 2, label: 'Attendee Details' },
+            { id: 3, label: 'Confirmation' },
+          ]
+        : LEGACY_STEPS;
   return (
     <nav aria-label="Checkout progress" className="mb-6">
       <ol className="flex items-center gap-2 sm:gap-3">

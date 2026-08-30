@@ -35,6 +35,10 @@ interface OrganizationProfile {
   registrationNumber: string | null;
   website: string | null;
   facebookUrl: string | null;
+  publicSlug: string | null;
+  logoUrl: string | null;
+  socialLinks: { instagram?: string; linkedin?: string; x?: string } | null;
+  isPublic: boolean;
 }
 
 const ORG_TYPE_OPTIONS = [
@@ -65,6 +69,11 @@ const EMPTY_ORG_FORM = {
   idNumber: '',
   website: '',
   facebookUrl: '',
+  logoUrl: '',
+  instagramUrl: '',
+  linkedinUrl: '',
+  xUrl: '',
+  isPublic: true,
 };
 
 export default function ProfilePage() {
@@ -133,6 +142,11 @@ export default function ProfilePage() {
                 idNumber: org.idNumber ?? '',
                 website: org.website ?? '',
                 facebookUrl: org.facebookUrl ?? '',
+                logoUrl: org.logoUrl ?? '',
+                instagramUrl: org.socialLinks?.instagram ?? '',
+                linkedinUrl: org.socialLinks?.linkedin ?? '',
+                xUrl: org.socialLinks?.x ?? '',
+                isPublic: org.isPublic ?? true,
               });
             })
             .catch(() => setOrganization(null));
@@ -214,6 +228,13 @@ export default function ProfilePage() {
         idNumber: orgForm.idNumber.trim(),
         website: orgForm.website.trim() || null,
         facebookUrl: orgForm.facebookUrl.trim() || null,
+        logoUrl: orgForm.logoUrl.trim() || null,
+        socialLinks: {
+          instagram: orgForm.instagramUrl.trim() || undefined,
+          linkedin: orgForm.linkedinUrl.trim() || undefined,
+          x: orgForm.xUrl.trim() || undefined,
+        },
+        isPublic: orgForm.isPublic,
       };
       const res = await api.patch<{ data: OrganizationProfile }>('/organizations/me', payload);
       const org = res.data.data;
@@ -230,6 +251,11 @@ export default function ProfilePage() {
         idNumber: org.idNumber ?? '',
         website: org.website ?? '',
         facebookUrl: org.facebookUrl ?? '',
+        logoUrl: org.logoUrl ?? '',
+        instagramUrl: org.socialLinks?.instagram ?? '',
+        linkedinUrl: org.socialLinks?.linkedin ?? '',
+        xUrl: org.socialLinks?.x ?? '',
+        isPublic: org.isPublic ?? true,
       });
       toast.success('Organizer account updated!');
     } catch (err: any) {
@@ -304,6 +330,16 @@ export default function ProfilePage() {
         {organization && isOrganizerPortal && (
           <form onSubmit={handleOrgSave} className="mb-6 space-y-4 rounded-lg border border-[#e4dcf4] bg-white px-6 py-5">
             <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-widest">Organizer Account</h2>
+            {organization.publicSlug && organization.isPublic && (
+              <a
+                href={`/organizers/${organization.publicSlug}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex text-sm font-semibold text-primary hover:underline"
+              >
+                View public organizer profile ↗
+              </a>
+            )}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Organization <span className="text-red-500">*</span></label>
@@ -359,10 +395,40 @@ export default function ProfilePage() {
                 <label className="block text-sm font-medium text-gray-700 mb-1">Facebook page <span className="text-gray-400 font-normal">(optional)</span></label>
                 <input name="facebookUrl" value={orgForm.facebookUrl} onChange={updateOrg} placeholder="https://facebook.com/yourpage" className={inputClass} />
               </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Profile image <span className="text-gray-400 font-normal">(HTTPS URL)</span></label>
+                <input name="logoUrl" value={orgForm.logoUrl} onChange={updateOrg} placeholder="https://..." className={inputClass} />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Instagram <span className="text-gray-400 font-normal">(optional)</span></label>
+                <input name="instagramUrl" value={orgForm.instagramUrl} onChange={updateOrg} placeholder="https://instagram.com/..." className={inputClass} />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">LinkedIn <span className="text-gray-400 font-normal">(optional)</span></label>
+                <input name="linkedinUrl" value={orgForm.linkedinUrl} onChange={updateOrg} placeholder="https://linkedin.com/company/..." className={inputClass} />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">X <span className="text-gray-400 font-normal">(optional)</span></label>
+                <input name="xUrl" value={orgForm.xUrl} onChange={updateOrg} placeholder="https://x.com/..." className={inputClass} />
+              </div>
               <div className="sm:col-span-2">
                 <label className="block text-sm font-medium text-gray-700 mb-1">Description <span className="text-red-500">*</span></label>
                 <textarea name="description" value={orgForm.description} onChange={updateOrg} required rows={4} className={`${inputClass} resize-none`} />
               </div>
+              <label className="sm:col-span-2 flex items-start gap-3 rounded-xl border border-[#e4dcf4] bg-[#faf8ff] p-4">
+                <input
+                  type="checkbox"
+                  checked={orgForm.isPublic}
+                  onChange={(event) => setOrgForm((formState) => ({ ...formState, isPublic: event.target.checked }))}
+                  className="mt-0.5 h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+                />
+                <span>
+                  <span className="block text-sm font-semibold text-[#1a0533]">Show my public organizer profile</span>
+                  <span className="mt-0.5 block text-xs leading-5 text-[#756a92]">
+                    Publishes your organizer name, image, about section, approved links, and upcoming events.
+                  </span>
+                </span>
+              </label>
             </div>
             <button
               type="submit"

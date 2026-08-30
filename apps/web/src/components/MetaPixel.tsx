@@ -20,7 +20,10 @@ export default function MetaPixel() {
   const pageKey = useMemo(() => pathname, [pathname]);
 
   const isExcludedRoute = EXCLUDED_PREFIXES.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`));
-  const shouldTrack = process.env.NODE_ENV === 'production' && Boolean(pixelId) && !isExcludedRoute;
+  const shouldTrack =
+    process.env.NEXT_PUBLIC_APP_ENV === 'production' &&
+    Boolean(pixelId) &&
+    !isExcludedRoute;
 
   useEffect(() => {
     if (!shouldTrack) {
@@ -58,6 +61,8 @@ export default function MetaPixel() {
         `}
       </Script>
       <noscript>
+        {/* The Meta Pixel fallback must remain a provider-controlled tracking image. */}
+        {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           height="1"
           width="1"

@@ -40,7 +40,9 @@ export default function PaymentStep({ paymentMethods, onAdd, onEdit, onRemove, o
   return (
     <>
       <p className="text-sm text-gray-500 -mt-2">
-        Optional. Add bank or e-wallet payment methods for manual payments. Skip if you only need automated checkout later.
+        {isFree
+          ? 'No payment method is required for a free event.'
+          : 'Required before publishing. Add at least one bank or e-wallet method for manual payment proof.'}
       </p>
 
       {/* ── Service Fee ─────────────────────────────────────────────────────── */}

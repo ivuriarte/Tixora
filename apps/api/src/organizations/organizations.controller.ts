@@ -11,6 +11,7 @@ import {
   AddOrganizationMemberDto,
   UpdateOrganizationMemberDto,
 } from './dto/organization.dto';
+import { Public } from '../common/decorators/public.decorator';
 
 @ApiTags('organizations')
 @Controller('organizations')
@@ -36,6 +37,13 @@ export class OrganizationsController {
   @ApiOperation({ summary: 'Update the organization owned by the current user' })
   updateMyOrganization(@Body() dto: UpdateOrganizationDto, @CurrentUser() user: JwtPayload) {
     return this.orgsService.updateMyOrganization(dto, user.sub);
+  }
+
+  @Public()
+  @Get('public/:slug')
+  @ApiOperation({ summary: 'Get an approved public organizer profile and upcoming events' })
+  getPublicProfile(@Param('slug') slug: string) {
+    return this.orgsService.getPublicProfile(slug);
   }
 
   @Get('me/members')

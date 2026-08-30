@@ -86,6 +86,10 @@ interface ApiEvent {
   tiers: ApiTier[];
   tagline?: string | null;
   customSections?: Array<{ title: string; description: string; imageUrl?: string; imageAlt?: string; isVisible?: boolean }> | null;
+  category?: EventDraft['category'];
+  eventType?: EventDraft['eventType'];
+  isOnline?: boolean;
+  runningConfig?: EventDraft['runningConfig'] | null;
   access: { role: 'platform_admin' | 'owner' | 'co_owner' | 'manager' | 'member'; canManageEvent: boolean };
 }
 
@@ -178,6 +182,9 @@ export default function AdminEventEditPage() {
       description: event.description ?? '',
       imageUrl: event.imageUrl ?? '',
       speakerName: event.speakerName ?? '',
+      category: event.category ?? 'business',
+      eventType: event.eventType ?? 'standard',
+      isOnline: event.isOnline === true,
       venue: event.venue ?? '',
       address: event.address ?? '',
       landmark: event.landmark ?? '',
@@ -223,6 +230,7 @@ export default function AdminEventEditPage() {
         : [],
       tagline: event.tagline ?? '',
       customSections: Array.isArray(event.customSections) ? event.customSections.map((section) => ({ title: section.title, description: section.description, imageUrl: section.imageUrl ?? '', imageAlt: section.imageAlt ?? '', isVisible: section.isVisible !== false })) : [],
+      runningConfig: event.runningConfig ?? emptyDraft().runningConfig,
     });
     setStatus(event.status ?? 'draft');
     setOnsiteRegistrationEnabled(event.onsiteRegistrationEnabled === true);
@@ -473,6 +481,10 @@ export default function AdminEventEditPage() {
     const payload: Record<string, unknown> = {
       title: draft.title.trim(),
       description: draft.description.trim(),
+      category: draft.category,
+      eventType: draft.eventType,
+      isOnline: draft.isOnline,
+      runningConfig: draft.eventType === 'running' ? draft.runningConfig : undefined,
       venue: draft.venue.trim(),
       address: draft.address.trim() || null,
       city: draft.city.trim(),
@@ -768,6 +780,7 @@ export default function AdminEventEditPage() {
         title={canManageEvent ? 'Edit Event' : 'Event Details'}
         draft={draft}
         tiers={tiers}
+        paymentMethods={paymentMethods}
         submitLabel={updateMutation.isPending ? 'Saving…' : 'Save Changes'}
         submitting={updateMutation.isPending}
         onSubmit={handleSubmit}

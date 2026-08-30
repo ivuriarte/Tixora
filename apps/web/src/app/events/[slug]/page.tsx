@@ -2,6 +2,7 @@ import { createHmac } from 'node:crypto';
 import Navbar from '@/components/Navbar';
 import { notFound } from 'next/navigation';
 import Image from 'next/image';
+import Link from 'next/link';
 import { formatManila } from '@axon-tickets/utils';
 import RegistrationGuard from '@/components/RegistrationGuard';
 import VenueMap from '@/components/VenueMap';
@@ -58,6 +59,7 @@ interface Event {
   faqs?: Faq[] | null;
   customSections?: CustomSection[] | null;
   organizerName?: string | null;
+  organizerSlug?: string | null;
   // Payment
   allowManualPayment?: boolean;
   bankName?: string | null;
@@ -85,8 +87,13 @@ async function getEvent(slug: string): Promise<Event | null> {
   }
 }
 
-export async function generateMetadata({ params }: { params: { slug: string } }) {
-  const event = await getEvent(params.slug);
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ slug: string }>;
+}) {
+  const { slug } = await params;
+  const event = await getEvent(slug);
   if (!event) return {};
   const description = event.description?.slice(0, 150);
   const canonical = `/events/${event.slug}`;
@@ -152,11 +159,18 @@ function sanitizeList<T extends object>(raw: unknown, requiredKeys: (keyof T)[])
   });
 }
 
-export default async function EventPage({ params, searchParams }: { params: { slug: string }; searchParams: { preview?: string } }) {
-  const event = await getEvent(params.slug);
+export default async function EventPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ slug: string }>;
+  searchParams: Promise<{ preview?: string }>;
+}) {
+  const [{ slug }, resolvedSearchParams] = await Promise.all([params, searchParams]);
+  const event = await getEvent(slug);
   if (!event) notFound();
 
-  const isPreview = searchParams.preview === '1';
+  const isPreview = resolvedSearchParams.preview === '1';
   const isSoldOut = event.status === 'sold_out';
   const isCancelled = event.status === 'cancelled';
   const siteUrl = process.env.NEXT_PUBLIC_APP_ENV === 'uat'
@@ -383,7 +397,13 @@ export default async function EventPage({ params, searchParams }: { params: { sl
               {event.organizerName && (
                 <div className="mb-4 pb-4 border-b border-gray-100">
                   <p className="text-gray-400 uppercase tracking-wide text-xs font-medium mb-1">Organizer</p>
-                  <p className="font-semibold text-gray-900 text-sm">{event.organizerName}</p>
+                  {event.organizerSlug ? (
+                    <Link href={`/organizers/${event.organizerSlug}`} className="text-sm font-semibold text-gray-900 hover:text-primary hover:underline">
+                      {event.organizerName}
+                    </Link>
+                  ) : (
+                    <p className="font-semibold text-gray-900 text-sm">{event.organizerName}</p>
+                  )}
                 </div>
               )}
               <div className="grid grid-cols-2 gap-x-6 gap-y-4 text-sm">

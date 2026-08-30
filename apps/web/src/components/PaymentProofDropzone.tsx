@@ -5,6 +5,7 @@ import api from '@/lib/api';
 
 interface Props {
   registrationId: string;
+  guestAccessToken?: string;
   /** Called with the uploaded proof's image URL on success. */
   onUploaded: (imageUrl: string) => void;
 }
@@ -19,7 +20,7 @@ function formatBytes(bytes: number) {
   return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
 }
 
-export default function PaymentProofDropzone({ registrationId, onUploaded }: Props) {
+export default function PaymentProofDropzone({ registrationId, guestAccessToken, onUploaded }: Props) {
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -73,8 +74,11 @@ export default function PaymentProofDropzone({ registrationId, onUploaded }: Pro
       const formData = new FormData();
       formData.append('file', file);
       formData.append('registrationId', registrationId);
-      const res = await api.post('/payment-proofs', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' },
+      const res = await api.post(guestAccessToken ? '/payment-proofs/guest' : '/payment-proofs', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+          ...(guestAccessToken && { 'x-registration-token': guestAccessToken }),
+        },
         onUploadProgress: (e) => {
           if (e.total) setProgress(Math.round((e.loaded * 100) / e.total));
         },

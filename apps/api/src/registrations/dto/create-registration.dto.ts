@@ -12,9 +12,39 @@ import {
   ArrayMaxSize,
   MinLength,
   MaxLength,
+  IsInt,
+  Min,
+  IsBoolean,
+  Matches,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import { InclusionSelectionDto } from '../../optional-inclusions/dto/optional-inclusion.dto';
+
+export class DeliveryAddressDto {
+  @IsString()
+  @MinLength(3)
+  @MaxLength(180)
+  line1!: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(180)
+  line2?: string;
+
+  @IsString()
+  @MinLength(2)
+  @MaxLength(100)
+  city!: string;
+
+  @IsString()
+  @MinLength(2)
+  @MaxLength(100)
+  province!: string;
+
+  @IsString()
+  @Matches(/^[0-9A-Za-z -]{3,12}$/)
+  postalCode!: string;
+}
 
 export class AttendeeDto {
   @IsString()
@@ -30,12 +60,12 @@ export class AttendeeDto {
   @IsEmail()
   email!: string;
 
-  /** Mobile number is required for event contact and gate verification purposes.
-   *  Accepts Philippine format (+639XXXXXXXXX) or international format (+XXXXXXXXXXX). */
+  /** Optional contact number. Guest checkout deliberately requires only name and email. */
+  @IsOptional()
   @IsString()
   @MinLength(7)
   @MaxLength(20)
-  phone!: string;
+  phone?: string;
 
   @IsOptional()
   @IsString()
@@ -60,6 +90,51 @@ export class AttendeeDto {
   @MinLength(2)
   @MaxLength(100)
   city?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(80)
+  raceDistance?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(80)
+  raceDivision?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(80)
+  genderIdentity?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  emergencyContactName?: string;
+
+  @IsOptional()
+  @IsString()
+  @MinLength(7)
+  @MaxLength(20)
+  emergencyContactPhone?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(80)
+  emergencyContactRelationship?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(40)
+  merchandiseSize?: string;
+
+  @IsOptional()
+  @IsIn(['self_claim', 'delivery'])
+  claimMethod?: 'self_claim' | 'delivery';
+
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => DeliveryAddressDto)
+  deliveryAddress?: DeliveryAddressDto;
 }
 
 export class CreateRegistrationDto {
@@ -68,6 +143,10 @@ export class CreateRegistrationDto {
 
   @IsUUID()
   tierId!: string;
+
+  @IsOptional()
+  @IsEmail()
+  guestEmail?: string;
 
   @IsOptional()
   @IsString()
@@ -80,12 +159,22 @@ export class CreateRegistrationDto {
   @MaxLength(100, { each: true })
   subEventIds?: string[];
 
+  @IsOptional()
   @IsArray()
   @ValidateNested({ each: true })
   @ArrayMinSize(1)
   @ArrayMaxSize(10)
   @Type(() => AttendeeDto)
-  attendees!: AttendeeDto[];
+  attendees?: AttendeeDto[];
+
+  @ValidateIf((dto: CreateRegistrationDto) => !dto.attendees?.length)
+  @IsInt()
+  @Min(1)
+  attendeeCount?: number;
+
+  @IsOptional()
+  @IsBoolean()
+  accountConsent?: boolean;
 
   @IsOptional()
   @IsString()
