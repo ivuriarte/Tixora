@@ -1,9 +1,5 @@
 import { test, expect } from './support/admin-test';
-import {
-  ADMIN_EMAIL,
-  ADMIN_PASSWORD,
-  HAS_ADMIN_CREDENTIALS,
-} from './support/admin-auth';
+import { ADMIN_EMAIL, ADMIN_PASSWORD, HAS_ADMIN_CREDENTIALS } from './support/admin-auth';
 import type { Page } from '@playwright/test';
 
 async function gotoAdmin(page: Page, path: string) {
@@ -28,10 +24,10 @@ async function gotoAdmin(page: Page, path: string) {
   const refreshToken = payload?.data?.refreshToken;
   expect(typeof refreshToken).toBe('string');
 
-  await page.evaluate(
-    ({ name, value }) => localStorage.setItem(name, value),
-    { name: 'axon_tickets_rt', value: refreshToken },
-  );
+  await page.evaluate(({ name, value }) => localStorage.setItem(name, value), {
+    name: 'axon_tickets_rt',
+    value: refreshToken,
+  });
   await page.goto(path);
   await expect(logoutButton).toBeVisible();
 }
@@ -44,7 +40,9 @@ test.describe('Icebreaker tab', () => {
     await gotoAdmin(page, '/admin/events');
 
     // Click the first event link in the list
-    const eventLink = page.locator('a[href*="/admin/events/"]').first();
+    const eventLink = page
+      .locator('a[href^="/admin/events/"]:not([href="/admin/events/new"])')
+      .first();
     await expect(eventLink).toBeVisible({ timeout: 10_000 });
     await eventLink.click();
 
@@ -64,15 +62,15 @@ test.describe('Icebreaker tab', () => {
     await expect(page.getByRole('button', { name: 'Raffle' })).toBeVisible();
 
     // Verify the spin button is present (wheel mode is default)
-    await expect(
-      page.getByRole('button', { name: /spin the wheel/i }),
-    ).toBeVisible();
+    await expect(page.getByRole('button', { name: /spin the wheel/i })).toBeVisible();
   });
 
   test('switches between wheel and raffle modes', async ({ adminPage: page }) => {
     await gotoAdmin(page, '/admin/events');
 
-    const eventLink = page.locator('a[href*="/admin/events/"]').first();
+    const eventLink = page
+      .locator('a[href^="/admin/events/"]:not([href="/admin/events/new"])')
+      .first();
     await expect(eventLink).toBeVisible({ timeout: 10_000 });
     await eventLink.click();
 
@@ -81,27 +79,23 @@ test.describe('Icebreaker tab', () => {
     await expect(page).toHaveURL(/\/icebreaker$/);
 
     // Default is wheel mode
-    await expect(
-      page.getByRole('button', { name: /spin the wheel/i }),
-    ).toBeVisible();
+    await expect(page.getByRole('button', { name: /spin the wheel/i })).toBeVisible();
 
     // Switch to raffle mode
     await page.getByRole('button', { name: 'Raffle' }).click();
-    await expect(
-      page.getByRole('button', { name: /draw winners/i }),
-    ).toBeVisible();
+    await expect(page.getByRole('button', { name: /draw winners/i })).toBeVisible();
 
     // Switch back to wheel
     await page.getByRole('button', { name: 'Wheel' }).click();
-    await expect(
-      page.getByRole('button', { name: /spin the wheel/i }),
-    ).toBeVisible();
+    await expect(page.getByRole('button', { name: /spin the wheel/i })).toBeVisible();
   });
 
   test('icebreaker tab appears in event detail navigation', async ({ adminPage: page }) => {
     await gotoAdmin(page, '/admin/events');
 
-    const eventLink = page.locator('a[href*="/admin/events/"]').first();
+    const eventLink = page
+      .locator('a[href^="/admin/events/"]:not([href="/admin/events/new"])')
+      .first();
     await expect(eventLink).toBeVisible({ timeout: 10_000 });
     await eventLink.click();
 
