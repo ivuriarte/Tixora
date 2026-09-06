@@ -19,8 +19,7 @@ export default function PaymentMethodForm({ initial, onSave, onCancel }: Payment
   const isComplete = Boolean(
     pm.name.trim()
     && pm.accountName.trim()
-    && pm.accountNumber.trim()
-    && (pm.qrFile || pm.qrPreview || pm.qrImageUrl),
+    && pm.accountNumber.trim(),
   );
   const isNew = !initial.name && !initial.accountName && !initial.accountNumber;
 
@@ -79,7 +78,7 @@ export default function PaymentMethodForm({ initial, onSave, onCancel }: Payment
       </div>
       <div>
         <label className="block text-xs font-medium text-gray-600 mb-1">
-          QR Code <span className="text-red-500">*</span> <span className="text-gray-400">(JPG, PNG, or WEBP)</span>
+          QR Code <span className="text-gray-400">(Optional · JPG, PNG, or WEBP)</span>
         </label>
         <input ref={fileRef} type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={handleQrFile} />
         {(pm.qrPreview || pm.qrImageUrl) ? (
@@ -110,7 +109,7 @@ export default function PaymentMethodForm({ initial, onSave, onCancel }: Payment
       </div>
       {!isComplete && (
         <p className="text-xs text-amber-700" role="status">
-          Complete all fields and upload the recipient QR code before saving this payment method.
+          Complete the required payment account fields before saving this payment method.
         </p>
       )}
     </div>

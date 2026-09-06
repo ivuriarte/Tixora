@@ -1112,13 +1112,12 @@ export class EventsService {
             ['bank', 'ewallet'].includes(String(item.type ?? '')) &&
             String(item.name ?? '').trim() &&
             String(item.accountName ?? '').trim() &&
-            String(item.accountNumber ?? '').trim() &&
-            String(item.qrImageUrl ?? '').trim(),
+            String(item.accountNumber ?? '').trim(),
           );
         });
       if (!manualPaymentEnabled || !allMethodsComplete) {
         throw new BadRequestException(
-          'Paid events require at least one complete bank or e-wallet payment method. Method name, account name, account number, and QR code are all required.',
+          'Paid events require at least one complete bank or e-wallet payment method. Method name, account name, and account number are required; the QR code is optional.',
         );
       }
     }

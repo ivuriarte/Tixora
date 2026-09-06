@@ -40,7 +40,7 @@ describe('EventsService paid event publishing', () => {
     },
   );
 
-  it('allows a paid event to go on sale after a complete method is configured', async () => {
+  it('allows a paid event to go on sale without an optional payment QR code', async () => {
     const prisma = {
       event: {
         findUnique: jest.fn().mockResolvedValue(makePaidEvent()),
@@ -60,14 +60,13 @@ describe('EventsService paid event publishing', () => {
             type: 'ewallet',
             accountName: 'Axon Events Inc.',
             accountNumber: '09171234567',
-            qrImageUrl: 'https://cdn.example.com/gcash-qr.png',
           },
         ],
       } as any),
     ).resolves.toEqual({ id: 'event-paid', status: 'on_sale' });
   });
 
-  it('blocks publishing when any configured payment method is incomplete', async () => {
+  it('blocks publishing when any required payment account field is incomplete', async () => {
     const prisma = {
       event: {
         findUnique: jest.fn().mockResolvedValue(makePaidEvent()),
@@ -85,12 +84,11 @@ describe('EventsService paid event publishing', () => {
           {
             name: 'GCash',
             type: 'ewallet',
-            accountName: 'Axon Events Inc.',
             accountNumber: '09171234567',
           },
         ],
       } as any),
-    ).rejects.toThrow('QR code');
+    ).rejects.toThrow('account name');
     expect(prisma.event.update).not.toHaveBeenCalled();
   });
 

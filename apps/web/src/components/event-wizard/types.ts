@@ -258,13 +258,10 @@ export function validateStep(
       if (paymentMethods.length === 0) return 'Add at least one payment method for this paid event';
       const incomplete = paymentMethods.find(
         (method) =>
-          !method.name.trim() ||
-          !method.accountName.trim() ||
-          !method.accountNumber.trim() ||
-          !(method.qrFile || method.qrPreview || method.qrImageUrl),
+          !method.name.trim() || !method.accountName.trim() || !method.accountNumber.trim(),
       );
       if (incomplete) {
-        return `Complete every required field, including the QR code, for ${incomplete.name.trim() || 'the payment method'}`;
+        return `Complete every required payment account field for ${incomplete.name.trim() || 'the payment method'}`;
       }
       return null;
     }
