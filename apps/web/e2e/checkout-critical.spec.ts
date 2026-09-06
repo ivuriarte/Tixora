@@ -377,6 +377,9 @@ test.describe('Critical checkout journeys', () => {
     );
     await expect(page.getByRole('heading', { name: 'Complete Your Payment' })).toBeVisible();
     await expect(page.getByText('₱1,150')).toBeVisible();
+    await expect(page.getByText('GCash', { exact: true })).toBeVisible();
+    await expect(page.getByText('09170000000', { exact: true })).toBeVisible();
+    await expect(page.getByAltText('GCash QR Code')).toHaveCount(0);
     await expect(page.getByText(/ask for the attendee details/i)).toBeVisible();
 
     await choosePaymentProof(page);

@@ -45,7 +45,11 @@ async function gotoAdmin(page: Page, path: string) {
   await expect(logoutButton).toBeVisible();
 }
 
-async function openCreateWizardStep(page: Page, step: 'basics' | 'location' | 'details') {
+async function openCreateWizardStep(
+  page: Page,
+  step: 'basics' | 'location' | 'details' | 'payment',
+) {
+  const isPaidPaymentStep = step === 'payment';
   const persisted = {
     draft: {
       ...emptyDraft(),
@@ -60,14 +64,14 @@ async function openCreateWizardStep(page: Page, step: 'basics' | 'location' | 'd
       endDate: '2030-01-10',
       endTime: '12:00',
       maxCapacity: '10',
-      isFree: true,
+      isFree: !isPaidPaymentStep,
     },
     tiers: [
       {
         key: 1,
         name: 'General Admission',
         description: '',
-        price: '0',
+        price: isPaidPaymentStep ? '1000' : '0',
         totalQuantity: '10',
         maxPerOrder: '2',
         isVisible: true,
@@ -89,7 +93,7 @@ async function openCreateWizardStep(page: Page, step: 'basics' | 'location' | 'd
   await gotoAdmin(page, '/admin/events/new');
   await page.getByRole('button', { name: 'Restore', exact: true }).click();
 
-  const advances = step === 'basics' ? 0 : step === 'location' ? 1 : 3;
+  const advances = step === 'basics' ? 0 : step === 'location' ? 1 : step === 'details' ? 3 : 4;
   for (let index = 0; index < advances; index += 1) {
     await page.getByRole('button', { name: 'Next →', exact: true }).click();
   }
@@ -262,6 +266,24 @@ test.describe('Admin Create Event — Form Fields', () => {
 
     // FAQ should be gone
     await expect(faqQuestion).toHaveCount(0);
+  });
+
+  test('can add a payment method without uploading an optional QR code', async ({
+    adminPage: page,
+  }) => {
+    await openCreateWizardStep(page, 'payment');
+
+    await expect(page.getByText(/QR Code.*Optional/)).toBeVisible();
+    await page.getByPlaceholder(/BPI, BDO/i).fill('BPI');
+    await page.getByPlaceholder(/Juan Dela Cruz/i).fill('Axon Events Inc.');
+    await page.getByPlaceholder(/1234-5678-90/i).fill('1234-5678-90');
+
+    const addButton = page.getByRole('button', { name: 'Add', exact: true });
+    await expect(addButton).toBeEnabled();
+    await addButton.click();
+
+    await expect(page.getByText('BPI', { exact: true })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Next →', exact: true })).toBeEnabled();
   });
 });
 
