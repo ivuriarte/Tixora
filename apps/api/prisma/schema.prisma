@@ -659,6 +659,8 @@ model Registration {
   guestAccessTokenHash String?            @map("guest_access_token_hash")
   accountConsent       Boolean            @default(false) @map("account_consent")
   accountConsentAt     DateTime?          @map("account_consent_at")
+  partnerConsent       Boolean            @default(false) @map("partner_consent")
+  partnerConsentAt     DateTime?          @map("partner_consent_at")
   attendeesCompletedAt DateTime?          @map("attendees_completed_at")
   eventId              String             @map("event_id")
   tierId               String?            @map("tier_id")

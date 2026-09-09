@@ -28,6 +28,10 @@ jobs:
         working-directory: .
         run: npm ci --workspaces
 
+      - name: Block critical dependency advisories
+        working-directory: .
+        run: npm audit --audit-level=critical
+
       - name: Generate Prisma client
         run: npx prisma generate
 
@@ -42,8 +46,8 @@ jobs:
 
       - name: Build
         env:
-          DATABASE_URL: "postgresql://ci:ci@localhost:5432/ci"
-          DIRECT_URL: "postgresql://ci:ci@localhost:5432/ci"
+          DATABASE_URL: 'postgresql://ci:ci@localhost:5432/ci'
+          DIRECT_URL: 'postgresql://ci:ci@localhost:5432/ci'
         run: npm run build
 
   test-web:
@@ -78,7 +82,37 @@ jobs:
         run: npm run typecheck
 
       - name: Build
+        env:
+          NEXT_PUBLIC_API_URL: http://127.0.0.1:3001/api/v1
+          NEXT_PUBLIC_APP_ENV: uat
         run: npm run build
+
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Deterministic checkout and admin browser journeys
+        env:
+          BASE_URL: http://127.0.0.1:3100
+          API_URL: http://127.0.0.1:3001
+          PW_START_SERVER: '1'
+          PW_ADMIN_MOCKED: '1'
+        run: >-
+          npx playwright test
+          e2e/checkout-critical.spec.ts
+          e2e/admin-flows.spec.ts
+          --project=chromium
+          --project=admin-mocked
+
+      - name: Upload Playwright evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-deterministic-${{ github.run_id }}
+          path: |
+            apps/web/playwright-report
+            apps/web/test-results
+          if-no-files-found: warn
+          retention-days: 7
 
   prisma-validate:
     name: Validate Prisma Schema
@@ -103,6 +137,6 @@ jobs:
 
       - name: Validate Prisma schema
         env:
-          DATABASE_URL: "postgresql://placeholder:placeholder@localhost:5432/placeholder"
-          DIRECT_URL: "postgresql://placeholder:placeholder@localhost:5432/placeholder"
+          DATABASE_URL: 'postgresql://placeholder:placeholder@localhost:5432/placeholder'
+          DIRECT_URL: 'postgresql://placeholder:placeholder@localhost:5432/placeholder'
         run: npx prisma validate

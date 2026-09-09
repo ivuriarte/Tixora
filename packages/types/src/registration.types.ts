@@ -116,6 +116,7 @@ export interface CreateRegistrationDto {
   attendees?: AttendeeInput[];
   attendeeCount?: number;
   accountConsent?: boolean;
+  partnerConsent?: boolean;
   notes?: string;
   referralCode?: string;
   quoteToken?: string;
