@@ -354,6 +354,8 @@ export class RegistrationsService {
             notes: dto.notes,
             accountConsent: dto.accountConsent === true,
             accountConsentAt: dto.accountConsent === true ? new Date() : null,
+            partnerConsent: dto.partnerConsent === true,
+            partnerConsentAt: dto.partnerConsent === true ? new Date() : null,
             attendeesCompletedAt: attendees.length > 0 ? new Date() : null,
             ...(attendees.length > 0 && {
               attendees: {

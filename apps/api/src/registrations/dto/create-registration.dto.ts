@@ -177,6 +177,10 @@ export class CreateRegistrationDto {
   accountConsent?: boolean;
 
   @IsOptional()
+  @IsBoolean()
+  partnerConsent?: boolean;
+
+  @IsOptional()
   @IsString()
   @MaxLength(500)
   notes?: string;

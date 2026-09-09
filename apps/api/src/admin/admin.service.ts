@@ -2644,7 +2644,7 @@ export class AdminService {
     });
 
     const header =
-      'Reference,First Name,Last Name,Email,Phone,Tier,Qty,Status,Payment Method,Subtotal (PHP),Discount (PHP),Referral Code,Total (PHP),Registered At,Checked In,First Check-In At\n';
+      'Reference,First Name,Last Name,Email,Phone,Tier,Qty,Status,Payment Method,Subtotal (PHP),Discount (PHP),Referral Code,Total (PHP),Registered At,Checked In,First Check-In At,Partner Consent,Partner Consent At\n';
 
     const rows = registrations.map((reg) => {
       const lead = reg.attendees.find((a) => a.isLead) ?? reg.attendees[0];
@@ -2672,6 +2672,8 @@ export class AdminService {
         reg.createdAt.toISOString(),
         `${checkedInCount}/${reg.attendeeCount}`,
         firstCheckedInAt?.toISOString() ?? '',
+        reg.partnerConsent ? 'Yes' : 'No',
+        reg.partnerConsentAt?.toISOString() ?? '',
       ].join(',');
     });
 

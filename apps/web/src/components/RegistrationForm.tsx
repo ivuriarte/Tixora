@@ -199,6 +199,7 @@ export default function RegistrationForm({
   const [referralMessage, setReferralMessage] = useState<string | null>(null);
   const [referralError, setReferralError] = useState<string | null>(null);
   const [checkingReferral, setCheckingReferral] = useState(false);
+  const [partnerConsent, setPartnerConsent] = useState(false);
   const [checkoutStage, setCheckoutStage] = useState<'details' | 'confirmation' | 'otp'>(
     skipDetailsForAuthenticatedSingle ? 'confirmation' : 'details',
   );
@@ -621,6 +622,7 @@ export default function RegistrationForm({
           tierId,
           attendeeCount: qty,
           accountConsent: true,
+          partnerConsent,
         };
         const res = await api.post('/registrations', payload);
         const reg = res.data?.data ?? res.data;
@@ -698,6 +700,7 @@ export default function RegistrationForm({
           ...(notes.trim() && { notes: notes.trim() }),
           ...(referralDiscount > 0 && referralCode.trim() && { referralCode: referralCode.trim() }),
           ...(quote && { quoteToken: quote.token, inclusionSelections }),
+          partnerConsent,
         };
         const res = await api.post('/registrations', payload);
         const reg = res.data?.data ?? res.data;
@@ -1471,6 +1474,22 @@ export default function RegistrationForm({
           onRefreshQuote={() => void refreshQuote()}
         />
       )}
+
+      {/* Partner data-sharing consent (optional opt-in) */}
+      <label className="flex items-start gap-3 cursor-pointer select-none">
+        <input
+          type="checkbox"
+          checked={partnerConsent}
+          onChange={(e) => setPartnerConsent(e.target.checked)}
+          className="mt-0.5 h-4 w-4 shrink-0 rounded border-gray-300 text-primary focus:ring-primary"
+        />
+        <span className="text-sm text-gray-600 leading-snug">
+          I consent to having my registration information shared with{' '}
+          <span className="font-medium text-gray-800">event partners and sponsors</span>{' '}
+          for purposes related to this event.{' '}
+          <span className="text-gray-400">(Optional)</span>
+        </span>
+      </label>
 
       {error && (
         <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-xl px-4 py-3">
