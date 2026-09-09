@@ -440,6 +440,7 @@ export default function RegistrationForm({
   const attendeeUpdatePayload = () => ({
     attendees: buildAttendeePayload(),
     ...(notes.trim() && { notes: notes.trim() }),
+    partnerConsent,
   });
 
   async function syncAuthenticatedProfile() {
@@ -681,6 +682,7 @@ export default function RegistrationForm({
         const attendeeUpdate = {
           attendees: attendeePayload,
           ...(notes.trim() && { notes: notes.trim() }),
+          partnerConsent,
         };
         if (guestAccessToken) {
           await api.patch(`/registrations/guest/${registrationId}/attendees`, attendeeUpdate, {
@@ -792,6 +794,22 @@ export default function RegistrationForm({
           <div role="status" className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">Loading the registrant details from your verified profile…</div>
         )}
 
+        {/* Partner data-sharing consent — required before confirmation */}
+        <label className="flex items-start gap-3 cursor-pointer select-none rounded-xl border border-gray-200 bg-white p-4">
+          <input
+            type="checkbox"
+            checked={partnerConsent}
+            onChange={(e) => setPartnerConsent(e.target.checked)}
+            className="mt-0.5 h-4 w-4 shrink-0 rounded border-gray-300 text-primary focus:ring-primary"
+          />
+          <span className="text-sm text-gray-600 leading-snug">
+            I consent to having my registration information shared with{' '}
+            <span className="font-medium text-gray-800">event partners and sponsors</span>{' '}
+            for purposes related to this event.{' '}
+            <span className="text-red-500 font-medium">*</span>
+          </span>
+        </label>
+
         {duplicateConflicts.length > 0 && (
           <div role="dialog" aria-modal="true" aria-labelledby="duplicate-title" className="fixed inset-0 z-50 flex items-center justify-center bg-[#0d021c]/70 p-4 backdrop-blur-sm">
             <div className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl">
@@ -816,7 +834,7 @@ export default function RegistrationForm({
 
         <button
           type="button"
-          disabled={loading || !confirmationReady}
+          disabled={loading || !confirmationReady || !partnerConsent}
           onClick={() => void confirmPaidCheckout()}
           className="w-full rounded-xl bg-primary py-3 text-sm font-semibold text-white transition hover:bg-primary/90 disabled:opacity-50"
         >
@@ -1475,10 +1493,11 @@ export default function RegistrationForm({
         />
       )}
 
-      {/* Partner data-sharing consent (optional opt-in) */}
-      <label className="flex items-start gap-3 cursor-pointer select-none">
+      {/* Partner data-sharing consent — required before submission */}
+      <label className="flex items-start gap-3 cursor-pointer select-none rounded-xl border border-gray-200 bg-white p-4">
         <input
           type="checkbox"
+          required
           checked={partnerConsent}
           onChange={(e) => setPartnerConsent(e.target.checked)}
           className="mt-0.5 h-4 w-4 shrink-0 rounded border-gray-300 text-primary focus:ring-primary"
@@ -1487,7 +1506,7 @@ export default function RegistrationForm({
           I consent to having my registration information shared with{' '}
           <span className="font-medium text-gray-800">event partners and sponsors</span>{' '}
           for purposes related to this event.{' '}
-          <span className="text-gray-400">(Optional)</span>
+          <span className="text-red-500 font-medium">*</span>
         </span>
       </label>
 
@@ -1515,7 +1534,7 @@ export default function RegistrationForm({
           )}
           <button
             type="submit"
-            disabled={loading || (inclusionCheckoutStage === 'addons' && (quoteLoading || !quote))}
+            disabled={loading || !partnerConsent || (inclusionCheckoutStage === 'addons' && (quoteLoading || !quote))}
             className="min-h-12 flex-1 rounded-xl bg-primary px-5 text-sm font-semibold text-white transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
           >
             {loading
@@ -1528,7 +1547,7 @@ export default function RegistrationForm({
       ) : (
         <button
           type="submit"
-          disabled={loading}
+          disabled={loading || !partnerConsent}
           className="w-full py-3 rounded-xl bg-primary text-white font-semibold text-sm hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
         >
           {loading

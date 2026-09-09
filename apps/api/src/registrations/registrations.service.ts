@@ -1524,6 +1524,9 @@ export class RegistrationsService {
             ...(dto.notes !== undefined ? { notes: dto.notes } : {}),
             attendeesCompletedAt: new Date(),
             ...(reg.status === 'proof_submitted' ? { status: 'pending_approval' } : {}),
+            ...(dto.partnerConsent === true
+              ? { partnerConsent: true, partnerConsentAt: new Date() }
+              : {}),
           },
         });
       });

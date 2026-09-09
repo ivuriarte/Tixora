@@ -1,6 +1,7 @@
 import {
   IsString,
   IsOptional,
+  IsBoolean,
   IsArray,
   ValidateNested,
   ArrayMinSize,
@@ -22,4 +23,8 @@ export class UpdateRegistrationAttendeesDto {
   @IsString()
   @MaxLength(500)
   notes?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  partnerConsent?: boolean;
 }
