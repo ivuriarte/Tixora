@@ -69,6 +69,7 @@ export default function RegistrationPanel({
   const availableTiers = tiers.filter((t) => t.availableQuantity > 0);
   const [selectedId, setSelectedId] = useState<string>(availableTiers[0]?.id ?? '');
   const [qty, setQty] = useState(1);
+  const [partnerConsent, setPartnerConsent] = useState(false);
 
   const selected = tiers.find((t) => t.id === selectedId);
   const maxQty = Math.min(selected?.maxPerOrder ?? 10, selected?.availableQuantity ?? 0);
@@ -76,7 +77,7 @@ export default function RegistrationPanel({
   const handleRegister = () => {
     if (!selectedId) return;
 
-    const nextUrl = `/events/${eventSlug}/register?tierId=${selectedId}&qty=${qty}&eventId=${encodeURIComponent(eventId)}&eventSlug=${encodeURIComponent(eventSlug)}&eventName=${encodeURIComponent(eventTitle)}`;
+    const nextUrl = `/events/${eventSlug}/register?tierId=${selectedId}&qty=${qty}&eventId=${encodeURIComponent(eventId)}&eventSlug=${encodeURIComponent(eventSlug)}&eventName=${encodeURIComponent(eventTitle)}&partnerConsent=true`;
 
     trackPixelCustomEvent(
       'RegisterCTA_Clicked',
@@ -292,9 +293,24 @@ export default function RegistrationPanel({
         </div>
       )}
 
+      {/* Partner data-sharing consent — required before proceeding */}
+      <label className="flex items-start gap-3 cursor-pointer select-none">
+        <input
+          type="checkbox"
+          checked={partnerConsent}
+          onChange={(e) => setPartnerConsent(e.target.checked)}
+          className="mt-0.5 h-4 w-4 shrink-0 rounded border-gray-300 text-primary focus:ring-primary"
+        />
+        <span className="text-xs text-gray-600 leading-snug">
+          I consent to having my registration information shared with{' '}
+          <span className="font-medium text-gray-800">event partners and sponsors</span>{' '}
+          for purposes related to this event. <span className="text-red-500">*</span>
+        </span>
+      </label>
+
       <button
         type="button"
-        disabled={!selectedId || disabled || maxQty === 0 || isPending}
+        disabled={!selectedId || disabled || maxQty === 0 || isPending || !partnerConsent}
         onClick={handleRegister}
         className="axon-pill w-full bg-primary text-xs text-white hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-50"
       >
