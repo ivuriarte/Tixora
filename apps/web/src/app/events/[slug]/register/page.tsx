@@ -107,9 +107,10 @@ interface GuestAccessChoiceProps {
   tier: Tier;
   qty: number;
   onActivateAccount: () => void;
+  partnerConsent?: boolean;
 }
 
-function GuestAccessChoice({ event, tier, qty, onActivateAccount }: GuestAccessChoiceProps) {
+function GuestAccessChoice({ event, tier, qty, onActivateAccount, partnerConsent = false }: GuestAccessChoiceProps) {
   const router = useRouter();
   const [guestEmail, setGuestEmail] = useState('');
   const [loading, setLoading] = useState(false);
@@ -132,6 +133,7 @@ function GuestAccessChoice({ event, tier, qty, onActivateAccount }: GuestAccessC
         guestEmail: normalizedEmail,
         attendeeCount: qty,
         accountConsent: false,
+        partnerConsent,
       });
       const registration = response.data?.data ?? response.data;
       window.sessionStorage.setItem(
@@ -774,6 +776,7 @@ export default function RegisterPage() {
       eventSlug: query.get('eventSlug') ?? undefined,
       eventName: query.get('eventName') ?? undefined,
       guest: query.get('guest') ?? undefined,
+      partnerConsent: query.get('partnerConsent') ?? undefined,
     }),
     [query],
   );
@@ -950,18 +953,21 @@ export default function RegisterPage() {
     setIntentError(null);
     const startPaidCheckout = async () => {
       try {
+        const partnerConsentValue = searchParams.partnerConsent === 'true';
         const response = isAuthenticated
           ? await api.post('/registrations', {
               eventId: event.id,
               tierId: selectedTier.id,
               attendeeCount: qty,
               accountConsent: true,
+              partnerConsent: partnerConsentValue,
             })
           : await api.post('/registrations/guest-intent', {
               eventId: event.id,
               tierId: selectedTier.id,
               attendeeCount: qty,
               accountConsent: false,
+              partnerConsent: partnerConsentValue,
             });
         const registration = response.data?.data ?? response.data;
         if (!isAuthenticated) {
@@ -1054,6 +1060,7 @@ export default function RegisterPage() {
     initialTotal,
     optionalInclusions: eligibleOptionalInclusions,
     onCheckoutStepChange: setInclusionCheckoutStage,
+    initialPartnerConsent: searchParams.partnerConsent === 'true',
   };
   const isPaidEvent = !event.isFree;
   const isLoggedInSinglePaidCheckout = Boolean(
@@ -1218,6 +1225,7 @@ export default function RegisterPage() {
               tier={tier}
               qty={qty}
               onActivateAccount={() => setShowAccountActivation(true)}
+              partnerConsent={searchParams.partnerConsent === 'true'}
             />
           )
         )}
