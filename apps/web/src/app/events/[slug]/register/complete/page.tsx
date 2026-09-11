@@ -11,6 +11,7 @@ type Scenario = 'authenticated' | 'guest' | 'account';
 interface RegistrationSnapshot {
   referenceNumber: string;
   status: string;
+  isFree: boolean;
   attendees?: Array<{ firstName: string; lastName: string; email: string }>;
 }
 
@@ -24,6 +25,7 @@ function CompleteContent() {
   const [snapshot, setSnapshot] = useState<RegistrationSnapshot>({
     referenceNumber: query.get('reference') ?? '',
     status: 'pending_approval',
+    isFree: query.get('free') === '1',
   });
   const [showActivation, setShowActivation] = useState(false);
   const [activationStep, setActivationStep] = useState<'profile' | 'otp'>('profile');
@@ -56,6 +58,7 @@ function CompleteContent() {
           ...current,
           referenceNumber: data.referenceNumber ?? current.referenceNumber,
           status: data.status ?? current.status,
+          isFree: data.isFree ?? current.isFree,
           attendees: data.attendees ?? current.attendees,
         }));
       })
@@ -139,8 +142,8 @@ function CompleteContent() {
       <section className="mx-auto max-w-2xl overflow-hidden rounded-3xl border border-emerald-200 bg-white shadow-xl shadow-emerald-950/5">
         <div className="bg-emerald-600 px-6 py-8 text-center text-white sm:px-10">
           <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-white/20 text-2xl">✓</div>
-          <h1 className="axon-display mt-4 text-4xl">Transaction submitted</h1>
-          <p className="mt-2 text-sm text-emerald-50">Your payment proof and attendee details reached Axon Tickets successfully.</p>
+          <h1 className="axon-display mt-4 text-4xl">{snapshot.isFree ? 'Registration submitted' : 'Transaction submitted'}</h1>
+          <p className="mt-2 text-sm text-emerald-50">{snapshot.isFree ? 'Your attendee details reached Axon Tickets successfully.' : 'Your payment proof and attendee details reached Axon Tickets successfully.'}</p>
         </div>
 
         <div className="p-6 sm:p-10">
@@ -149,7 +152,7 @@ function CompleteContent() {
             <div><p className="text-xs uppercase tracking-wide text-gray-400">Status</p><p className="mt-1 font-semibold text-amber-700">Under review</p></div>
           </div>
           <div className="mt-6 space-y-3 text-sm leading-6 text-gray-600">
-            <p><strong className="text-gray-900">What happens next:</strong> the organizer will review your payment proof within 1–2 business days.</p>
+            <p><strong className="text-gray-900">What happens next:</strong> {snapshot.isFree ? 'the organizer will review your registration.' : 'the organizer will review your payment proof within 1–2 business days.'}</p>
             <p>Every attendee email listed in the transaction will receive a submission notice. We will email the review result, and approved attendees will receive their ticket and QR details.</p>
             <p className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-amber-900">Please do not submit the same registration again while this transaction is under review.</p>
           </div>

@@ -2,7 +2,7 @@ import { ForbiddenException } from '@nestjs/common';
 import { createHash } from 'crypto';
 import { PaymentProofsService } from './payment-proofs.service';
 
-function fixture(token = 'valid-scoped-token') {
+function fixture(token = 'valid-scoped-token', attendeesCompletedAt: Date | null = null) {
   const registration = {
     id: 'registration-1',
     userId: null,
@@ -11,7 +11,7 @@ function fixture(token = 'valid-scoped-token') {
     eventId: 'event-1',
     total: 500,
     attendeeCount: 1,
-    attendeesCompletedAt: null,
+    attendeesCompletedAt,
   };
   const tx = {
     paymentProof: {
@@ -67,6 +67,22 @@ describe('PaymentProofsService guest authorization', () => {
       data: { status: 'proof_submitted', rejectionReason: null },
     });
     expect(result.status).toBe('pending');
+  });
+
+  it('moves a registration with completed attendee details directly into the approval queue', async () => {
+    const { service, tx } = fixture('valid-scoped-token', new Date('2026-07-26T11:00:00.000Z'));
+
+    await service.createForGuest(
+      'registration-1',
+      'valid-scoped-token',
+      Buffer.from('safe-image'),
+      'image/webp',
+    );
+
+    expect(tx.registration.update).toHaveBeenCalledWith({
+      where: { id: 'registration-1' },
+      data: { status: 'pending_approval', rejectionReason: null },
+    });
   });
 
   it('rejects an invalid scoped token before uploading any file', async () => {

@@ -139,6 +139,8 @@ interface Props {
   existingAccountDetected?: boolean;
   /** Paid checkout identity selected after payment proof. */
   checkoutMode?: 'authenticated' | 'guest' | 'account';
+  /** New free guest checkout. The registration is created only with complete attendee details. */
+  guestCheckout?: boolean;
   onCheckoutStageChange?: (stage: 'details' | 'confirmation' | 'otp') => void;
   /** Separately selectable products. Existing tier inclusions remain included benefits. */
   optionalInclusions?: EventOptionalInclusion[];
@@ -171,6 +173,7 @@ export default function RegistrationForm({
   guestAccessToken,
   existingAccountDetected = false,
   checkoutMode,
+  guestCheckout = false,
   onCheckoutStageChange,
   optionalInclusions = [],
   onCheckoutStepChange,
@@ -688,10 +691,11 @@ export default function RegistrationForm({
           partnerConsent,
         };
         if (guestAccessToken) {
-          await api.patch(`/registrations/guest/${registrationId}/attendees`, attendeeUpdate, {
+          const response = await api.patch(`/registrations/guest/${registrationId}/attendees`, attendeeUpdate, {
             headers: { 'x-registration-token': guestAccessToken },
           });
-          router.push(`/events/${eventSlug}/register/complete`);
+          const reg = response.data?.data ?? response.data;
+          router.push(`/events/${eventSlug}/register/complete?registrationId=${registrationId}&scenario=guest&reference=${encodeURIComponent(reg.referenceNumber ?? '')}&free=1`);
         } else {
           await api.patch(`/registrations/${registrationId}/attendees`, attendeeUpdate);
           router.push(`/registrations/${registrationId}`);
@@ -707,8 +711,22 @@ export default function RegistrationForm({
           ...(quote && { quoteToken: quote.token, inclusionSelections }),
           partnerConsent,
         };
-        const res = await api.post('/registrations', payload);
+        const res = guestCheckout
+          ? await api.post('/registrations/guest', {
+              ...payload,
+              guestEmail: attendeePayload[0].email,
+              accountConsent: false,
+            })
+          : await api.post('/registrations', payload);
         const reg = res.data?.data ?? res.data;
+        if (guestCheckout) {
+          window.sessionStorage.setItem(
+            `axon_guest_registration_${reg.id}`,
+            reg.guestAccessToken,
+          );
+          router.push(`/events/${eventSlug}/register/complete?registrationId=${reg.id}&scenario=guest&reference=${encodeURIComponent(reg.referenceNumber ?? '')}&free=1`);
+          return;
+        }
         if (Number(reg.total) === 0 || reg.status === 'pending_approval') {
           router.push(`/registrations/${reg.id}`);
         } else {
