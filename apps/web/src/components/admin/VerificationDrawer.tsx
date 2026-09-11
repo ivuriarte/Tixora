@@ -27,6 +27,8 @@ interface AdminReg {
   fees: string | number;
   total: string | number;
   currency: string;
+  guestEmail?: string | null;
+  paymentMethod?: string | null;
   referralCodeSnapshot?: { code: string; name: string } | null;
   rejectionReason: string | null;
   createdAt: string;
@@ -251,8 +253,10 @@ export default function VerificationDrawer({
     ? `${lead.firstName} ${lead.lastName}`
     : reg?.user
       ? [reg.user.firstName, reg.user.lastName].filter(Boolean).join(' ') || 'Unnamed buyer'
-      : 'Walk-in attendee';
-  const buyerEmail = lead?.email ?? reg?.user?.email ?? '';
+      : reg?.paymentMethod === 'onsite_qr'
+        ? 'Walk-in attendee'
+        : 'Guest registration';
+  const buyerEmail = lead?.email ?? reg?.user?.email ?? reg?.guestEmail ?? '';
 
   return (
     <div

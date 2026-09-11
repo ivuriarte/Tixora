@@ -58,6 +58,28 @@ describe('RegistrationsService guest access', () => {
     expect(createImpl.mock.calls[0][3]).toBe('guest@example.com');
   });
 
+  it('passes complete free guest attendee details into the atomic registration create', async () => {
+    const { service } = makeService();
+    const createImpl = jest
+      .spyOn(service as any, 'createImpl')
+      .mockResolvedValue({ id: 'registration-1' });
+    const attendees = [
+      { firstName: 'Grace', lastName: 'Tester', email: 'guest@example.com' },
+    ];
+
+    await service.createGuest({
+      eventId: 'event-1',
+      tierId: 'tier-1',
+      guestEmail: 'guest@example.com',
+      attendees,
+      accountConsent: false,
+    } as any);
+
+    expect(createImpl.mock.calls[0][0]).toEqual(
+      expect.objectContaining({ attendees, guestEmail: 'guest@example.com' }),
+    );
+  });
+
   it('refuses the guest endpoint when account activation consent was granted', async () => {
     const { service } = makeService();
 

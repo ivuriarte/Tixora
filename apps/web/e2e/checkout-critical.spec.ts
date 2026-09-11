@@ -8,6 +8,10 @@ const REGISTRATION_ID = 'registration-qa-001';
 const GUEST_TOKEN = 'qa-scoped-guest-token';
 const REFERENCE_NUMBER = 'AXN-QA-001';
 const API_PATTERN = '**/api/v1/**';
+const FREE_EVENT_ID = 'event-qa-free';
+const FREE_EVENT_SLUG = 'qa-free-event';
+const FREE_TIER_ID = 'tier-qa-free';
+const FREE_REGISTRATION_ID = 'registration-qa-free-001';
 
 const event = {
   id: EVENT_ID,
@@ -38,6 +42,27 @@ const event = {
       id: TIER_ID,
       name: 'General Admission',
       price: 1100,
+      available: 50,
+      maxPerOrder: 5,
+      inclusions: [],
+    },
+  ],
+};
+
+const freeEvent = {
+  ...event,
+  id: FREE_EVENT_ID,
+  slug: FREE_EVENT_SLUG,
+  title: 'QA Free Event',
+  isFree: true,
+  platformFee: 0,
+  allowManualPayment: false,
+  paymentMethods: [],
+  tiers: [
+    {
+      id: FREE_TIER_ID,
+      name: 'Free Admission',
+      price: 0,
       available: 50,
       maxPerOrder: 5,
       inclusions: [],
@@ -320,6 +345,50 @@ async function installCheckoutApi(page: Page, options: MockCheckoutOptions = {})
   return state;
 }
 
+async function installFreeGuestApi(page: Page) {
+  const state: { createRequests: number; createPayload?: Record<string, unknown> } = {
+    createRequests: 0,
+  };
+
+  await page.route(API_PATTERN, async (route) => {
+    const request = route.request();
+    const url = new URL(request.url());
+    const method = request.method();
+    const path = url.pathname;
+
+    if (path.endsWith(`/events/${FREE_EVENT_SLUG}`) && method === 'GET') {
+      return json(route, freeEvent);
+    }
+    if (path.endsWith('/funnel/events')) return json(route, { accepted: true }, 201);
+    if (path.endsWith('/registrations/guest') && method === 'POST') {
+      state.createRequests += 1;
+      state.createPayload = request.postDataJSON() as Record<string, unknown>;
+      return json(route, {
+        id: FREE_REGISTRATION_ID,
+        referenceNumber: 'AXN-QA-FREE-001',
+        status: 'pending_approval',
+        isFree: true,
+        total: 0,
+        guestAccessToken: GUEST_TOKEN,
+        attendees: state.createPayload.attendees,
+      }, 201);
+    }
+    if (path.endsWith(`/registrations/guest/${FREE_REGISTRATION_ID}`) && method === 'GET') {
+      return json(route, {
+        id: FREE_REGISTRATION_ID,
+        referenceNumber: 'AXN-QA-FREE-001',
+        status: 'pending_approval',
+        isFree: true,
+        attendees: state.createPayload?.attendees ?? [],
+      });
+    }
+
+    return json(route, { message: `Unhandled QA API route: ${method} ${path}` }, 501);
+  });
+
+  return state;
+}
+
 async function choosePaymentProof(page: Page) {
   await page.getByLabel('Upload payment proof image').setInputFiles({
     name: 'payment-proof.png',
@@ -364,6 +433,38 @@ async function openSubmittedGuestCheckout(page: Page, options: MockCheckoutOptio
 }
 
 test.describe('Critical checkout journeys', () => {
+  test('@critical free guest checkout creates no registration until complete attendee details are submitted', async ({
+    page,
+    diagnostics,
+  }) => {
+    const state = await installFreeGuestApi(page);
+
+    await page.goto(`/events/${FREE_EVENT_SLUG}/register?tierId=${FREE_TIER_ID}&qty=1`);
+    await expect(page.getByRole('heading', { name: 'Choose how to continue' })).toBeVisible();
+    await expect(page.getByLabel('Email address')).toHaveCount(0);
+    expect(state.createRequests).toBe(0);
+
+    await page.getByRole('button', { name: /Continue as guest/i }).click();
+    await expect(page.getByRole('heading', { name: /Attendee 1/i })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Payment proof received' })).toHaveCount(0);
+    expect(state.createRequests).toBe(0);
+
+    await fillStandardGuestAttendee(page);
+    await page.getByRole('button', { name: 'Confirm My Registration — Free' }).click();
+
+    await expect(page).toHaveURL(/register\/complete\?.*scenario=guest/);
+    await expect(page.getByRole('heading', { name: 'Registration submitted' })).toBeVisible();
+    expect(state.createRequests).toBe(1);
+    expect(state.createPayload).toMatchObject({
+      eventId: FREE_EVENT_ID,
+      tierId: FREE_TIER_ID,
+      guestEmail: 'guest@example.com',
+      accountConsent: false,
+      attendees: [{ firstName: 'Grace', lastName: 'Tester', email: 'guest@example.com' }],
+    });
+    expectNoBrowserFailures(diagnostics);
+  });
+
   test('@critical paid guest checkout is payment-first, OTP-locked, and stores only transaction data', async ({
     page,
     diagnostics,

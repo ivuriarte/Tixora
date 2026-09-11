@@ -103,74 +103,21 @@ interface OtpVerifiedPayload {
 }
 
 interface GuestAccessChoiceProps {
-  event: EventData;
-  tier: Tier;
-  qty: number;
+  onContinueAsGuest: () => void;
   onActivateAccount: () => void;
-  partnerConsent?: boolean;
 }
 
-function GuestAccessChoice({ event, tier, qty, onActivateAccount, partnerConsent = false }: GuestAccessChoiceProps) {
-  const router = useRouter();
-  const [guestEmail, setGuestEmail] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const totalIsFree = event.isFree || tier.price === 0;
-
-  async function continueAsGuest(e: React.FormEvent) {
-    e.preventDefault();
-    const normalizedEmail = guestEmail.trim().toLowerCase();
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
-      setError('Enter a valid email address for registration updates.');
-      return;
-    }
-    setLoading(true);
-    setError(null);
-    try {
-      const response = await api.post('/registrations/guest', {
-        eventId: event.id,
-        tierId: tier.id,
-        guestEmail: normalizedEmail,
-        attendeeCount: qty,
-        accountConsent: false,
-        partnerConsent,
-      });
-      const registration = response.data?.data ?? response.data;
-      window.sessionStorage.setItem(
-        `axon_guest_registration_${registration.id}`,
-        registration.guestAccessToken,
-      );
-      router.push(
-        totalIsFree
-          ? `/events/${event.slug}/register?registrationId=${registration.id}&tierId=${tier.id}&qty=${qty}&guest=1`
-          : `/events/${event.slug}/register/payment/${registration.id}`,
-      );
-    } catch (err: any) {
-      const message = err?.response?.data?.message ?? 'Guest checkout could not be started.';
-      setError(Array.isArray(message) ? message.join(' ') : message);
-    } finally {
-      setLoading(false);
-    }
-  }
-
+function GuestAccessChoice({ onContinueAsGuest, onActivateAccount }: GuestAccessChoiceProps) {
   return (
     <div className="space-y-4">
       <div className="rounded-2xl border border-gray-200 bg-white p-6">
         <h2 className="text-lg font-bold text-gray-900">Choose how to continue</h2>
         <p className="mt-1 text-sm text-gray-500">Creating an Axon account is optional. We never activate one without your consent.</p>
       </div>
-      <form onSubmit={continueAsGuest} className="rounded-2xl border-2 border-primary/30 bg-white p-5">
+      <button type="button" onClick={onContinueAsGuest} className="w-full rounded-2xl border-2 border-primary/30 bg-white p-5 text-left transition hover:border-primary">
         <h3 className="font-semibold text-gray-900">Continue as guest</h3>
-        <p className="mt-1 text-xs text-gray-500">Your email is used only for this registration, its status, and event updates.</p>
-        <label className="mt-4 block text-xs font-medium text-gray-700">
-          Email address
-          <input type="email" required autoComplete="email" value={guestEmail} onChange={(e) => setGuestEmail(e.target.value)} className="mt-1 w-full rounded-xl border border-gray-300 px-3 py-2.5 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20" />
-        </label>
-        {error && <p role="alert" className="mt-3 text-sm text-red-600">{error}</p>}
-        <button disabled={loading} className="mt-4 w-full rounded-xl bg-primary px-4 py-3 text-sm font-semibold text-white disabled:opacity-50">
-          {loading ? 'Starting secure checkout…' : 'Continue without an account'}
-        </button>
-      </form>
+        <p className="mt-1 text-sm text-gray-500">Provide your attendee details without creating an Axon account. Your email is retained only for this registration, its status, and event updates.</p>
+      </button>
       <button type="button" onClick={onActivateAccount} className="w-full rounded-2xl border border-gray-200 bg-white p-5 text-left transition hover:border-primary/40">
         <span className="font-semibold text-gray-900">Sign in or activate an account</span>
         <span className="mt-1 block text-sm text-gray-500">Choose this only if you consent to Axon creating or linking your account.</span>
@@ -791,6 +738,7 @@ export default function RegisterPage() {
   const [inclusionCheckoutStage, setInclusionCheckoutStage] = useState<'attendees' | 'addons'>('attendees');
   const [guestAccessToken, setGuestAccessToken] = useState<string | null>(null);
   const [showAccountActivation, setShowAccountActivation] = useState(false);
+  const [freeGuestMode, setFreeGuestMode] = useState(false);
   const [paidGuestMode, setPaidGuestMode] = useState<'guest' | 'account' | null>(null);
   const [paidCheckoutStage, setPaidCheckoutStage] = useState<'details' | 'confirmation' | 'otp'>('details');
   const [intentError, setIntentError] = useState<string | null>(null);
@@ -983,7 +931,7 @@ export default function RegisterPage() {
       }
     };
     void startPaidCheckout();
-  }, [dupCheck, event, existingRegistrationId, intentAttempt, isAuthenticated, qty, router, searchParams.tierId]);
+  }, [dupCheck, event, existingRegistrationId, intentAttempt, isAuthenticated, qty, router, searchParams.partnerConsent, searchParams.tierId]);
 
   useEffect(() => {
     if (!event) return;
@@ -1147,7 +1095,15 @@ export default function RegisterPage() {
             )}
           </div>
         ) : guestAccessToken && existingRegistrationId ? (
-          paidGuestMode ? (
+          !isPaidEvent ? (
+            <RegistrationForm
+              {...registrationFormProps}
+              initialAttendees={initialAttendees}
+              initialNotes={initialNotes}
+              guestAccessToken={guestAccessToken}
+              checkoutMode="guest"
+            />
+          ) : paidGuestMode ? (
             <RegistrationForm
               {...registrationFormProps}
               initialAttendees={initialAttendees}
@@ -1219,13 +1175,16 @@ export default function RegisterPage() {
               onOtpVerified={handleOtpVerified}
               skipGate
             />
+          ) : freeGuestMode ? (
+            <RegistrationForm
+              {...registrationFormProps}
+              checkoutMode="guest"
+              guestCheckout
+            />
           ) : (
             <GuestAccessChoice
-              event={event}
-              tier={tier}
-              qty={qty}
+              onContinueAsGuest={() => setFreeGuestMode(true)}
               onActivateAccount={() => setShowAccountActivation(true)}
-              partnerConsent={searchParams.partnerConsent === 'true'}
             />
           )
         )}

@@ -87,9 +87,9 @@ export class PaymentProofsService {
       const current = typeof tx.registration.findUnique === 'function'
         ? await tx.registration.findUnique({
             where: { id: registrationId },
-            select: { status: true },
+            select: { status: true, attendeesCompletedAt: true },
           })
-        : { status: reg.status };
+        : { status: reg.status, attendeesCompletedAt: reg.attendeesCompletedAt };
       if (!current || !['pending_payment', 'rejected'].includes(current.status)) {
         throw new BadRequestException('Registration is no longer accepting payment proof');
       }
@@ -106,7 +106,10 @@ export class PaymentProofsService {
       });
       await tx.registration.update({
         where: { id: registrationId },
-        data: { status: 'proof_submitted', rejectionReason: null },
+        data: {
+          status: current.attendeesCompletedAt ? 'pending_approval' : 'proof_submitted',
+          rejectionReason: null,
+        },
       });
       await this.optionalInclusions?.markProofSubmittedReviewTx(tx, registrationId);
       if (typeof this.audit.logWith === 'function') {

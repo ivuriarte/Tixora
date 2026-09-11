@@ -2105,6 +2105,10 @@ export class RegistrationsService {
     const where: Prisma.RegistrationWhereInput = {};
     if (eventId) where.eventId = eventId;
     if (status) where.status = status as Prisma.RegistrationWhereInput['status'];
+    // The verification queue is an approval worklist, not a checkout-intent log.
+    // A registration becomes reviewable only after its attendee step completed.
+    where.attendeesCompletedAt = { not: null };
+    where.attendees = { some: {} };
 
     // Inclusive date range on createdAt. Accepts YYYY-MM-DD or ISO timestamps.
     // dateFrom -> start of day Manila (UTC+8); dateTo -> end of day Manila (UTC+8).
@@ -2156,8 +2160,10 @@ export class RegistrationsService {
           ? `${r.attendees[0].firstName} ${r.attendees[0].lastName}`
           : r.user
             ? `${r.user.firstName} ${r.user.lastName}`
-            : 'Walk-in attendee',
-        leadEmail: r.attendees[0]?.email ?? r.user?.email ?? '',
+            : r.paymentMethod === 'onsite_qr'
+              ? 'Walk-in attendee'
+              : 'Guest registration',
+        leadEmail: r.attendees[0]?.email ?? r.user?.email ?? r.guestEmail ?? '',
         hasProof: r.proofs.length > 0,
         proofStatus: r.proofs[0]?.status ?? null,
         createdAt: r.createdAt.toISOString(),
@@ -2174,6 +2180,8 @@ export class RegistrationsService {
   async pendingCount(organizerUserId?: string) {
     const where: Prisma.RegistrationWhereInput = {
       status: { in: ['pending_approval', 'proof_submitted'] },
+      attendeesCompletedAt: { not: null },
+      attendees: { some: {} },
     };
     if (organizerUserId) {
       where.event = {
