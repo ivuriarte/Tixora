@@ -311,8 +311,22 @@ export async function installAdminApiMocks(context: BrowserContext) {
     if (method === 'GET' && path === `/admin/events/${event.id}`) {
       return json(route, event);
     }
+    if (method === 'GET' && path === `/admin/events/${event.id}/wheel-participants`) {
+      return json(route, {
+        eventId: event.id,
+        total: 1,
+        participants: [{ id: onsiteAttendee.id, name: onsiteAttendee.userName }],
+      });
+    }
     if (method === 'GET' && path === `/admin/events/${runningEvent.id}`) {
       return json(route, runningEvent);
+    }
+    if (method === 'GET' && path === `/admin/events/${runningEvent.id}/wheel-participants`) {
+      return json(route, {
+        eventId: runningEvent.id,
+        total: 0,
+        participants: [],
+      });
     }
     if (method === 'GET' && path === `/admin/events/${event.id}/workspace`) {
       return json(route, null);

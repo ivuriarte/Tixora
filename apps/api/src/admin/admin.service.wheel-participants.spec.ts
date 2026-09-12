@@ -3,7 +3,7 @@ import { AdminService } from './admin.service';
 function makeService(overrides: Record<string, unknown> = {}) {
   const prisma = {
     attendee: { findMany: jest.fn().mockResolvedValue([]) },
-    ticket: { findMany: jest.fn().mockResolvedValue([]) },
+    ticket: { findMany: jest.fn() },
     ...overrides,
   };
   return {
@@ -43,7 +43,10 @@ describe('AdminService.getWheelParticipants', () => {
       expect.objectContaining({
         where: expect.objectContaining({
           eventId: 'evt_1',
-          attendanceRecords: { some: {} },
+          OR: [
+            { checkedInAt: { not: null } },
+            { attendanceRecords: { some: {} } },
+          ],
           registration: { status: 'verified' },
         }),
         select: { id: true, firstName: true, lastName: true },
@@ -51,43 +54,42 @@ describe('AdminService.getWheelParticipants', () => {
     );
   });
 
-  it('returns checked-in tickets from the orders path', async () => {
-    const tickets = [
-      { id: 'tkt_1', user: { firstName: 'Ana', lastName: 'Reyes' } },
-    ];
-    const { service } = makeService({
-      ticket: { findMany: jest.fn().mockResolvedValue(tickets) },
-    });
-
-    const result = await service.getWheelParticipants('evt_2');
-
-    expect(result.total).toBe(1);
-    expect(result.participants).toEqual([
-      { id: 'tkt_1', name: 'Ana Reyes' },
-    ]);
-  });
-
-  it('merges both paths and deduplicates by name', async () => {
+  it('does not use legacy ticket owner names as icebreaker participants', async () => {
     const attendees = [
-      { id: 'att_1', firstName: 'Maria', lastName: 'Santos' },
-      { id: 'att_2', firstName: 'Juan', lastName: 'dela Cruz' },
+      { id: 'att_1', firstName: 'Juan', lastName: 'dela Cruz' },
     ];
-    const tickets = [
-      // Same name as att_1 — should be deduped
-      { id: 'tkt_1', user: { firstName: 'Maria', lastName: 'Santos' } },
-      { id: 'tkt_2', user: { firstName: 'Carlo', lastName: 'Mendoza' } },
-    ];
-    const { service } = makeService({
+    const ticketFindMany = jest.fn().mockResolvedValue([
+      { id: 'tkt_1', user: { firstName: 'Ian', lastName: 'Uriarte' } },
+    ]);
+    const { service, prisma } = makeService({
       attendee: { findMany: jest.fn().mockResolvedValue(attendees) },
-      ticket: { findMany: jest.fn().mockResolvedValue(tickets) },
+      ticket: { findMany: ticketFindMany },
     });
 
     const result = await service.getWheelParticipants('evt_3');
 
-    expect(result.total).toBe(3);
+    expect(result.total).toBe(1);
+    expect(result.participants).toEqual([
+      { id: 'att_1', name: 'Juan dela Cruz' },
+    ]);
+    expect(prisma.ticket.findMany).not.toHaveBeenCalled();
+  });
+
+  it('deduplicates attendee names from successful attendee check-ins', async () => {
+    const attendees = [
+      { id: 'att_1', firstName: 'Maria', lastName: 'Santos' },
+      { id: 'att_2', firstName: 'Maria', lastName: 'Santos' },
+      { id: 'att_3', firstName: 'Carlo', lastName: 'Mendoza' },
+    ];
+    const { service } = makeService({
+      attendee: { findMany: jest.fn().mockResolvedValue(attendees) },
+    });
+
+    const result = await service.getWheelParticipants('evt_3');
+
+    expect(result.total).toBe(2);
     expect(result.participants.map((p: { name: string }) => p.name)).toEqual([
       'Maria Santos',
-      'Juan dela Cruz',
       'Carlo Mendoza',
     ]);
   });

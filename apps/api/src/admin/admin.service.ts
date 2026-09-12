@@ -3333,21 +3333,24 @@ export class AdminService {
   /**
    * Returns checked-in attendees for the icebreaker wheel/raffle.
    *
-   * Two check-in paths exist in the platform:
-   *   1. Registration flow → Attendee records with AttendeeAttendance rows
-   *   2. Orders flow → Ticket records with checkedInAt set
+   * The wheel must use attendee records, not legacy ticket owner records. The
+   * ticket table tracks who owns an order, while the attendee table tracks the
+   * person who should appear at the venue and on check-in surfaces.
    *
-   * This method unions both, deduplicates by name, and caps at 500.
+   * A participant is eligible after a successful attendee check-in, represented
+   * either by the attendee-level checkedInAt flag or an AttendeeAttendance row.
    * Only firstName + lastName are returned — no email, phone, or demographics.
    */
   async getWheelParticipants(eventId: string) {
     const MAX_PARTICIPANTS = 500;
 
-    // Path A: Registration-based attendees who have been checked in
     const attendeeRecords = await this.prisma.attendee.findMany({
       where: {
         eventId,
-        attendanceRecords: { some: {} },
+        OR: [
+          { checkedInAt: { not: null } },
+          { attendanceRecords: { some: {} } },
+        ],
         registration: { status: 'verified' },
       },
       select: {
@@ -3358,26 +3361,6 @@ export class AdminService {
       take: MAX_PARTICIPANTS,
     });
 
-    // Path B: Order-based tickets that have been checked in
-    const ticketRecords = await this.prisma.ticket.findMany({
-      where: {
-        eventId,
-        checkedInAt: { not: null },
-        status: 'used',
-      },
-      select: {
-        id: true,
-        user: {
-          select: {
-            firstName: true,
-            lastName: true,
-          },
-        },
-      },
-      take: MAX_PARTICIPANTS,
-    });
-
-    // Build unified list — attendee path first, then ticket path
     const seen = new Set<string>();
     const participants: Array<{ id: string; name: string }> = [];
 
@@ -3386,13 +3369,6 @@ export class AdminService {
       if (!name || seen.has(name)) continue;
       seen.add(name);
       participants.push({ id: a.id, name });
-    }
-
-    for (const t of ticketRecords) {
-      const name = this.compactName(t.user.firstName, t.user.lastName);
-      if (!name || seen.has(name)) continue;
-      seen.add(name);
-      participants.push({ id: t.id, name });
     }
 
     return {
