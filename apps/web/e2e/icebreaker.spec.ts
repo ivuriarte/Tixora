@@ -63,6 +63,10 @@ test.describe('Icebreaker tab', () => {
 
     // Verify the spin button is present (wheel mode is default)
     await expect(page.getByRole('button', { name: /spin the wheel/i })).toBeVisible();
+
+    // Participant names should come from successful attendee check-ins.
+    await expect(page.getByText('Walkin Attendee')).toBeVisible();
+    await expect(page.getByText('Ian Uriarte')).toHaveCount(0);
   });
 
   test('switches between wheel and raffle modes', async ({ adminPage: page }) => {
