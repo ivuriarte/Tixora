@@ -492,13 +492,15 @@ export class EventsService {
         )
       )
         labels.push('Sales End Soon');
-      if (capacity > 0 && available > 0 && available / capacity <= 0.1)
-        labels.push('Few Remaining');
-      if (approvedSevenDays.length >= 10 && soldRatio >= 0.2 && projectedDaysToSellout <= 7)
-        labels.push('Selling Fast');
+      if (event.status !== 'sold_out') {
+        if (capacity > 0 && available > 0 && available / capacity <= 0.1)
+          labels.push('Few Remaining');
+        if (approvedSevenDays.length >= 10 && soldRatio >= 0.2 && projectedDaysToSellout <= 7)
+          labels.push('Selling Fast');
+      }
       if (event.isOnline) labels.push('Online');
-      if (registrationClosed && effectiveEnd > now)
-        labels.push(event.status === 'sold_out' ? 'Sold Out' : 'Registration Closed');
+      if (registrationClosed && effectiveEnd > now && event.status !== 'sold_out')
+        labels.push('Registration Closed');
       if (effectiveEnd <= now || event.status === 'completed') labels.push('Event Concluded');
       if (hottestScores.has(event.id)) labels.push('Hottest Right Now');
 
