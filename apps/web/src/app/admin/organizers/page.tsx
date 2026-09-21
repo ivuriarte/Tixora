@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '@/lib/api';
+import { useDebounce } from '@/lib/useDebounce';
 import toast from 'react-hot-toast';
 import { EmptyState, ScreenSkeleton } from '@/components/ScreenState';
 
@@ -635,13 +636,15 @@ export default function AdminOrganizersPage() {
   const [statusFilter, setStatusFilter] = useState('pending');
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [page, setPage] = useState(1);
+  const [searchQ, setSearchQ] = useState('');
+  const debouncedQ = useDebounce(searchQ, 300);
 
   const { data, isLoading } = useQuery<ListResponse>({
-    queryKey: ['admin-organizers', statusFilter, page],
+    queryKey: ['admin-organizers', statusFilter, page, debouncedQ],
     queryFn: () =>
       api
         .get<{ data: ListResponse }>('/admin/organizers', {
-          params: { status: statusFilter || undefined, page, limit: 20, _: Date.now() },
+          params: { status: statusFilter || undefined, page, limit: 20, ...(debouncedQ ? { q: debouncedQ } : {}), _: Date.now() },
         })
         .then((r) => r.data.data),
     refetchOnMount: 'always',
@@ -688,6 +691,17 @@ export default function AdminOrganizersPage() {
               {tab.label}
             </button>
           ))}
+        </div>
+
+        {/* Search */}
+        <div className="mb-4">
+          <input
+            type="text"
+            placeholder="Search organization name, owner name, or email…"
+            value={searchQ}
+            onChange={(e) => { setSearchQ(e.target.value); setPage(1); }}
+            className="w-full sm:w-96 border border-gray-300 rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
+          />
         </div>
 
         {/* Table */}

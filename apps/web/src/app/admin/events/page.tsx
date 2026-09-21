@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import Link from 'next/link';
 import api from '@/lib/api';
+import { useDebounce } from '@/lib/useDebounce';
 import { formatShortDate } from '@axon-tickets/utils';
 import { useAuthStore } from '@/store/auth.store';
 import { EmptyState, ScreenSkeleton } from '@/components/ScreenState';
@@ -40,14 +41,16 @@ export default function EventHistoryPage() {
   const { user } = useAuthStore();
   const { canCreateEvents } = useOrganizerAccess();
   const [q, setQ] = useState('');
+  const debouncedQ = useDebounce(q, 300);
   const [statusFilter, setStatusFilter] = useState('');
   const [organizationId, setOrganizationId] = useState('');
 
   const { data, isLoading } = useQuery({
-    queryKey: ['admin-event-history', organizationId],
+    queryKey: ['admin-event-history', organizationId, debouncedQ],
     queryFn: () => {
       const params = new URLSearchParams({ limit: '100' });
       if (organizationId) params.set('organizationId', organizationId);
+      if (debouncedQ) params.set('q', debouncedQ);
       return api
         .get<{ data: { data: EventRow[] } }>(`/admin/events?${params}`)
         .then((r) => r.data.data.data);
@@ -65,7 +68,6 @@ export default function EventHistoryPage() {
 
   const filtered = (data ?? []).filter((e) => {
     if (statusFilter && e.status !== statusFilter) return false;
-    if (q && !e.title.toLowerCase().includes(q.toLowerCase())) return false;
     return true;
   });
 

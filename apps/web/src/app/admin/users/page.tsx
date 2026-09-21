@@ -4,6 +4,7 @@ import { useState, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import api from '@/lib/api';
+import { useDebounce } from '@/lib/useDebounce';
 import { useAuthStore } from '@/store/auth.store';
 import { EmptyState, ScreenSkeleton } from '@/components/ScreenState';
 
@@ -39,10 +40,12 @@ export default function AdminUsersPage() {
   const [search, setSearch] = useState('');
   const limit = 50;
 
+  const debouncedSearch = useDebounce(search, 300);
+
   const { data, isLoading } = useQuery({
-    queryKey: ['admin-users', page],
+    queryKey: ['admin-users', page, debouncedSearch],
     queryFn: () =>
-      api.get<ListResponse>('/admin/users', { params: { page, limit } }).then(unwrapUsers),
+      api.get<ListResponse>('/admin/users', { params: { page, limit, ...(debouncedSearch ? { q: debouncedSearch } : {}) } }).then(unwrapUsers),
   });
 
   const roleMutation = useMutation({
@@ -69,15 +72,7 @@ export default function AdminUsersPage() {
     [roleMutation],
   );
 
-  const filtered = (data?.data ?? []).filter((u) => {
-    if (!search.trim()) return true;
-    const q = search.toLowerCase();
-    return (
-      u.email.toLowerCase().includes(q) ||
-      u.firstName.toLowerCase().includes(q) ||
-      u.lastName.toLowerCase().includes(q)
-    );
-  });
+  const filtered = data?.data ?? [];
 
   const totalPages = data ? Math.ceil(data.total / limit) : 1;
 
@@ -102,7 +97,7 @@ export default function AdminUsersPage() {
             type="text"
             placeholder="Search by name or email…"
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={(e) => { setSearch(e.target.value); setPage(1); }}
             className="w-full sm:w-80 border border-gray-300 rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
           />
         </div>

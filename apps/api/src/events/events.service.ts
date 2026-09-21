@@ -532,7 +532,6 @@ export class EventsService {
     const happeningSoon = cards.filter(
       (event) =>
         !event.isHappening &&
-        !event.registrationClosed &&
         new Date(event.startsAt) > now &&
         new Date(event.startsAt) <= thirtyDaysFromNow &&
         event.status !== 'completed',
@@ -540,7 +539,6 @@ export class EventsService {
     const upcomingEvents = cards.filter(
       (event) =>
         !event.isHappening &&
-        !event.registrationClosed &&
         new Date(event.startsAt) > thirtyDaysFromNow &&
         event.status !== 'completed',
     );
@@ -548,7 +546,6 @@ export class EventsService {
       (event) =>
         !event.isHappening &&
         (event.status === 'completed' ||
-          event.registrationClosed ||
           new Date(event.endsAt ?? new Date(new Date(event.startsAt).getTime() + DAY_MS)) <= now),
     );
     const hottestRightNow = cards

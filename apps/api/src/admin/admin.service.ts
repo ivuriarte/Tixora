@@ -184,11 +184,37 @@ export class AdminService {
 
   // ── User Management ────────────────────────────────────────────────────
 
-  async listUsers(page = 1, limit = 50) {
+  async listUsers(page = 1, limit = 50, q?: string) {
     const skip = (page - 1) * limit;
+    const term = q?.trim();
+    const where: Prisma.UserWhereInput = {};
+    if (term) {
+      const parts = term.split(/\s+/).filter(Boolean);
+      const orClauses: Prisma.UserWhereInput[] = [
+        { firstName: { contains: term, mode: 'insensitive' } },
+        { lastName: { contains: term, mode: 'insensitive' } },
+        { email: { contains: term, mode: 'insensitive' } },
+      ];
+      if (parts.length >= 2) {
+        orClauses.push({
+          AND: [
+            { firstName: { contains: parts[0], mode: 'insensitive' } },
+            { lastName: { contains: parts.slice(1).join(' '), mode: 'insensitive' } },
+          ],
+        });
+        orClauses.push({
+          AND: [
+            { firstName: { contains: parts.slice(0, -1).join(' '), mode: 'insensitive' } },
+            { lastName: { contains: parts[parts.length - 1], mode: 'insensitive' } },
+          ],
+        });
+      }
+      where.OR = orClauses;
+    }
     const [total, users] = await Promise.all([
-      this.prisma.user.count(),
+      this.prisma.user.count({ where }),
       this.prisma.user.findMany({
+        where,
         skip,
         take: limit,
         orderBy: { createdAt: 'desc' },
@@ -466,12 +492,14 @@ export class AdminService {
     return this.prisma.event.delete({ where: { id } });                  // cascades TicketTiers, EventViews
   }
 
-  async listEvents(user: JwtPayload, page = 1, limit = 20, organizationId?: string) {
+  async listEvents(user: JwtPayload, page = 1, limit = 20, organizationId?: string, q?: string) {
     await this.eventsService.autoCompleteExpiredEvents();
     const skip = (page - 1) * limit;
+    const term = q?.trim();
     const where: Prisma.EventWhereInput = {
       ...this.eventOwnerWhere(user),
       ...(user.isAdmin && organizationId ? { organizationId } : {}),
+      ...(term ? { title: { contains: term, mode: 'insensitive' } } : {}),
     };
     const [total, events] = await Promise.all([
       this.prisma.event.count({ where }),
@@ -560,7 +588,7 @@ export class AdminService {
 
   // ── Orders ──────────────────────────────────────────────────────────────
 
-  async listOrders(user: JwtPayload, eventId?: string, status?: string, page = 1, limit = 20) {
+  async listOrders(user: JwtPayload, eventId?: string, status?: string, page = 1, limit = 20, q?: string) {
     const skip = (page - 1) * limit;
     if (eventId) await this.assertEventAccess(eventId, user);
 
@@ -588,17 +616,54 @@ export class AdminService {
     const orderStatusFilter = safeStatus ? orderStatusMap[safeStatus] : undefined;
     const regStatusFilter   = safeStatus ? (regStatusMap[safeStatus] ?? []) : undefined;
 
-    const orderWhere = {
+    const term = q?.trim();
+    const orderUserOr: Prisma.UserWhereInput[] = [];
+    if (term) {
+      const parts = term.split(/\s+/).filter(Boolean);
+      orderUserOr.push(
+        { firstName: { contains: term, mode: 'insensitive' } },
+        { lastName: { contains: term, mode: 'insensitive' } },
+        { email: { contains: term, mode: 'insensitive' } },
+      );
+      if (parts.length >= 2) {
+        orderUserOr.push({
+          AND: [
+            { firstName: { contains: parts[0], mode: 'insensitive' } },
+            { lastName: { contains: parts.slice(1).join(' '), mode: 'insensitive' } },
+          ],
+        });
+        orderUserOr.push({
+          AND: [
+            { firstName: { contains: parts.slice(0, -1).join(' '), mode: 'insensitive' } },
+            { lastName: { contains: parts[parts.length - 1], mode: 'insensitive' } },
+          ],
+        });
+      }
+    }
+
+    const orderWhere: Prisma.OrderWhereInput = {
       ...(eventId ? { eventId } : {}),
       ...(!user.isAdmin ? { event: this.eventOwnerWhere(user) } : {}),
       ...(orderStatusFilter ? { status: { in: orderStatusFilter as Prisma.EnumOrderStatusFilter['in'] } } : {}),
+      ...(orderUserOr.length ? { user: { OR: orderUserOr } } : {}),
     };
 
-    const regWhere = {
+    const regWhere: Prisma.RegistrationWhereInput = {
       ...(eventId ? { eventId } : {}),
       ...(!user.isAdmin ? { event: this.eventOwnerWhere(user) } : {}),
       ...(regStatusFilter && regStatusFilter.length
         ? { status: { in: regStatusFilter as Prisma.EnumRegistrationStatusFilter['in'] } }
+        : {}),
+      ...(term
+        ? {
+            OR: [
+              { attendees: { some: { firstName: { contains: term, mode: 'insensitive' } } } },
+              { attendees: { some: { lastName: { contains: term, mode: 'insensitive' } } } },
+              { attendees: { some: { email: { contains: term, mode: 'insensitive' } } } },
+              { user: { email: { contains: term, mode: 'insensitive' } } },
+              { referenceNumber: { contains: term, mode: 'insensitive' } },
+            ],
+          }
         : {}),
     };
 
@@ -1149,19 +1214,35 @@ export class AdminService {
     const today = this.checkInDateFor();
 
     // ── Path A: Registration flow (Attendee records from verified registrations) ──
+    const attendeeOr: Prisma.AttendeeWhereInput[] = term
+      ? [
+          { firstName: { contains: term, mode: 'insensitive' } },
+          { lastName: { contains: term, mode: 'insensitive' } },
+          { email: { contains: term, mode: 'insensitive' } },
+          { subEventTitle: { contains: term, mode: 'insensitive' } },
+          { company: { contains: term, mode: 'insensitive' } },
+        ]
+      : [];
+    if (term) {
+      const parts = term.split(/\s+/).filter(Boolean);
+      if (parts.length >= 2) {
+        attendeeOr.push({
+          AND: [
+            { firstName: { contains: parts[0], mode: 'insensitive' } },
+            { lastName: { contains: parts.slice(1).join(' '), mode: 'insensitive' } },
+          ],
+        } as Prisma.AttendeeWhereInput);
+        attendeeOr.push({
+          AND: [
+            { firstName: { contains: parts.slice(0, -1).join(' '), mode: 'insensitive' } },
+            { lastName: { contains: parts[parts.length - 1], mode: 'insensitive' } },
+          ],
+        } as Prisma.AttendeeWhereInput);
+      }
+    }
     const attendeeWhere: Prisma.AttendeeWhereInput = {
       registration: { eventId, status: 'verified' },
-      ...(term
-        ? {
-          OR: [
-            { firstName: { contains: term, mode: 'insensitive' } },
-            { lastName: { contains: term, mode: 'insensitive' } },
-            { email: { contains: term, mode: 'insensitive' } },
-            { subEventTitle: { contains: term, mode: 'insensitive' } },
-            { company: { contains: term, mode: 'insensitive' } },
-          ],
-          }
-        : {}),
+      ...(attendeeOr.length ? { OR: attendeeOr } : {}),
     };
 
     // ── Path B: Online order flow (Ticket records from paid orders) ──────────
@@ -1169,18 +1250,33 @@ export class AdminService {
       eventId,
       status: { in: ['valid', 'used'] },
     };
-    const ticketWhere: Prisma.TicketWhereInput = term
-      ? {
-          ...ticketBaseWhere,
-          user: {
-            OR: [
-              { firstName: { contains: term, mode: 'insensitive' } },
-              { lastName: { contains: term, mode: 'insensitive' } },
-              { email: { contains: term, mode: 'insensitive' } },
-              { company: { contains: term, mode: 'insensitive' } },
-            ],
-          },
-        }
+    const ticketUserOr: Prisma.UserWhereInput[] = term
+      ? [
+          { firstName: { contains: term, mode: 'insensitive' } },
+          { lastName: { contains: term, mode: 'insensitive' } },
+          { email: { contains: term, mode: 'insensitive' } },
+          { company: { contains: term, mode: 'insensitive' } },
+        ]
+      : [];
+    if (term) {
+      const parts = term.split(/\s+/).filter(Boolean);
+      if (parts.length >= 2) {
+        ticketUserOr.push({
+          AND: [
+            { firstName: { contains: parts[0], mode: 'insensitive' } },
+            { lastName: { contains: parts.slice(1).join(' '), mode: 'insensitive' } },
+          ],
+        } as Prisma.UserWhereInput);
+        ticketUserOr.push({
+          AND: [
+            { firstName: { contains: parts.slice(0, -1).join(' '), mode: 'insensitive' } },
+            { lastName: { contains: parts[parts.length - 1], mode: 'insensitive' } },
+          ],
+        } as Prisma.UserWhereInput);
+      }
+    }
+    const ticketWhere: Prisma.TicketWhereInput = ticketUserOr.length
+      ? { ...ticketBaseWhere, user: { OR: ticketUserOr } }
       : ticketBaseWhere;
 
     const [attendees, tickets] = await Promise.all([
@@ -2773,13 +2869,44 @@ export class AdminService {
 
   // ── Organizer Management ────────────────────────────────────────────────
 
-  async listOrganizers(status?: string, page = 1, limit = 20) {
+  async listOrganizers(status?: string, page = 1, limit = 20, q?: string) {
     const VALID_STATUSES = ['pending', 'approved', 'rejected', 'suspended', 'revoked'] as const;
     const safeStatus = status && (VALID_STATUSES as readonly string[]).includes(status)
       ? (status as (typeof VALID_STATUSES)[number])
       : undefined;
 
-    const where = safeStatus ? { approvalStatus: safeStatus as any } : {};
+    const where: Prisma.OrganizationWhereInput = {
+      ...(safeStatus ? { approvalStatus: safeStatus as any } : {}),
+    };
+    const term = q?.trim();
+    if (term) {
+      const parts = term.split(/\s+/).filter(Boolean);
+      const orClauses: Prisma.OrganizationWhereInput[] = [
+        { name: { contains: term, mode: 'insensitive' } },
+        { createdBy: { email: { contains: term, mode: 'insensitive' } } },
+        { createdBy: { firstName: { contains: term, mode: 'insensitive' } } },
+        { createdBy: { lastName: { contains: term, mode: 'insensitive' } } },
+      ];
+      if (parts.length >= 2) {
+        orClauses.push({
+          createdBy: {
+            AND: [
+              { firstName: { contains: parts[0], mode: 'insensitive' } },
+              { lastName: { contains: parts.slice(1).join(' '), mode: 'insensitive' } },
+            ],
+          },
+        });
+        orClauses.push({
+          createdBy: {
+            AND: [
+              { firstName: { contains: parts.slice(0, -1).join(' '), mode: 'insensitive' } },
+              { lastName: { contains: parts[parts.length - 1], mode: 'insensitive' } },
+            ],
+          },
+        });
+      }
+      where.OR = orClauses;
+    }
     const skip = (page - 1) * limit;
 
     const [total, orgs] = await Promise.all([

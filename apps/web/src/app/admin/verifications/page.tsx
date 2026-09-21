@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback, useMemo } from 'react';
 import dynamic from 'next/dynamic';
 import toast from 'react-hot-toast';
 import api from '@/lib/api';
+import { useDebounce } from '@/lib/useDebounce';
 const VerificationDrawer = dynamic(
   () => import('@/components/admin/VerificationDrawer'),
   { ssr: false, loading: () => <div className="animate-pulse h-full bg-gray-50" aria-hidden="true" /> },
@@ -89,6 +90,8 @@ export default function VerificationsQueuePage() {
   });
   const [dateError, setDateError] = useState<string | null>(null);
   const [page, setPage] = useState(1);
+  const [searchQ, setSearchQ] = useState('');
+  const debouncedQ = useDebounce(searchQ, 300);
   const [events, setEvents] = useState<EventOption[]>([]);
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -149,6 +152,7 @@ export default function VerificationsQueuePage() {
       if (status) params.set('status', status);
       if (dateFrom) params.set('dateFrom', dateFrom);
       if (dateTo) params.set('dateTo', dateTo);
+      if (debouncedQ) params.set('q', debouncedQ);
       params.set('page', String(page));
       params.set('limit', '50');
       const res = await api.get(`/admin/verifications?${params.toString()}`);
@@ -159,7 +163,7 @@ export default function VerificationsQueuePage() {
     } finally {
       setLoading(false);
     }
-  }, [eventId, status, page, dateFrom, dateTo]);
+  }, [eventId, status, page, dateFrom, dateTo, debouncedQ]);
 
   useEffect(() => {
     void fetchEvents();
@@ -330,6 +334,16 @@ export default function VerificationsQueuePage() {
                 setPage(1);
               }}
               className="px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white"
+            />
+          </div>
+          <div className="flex-1 min-w-[200px]">
+            <label className="block text-xs font-medium text-gray-600 mb-1">Search</label>
+            <input
+              type="text"
+              placeholder="Search name, email, reference…"
+              value={searchQ}
+              onChange={(e) => { setSearchQ(e.target.value); setPage(1); }}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-primary"
             />
           </div>
           {(dateFrom || dateTo) && (

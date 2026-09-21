@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import api from '@/lib/api';
+import { useDebounce } from '@/lib/useDebounce';
 import Link from 'next/link';
 import { formatPHP, formatShortDate } from '@axon-tickets/utils';
 
@@ -70,7 +71,9 @@ export default function AdminOrdersPage() {
   const [statusFilter, setStatusFilter] = useState('');
   const [eventId, setEventId] = useState('');
   const [eventTitle, setEventTitle] = useState('');
+  const [searchQ, setSearchQ] = useState('');
   const [exporting, setExporting] = useState(false);
+  const debouncedQ = useDebounce(searchQ, 300);
 
   const filtersApplied = !!statusFilter && !!eventId;
 
@@ -83,11 +86,12 @@ export default function AdminOrdersPage() {
   });
 
   const { data, isLoading } = useQuery<TransactionsResponse>({
-    queryKey: ['admin-orders', page, statusFilter, eventId],
+    queryKey: ['admin-orders', page, statusFilter, eventId, debouncedQ],
     queryFn: () => {
       const params = new URLSearchParams({ page: String(page), limit: '20' });
       if (statusFilter && statusFilter !== 'all') params.set('status', statusFilter);
       if (eventId) params.set('eventId', eventId);
+      if (debouncedQ) params.set('q', debouncedQ);
       return api
         .get<{ data: TransactionsResponse }>(`/admin/orders?${params}`)
         .then((r) => r.data.data);
@@ -165,6 +169,16 @@ export default function AdminOrdersPage() {
               <option value="refunded">Refunded</option>
               <option value="cancelled">Cancelled</option>
             </select>
+          </div>
+          <div className="flex-1 min-w-[220px]">
+            <label className="block text-xs font-medium text-gray-600 mb-1">Search</label>
+            <input
+              type="text"
+              placeholder="Search name, email, reference…"
+              value={searchQ}
+              onChange={(e) => { setSearchQ(e.target.value); setPage(1); }}
+              className="w-full border border-gray-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+            />
           </div>
         </div>
 

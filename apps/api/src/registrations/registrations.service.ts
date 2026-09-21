@@ -2097,6 +2097,7 @@ export class RegistrationsService {
     limit = 50,
     dateFrom?: string,
     dateTo?: string,
+    q?: string,
   ) {
     const safePage = Math.max(1, page);
     const safeLimit = Math.min(limit, 100);
@@ -2105,13 +2106,44 @@ export class RegistrationsService {
     const where: Prisma.RegistrationWhereInput = {};
     if (eventId) where.eventId = eventId;
     if (status) where.status = status as Prisma.RegistrationWhereInput['status'];
-    // The verification queue is an approval worklist, not a checkout-intent log.
-    // A registration becomes reviewable only after its attendee step completed.
     where.attendeesCompletedAt = { not: null };
     where.attendees = { some: {} };
 
-    // Inclusive date range on createdAt. Accepts YYYY-MM-DD or ISO timestamps.
-    // dateFrom -> start of day Manila (UTC+8); dateTo -> end of day Manila (UTC+8).
+    const term = q?.trim();
+    if (term) {
+      const parts = term.split(/\s+/).filter(Boolean);
+      const orClauses: Prisma.RegistrationWhereInput[] = [
+        { attendees: { some: { firstName: { contains: term, mode: 'insensitive' } } } },
+        { attendees: { some: { lastName: { contains: term, mode: 'insensitive' } } } },
+        { attendees: { some: { email: { contains: term, mode: 'insensitive' } } } },
+        { user: { email: { contains: term, mode: 'insensitive' } } },
+        { referenceNumber: { contains: term, mode: 'insensitive' } },
+      ];
+      if (parts.length >= 2) {
+        orClauses.push({
+          attendees: {
+            some: {
+              AND: [
+                { firstName: { contains: parts[0], mode: 'insensitive' } },
+                { lastName: { contains: parts.slice(1).join(' '), mode: 'insensitive' } },
+              ],
+            },
+          },
+        });
+        orClauses.push({
+          attendees: {
+            some: {
+              AND: [
+                { firstName: { contains: parts.slice(0, -1).join(' '), mode: 'insensitive' } },
+                { lastName: { contains: parts[parts.length - 1], mode: 'insensitive' } },
+              ],
+            },
+          },
+        });
+      }
+      where.OR = orClauses;
+    }
+
     const created: Prisma.DateTimeFilter = {};
     const parseFrom = (s?: string): Date | undefined => {
       if (!s) return undefined;

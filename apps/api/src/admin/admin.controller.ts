@@ -91,12 +91,14 @@ export class AdminController {
     @Query('page') page?: string,
     @Query('limit') limit?: string,
     @Query('organizationId') organizationId?: string,
+    @Query('q') q?: string,
   ) {
     return this.adminService.listEvents(
       user,
       page ? parseInt(page, 10) : 1,
       limit ? Math.min(parseInt(limit, 10), 100) : 20,
       organizationId,
+      q,
     );
   }
 
@@ -215,6 +217,7 @@ export class AdminController {
     @Query('status') status?: string,
     @Query('page') page?: string,
     @Query('limit') limit?: string,
+    @Query('q') q?: string,
   ) {
     return this.adminService.listOrders(
       user,
@@ -222,6 +225,7 @@ export class AdminController {
       status,
       page ? parseInt(page, 10) : 1,
       limit ? Math.min(parseInt(limit, 10), 100) : 20,
+      q,
     );
   }
 
@@ -526,6 +530,7 @@ export class AdminController {
     @Query('limit') limit?: string,
     @Query('dateFrom') dateFrom?: string,
     @Query('dateTo') dateTo?: string,
+    @Query('q') q?: string,
   ) {
     if (!user.isAdmin) {
       if (!eventId) throw new BadRequestException('eventId is required');
@@ -538,6 +543,7 @@ export class AdminController {
       limit ? Math.min(parseInt(limit, 10), 100) : 50,
       dateFrom,
       dateTo,
+      q,
     );
   }
 
@@ -618,11 +624,13 @@ export class AdminController {
     @CurrentUser() user: JwtPayload,
     @Query('page') page?: string,
     @Query('limit') limit?: string,
+    @Query('q') q?: string,
   ) {
     this.requirePlatformAdmin(user);
     return this.adminService.listUsers(
       page ? parseInt(page, 10) : 1,
       limit ? Math.min(parseInt(limit, 10), 100) : 50,
+      q,
     );
   }
 
@@ -649,12 +657,14 @@ export class AdminController {
     @Query('status') status?: string,
     @Query('page') page?: string,
     @Query('limit') limit?: string,
+    @Query('q') q?: string,
   ) {
     this.requirePlatformAdmin(user);
     return this.adminService.listOrganizers(
       status,
       page ? parseInt(page, 10) : 1,
       limit ? Math.min(parseInt(limit, 10), 100) : 20,
+      q,
     );
   }
 
