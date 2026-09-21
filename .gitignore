@@ -56,3 +56,10 @@ apps/web/playwright/.auth/
 /generated/prisma
 .env.sentry-build-plugin
 .vercel
+
+# Temporary build artifacts and caches
+tmp/
+output/
+
+# Env inspection files (never commit)
+*.env.prod.inspect
