@@ -24,7 +24,7 @@ import { EmailService } from '../email/email.service';
 import { PDFDocument, PDFFont, PDFPage, StandardFonts, rgb } from 'pdf-lib';
 import { JwtPayload } from '@axon-tickets/types';
 import { CreateReferralCodeDto, UpdateReferralCodeDto } from './dto/referral-code.dto';
-import { organizationCapabilities } from '../common/access/organization-capabilities';
+import { OrganizationRole, organizationCapabilities, organizationRoleCan } from '../common/access/organization-capabilities';
 
 type SelectedSubEventSnapshot = {
   id?: unknown;
@@ -89,25 +89,18 @@ export class AdminService {
     user: JwtPayload,
     scope = 'sensitive_event_export',
   ): Promise<void> {
-    const event = await this.prisma.event.findFirst({
-      where: user.isAdmin ? { id: eventId } : { id: eventId, createdById: user.sub },
-      select: { id: true },
-    });
-    if (!event) {
+    try {
+      await this.eventAccess.assertEventCapability(eventId, user, 'exports.read');
+    } catch {
       await this.audit.log({
         action: 'SENSITIVE_EXPORT_DENIED',
         entityType: 'Event',
         entityId: eventId,
         performedById: user.sub,
-        metadata: { scope, result: 'denied', reason: 'event_not_found_or_not_creator' },
+        metadata: { scope, result: 'denied', reason: 'insufficient_role' },
       });
-      // Keep the response indistinguishable from a missing event so callers
-      // cannot enumerate resources they do not own.
       throw new NotFoundException('Event not found');
     }
-    // Export remains available after an event ends. The retention job removes or
-    // anonymizes each attendee record exactly two years after that record was
-    // created, so event age must not be used as a coarse export cutoff.
   }
 
   async assertRegistrationAccess(registrationId: string, user: JwtPayload): Promise<void> {
@@ -247,21 +240,21 @@ export class AdminService {
   async createEvent(dto: CreateEventDto, user: JwtPayload) {
     const organizationId = user.isAdmin
       ? undefined
-      : await this.getApprovedOwnerOrganizationIdForUser(user.sub);
+      : await this.getApprovedEventManagerOrganizationId(user.sub);
     return this.eventsService.create(dto, user.sub, organizationId);
   }
 
-  private async getApprovedOwnerOrganizationIdForUser(userId: string): Promise<string> {
+  private async getApprovedEventManagerOrganizationId(userId: string): Promise<string> {
     const membership = await this.prisma.organizationMember.findFirst({
       where: {
         userId,
-        role: 'owner',
+        role: { in: ['owner', 'co_owner', 'manager'] },
         organization: { approvalStatus: 'approved' },
       },
       orderBy: [{ role: 'asc' }, { createdAt: 'asc' }],
       select: { organizationId: true },
     });
-    if (!membership) throw new ForbiddenException('Only the approved organizer Owner can create events');
+    if (!membership) throw new ForbiddenException('Organizer Owner, Co-owner, or Manager access required');
     return membership.organizationId;
   }
 
@@ -283,17 +276,10 @@ export class AdminService {
       tiers,
       access: {
         role,
-        canManageEvent: role === 'platform_admin' || role === 'owner',
+        canManageEvent: role === 'platform_admin' || organizationRoleCan(role as OrganizationRole, 'events.manage'),
         capabilities: role === 'platform_admin'
-          ? [
-              'inclusions.read',
-              'inclusions.manage',
-              'inclusions.inventory.manage',
-              'inclusions.fulfill',
-              'inclusions.finance.read',
-              'inclusions.finance.export',
-            ]
-          : organizationCapabilities(role).filter((capability) => capability.startsWith('inclusions.')),
+          ? organizationCapabilities('owner')
+          : organizationCapabilities(role as OrganizationRole),
       },
     };
   }
@@ -457,7 +443,7 @@ export class AdminService {
   }
 
   async exportReferralCodes(eventId: string, user: JwtPayload): Promise<string> {
-    await this.assertEventAccess(eventId, user);
+    await this.eventAccess.assertEventCapability(eventId, user, 'exports.read');
     const usages = await this.prisma.referralCodeUsage.findMany({
       where: { referralCode: { eventId } },
       orderBy: { createdAt: 'desc' },
@@ -1579,7 +1565,7 @@ export class AdminService {
   // ── Analytics ──────────────────────────────────────────────────────────
 
   async getEventAnalytics(eventId: string, user: JwtPayload) {
-    await this.assertEventAccess(eventId, user);
+    await this.eventAccess.assertEventCapability(eventId, user, 'analytics.read');
     const [
       event,
       orderRevenueStats,
@@ -1707,7 +1693,7 @@ export class AdminService {
    * Returns one row per calendar day in the requested range.
    */
   async getEventTimeline(eventId: string, user: JwtPayload, days = 14) {
-    await this.assertEventAccess(eventId, user);
+    await this.eventAccess.assertEventCapability(eventId, user, 'analytics.read');
 
     const safeDays = Math.min(Math.max(1, days), 90);
     const since = new Date();
@@ -1774,8 +1760,9 @@ export class AdminService {
   }
 
   async getEventFunnel(eventId: string, user: JwtPayload) {
+    await this.eventAccess.assertEventCapability(eventId, user, 'analytics.read');
     const event = await this.prisma.event.findFirst({
-      where: { id: eventId, ...this.eventOwnerWhere(user) },
+      where: { id: eventId },
       select: { id: true, title: true, slug: true },
     });
     if (!event) throw new NotFoundException('Event not found');
@@ -2787,14 +2774,12 @@ export class AdminService {
   // ── Dashboard Stats ─────────────────────────────────────────────────────
 
   async getDashboardStats(user: JwtPayload, eventId?: string) {
-    // Build an explicit eventId filter so every query uses a direct scalar
-    // comparison rather than a relation-based filter, which is unambiguous.
-    // For the global dashboard we resolve all completed-event IDs up front;
-    // no record from a non-completed event can ever slip through.
+    await this.eventAccess.assertOrganizerCapability(user, 'analytics.read');
+
     let scopeFilter: { eventId: string } | { eventId: { in: string[] } };
 
     if (eventId) {
-      await this.assertEventAccess(eventId, user);
+      await this.eventAccess.assertEventCapability(eventId, user, 'analytics.read');
       scopeFilter = { eventId };
     } else {
       const completedEvents = await this.prisma.event.findMany({

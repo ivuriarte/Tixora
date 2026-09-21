@@ -29,6 +29,7 @@ import { AddOrganizerMemberDto, UpdateOrganizerMemberDto, CheckinDto, RejectRegi
 import { RegistrationsService } from '../registrations/registrations.service';
 import { CreateReferralCodeDto, SetReferralCodeStatusDto, UpdateReferralCodeDto } from './dto/referral-code.dto';
 import { ExecutiveAnalyticsService } from './executive-analytics.service';
+import { EventAccessService } from '../common/services/event-access.service';
 
 @ApiTags('admin')
 @Controller('admin')
@@ -39,6 +40,7 @@ export class AdminController {
     private readonly adminService: AdminService,
     private readonly registrationsService: RegistrationsService,
     private readonly executiveAnalytics: ExecutiveAnalyticsService,
+    private readonly eventAccess: EventAccessService,
   ) {}
 
   private requirePlatformAdmin(user: JwtPayload) {
@@ -795,7 +797,7 @@ export class AdminController {
     @Param('eventId') eventId: string,
     @CurrentUser() user: JwtPayload,
   ) {
-    await this.adminService.assertEventAccess(eventId, user);
+    await this.eventAccess.assertEventCapability(eventId, user, 'analytics.read');
     return this.adminService.getWheelParticipants(eventId);
   }
 

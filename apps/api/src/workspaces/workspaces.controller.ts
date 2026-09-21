@@ -298,7 +298,7 @@ export class WorkspacesController {
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Close the workspace and lock in a readiness snapshot (manager role only)' })
   async closeWorkspace(@Param('eventId') eventId: string, @CurrentUser() user: JwtPayload) {
-    await this.eventAccess.assertEventAccess(eventId, user);
+    await this.eventAccess.assertWorkspaceManageAccess(eventId, user);
     return this.workspacesService.closeWorkspace(eventId, user);
   }
 }

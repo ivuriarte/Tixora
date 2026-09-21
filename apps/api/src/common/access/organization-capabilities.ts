@@ -7,6 +7,8 @@ export function normalizeOrganizationRole(role: string): OrganizationRole {
 export type OrganizationCapability =
   | 'events.read'
   | 'events.manage'
+  | 'analytics.read'
+  | 'exports.read'
   | 'workspace.read'
   | 'workspace.manage'
   | 'workspace.task.update_assigned'
@@ -16,6 +18,7 @@ export type OrganizationCapability =
   | 'inclusions.fulfill'
   | 'inclusions.finance.read'
   | 'inclusions.finance.export'
+  | 'organization.members.read'
   | 'organization.members.manage'
   | 'organization.co_owners.manage'
   | 'organization.profile.manage';
@@ -24,6 +27,8 @@ const ROLE_CAPABILITIES: Record<OrganizationRole, readonly OrganizationCapabilit
   owner: [
     'events.read',
     'events.manage',
+    'analytics.read',
+    'exports.read',
     'workspace.read',
     'workspace.manage',
     'workspace.task.update_assigned',
@@ -33,12 +38,16 @@ const ROLE_CAPABILITIES: Record<OrganizationRole, readonly OrganizationCapabilit
     'inclusions.fulfill',
     'inclusions.finance.read',
     'inclusions.finance.export',
+    'organization.members.read',
     'organization.members.manage',
     'organization.co_owners.manage',
     'organization.profile.manage',
   ],
   co_owner: [
     'events.read',
+    'events.manage',
+    'analytics.read',
+    'exports.read',
     'workspace.read',
     'workspace.manage',
     'workspace.task.update_assigned',
@@ -48,24 +57,30 @@ const ROLE_CAPABILITIES: Record<OrganizationRole, readonly OrganizationCapabilit
     'inclusions.fulfill',
     'inclusions.finance.read',
     'inclusions.finance.export',
+    'organization.members.read',
     'organization.members.manage',
     'organization.profile.manage',
   ],
   manager: [
     'events.read',
+    'events.manage',
+    'analytics.read',
+    'exports.read',
     'workspace.read',
     'workspace.manage',
     'workspace.task.update_assigned',
     'inclusions.read',
+    'inclusions.manage',
     'inclusions.inventory.manage',
     'inclusions.fulfill',
+    'inclusions.finance.read',
+    'inclusions.finance.export',
+    'organization.members.read',
   ],
   member: [
     'events.read',
     'workspace.read',
     'workspace.task.update_assigned',
-    'inclusions.read',
-    'inclusions.fulfill',
   ],
 };
 

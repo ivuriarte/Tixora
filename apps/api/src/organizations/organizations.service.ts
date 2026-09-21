@@ -349,6 +349,15 @@ export class OrganizationsService {
       orderBy: { createdAt: 'desc' },
     });
     if (!actor) throw new NotFoundException('Approved organization not found');
+    const role = normalizeOrganizationRole(actor.role);
+    if (!organizationRoleCan(role, 'organization.members.read')) {
+      return {
+        currentRole: role,
+        capabilities: organizationCapabilities(role),
+        canManage: false,
+        members: [],
+      };
+    }
     const [members, invitations] = await Promise.all([
       this.prisma.organizationMember.findMany({
         where: { organizationId: actor.organizationId },

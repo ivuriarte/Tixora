@@ -90,7 +90,7 @@ interface ApiEvent {
   eventType?: EventDraft['eventType'];
   isOnline?: boolean;
   runningConfig?: EventDraft['runningConfig'] | null;
-  access: { role: 'platform_admin' | 'owner' | 'co_owner' | 'manager' | 'member'; canManageEvent: boolean };
+  access: { role: 'platform_admin' | 'owner' | 'co_owner' | 'manager' | 'member'; canManageEvent: boolean; capabilities: string[] };
 }
 
 interface WorkspaceSummary {
@@ -561,7 +561,7 @@ export default function AdminEventEditPage() {
   // ─── Top banner: status + cancel + delete ─────────────────────────────────
   const topBanner = event ? (
     <div className="space-y-3 mb-4">
-      {!canManageEvent && <div className="rounded-2xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800"><span className="font-semibold">View-only event access.</span> Only the organizer Owner can change event details, ticket configuration, publication status, or delete this event. You can still use Workspace and update your assigned tasks.</div>}
+      {!canManageEvent && <div className="rounded-2xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800"><span className="font-semibold">View-only event access.</span> Your role does not have permission to change event details, ticket configuration, publication status, or delete this event.</div>}
       {/* ── Status / Cancel / Delete row ──────────────────────────────── */}
       <div className="rounded-2xl border border-gray-200 bg-white px-4 py-3 flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3">

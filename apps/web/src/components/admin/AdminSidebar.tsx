@@ -5,6 +5,7 @@ import Image from 'next/image';
 import { useEffect, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { useAuthStore } from '@/store/auth.store';
+import { useOrganizerAccess } from '@/lib/useOrganizerAccess';
 import api from '@/lib/api';
 import { getRefreshToken } from '@/lib/auth';
 import toast from 'react-hot-toast';
@@ -18,11 +19,13 @@ interface NavItem {
   pendingBadge?: boolean;
   orgPendingBadge?: boolean;
   adminOnly?: boolean;
+  capability?: string;
 }
 
 interface NavSection {
   label: string;
   items: NavItem[];
+  capability?: string;
 }
 
 const SECTIONS: NavSection[] = [
@@ -125,6 +128,7 @@ const SECTIONS: NavSection[] = [
   },
   {
     label: 'Insights',
+    capability: 'analytics.read',
     items: [
       {
         href: '/admin/analytics',
@@ -193,6 +197,7 @@ export default function AdminSidebar({ isOpen, onClose }: { isOpen: boolean; onC
   const pathname = usePathname();
   const router = useRouter();
   const { user, logout } = useAuthStore();
+  const { capabilities } = useOrganizerAccess();
   const [pendingCount, setPendingCount] = useState(0);
   const [orgPendingCount, setOrgPendingCount] = useState(0);
 
@@ -291,7 +296,12 @@ export default function AdminSidebar({ isOpen, onClose }: { isOpen: boolean; onC
 
       {/* Navigation */}
       <nav className="flex-1 px-3 py-4 space-y-5">
-        {SECTIONS.filter((section) => user?.isAdmin || !['Organizers', 'Settings'].includes(section.label)).map((section) => (
+        {SECTIONS.filter((section) => {
+          if (user?.isAdmin) return true;
+          if (['Organizers', 'Settings'].includes(section.label)) return false;
+          if (section.capability && !capabilities.includes(section.capability)) return false;
+          return true;
+        }).map((section) => (
           <div key={section.label}>
             <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider px-2 mb-1.5">
               {section.label}
