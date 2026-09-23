@@ -5,7 +5,7 @@ import { useQuery } from '@tanstack/react-query';
 import Link from 'next/link';
 import api from '@/lib/api';
 import { useDebounce } from '@/lib/useDebounce';
-import { formatShortDate } from '@axon-tickets/utils';
+import { formatDateRange } from '@axon-tickets/utils';
 import { useAuthStore } from '@/store/auth.store';
 import { EmptyState, ScreenSkeleton } from '@/components/ScreenState';
 import { useOrganizerAccess } from '@/lib/useOrganizerAccess';
@@ -16,6 +16,7 @@ interface EventRow {
   title: string;
   venue: string;
   startsAt: string;
+  endsAt: string | null;
   status: string;
   onsiteRegistrationEnabled?: boolean;
   ticketsSold: number;
@@ -149,7 +150,7 @@ export default function EventHistoryPage() {
                   </span>
                 </div>
                 <p className="text-sm text-gray-500">
-                  {formatShortDate(new Date(event.startsAt))} · {event.venue} ·{' '}
+                  {formatDateRange(event.startsAt, event.endsAt)} · {event.venue} ·{' '}
                   <span className="font-medium text-gray-700">{event.ticketsSold} sold</span>
                   {event.organization && <span> · {event.organization.name}</span>}
                 </p>

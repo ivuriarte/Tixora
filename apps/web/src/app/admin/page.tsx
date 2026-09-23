@@ -5,7 +5,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '@/lib/api';
 import ConfirmModal from '@/components/ConfirmModal';
 import Link from 'next/link';
-import { formatPHP, formatShortDate } from '@axon-tickets/utils';
+import { formatPHP, formatDateRange } from '@axon-tickets/utils';
 import toast from 'react-hot-toast';
 import { EmptyState, ScreenSkeleton } from '@/components/ScreenState';
 import { useOrganizerAccess } from '@/lib/useOrganizerAccess';
@@ -29,6 +29,7 @@ interface Event {
   venue: string;
   city: string;
   startsAt: string;
+  endsAt: string | null;
   status: string;
   onsiteRegistrationEnabled?: boolean;
   ticketsSold: number;
@@ -177,7 +178,7 @@ export default function AdminDashboardPage() {
               <div>
                 <p className="font-semibold text-gray-900">{event.title}</p>
                 <p className="text-sm text-gray-500">
-                  {formatShortDate(new Date(event.startsAt))} · {event.venue}
+                  {formatDateRange(event.startsAt, event.endsAt)} · {event.venue}
                 </p>
                 {event.organization && (
                   <p className="text-xs text-violet-600 mt-0.5">by {event.organization.name}</p>

@@ -338,6 +338,7 @@ export class EventsService {
         venue: e.venue,
         city: e.city,
         startsAt: e.startsAt.toISOString(),
+        endsAt: e.endsAt?.toISOString() ?? null,
         imageUrl: e.imageUrl,
         status: e.status,
         category: e.category,

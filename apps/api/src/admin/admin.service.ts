@@ -517,6 +517,7 @@ export class AdminService {
         venue: e.venue,
         city: e.city,
         startsAt: e.startsAt.toISOString(),
+        endsAt: e.endsAt?.toISOString() ?? null,
         status: e.status,
         isFree: e.isFree,
         isFeatured: e.isFeatured,

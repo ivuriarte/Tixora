@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import Image from 'next/image';
-import { formatShortDate } from '@axon-tickets/utils';
+import { formatDateRange } from '@axon-tickets/utils';
 import EventCoverFallback from '@/components/EventCoverFallback';
 
 interface Props {
@@ -73,7 +73,7 @@ export default function EventCard({ event }: Props) {
 
       <div className="p-4">
         <p className="mb-2 text-[10px] font-bold uppercase tracking-[0.08em] text-[#756a92]">
-          {event.category ? `${event.category} · ` : ''}{formatShortDate(new Date(event.startsAt))} · {event.city}
+          {event.category ? `${event.category} · ` : ''}{formatDateRange(event.startsAt, event.endsAt)} · {event.city}
         </p>
         <h3 className="line-clamp-2 font-bold text-[#1a0533] transition-colors group-hover:text-primary">
           {event.title}

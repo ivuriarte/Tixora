@@ -22,6 +22,7 @@ interface EventSummary {
   venue: string;
   city: string;
   startsAt: string;
+  endsAt?: string | null;
   imageUrl?: string | null;
   featuredImageUrl?: string | null;
   lowestPrice?: number | null;
