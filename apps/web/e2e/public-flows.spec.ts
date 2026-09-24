@@ -38,7 +38,22 @@ test.describe('Homepage', () => {
 
   test('featured hero exposes an accessible event action without unsupported payment copy', async ({
     page,
+    request,
   }) => {
+    // CI's post-deploy smoke run targets production, where having no featured events is a
+    // legitimate state (e.g. the last featured event just completed). UAT must still provide one.
+    const isProduction = /^https:\/\/axontickets\.online\/?$/.test(process.env.BASE_URL ?? '');
+    if (isProduction) {
+      const apiUrl = process.env.API_URL ?? 'https://api.axontickets.online';
+      const res = await request.get(`${apiUrl}/api/v1/events/featured`);
+      const json = await res.json();
+      const featured = json.data ?? json;
+      test.skip(
+        res.ok() && Array.isArray(featured) && featured.length === 0,
+        'Production currently has no featured events.',
+      );
+    }
+
     await page.goto('/');
     const carousel = page.getByRole('region', { name: 'Featured events' });
     await expect(carousel, 'UAT must provide a featured event fixture').toBeVisible();
