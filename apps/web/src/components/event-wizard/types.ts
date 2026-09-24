@@ -72,6 +72,10 @@ export interface EventDraftLocation {
   startTime: string;
   endDate: string;
   endTime: string;
+  /** ISO start already saved on the server (edit only); an unchanged past start stays valid. */
+  savedStartsAt?: string;
+  /** ISO end already saved on the server (edit only); null for events created before ends were required. */
+  savedEndsAt?: string | null;
 }
 
 export interface EventDraftCapacity {
@@ -190,6 +194,41 @@ export function todayStr(): string {
   }).format(new Date());
 }
 
+/** Default length used to pre-fill the end time from the start time. */
+export const DEFAULT_EVENT_HOURS = 3;
+
+/** Splits an ISO timestamp into Asia/Manila date (YYYY-MM-DD) and time (HH:mm) form values. */
+export function toManilaParts(iso: string | null | undefined): { date: string; time: string } {
+  if (!iso) return { date: '', time: '' };
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Manila',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23',
+  }).formatToParts(new Date(iso));
+  const get = (type: Intl.DateTimeFormatPartTypes) => parts.find((p) => p.type === type)?.value ?? '';
+  return { date: `${get('year')}-${get('month')}-${get('day')}`, time: `${get('hour')}:${get('minute')}` };
+}
+
+/** Start date/time plus `hours`, as Manila form values; empty when the start is incomplete. */
+export function addHoursToParts(date: string, time: string, hours: number): { date: string; time: string } {
+  const start = combineDatetime(date, time);
+  if (!start) return { date: '', time: '' };
+  return toManilaParts(new Date(new Date(start).getTime() + hours * 3_600_000).toISOString());
+}
+
+/**
+ * End time is required for new events and for events that already have one.
+ * Only events saved before ends were required (savedEndsAt === null) may leave it blank;
+ * those are auto-completed 24 hours after they start.
+ */
+export function isEndTimeRequired(d: EventDraft): boolean {
+  return d.savedEndsAt !== null;
+}
+
 // Per-step validation -------------------------------------------------------
 
 export function validateBasics(d: EventDraft): string | null {
@@ -206,6 +245,12 @@ export function validateLocation(d: EventDraft): string | null {
   if (!d.startDate || !d.startTime) return 'Start date and time are required';
   const start = combineDatetime(d.startDate, d.startTime);
   const end = combineDatetime(d.endDate, d.endTime);
+  const startUnchanged =
+    !!start && !!d.savedStartsAt && Math.abs(new Date(start).getTime() - new Date(d.savedStartsAt).getTime()) < 60_000;
+  if (start && !startUnchanged && new Date(start).getTime() < Date.now()) {
+    return 'Start date and time cannot be in the past';
+  }
+  if (isEndTimeRequired(d) && !end) return 'End date and time are required';
   if (start && end && new Date(end) <= new Date(start)) return 'End must be after start';
   return null;
 }

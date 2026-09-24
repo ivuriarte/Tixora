@@ -5,7 +5,8 @@ import {
   HAS_ADMIN_CREDENTIALS,
   IS_ADMIN_MOCKED,
 } from './support/admin-auth';
-import { emptyDraft } from '../src/components/event-wizard/types';
+import { mockEventBody } from './support/admin-mocks';
+import { emptyDraft, type EventDraft } from '../src/components/event-wizard/types';
 import type { Page } from '@playwright/test';
 
 const EVENT_DRAFT_KEY = 'tixora:event-wizard:draft:v1';
@@ -48,6 +49,7 @@ async function gotoAdmin(page: Page, path: string) {
 async function openCreateWizardStep(
   page: Page,
   step: 'basics' | 'location' | 'details' | 'payment',
+  draftOverrides: Partial<EventDraft> = {},
 ) {
   const isPaidPaymentStep = step === 'payment';
   const persisted = {
@@ -65,6 +67,7 @@ async function openCreateWizardStep(
       endTime: '12:00',
       maxCapacity: '10',
       isFree: !isPaidPaymentStep,
+      ...draftOverrides,
     },
     tiers: [
       {
@@ -193,6 +196,29 @@ test.describe('Admin Create Event — Form Fields', () => {
     await timeSelects.nth(5).selectOption('AM');
 
     await expect(page.getByText(/end.*before.*start|end.*must be after/i)).toBeVisible();
+  });
+
+  test('new events require an end time', async ({ adminPage: page }) => {
+    await openCreateWizardStep(page, 'location', { endDate: '', endTime: '' });
+    await expect(page.getByText('Ends At*')).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Next →', exact: true })).toBeDisabled();
+  });
+
+  test('end time is pre-filled three hours after the start', async ({ adminPage: page }) => {
+    await openCreateWizardStep(page, 'location', { endDate: '', endTime: '' });
+    const timeSelects = page.locator('select');
+
+    await timeSelects.nth(0).selectOption('11');
+
+    await expect(page.locator('input[type="date"]').nth(1)).toHaveValue('2030-01-10');
+    await expect(timeSelects.nth(3)).toHaveValue('2');
+    await expect(timeSelects.nth(5)).toHaveValue('PM');
+    await expect(page.getByRole('button', { name: 'Next →', exact: true })).toBeEnabled();
+  });
+
+  test('a start date in the past cannot advance', async ({ adminPage: page }) => {
+    await openCreateWizardStep(page, 'location', { startDate: '2020-01-10', endDate: '2020-01-10' });
+    await expect(page.getByRole('button', { name: 'Next →', exact: true })).toBeDisabled();
   });
 
   test('Conference Details section renders sponsors manager', async ({ adminPage: page }) => {
@@ -450,6 +476,23 @@ test.describe('Admin/Organizer portfolio — on-site operations', () => {
     const request = await requestPromise;
     expect(request.postDataJSON()).toEqual({ onsiteRegistrationEnabled: false });
     await expect(download).toHaveCount(0);
+  });
+
+  test('events saved without an end time keep it optional and explain auto-completion', async ({
+    adminPage: page,
+  }) => {
+    await page.route(/\/api\/v1\/admin\/events\/event-qa$/, (route) =>
+      route.request().method() === 'GET'
+        ? route.fulfill({ contentType: 'application/json', body: mockEventBody({ endsAt: null }) })
+        : route.fallback(),
+    );
+    await gotoAdmin(page, '/admin/events/event-qa');
+    await page.getByRole('button', { name: 'Next →', exact: true }).click();
+
+    await expect(page.getByText('Ends At (optional)')).toBeVisible();
+    await expect(
+      page.getByText('No end time set — this event will be marked completed 24 hours after it starts.'),
+    ).toBeVisible();
   });
 
   test('event history provides the event-scoped on-site QR download', async ({

@@ -63,6 +63,7 @@ describe('CreateEventDto — Release 2.0 running events', () => {
     title: 'Inclusive City Run',
     venue: 'City Park',
     startsAt: '2027-01-10T05:00:00+08:00',
+    endsAt: '2027-01-10T11:00:00+08:00',
     category: 'sports',
     eventType: 'running',
     runningConfig: {
@@ -92,6 +93,19 @@ describe('CreateEventDto — Release 2.0 running events', () => {
 
     const errors = await validate(dto);
     expect(JSON.stringify(errors)).toContain('Distance code must use 1-12 uppercase letters or numbers');
+  });
+
+  it('requires an end date and time for new events', async () => {
+    const { endsAt: _omitted, ...withoutEnd } = validRunningEvent;
+    const dto = plainToInstance(CreateEventDto, withoutEnd);
+
+    const errors = await validate(dto);
+    expect(errors).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        property: 'endsAt',
+        constraints: expect.objectContaining({ isDateString: 'Event end date and time is required.' }),
+      }),
+    ]));
   });
 });
 

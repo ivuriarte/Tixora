@@ -1,7 +1,7 @@
 'use client';
 
 import type { EventDraft } from '../types';
-import { combineDatetime, todayStr } from '../types';
+import { DEFAULT_EVENT_HOURS, addHoursToParts, combineDatetime, isEndTimeRequired, todayStr } from '../types';
 import TimeSelect from '../TimeSelect';
 
 interface LocationStepProps {
@@ -16,6 +16,22 @@ export default function LocationStep({ draft, update }: LocationStepProps) {
   const startsAt = combineDatetime(draft.startDate, draft.startTime);
   const endsAt = combineDatetime(draft.endDate, draft.endTime);
   const endBeforeStart = !!startsAt && !!endsAt && new Date(endsAt) <= new Date(startsAt);
+  const endRequired = isEndTimeRequired(draft);
+
+  // Pre-fill the end from the start, and keep it following the start until the organizer edits it.
+  const updateStart = (patch: { startDate?: string; startTime?: string }) => {
+    const next = { startDate: draft.startDate, startTime: draft.startTime, ...patch };
+    const prevDefault = addHoursToParts(draft.startDate, draft.startTime, DEFAULT_EVENT_HOURS);
+    const endUntouched =
+      (!draft.endDate && !draft.endTime) ||
+      (draft.endDate === prevDefault.date && draft.endTime === prevDefault.time);
+    const nextDefault = addHoursToParts(next.startDate, next.startTime, DEFAULT_EVENT_HOURS);
+    if (endRequired && endUntouched && nextDefault.date) {
+      update({ ...patch, endDate: nextDefault.date, endTime: nextDefault.time });
+    } else {
+      update(patch);
+    }
+  };
 
   return (
     <>
@@ -89,15 +105,15 @@ export default function LocationStep({ draft, update }: LocationStepProps) {
           <input
             type="date" min={todayStr()}
             className="rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-            value={draft.startDate} onChange={(e) => update({ startDate: e.target.value })}
+            value={draft.startDate} onChange={(e) => updateStart({ startDate: e.target.value })}
           />
-          <TimeSelect value={draft.startTime} onChange={(v) => update({ startTime: v })} />
+          <TimeSelect value={draft.startTime} onChange={(v) => updateStart({ startTime: v })} />
         </div>
       </div>
 
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-1">
-          Ends At <span className="text-gray-400 font-normal">(optional)</span>
+          Ends At{endRequired ? REQ : <span className="text-gray-400 font-normal"> (optional)</span>}
         </label>
         <div className="flex flex-wrap items-center gap-3">
           <input
@@ -107,6 +123,11 @@ export default function LocationStep({ draft, update }: LocationStepProps) {
           />
           <TimeSelect value={draft.endTime} onChange={(v) => update({ endTime: v })} />
         </div>
+        {!endRequired && !endsAt && (
+          <p className="text-xs text-gray-500 mt-1">
+            No end time set — this event will be marked completed 24 hours after it starts.
+          </p>
+        )}
         {endBeforeStart && (
           <div className="mt-2 flex items-center gap-2 bg-red-50 border border-red-200 rounded-lg px-3 py-2 text-sm text-red-600">
             <svg className="w-4 h-4 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
