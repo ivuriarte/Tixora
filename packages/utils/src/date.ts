@@ -25,6 +25,45 @@ export function formatShortDate(date: Date | string): string {
 }
 
 /**
+ * Format a date, or a start–end date range, as a short human-readable string.
+ * Same-day (or missing end date) collapses to a single date, e.g. "Sep 22, 2026".
+ * Multi-day events show a range, e.g. "Sep 22 – 23, 2026" or "Dec 30, 2026 – Jan 2, 2027".
+ */
+export function formatDateRange(start: Date | string, end?: Date | string | null): string {
+  const startDate = new Date(start);
+  if (!end) return formatShortDate(startDate);
+
+  const endDate = new Date(end);
+  if (endDate <= startDate) return formatShortDate(startDate);
+
+  const startParts = getManilaDateParts(startDate);
+  const endParts = getManilaDateParts(endDate);
+
+  if (startParts.year === endParts.year && startParts.month === endParts.month && startParts.day === endParts.day) {
+    return formatShortDate(startDate);
+  }
+
+  if (startParts.year === endParts.year && startParts.month === endParts.month) {
+    const monthYear = startDate.toLocaleDateString('en-PH', { timeZone: 'Asia/Manila', month: 'short', year: 'numeric' });
+    const [monthLabel] = monthYear.split(' ');
+    return `${monthLabel} ${startParts.day} – ${endParts.day}, ${startParts.year}`;
+  }
+
+  return `${formatShortDate(startDate)} – ${formatShortDate(endDate)}`;
+}
+
+function getManilaDateParts(date: Date) {
+  const parts = new Intl.DateTimeFormat('en-PH', {
+    timeZone: 'Asia/Manila',
+    year: 'numeric',
+    month: 'numeric',
+    day: 'numeric',
+  }).formatToParts(date);
+  const get = (type: string) => Number(parts.find((p) => p.type === type)?.value);
+  return { year: get('year'), month: get('month'), day: get('day') };
+}
+
+/**
  * Return the number of seconds until a given date from now.
  * Returns 0 if the date is in the past.
  */
