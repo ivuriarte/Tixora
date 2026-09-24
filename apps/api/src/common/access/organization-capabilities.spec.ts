@@ -6,17 +6,17 @@ import {
 } from './organization-capabilities';
 
 describe('organization capabilities', () => {
-  it('treats legacy Admin memberships as Managers without granting event mutation', () => {
+  it('treats legacy Admin memberships as Managers', () => {
     const role = normalizeOrganizationRole('admin');
     expect(role).toBe('manager');
     expect(organizationRoleCan(role, 'workspace.manage')).toBe(true);
-    expect(organizationRoleCan(role, 'events.manage')).toBe(false);
+    expect(organizationRoleCan(role, 'events.manage')).toBe(true);
   });
 
-  it('reserves event mutation for the Owner role', () => {
+  it('lets Owners, Co-owners, and Managers manage events but not Members', () => {
     expect(organizationRoleCan('owner', 'events.manage')).toBe(true);
-    expect(organizationRoleCan('co_owner', 'events.manage')).toBe(false);
-    expect(organizationRoleCan('manager', 'events.manage')).toBe(false);
+    expect(organizationRoleCan('co_owner', 'events.manage')).toBe(true);
+    expect(organizationRoleCan('manager', 'events.manage')).toBe(true);
     expect(organizationRoleCan('member', 'events.manage')).toBe(false);
   });
 
@@ -42,9 +42,9 @@ describe('organization capabilities', () => {
   it('separates optional-inclusion catalog, inventory, fulfillment, and finance duties', () => {
     expect(organizationRoleCan('owner', 'inclusions.manage')).toBe(true);
     expect(organizationRoleCan('co_owner', 'inclusions.finance.read')).toBe(true);
-    expect(organizationRoleCan('manager', 'inclusions.manage')).toBe(false);
+    expect(organizationRoleCan('manager', 'inclusions.manage')).toBe(true);
     expect(organizationRoleCan('manager', 'inclusions.inventory.manage')).toBe(true);
-    expect(organizationRoleCan('member', 'inclusions.fulfill')).toBe(true);
+    expect(organizationRoleCan('member', 'inclusions.manage')).toBe(false);
     expect(organizationRoleCan('member', 'inclusions.finance.read')).toBe(false);
   });
 });

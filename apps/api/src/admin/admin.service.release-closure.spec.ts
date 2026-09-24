@@ -1,3 +1,4 @@
+import { ForbiddenException } from '@nestjs/common';
 import { AdminService } from './admin.service';
 
 describe('AdminService Release 2 closure', () => {
@@ -8,7 +9,10 @@ describe('AdminService Release 2 closure', () => {
     $transaction: jest.fn(),
   } as any;
   const audit = { log: jest.fn() };
-  const eventAccess = { assertEventAccess: jest.fn().mockResolvedValue(undefined) };
+  const eventAccess = {
+    assertEventAccess: jest.fn().mockResolvedValue(undefined),
+    assertEventCapability: jest.fn().mockResolvedValue(undefined),
+  };
   const service = new AdminService(prisma, eventAccess as any, {} as any, {} as any, {} as any, {} as any, audit as any, {} as any);
   const admin = { sub: 'admin-1', isAdmin: true } as any;
 
@@ -36,6 +40,7 @@ describe('AdminService Release 2 closure', () => {
 
   it('denies a non-creator export without revealing event existence and audits the outcome', async () => {
     prisma.event.findFirst.mockResolvedValue(null);
+    eventAccess.assertEventCapability.mockRejectedValueOnce(new ForbiddenException());
     await expect(service.assertEventExportAccess('event-1', { sub: 'organizer-2', isAdmin: false } as any, 'attendee_masterlist'))
       .rejects.toThrow('Event not found');
     expect(audit.log).toHaveBeenCalledWith(expect.objectContaining({

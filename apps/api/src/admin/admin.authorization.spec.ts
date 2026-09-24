@@ -64,7 +64,7 @@ describe('Admin and super-admin authorization portfolio', () => {
   });
 
   it('blocks organizer accounts from platform-wide users, organizer governance, and settings', () => {
-    const controller = new AdminController({} as any, {} as any, {} as any);
+    const controller = new AdminController({} as any, {} as any, {} as any, {} as any);
     expect(() => controller.listUsers(organizer)).toThrow('Platform admin access required');
     expect(() => controller.listOrganizers(organizer)).toThrow('Platform admin access required');
     expect(() => controller.getPlatformSettings(organizer)).toThrow(
@@ -86,7 +86,7 @@ describe('Admin and super-admin authorization portfolio', () => {
   });
 
   it('blocks organizer accounts from exporting platform executive analytics', async () => {
-    const controller = new AdminController({} as any, {} as any, {} as any);
+    const controller = new AdminController({} as any, {} as any, {} as any, {} as any);
     await expect(
       controller.exportExecutiveAnalytics(organizer, undefined, undefined, undefined, {} as any),
     ).rejects.toThrow('Platform admin access required');
@@ -99,7 +99,7 @@ describe('Admin and super-admin authorization portfolio', () => {
       getPlatformSettings: jest.fn().mockResolvedValue({ serviceFee: 50 }),
       setAdminRole: jest.fn(),
     };
-    const controller = new AdminController(adminService as any, {} as any, {} as any);
+    const controller = new AdminController(adminService as any, {} as any, {} as any, {} as any);
     await expect(controller.listUsers(superAdmin)).resolves.toEqual({ data: [] });
     await expect(controller.listOrganizers(superAdmin)).resolves.toEqual({ data: [] });
     await expect(controller.getPlatformSettings(superAdmin)).resolves.toEqual({ serviceFee: 50 });

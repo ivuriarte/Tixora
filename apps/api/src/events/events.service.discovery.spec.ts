@@ -135,7 +135,7 @@ describe('EventsService.findDiscovery()', () => {
       .not.toContain('Hottest Right Now');
   });
 
-  it('moves a future event with closed registration into Events You Missed', async () => {
+  it('keeps a future event with closed registration in its date section', async () => {
     eventFindMany.mockResolvedValue([
       eventFixture('closed-future', new Date(NOW.getTime() + 10 * DAY), new Date(NOW.getTime() + 11 * DAY), {
         saleEndsAt: new Date(NOW.getTime() - 1),
@@ -144,9 +144,9 @@ describe('EventsService.findDiscovery()', () => {
 
     const result = await service.findDiscovery();
 
-    expect(result.sections.happeningSoon).toEqual([]);
-    expect(result.sections.eventsYouMissed.map((event) => event.id)).toEqual(['closed-future']);
-    expect(result.sections.eventsYouMissed[0].labels).toContain('Registration Closed');
+    expect(result.sections.eventsYouMissed).toEqual([]);
+    expect(result.sections.happeningSoon.map((event) => event.id)).toEqual(['closed-future']);
+    expect(result.sections.happeningSoon[0].labels).toContain('Registration Closed');
   });
 
   it('rejects unsupported category filters before querying the database', async () => {
