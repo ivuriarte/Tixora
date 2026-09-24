@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from 'next';
-import { Inter } from 'next/font/google';
+import { preload } from 'react-dom';
 import { Analytics } from '@vercel/analytics/next';
 import { SpeedInsights } from '@vercel/speed-insights/next';
 import MetaPixel from '@/components/MetaPixel';
@@ -7,7 +7,6 @@ import UatBanner from '@/components/UatBanner';
 import './globals.css';
 import Providers from './providers';
 
-const inter = Inter({ subsets: ['latin'], display: 'swap', weight: ['400', '500', '600', '700', '900'] });
 const isUat = process.env.NEXT_PUBLIC_APP_ENV === 'uat';
 const siteUrl = isUat ? 'https://uat.axontickets.online' : 'https://axontickets.online';
 
@@ -56,9 +55,11 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   const showAnalytics = process.env.NEXT_PUBLIC_APP_ENV === 'production';
+  // Inter is self-hosted (see globals.css) so builds never depend on Google Fonts being reachable.
+  preload('/fonts/InterVariable-latin.woff2', { as: 'font', type: 'font/woff2', crossOrigin: 'anonymous' });
 
   return (
-    <html lang="en" className={inter.className}>
+    <html lang="en">
       <body>
         <UatBanner />
         <Providers>{children}</Providers>

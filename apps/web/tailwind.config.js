@@ -65,7 +65,7 @@ module.exports = {
         'body-purple': '#6b5b8a',
       },
       fontFamily: {
-        sans: ['Inter', 'ui-sans-serif', 'system-ui'],
+        sans: ['Inter', 'Inter Fallback', 'ui-sans-serif', 'system-ui'],
       },
       borderRadius: {
         xl: '0.5rem',
