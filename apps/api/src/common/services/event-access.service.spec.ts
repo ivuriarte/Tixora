@@ -13,9 +13,18 @@ describe('EventAccessService organizer capabilities', () => {
     await expect(service.assertOrganizerCapability(user, 'events.manage')).resolves.toBe('owner');
   });
 
-  it('keeps event assets view-only for Managers', async () => {
+  it('allows Managers to manage event assets', async () => {
     const prisma = {
       organizationMember: { findFirst: jest.fn().mockResolvedValue({ role: 'manager' }) },
+    } as any;
+    const service = new EventAccessService(prisma);
+
+    await expect(service.assertOrganizerCapability(user, 'events.manage')).resolves.toBe('manager');
+  });
+
+  it('keeps event assets view-only for Members', async () => {
+    const prisma = {
+      organizationMember: { findFirst: jest.fn().mockResolvedValue({ role: 'member' }) },
     } as any;
     const service = new EventAccessService(prisma);
 

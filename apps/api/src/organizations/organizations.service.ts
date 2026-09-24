@@ -369,7 +369,6 @@ export class OrganizationsService {
         orderBy: { createdAt: 'asc' },
       }),
     ]);
-    const role = normalizeOrganizationRole(actor.role);
     return {
       currentRole: role,
       capabilities: organizationCapabilities(role),
