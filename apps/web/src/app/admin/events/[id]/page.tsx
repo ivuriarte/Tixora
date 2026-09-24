@@ -25,6 +25,7 @@ import { ErrorState, ScreenSkeleton } from '@/components/ScreenState';
 import {
   emptyDraft,
   combineDatetime,
+  toManilaParts,
   type EventDraft,
   type LocalTier,
   type LocalPaymentMethod,
@@ -116,16 +117,6 @@ interface WorkspaceSummary {
 
 const STATUS_OPTIONS = ['draft', 'on_sale', 'sold_out', 'cancelled'];
 
-function toLocalParts(iso: string | null | undefined): { date: string; time: string } {
-  if (!iso) return { date: '', time: '' };
-  const d = new Date(iso);
-  const pad = (n: number) => String(n).padStart(2, '0');
-  return {
-    date: `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`,
-    time: `${pad(d.getHours())}:${pad(d.getMinutes())}`,
-  };
-}
-
 function apiTierToLocal(t: ApiTier, key: number): LocalTier {
   return {
     key,
@@ -175,8 +166,8 @@ export default function AdminEventEditPage() {
   useEffect(() => {
     if (!event || initialised.current) return;
     initialised.current = true;
-    const start = toLocalParts(event.startsAt);
-    const end = toLocalParts(event.endsAt);
+    const start = toManilaParts(event.startsAt);
+    const end = toManilaParts(event.endsAt);
     setDraft({
       title: event.title ?? '',
       description: event.description ?? '',
@@ -195,6 +186,8 @@ export default function AdminEventEditPage() {
       startTime: start.time,
       endDate: end.date,
       endTime: end.time,
+      savedStartsAt: event.startsAt,
+      savedEndsAt: event.endsAt ?? null,
       maxCapacity: event.maxCapacity != null ? String(event.maxCapacity) : '',
       isFree: event.isFree === true,
       platformFee: event.platformFee != null ? String(event.platformFee) : '50',
@@ -306,7 +299,15 @@ export default function AdminEventEditPage() {
   // ─── Mutations ────────────────────────────────────────────────────────────
   const updateMutation = useMutation({
     mutationFn: (data: Record<string, unknown>) => api.put(`/admin/events/${id}`, data),
-    onSuccess: () => {
+    onSuccess: (_, data) => {
+      // Keep the saved schedule in sync so later edits validate against what the server now holds.
+      if (typeof data.startsAt === 'string') {
+        setDraft((d) => ({
+          ...d,
+          savedStartsAt: data.startsAt as string,
+          savedEndsAt: typeof data.endsAt === 'string' ? data.endsAt : null,
+        }));
+      }
       toast.success('Changes saved successfully.');
       queryClient.invalidateQueries({ queryKey: ['admin-event', id] });
       queryClient.invalidateQueries({ queryKey: ['admin-events'] });

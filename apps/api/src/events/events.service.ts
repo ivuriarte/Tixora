@@ -1019,8 +1019,26 @@ export class EventsService {
     return lines;
   }
 
+  /**
+   * Past start times are rejected unless the start is unchanged from what is
+   * already saved (so events that have already happened stay editable).
+   * A small clock-skew allowance avoids rejecting "starts right now" submissions.
+   */
+  private validateSchedule(startsAt: Date, endsAt: Date | null, savedStartsAt?: Date) {
+    const now = Date.now();
+    const unchangedStart =
+      savedStartsAt !== undefined && Math.abs(startsAt.getTime() - savedStartsAt.getTime()) < 60_000;
+    if (!unchangedStart && startsAt.getTime() < now - 5 * 60_000) {
+      throw new BadRequestException('Event start date and time cannot be in the past.');
+    }
+    if (endsAt && endsAt.getTime() <= startsAt.getTime()) {
+      throw new BadRequestException('Event end must be after its start.');
+    }
+  }
+
   async create(dto: CreateEventDto, createdById: string, organizationId?: string) {
     this.validateRunningConfig(dto);
+    this.validateSchedule(new Date(dto.startsAt), new Date(dto.endsAt));
     const slug = uniqueSlug(dto.title);
     const platformFee = dto.isFree
       ? 0
@@ -1046,7 +1064,7 @@ export class EventsService {
         ...(dto.latitude !== undefined && { latitude: dto.latitude }),
         ...(dto.longitude !== undefined && { longitude: dto.longitude }),
         startsAt: new Date(dto.startsAt),
-        endsAt: dto.endsAt ? new Date(dto.endsAt) : null,
+        endsAt: new Date(dto.endsAt),
         maxPerUser: dto.maxPerUser ?? 4,
         ...(dto.maxCapacity !== undefined && { maxCapacity: dto.maxCapacity }),
         speakerName: dto.speakerName ?? null,
@@ -1092,6 +1110,17 @@ export class EventsService {
         (existing.runningConfig as unknown as CreateEventDto['runningConfig']) ??
         undefined,
     });
+    // Events created before end times were required may still have none; once set it stays set.
+    if (dto.endsAt !== undefined && !dto.endsAt && existing.endsAt) {
+      throw new BadRequestException('Event end date and time cannot be removed.');
+    }
+    if (dto.startsAt || dto.endsAt !== undefined) {
+      this.validateSchedule(
+        dto.startsAt ? new Date(dto.startsAt) : existing.startsAt,
+        dto.endsAt !== undefined ? (dto.endsAt ? new Date(dto.endsAt) : null) : existing.endsAt,
+        existing.startsAt,
+      );
+    }
     if (dto.status === 'on_sale' && !(dto.imageUrl?.trim() || existing.imageUrl)) {
       throw new BadRequestException('Upload an event cover image before publishing.');
     }

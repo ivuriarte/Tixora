@@ -155,6 +155,11 @@ function envelope(data: unknown) {
   return { success: true, data };
 }
 
+/** The standard mock event, overridden, as a fulfilled API response body. */
+export function mockEventBody(overrides: Record<string, unknown>) {
+  return JSON.stringify(envelope({ ...event, ...overrides }));
+}
+
 async function json(route: Route, data: unknown, status = 200) {
   await route.fulfill({
     status,

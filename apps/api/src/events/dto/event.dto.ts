@@ -320,10 +320,9 @@ export class CreateEventDto {
   @IsDateString()
   startsAt: string;
 
-  @ApiProperty({ required: false })
-  @IsOptional()
-  @IsDateString()
-  endsAt?: string;
+  @ApiProperty({ example: '2026-08-15T17:00:00+08:00' })
+  @IsDateString({}, { message: 'Event end date and time is required.' })
+  endsAt: string;
 
   @ApiProperty({ required: false, default: 4 })
   @IsOptional()
