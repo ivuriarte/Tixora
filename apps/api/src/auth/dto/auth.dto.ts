@@ -99,6 +99,22 @@ export class RequestAccessDto {
   returnUrl?: string;
 }
 
+export class ChangePasswordDto {
+  @ApiProperty({ description: 'The current password to verify identity' })
+  @IsString()
+  currentPassword: string;
+
+  @ApiProperty({ description: 'The new password (min 8 characters)' })
+  @IsString()
+  @MinLength(8, { message: 'New password must be at least 8 characters' })
+  @MaxLength(128)
+  newPassword: string;
+
+  @ApiProperty({ description: 'Must match newPassword' })
+  @IsString()
+  confirmPassword: string;
+}
+
 export class VerifyAccessDto {
   @ApiProperty()
   @IsString()
