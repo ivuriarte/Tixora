@@ -2,6 +2,7 @@ import {
   Controller,
   Post,
   Get,
+  Patch,
   Body,
   Req,
   HttpCode,
@@ -13,7 +14,7 @@ import { Throttle } from '@nestjs/throttler';
 import { Request } from 'express';
 import { AuthService } from './auth.service';
 import { RegisterDto } from './dto/register.dto';
-import { LoginDto, VerifyOtpDto, ResendOtpDto, RefreshTokenDto, RequestAccessDto, VerifyAccessDto } from './dto/auth.dto';
+import { LoginDto, VerifyOtpDto, ResendOtpDto, RefreshTokenDto, RequestAccessDto, VerifyAccessDto, ChangePasswordDto } from './dto/auth.dto';
 import { Public } from '../common/decorators/public.decorator';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
@@ -107,6 +108,16 @@ export class AuthController {
   @ApiOperation({ summary: 'Get current user' })
   async me(@CurrentUser() user: JwtPayload) {
     return this.authService.getMe(user.sub);
+  }
+
+  @Patch('change-password')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @Throttle({ default: { ttl: 60_000, limit: 5 } })
+  @ApiOperation({ summary: 'Change password (platform admins only)' })
+  async changePassword(@CurrentUser() user: JwtPayload, @Body() dto: ChangePasswordDto) {
+    await this.authService.changePassword(user.sub, dto.currentPassword, dto.newPassword, dto.confirmPassword);
   }
 
 }

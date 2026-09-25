@@ -715,6 +715,40 @@ export class AuthService {
     return token;
   }
 
+  async changePassword(userId: string, currentPassword: string, newPassword: string, confirmPassword: string): Promise<void> {
+    if (newPassword !== confirmPassword) {
+      throw new BadRequestException('New password and confirmation do not match');
+    }
+
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, isAdmin: true, passwordHash: true },
+    });
+
+    if (!user || !user.isAdmin) {
+      throw new ForbiddenException('Password change is only available for platform admins');
+    }
+
+    if (!user.passwordHash) {
+      throw new BadRequestException('This account does not use password authentication');
+    }
+
+    const match = await bcrypt.compare(currentPassword, user.passwordHash);
+    if (!match) {
+      throw new UnauthorizedException('Current password is incorrect');
+    }
+
+    if (await bcrypt.compare(newPassword, user.passwordHash)) {
+      throw new BadRequestException('New password must be different from the current password');
+    }
+
+    const newHash = await bcrypt.hash(newPassword, BCRYPT_COST);
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { passwordHash: newHash },
+    });
+  }
+
   private async verifyCaptcha(token: string, ip: string): Promise<void> {
     const secret = this.config.get<string>('hcaptcha.secret');
     const params = new URLSearchParams({ response: token, secret: secret ?? '', remoteip: ip });
