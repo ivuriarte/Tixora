@@ -1,32 +1,40 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { useAuthStore } from '@/store/auth.store';
-import { getRefreshToken } from '@/lib/auth';
+import { getLoginPortal, getRefreshToken } from '@/lib/auth';
+import { sessionExpiredLoginUrl } from '@/lib/session';
 import AdminSidebar from '@/components/admin/AdminSidebar';
 import { SkeletonBlock } from '@/components/Skeleton';
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const { user, isAuthenticated, isHydrating } = useAuthStore();
   const router = useRouter();
+  const pathname = usePathname();
+  const adminLogin = sessionExpiredLoginUrl(pathname, '', getLoginPortal());
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const hasAdminShellAccess = Boolean(user?.isAdmin || user?.isOrganizer);
 
   useEffect(() => {
     if (!getRefreshToken()) {
-      router.replace('/auth/admin');
+      router.replace(adminLogin);
       return;
     }
-  }, [router]);
+  }, [router, adminLogin]);
 
   useEffect(() => {
     if (isHydrating) return;
     if (!isAuthenticated || !hasAdminShellAccess) {
-      router.replace(getRefreshToken() && user?.loginPortal === 'organizer' ? '/become-organizer' : getRefreshToken() ? '/' : '/auth/admin');
+      // No user means hydration couldn't reach the API; the stored session is kept for the next sign-in attempt.
+      if (!user || !getRefreshToken()) {
+        router.replace(adminLogin);
+        return;
+      }
+      router.replace(user.loginPortal === 'organizer' ? '/become-organizer' : '/');
     }
-  }, [isHydrating, isAuthenticated, hasAdminShellAccess, user?.loginPortal, router]);
+  }, [isHydrating, isAuthenticated, hasAdminShellAccess, user, router, adminLogin]);
 
   if (isHydrating || !isAuthenticated || !hasAdminShellAccess) {
     return (

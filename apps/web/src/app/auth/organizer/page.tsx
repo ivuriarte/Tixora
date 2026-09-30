@@ -8,6 +8,7 @@ import toast from 'react-hot-toast';
 import { SkeletonBlock } from '@/components/Skeleton';
 import api from '@/lib/api';
 import { setLoginPortal } from '@/lib/auth';
+import { safeRedirectPath } from '@/lib/safe-redirect';
 import { useAuthStore } from '@/store/auth.store';
 import LegalModal from '@/components/LegalModal';
 import { USER_TERMS, PRIVACY_POLICY } from '@/lib/legal';
@@ -41,11 +42,13 @@ function OrganizerSignInForm() {
   const otpRef = useRef<HTMLInputElement>(null);
   const emailRef = useRef<HTMLInputElement>(null);
 
-  const redirect = searchParams.get('redirect') ?? '/become-organizer';
-  const safeRedirect = redirect.startsWith('/') ? redirect : '/become-organizer';
+  const safeRedirect = safeRedirectPath(searchParams.get('redirect')) ?? '/become-organizer';
   const organizerDestination = useCallback(
-    (isOrganizer?: boolean) => (isOrganizer ? '/admin' : '/become-organizer'),
-    [],
+    (isOrganizer?: boolean) => {
+      if (!isOrganizer) return '/become-organizer';
+      return safeRedirect.startsWith('/admin') ? safeRedirect : '/admin';
+    },
+    [safeRedirect],
   );
 
   // Redirect already-authenticated non-admin users
