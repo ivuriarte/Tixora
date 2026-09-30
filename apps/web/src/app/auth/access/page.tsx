@@ -7,6 +7,7 @@ import axios from 'axios';
 import toast from 'react-hot-toast';
 import api from '@/lib/api';
 import { setLoginPortal } from '@/lib/auth';
+import { safeRedirectPath } from '@/lib/safe-redirect';
 import { useAuthStore } from '@/store/auth.store';
 import { useIsInAppBrowser } from '@/lib/useIsInAppBrowser';
 import { getOrCreateFunnelSessionId, trackInternalFunnelEvent } from '@/lib/funnel';
@@ -54,8 +55,7 @@ function AccessForm() {
   // Redirect already-authenticated users
   useEffect(() => {
     if (!isHydrating && isAuthenticated && user) {
-      const redirect = searchParams.get('redirect');
-      const dest = redirect && redirect.startsWith('/') ? redirect : user.isAdmin ? '/admin' : '/';
+      const dest = safeRedirectPath(searchParams.get('redirect')) ?? (user.isAdmin ? '/admin' : '/');
       router.replace(dest);
     }
   }, [isHydrating, isAuthenticated, user, router, searchParams]);
@@ -89,8 +89,7 @@ function AccessForm() {
 
   const redirectAfterAuth = useCallback(
     (isAdmin: boolean, isOrganizer = false) => {
-      const redirect = searchParams.get('redirect');
-      const dest = redirect && redirect.startsWith('/') ? redirect : isAdmin ? '/admin' : '/';
+      const dest = safeRedirectPath(searchParams.get('redirect')) ?? (isAdmin ? '/admin' : '/');
       router.replace(dest);
     },
     [searchParams, router],

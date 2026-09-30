@@ -5,9 +5,11 @@ import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
 import { Toaster } from 'react-hot-toast';
 import { getQueryClient } from '@/lib/query-client';
 import { useEffect, useRef } from 'react';
-import { useAuthStore } from '@/store/auth.store';
-import { getRefreshToken, setAccessToken, getLoginPortal } from '@/lib/auth';
+import { useAuthStore, type AuthUser } from '@/store/auth.store';
+import { getRefreshToken, getLoginPortal } from '@/lib/auth';
 import api from '@/lib/api';
+import axios from 'axios';
+import { SessionExpiredError, refreshSession } from '@/lib/session';
 
 function AuthHydrator({ children }: { children: React.ReactNode }) {
   const { setAuth, logout, setHydrating } = useAuthStore();
@@ -25,18 +27,27 @@ function AuthHydrator({ children }: { children: React.ReactNode }) {
 
     setHydrating(true);
 
-    api
-      .post<{ data: { accessToken: string; refreshToken: string } }>('/auth/refresh', { refreshToken })
-      .then((res) => {
-        const newAccessToken = res.data.data.accessToken;
-        const newRefreshToken = res.data.data.refreshToken;
-        setAccessToken(newAccessToken);
-        return api.get<{ data: any }>('/auth/me').then((me) => {
+    refreshSession()
+      .then(({ accessToken }) =>
+        api.get<{ data: Omit<AuthUser, 'loginPortal'> }>('/auth/me').then((me) => {
+          // Another tab may have rotated (or cleared) the refresh token while /auth/me was in flight,
+          // so store whatever is newest instead of the token this tab received.
+          const latestRefreshToken = getRefreshToken();
+          if (!latestRefreshToken) {
+            logout();
+            return;
+          }
           // Merge the persisted loginPortal so portal context survives page refresh
-          setAuth({ ...me.data.data, loginPortal: getLoginPortal() ?? undefined }, newAccessToken, newRefreshToken);
-        });
+          setAuth({ ...me.data.data, loginPortal: getLoginPortal() ?? undefined }, accessToken, latestRefreshToken);
+        }),
+      )
+      .catch((err) => {
+        // Only a rejected session signs out; outages and rate limits keep the stored session for a reload.
+        const rejected =
+          err instanceof SessionExpiredError ||
+          (axios.isAxiosError(err) && [401, 403, 404].includes(err.response?.status ?? 0));
+        if (rejected) logout();
       })
-      .catch(() => logout())
       .finally(() => setHydrating(false));
   }, [setAuth, logout, setHydrating]);
 
@@ -84,7 +95,7 @@ export default function Providers({ children }: { children: React.ReactNode }) {
             },
           }}
         />
-        {process.env.NODE_ENV === 'development' && <ReactQueryDevtools />}
+        {process.env.NEXT_PUBLIC_APP_ENV === 'development' && <ReactQueryDevtools />}
       </AuthHydrator>
     </QueryClientProvider>
   );

@@ -43,7 +43,7 @@
     "joi": "^17.13.8",
     "multer": "^2.3.0",
     "nestjs-pino": "^4.6.1",
-    "nodemailer": "^9.1.1",
+    "nodemailer": "^10.0.13",
     "passport": "^0.7.0",
     "passport-google-oauth20": "^2.0.0",
     "passport-jwt": "^4.0.1",

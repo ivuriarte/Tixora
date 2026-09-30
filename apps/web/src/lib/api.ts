@@ -1,8 +1,9 @@
 import axios, { AxiosError, InternalAxiosRequestConfig } from 'axios';
-import { getAccessToken, setAccessToken, clearAuth, getRefreshToken } from './auth';
+import { getAccessToken, clearAuth, getLoginPortal } from './auth';
+import { API_BASE_URL, SessionExpiredError, refreshSession, sessionExpiredLoginUrl } from './session';
 
 const api = axios.create({
-  baseURL: (process.env.NEXT_PUBLIC_API_URL || 'https://api.axontickets.online/api/v1'),
+  baseURL: API_BASE_URL,
   timeout: 30_000,
   // NOTE: do NOT set a global `Content-Type` header. Axios v1 sets it
   // automatically per request: `application/json` for plain objects,
@@ -19,8 +20,7 @@ api.interceptors.request.use((config: InternalAxiosRequestConfig) => {
   return config;
 });
 
-let refreshing = false;
-let refreshQueue: Array<(token: string | null) => void> = [];
+let redirectingToLogin = false;
 
 // Refresh on 401
 api.interceptors.response.use(
@@ -40,45 +40,23 @@ api.interceptors.response.use(
 
     original._retry = true;
 
-    if (refreshing) {
-      return new Promise((resolve, reject) => {
-        refreshQueue.push((newToken) => {
-          if (newToken) {
-            original.headers['Authorization'] = `Bearer ${newToken}`;
-            resolve(api(original));
-          } else {
-            reject(error);
-          }
-        });
-      });
-    }
-
-    refreshing = true;
-
     try {
-      const refreshToken = getRefreshToken();
-      if (!refreshToken) throw new Error('No refresh token');
-
-      const res = await axios.post<{ data: { accessToken: string } }>(
-        `${(process.env.NEXT_PUBLIC_API_URL || 'https://api.axontickets.online/api/v1')}/auth/refresh`,
-        { refreshToken },
-      );
-
-      const newToken = res.data.data.accessToken;
-      setAccessToken(newToken);
-      refreshQueue.forEach((cb) => cb(newToken));
-      refreshQueue = [];
-
-      original.headers['Authorization'] = `Bearer ${newToken}`;
+      // A request sent before a refresh finished can 401 late; retry it with the newer token instead of rotating again.
+      const sentToken = String(original.headers['Authorization'] ?? '').replace(/^Bearer /, '');
+      const currentToken = getAccessToken();
+      const accessToken =
+        currentToken && currentToken !== sentToken ? currentToken : (await refreshSession()).accessToken;
+      original.headers['Authorization'] = `Bearer ${accessToken}`;
       return api(original);
-    } catch {
-      refreshQueue.forEach((cb) => cb(null));
-      refreshQueue = [];
-      clearAuth();
-      if (typeof window !== 'undefined') window.location.href = '/auth/login';
+    } catch (refreshError) {
+      if (refreshError instanceof SessionExpiredError && typeof window !== 'undefined' && !redirectingToLogin) {
+        // Concurrent requests all fail together; a second navigation would reload the login page.
+        redirectingToLogin = true;
+        const portal = getLoginPortal();
+        clearAuth();
+        window.location.href = sessionExpiredLoginUrl(window.location.pathname, window.location.search, portal);
+      }
       return Promise.reject(error);
-    } finally {
-      refreshing = false;
     }
   },
 );
