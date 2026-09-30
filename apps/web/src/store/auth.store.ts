@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { setAccessToken, setRefreshToken, clearAuth, getRefreshToken } from '@/lib/auth';
 
-interface AuthUser {
+export interface AuthUser {
   id: string;
   email: string;
   firstName: string;

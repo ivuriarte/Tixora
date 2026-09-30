@@ -5,11 +5,11 @@ import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
 import { Toaster } from 'react-hot-toast';
 import { getQueryClient } from '@/lib/query-client';
 import { useEffect, useRef } from 'react';
-import { useAuthStore } from '@/store/auth.store';
+import { useAuthStore, type AuthUser } from '@/store/auth.store';
 import { getRefreshToken, getLoginPortal } from '@/lib/auth';
 import api from '@/lib/api';
 import axios from 'axios';
-import { refreshSession } from '@/lib/session';
+import { SessionExpiredError, refreshSession } from '@/lib/session';
 
 function AuthHydrator({ children }: { children: React.ReactNode }) {
   const { setAuth, logout, setHydrating } = useAuthStore();
@@ -28,16 +28,25 @@ function AuthHydrator({ children }: { children: React.ReactNode }) {
     setHydrating(true);
 
     refreshSession()
-      .then(({ accessToken, refreshToken: newRefreshToken }) =>
-        api.get<{ data: any }>('/auth/me').then((me) => {
+      .then(({ accessToken }) =>
+        api.get<{ data: Omit<AuthUser, 'loginPortal'> }>('/auth/me').then((me) => {
+          // Another tab may have rotated (or cleared) the refresh token while /auth/me was in flight,
+          // so store whatever is newest instead of the token this tab received.
+          const latestRefreshToken = getRefreshToken();
+          if (!latestRefreshToken) {
+            logout();
+            return;
+          }
           // Merge the persisted loginPortal so portal context survives page refresh
-          setAuth({ ...me.data.data, loginPortal: getLoginPortal() ?? undefined }, accessToken, newRefreshToken);
+          setAuth({ ...me.data.data, loginPortal: getLoginPortal() ?? undefined }, accessToken, latestRefreshToken);
         }),
       )
       .catch((err) => {
-        // Keep the stored session only when the server was unreachable, so a reload can recover it.
-        const unreachable = axios.isAxiosError(err) && !err.response;
-        if (!unreachable) logout();
+        // Only a rejected session signs out; outages and rate limits keep the stored session for a reload.
+        const rejected =
+          err instanceof SessionExpiredError ||
+          (axios.isAxiosError(err) && [401, 403, 404].includes(err.response?.status ?? 0));
+        if (rejected) logout();
       })
       .finally(() => setHydrating(false));
   }, [setAuth, logout, setHydrating]);

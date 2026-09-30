@@ -83,7 +83,8 @@ export function sessionExpiredLoginUrl(
     return pathname.startsWith('/auth/admin') ? '/auth/admin' : '/auth/login';
   }
   const redirect = encodeURIComponent(`${pathname}${search}`);
-  if (pathname.startsWith('/admin')) {
+  // Password sign-in doesn't record a portal; OTP sign-in records 'customer' (admins included) or 'organizer'.
+  if (pathname.startsWith('/admin') && portal !== 'customer') {
     return `${portal === 'organizer' ? '/auth/organizer' : '/auth/admin'}?redirect=${redirect}`;
   }
   return `/auth/login?redirect=${redirect}`;

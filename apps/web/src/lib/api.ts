@@ -41,7 +41,11 @@ api.interceptors.response.use(
     original._retry = true;
 
     try {
-      const { accessToken } = await refreshSession();
+      // A request sent before a refresh finished can 401 late; retry it with the newer token instead of rotating again.
+      const sentToken = String(original.headers['Authorization'] ?? '').replace(/^Bearer /, '');
+      const currentToken = getAccessToken();
+      const accessToken =
+        currentToken && currentToken !== sentToken ? currentToken : (await refreshSession()).accessToken;
       original.headers['Authorization'] = `Bearer ${accessToken}`;
       return api(original);
     } catch (refreshError) {

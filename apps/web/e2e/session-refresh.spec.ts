@@ -12,6 +12,19 @@ class FakeAuthServer {
   readonly validAccess = new Set<string>();
   refreshCalls = 0;
   rejectedRefreshCalls = 0;
+  unreachable = false;
+  private meGate: Promise<void> | null = null;
+  private openMeGate: (() => void) | null = null;
+
+  holdNextMe() {
+    this.meGate = new Promise((resolve) => {
+      this.openMeGate = resolve;
+    });
+  }
+
+  releaseMe() {
+    this.openMeGate?.();
+  }
 
   expireAccessTokens() {
     this.validAccess.clear();
@@ -38,6 +51,7 @@ class FakeAuthServer {
       const method = request.method();
 
       if (method === 'OPTIONS') return route.fallback();
+      if (this.unreachable) return route.abort('internetdisconnected');
 
       if (method === 'POST' && path === '/auth/refresh') {
         this.refreshCalls += 1;
@@ -71,6 +85,12 @@ class FakeAuthServer {
         });
       }
 
+      if (method === 'GET' && path === '/auth/me' && this.meGate) {
+        const gate = this.meGate;
+        this.meGate = null;
+        await gate;
+      }
+
       const auth = request.headers()['authorization'] ?? '';
       if (!this.validAccess.has(auth.replace(/^Bearer /, ''))) {
         return route.fulfill({
@@ -84,13 +104,17 @@ class FakeAuthServer {
   }
 }
 
-async function newAdminContext(browser: import('@playwright/test').Browser, baseURL: string, server: FakeAuthServer) {
+async function newAdminContext(
+  browser: import('@playwright/test').Browser,
+  baseURL: string,
+  server: FakeAuthServer,
+  portal?: 'customer' | 'organizer',
+) {
+  const localStorage = [{ name: 'axon_tickets_rt', value: 'seed-refresh-token' }];
+  if (portal) localStorage.push({ name: 'axon_tickets_portal', value: portal });
   const context = await browser.newContext({
     baseURL,
-    storageState: {
-      cookies: [],
-      origins: [{ origin: new URL(baseURL).origin, localStorage: [{ name: 'axon_tickets_rt', value: 'seed-refresh-token' }] }],
-    },
+    storageState: { cookies: [], origins: [{ origin: new URL(baseURL).origin, localStorage }] },
   });
   await server.install(context);
   return context;
@@ -153,6 +177,53 @@ test.describe('Admin session refresh', () => {
     await tabA.reload();
     await expectSignedIn(tabA);
     expect(server.rejectedRefreshCalls).toBe(0);
+    await context.close();
+  });
+
+  test('a tab finishing sign-in restore late does not overwrite a newer refresh token', async ({ browser }) => {
+    const server = new FakeAuthServer();
+    const context = await newAdminContext(browser, baseURL, server);
+    const tabA = await context.newPage();
+    server.holdNextMe();
+    const meRequested = tabA.waitForRequest((r) => r.url().includes('/auth/me'));
+    await tabA.goto('/admin/events/new');
+    await meRequested;
+
+    const tabB = await context.newPage();
+    await tabB.goto('/admin/events/new');
+    await expectSignedIn(tabB);
+
+    server.releaseMe();
+    await expectSignedIn(tabA);
+
+    server.expireAccessTokens();
+    await tabB.reload();
+    await expectSignedIn(tabB);
+    expect(server.rejectedRefreshCalls).toBe(0);
+    await context.close();
+  });
+
+  test('an admin who signed in with an email code returns to the email-code sign-in', async ({ browser }) => {
+    const server = new FakeAuthServer();
+    const context = await newAdminContext(browser, baseURL, server, 'customer');
+    const page = await context.newPage();
+    await page.goto('/admin/events/new');
+    await expectSignedIn(page);
+
+    server.revokeAll();
+    await page.getByRole('link', { name: 'Events', exact: true }).click();
+    await expect(page).toHaveURL(/\/auth\/access\?redirect=%2Fadmin%2Fevents$/);
+    await context.close();
+  });
+
+  test('keeps the stored session when the API is unreachable during page load', async ({ browser }) => {
+    const server = new FakeAuthServer();
+    server.unreachable = true;
+    const context = await newAdminContext(browser, baseURL, server);
+    const page = await context.newPage();
+    await page.goto('/admin/events/new');
+    await expect(page).toHaveURL(/\/auth\/admin\?redirect=%2Fadmin%2Fevents%2Fnew$/);
+    expect(await page.evaluate(() => localStorage.getItem('axon_tickets_rt'))).toBe('seed-refresh-token');
     await context.close();
   });
 
