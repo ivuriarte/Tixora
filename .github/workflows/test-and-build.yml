@@ -100,6 +100,7 @@ jobs:
           npx playwright test
           e2e/checkout-critical.spec.ts
           e2e/admin-flows.spec.ts
+          e2e/session-refresh.spec.ts
           --project=chromium
           --project=admin-mocked
 

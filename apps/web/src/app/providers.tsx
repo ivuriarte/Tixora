@@ -6,8 +6,10 @@ import { Toaster } from 'react-hot-toast';
 import { getQueryClient } from '@/lib/query-client';
 import { useEffect, useRef } from 'react';
 import { useAuthStore } from '@/store/auth.store';
-import { getRefreshToken, setAccessToken, getLoginPortal } from '@/lib/auth';
+import { getRefreshToken, getLoginPortal } from '@/lib/auth';
 import api from '@/lib/api';
+import axios from 'axios';
+import { refreshSession } from '@/lib/session';
 
 function AuthHydrator({ children }: { children: React.ReactNode }) {
   const { setAuth, logout, setHydrating } = useAuthStore();
@@ -25,18 +27,18 @@ function AuthHydrator({ children }: { children: React.ReactNode }) {
 
     setHydrating(true);
 
-    api
-      .post<{ data: { accessToken: string; refreshToken: string } }>('/auth/refresh', { refreshToken })
-      .then((res) => {
-        const newAccessToken = res.data.data.accessToken;
-        const newRefreshToken = res.data.data.refreshToken;
-        setAccessToken(newAccessToken);
-        return api.get<{ data: any }>('/auth/me').then((me) => {
+    refreshSession()
+      .then(({ accessToken, refreshToken: newRefreshToken }) =>
+        api.get<{ data: any }>('/auth/me').then((me) => {
           // Merge the persisted loginPortal so portal context survives page refresh
-          setAuth({ ...me.data.data, loginPortal: getLoginPortal() ?? undefined }, newAccessToken, newRefreshToken);
-        });
+          setAuth({ ...me.data.data, loginPortal: getLoginPortal() ?? undefined }, accessToken, newRefreshToken);
+        }),
+      )
+      .catch((err) => {
+        // Keep the stored session only when the server was unreachable, so a reload can recover it.
+        const unreachable = axios.isAxiosError(err) && !err.response;
+        if (!unreachable) logout();
       })
-      .catch(() => logout())
       .finally(() => setHydrating(false));
   }, [setAuth, logout, setHydrating]);
 

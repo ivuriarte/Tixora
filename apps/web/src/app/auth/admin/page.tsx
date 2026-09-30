@@ -7,6 +7,12 @@ import axios from 'axios';
 import { useAuthStore } from '@/store/auth.store';
 import api from '@/lib/api';
 import { SkeletonBlock } from '@/components/Skeleton';
+import { safeRedirectPath } from '@/lib/safe-redirect';
+
+function adminDestination(): string {
+  const requested = safeRedirectPath(new URLSearchParams(window.location.search).get('redirect'));
+  return requested?.startsWith('/admin') ? requested : '/admin';
+}
 
 export default function AdminAuthPage() {
   const router = useRouter();
@@ -23,7 +29,7 @@ export default function AdminAuthPage() {
   // If already authenticated as admin, go straight to /admin
   useEffect(() => {
     if (!isHydrating && isAuthenticated && user?.isAdmin) {
-      router.replace('/admin');
+      router.replace(adminDestination());
     }
   }, [isHydrating, isAuthenticated, user, router]);
 
@@ -64,7 +70,7 @@ export default function AdminAuthPage() {
       }
 
       setAuth(loggedInUser, accessToken, refreshToken);
-      router.replace('/admin');
+      router.replace(adminDestination());
     } catch (err: unknown) {
       if (axios.isAxiosError(err)) {
         const message = err.response?.data?.message;
