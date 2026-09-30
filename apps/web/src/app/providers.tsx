@@ -86,7 +86,7 @@ export default function Providers({ children }: { children: React.ReactNode }) {
             },
           }}
         />
-        {process.env.NODE_ENV === 'development' && <ReactQueryDevtools />}
+        {process.env.NEXT_PUBLIC_APP_ENV === 'development' && <ReactQueryDevtools />}
       </AuthHydrator>
     </QueryClientProvider>
   );
