@@ -138,6 +138,9 @@ export class SchedulerService {
       where: {
         status: 'pending_payment',
         createdAt: { gte: thirteenHoursAgo, lte: twelveHoursAgo },
+        // Guest holds are reminded by the second loop below, with a working resume link.
+        // This loop's link needs a login and would also take the once-only marker first.
+        OR: [{ userId: { not: null } }, { holdExpiresAt: null }],
       },
       take: 200,
       include: {
@@ -193,14 +196,20 @@ export class SchedulerService {
     for (const reg of guestHolds) {
       if (!reg.guestResumeEmail || !reg.holdExpiresAt) continue;
       if (!(await guestHold.claimReminder(reg.id))) continue;
-      const sent = await this.emailService.sendGuestHoldReminderEmail(reg.guestResumeEmail, {
-        eventTitle: reg.event.title,
-        referenceNumber: reg.referenceNumber,
-        resumeUrl:
-          `${webBase}/events/${reg.event.slug}/register/resume` +
-          `#t=${guestHold.signResumeToken(reg.id, reg.holdExpiresAt)}`,
-        holdExpiresAt: reg.holdExpiresAt,
-      });
+      let sent = false;
+      try {
+        sent = await this.emailService.sendGuestHoldReminderEmail(reg.guestResumeEmail, {
+          eventTitle: reg.event.title,
+          referenceNumber: reg.referenceNumber,
+          resumeUrl:
+            `${webBase}/events/${reg.event.slug}/register/resume` +
+            `#t=${guestHold.signResumeToken(reg.id, reg.holdExpiresAt)}`,
+          holdExpiresAt: reg.holdExpiresAt,
+        });
+      } catch (err: unknown) {
+        // For example missing key material: free the marker so a later run can retry.
+        this.logger.warn({ msg: 'Guest hold reminder could not be built', regId: reg.id, err: (err as Error).message });
+      }
       if (sent) {
         reminded++;
       } else {
@@ -512,6 +521,8 @@ export class SchedulerService {
           reason: item.reason,
           auditAction: 'REGISTRATION_AUTO_CANCELLED',
           inclusionMovement: 'expire',
+          // Re-checked under the row lock: a guest may have extended this hold since we read it.
+          onlyIfExpired: { now, legacyCutoff },
         });
         if (result.released) this.logger.log({ msg: 'Expired hold cancelled', id: item.id });
       } catch (err: unknown) {

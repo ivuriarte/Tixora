@@ -16,6 +16,11 @@ interface ReservationEndStateProps {
   slug: string;
   /** Shown as a second action when it makes sense (for example "Try again"). */
   onRetry?: () => void;
+  /**
+   * Adds a hidden page-level <h1> for screens that replace the whole page (the payment
+   * page returns early, before its own <h1>). Leave off where the page already has one.
+   */
+  pageHeading?: boolean;
 }
 
 const COPY: Record<ReservationEndVariant, { title: string; message: string }> = {
@@ -49,7 +54,7 @@ const COPY: Record<ReservationEndVariant, { title: string; message: string }> = 
  * (role="alert"). Focus moves to the screen when it appears so keyboard and screen reader
  * users land on it.
  */
-export default function ReservationEndState({ variant, slug, onRetry }: ReservationEndStateProps) {
+export default function ReservationEndState({ variant, slug, onRetry, pageHeading = false }: ReservationEndStateProps) {
   const router = useRouter();
   const ref = useRef<HTMLDivElement>(null);
   const { title, message } = COPY[variant];
@@ -86,6 +91,7 @@ export default function ReservationEndState({ variant, slug, onRetry }: Reservat
   const isCalm = variant === 'expired' || variant === 'cancelled';
   return (
     <div ref={ref} tabIndex={-1} className="outline-none" data-testid={`reservation-${variant}`}>
+      {pageHeading && <h1 className="sr-only">Your reservation</h1>}
       {isCalm ? (
         <EmptyState title={title} message={message} action={action} />
       ) : (

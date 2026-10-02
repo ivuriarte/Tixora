@@ -1,16 +1,25 @@
 import { RegistrationHoldService } from './registration-hold.service';
 
-type Row = { status: string; userId: string | null; tierId: string | null; attendeeCount: number } | null;
+type Row = {
+  status: string;
+  userId: string | null;
+  tierId: string | null;
+  attendeeCount: number;
+  holdExpiresAt?: Date | null;
+  createdAt?: Date;
+} | null;
 
 function makeService(opts: { row?: Row; proofs?: number; soldQuantity?: number | null } = {}) {
   const row: Row =
     opts.row === undefined
       ? { status: 'pending_payment', userId: null, tierId: 'tier-1', attendeeCount: 2 }
       : opts.row;
+  // Rows default to "no stored deadline, created long ago" unless a test says otherwise.
+  const filled = row && { holdExpiresAt: null, createdAt: new Date('2026-01-01T00:00:00.000Z'), ...row };
   const tx = {
     $queryRaw: jest.fn().mockResolvedValue([]),
     registration: {
-      findUnique: jest.fn().mockResolvedValue(row),
+      findUnique: jest.fn().mockResolvedValue(filled),
       update: jest.fn().mockResolvedValue({}),
     },
     paymentProof: { count: jest.fn().mockResolvedValue(opts.proofs ?? 0) },
@@ -169,5 +178,55 @@ describe('RegistrationHoldService.releasePendingHold', () => {
       { releaseSlot: jest.fn() } as never,
     );
     await expect(service.releasePendingHold('reg-1', options)).resolves.toEqual({ released: true });
+  });
+
+  describe('onlyIfExpired (the cleanup job re-checks under the lock)', () => {
+    const now = new Date('2026-10-02T10:00:00.000Z');
+    const legacyCutoff = new Date('2026-10-01T10:00:00.000Z');
+    const cleanup = { ...options, onlyIfExpired: { now, legacyCutoff } };
+    const row = (extra: Partial<NonNullable<Row>>) => ({
+      status: 'pending_payment',
+      userId: null,
+      tierId: 'tier-1',
+      attendeeCount: 1,
+      ...extra,
+    });
+
+    it('releases a guest hold whose deadline has passed', async () => {
+      const { service } = makeService({ row: row({ holdExpiresAt: new Date('2026-10-02T09:59:00.000Z') }) });
+      await expect(service.releasePendingHold('reg-1', cleanup)).resolves.toEqual({ released: true });
+    });
+
+    it('leaves a hold alone when the guest extended it after the cleanup read it', async () => {
+      const { service, tx, audit, guestHold } = makeService({
+        row: row({ holdExpiresAt: new Date('2026-10-03T10:00:00.000Z') }),
+      });
+      await expect(service.releasePendingHold('reg-1', cleanup)).resolves.toEqual({
+        released: false,
+        why: 'not_expired',
+      });
+      expect(tx.registration.update).not.toHaveBeenCalled();
+      expect(tx.ticketTier.update).not.toHaveBeenCalled();
+      expect(audit.logWith).not.toHaveBeenCalled();
+      expect(guestHold.releaseSlot).not.toHaveBeenCalled();
+    });
+
+    it('treats a hold that ends exactly now as not yet expired', async () => {
+      const { service } = makeService({ row: row({ holdExpiresAt: now }) });
+      await expect(service.releasePendingHold('reg-1', cleanup)).resolves.toMatchObject({ why: 'not_expired' });
+    });
+
+    it('releases a legacy row (no deadline) older than the cutoff, and keeps a younger one', async () => {
+      const old = makeService({ row: row({ holdExpiresAt: null, createdAt: new Date('2026-09-30T00:00:00.000Z') }) });
+      await expect(old.service.releasePendingHold('reg-1', cleanup)).resolves.toEqual({ released: true });
+
+      const young = makeService({ row: row({ holdExpiresAt: null, createdAt: new Date('2026-10-02T08:00:00.000Z') }) });
+      await expect(young.service.releasePendingHold('reg-1', cleanup)).resolves.toMatchObject({ why: 'not_expired' });
+    });
+
+    it('is ignored by people-driven releases, which do not pass it', async () => {
+      const { service } = makeService({ row: row({ holdExpiresAt: new Date('2026-10-03T10:00:00.000Z') }) });
+      await expect(service.releasePendingHold('reg-1', options)).resolves.toEqual({ released: true });
+    });
   });
 });

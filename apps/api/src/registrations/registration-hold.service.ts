@@ -21,11 +21,18 @@ export interface ReleaseHoldOptions {
   guestOnly?: boolean;
   /** Extra audit metadata. Never put emails, tokens or secrets here. */
   metadata?: Record<string, unknown>;
+  /**
+   * For the cleanup job only: release the hold only if it is STILL expired once the row is
+   * locked. A guest can extend a hold between the cleanup's read and its release; without
+   * this re-check the cleanup would cancel seats the guest was just promised for 24 hours.
+   * `holdExpiresAt` rows are judged by their deadline, rows without one by the legacy cutoff.
+   */
+  onlyIfExpired?: { now: Date; legacyCutoff: Date };
 }
 
 export type ReleaseHoldResult =
   | { released: true }
-  | { released: false; why: 'not_found' | 'not_pending' | 'has_proof' | 'not_guest' };
+  | { released: false; why: 'not_found' | 'not_pending' | 'has_proof' | 'not_guest' | 'not_expired' };
 
 /**
  * The one place that turns an unpaid `pending_payment` registration into `cancelled`
@@ -58,11 +65,25 @@ export class RegistrationHoldService {
       );
       const current = await tx.registration.findUnique({
         where: { id: registrationId },
-        select: { status: true, userId: true, tierId: true, attendeeCount: true },
+        select: {
+          status: true,
+          userId: true,
+          tierId: true,
+          attendeeCount: true,
+          holdExpiresAt: true,
+          createdAt: true,
+        },
       });
       if (!current) return { released: false, why: 'not_found' };
       if (current.status !== 'pending_payment') return { released: false, why: 'not_pending' };
       if (options.guestOnly && current.userId !== null) return { released: false, why: 'not_guest' };
+      if (options.onlyIfExpired) {
+        const { now, legacyCutoff } = options.onlyIfExpired;
+        const stillExpired = current.holdExpiresAt
+          ? current.holdExpiresAt.getTime() < now.getTime()
+          : current.createdAt.getTime() < legacyCutoff.getTime();
+        if (!stillExpired) return { released: false, why: 'not_expired' };
+      }
       const proofs = await tx.paymentProof.count({ where: { registrationId } });
       if (proofs > 0) return { released: false, why: 'has_proof' };
 

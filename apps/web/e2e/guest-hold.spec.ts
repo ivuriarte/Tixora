@@ -412,6 +412,7 @@ test.describe('Guest hold: cancel and expiry', () => {
   test('a reservation the server already cancelled shows the expired screen', async ({ page }) => {
     await openPayment(page, { status: 'cancelled' });
     await expect(page.getByRole('heading', { name: 'Your reservation expired' })).toBeVisible();
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText('Your reservation');
     await expect(page.getByText('Nothing was charged.')).toBeVisible();
     await page.getByRole('button', { name: 'Start again' }).click();
     await expect(page).toHaveURL(new RegExp(`/events/${EVENT_SLUG}$`));
@@ -505,6 +506,42 @@ test.describe('Guest hold: resume page', () => {
     await page.goto(`/events/${EVENT_SLUG}/register/resume#r=${REGISTRATION_ID}.${GUEST_TOKEN}`);
     await expect(page.getByRole('heading', { name: 'This link is no longer valid' })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Upload payment proof' })).toHaveCount(0);
+  });
+
+  test('the page always has one top-level heading, whatever state it is in', async ({ page }) => {
+    await installApi(page, { resume: 'notfound' });
+    await page.goto(`/events/${EVENT_SLUG}/register/resume#t=${EMAILED_TOKEN}`);
+    await expect(page.getByRole('heading', { name: 'This link is no longer valid' })).toBeVisible();
+    await expect(page.getByRole('heading', { level: 1 })).toHaveCount(1);
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText('Resuming your reservation');
+  });
+
+  test('the secret is gone from the address bar and the page in every failure state', async ({ page }) => {
+    await installApi(page, { resume: 'notfound' });
+    await page.goto(`/events/${EVENT_SLUG}/register/resume#t=${EMAILED_TOKEN}`);
+    await expect(page.getByRole('heading', { name: 'This link is no longer valid' })).toBeVisible();
+    expect(page.url()).not.toContain('#');
+    expect(await page.evaluate(() => (window as unknown as { __axonResumeFragment?: string }).__axonResumeFragment)).toBeUndefined();
+    expect(await page.evaluate(() => window.sessionStorage.getItem('axon_resume_fragment'))).toBeNull();
+
+    await page.goto(`/events/${EVENT_SLUG}/register/resume`);
+    await expect(page.getByRole('heading', { name: 'This link looks incomplete' })).toBeVisible();
+    expect(page.url()).not.toContain('#');
+
+  });
+
+  test('a reload after a temporary failure still retries with the same link', async ({ page }) => {
+    const mock = await installApi(page, { resume: 'error' });
+    await page.goto(`/events/${EVENT_SLUG}/register/resume#t=${EMAILED_TOKEN}`);
+    await expect(page.getByRole('heading', { name: "We couldn't open your reservation" })).toBeVisible();
+    expect(page.url()).not.toContain('#');
+
+    // The secret is already out of the address bar. A reload must not claim the link is broken.
+    mock.resume = 'ok';
+    await page.reload();
+    await expect(page).toHaveURL(new RegExp(`/register/payment/${REGISTRATION_ID}$`));
+    expect(mock.calls.resume.length).toBeGreaterThanOrEqual(2);
+    expect(await page.evaluate(() => window.sessionStorage.getItem('axon_resume_fragment'))).toBeNull();
   });
 
   test('an expired or unknown link gets the same plain "no longer valid" message', async ({ page }) => {

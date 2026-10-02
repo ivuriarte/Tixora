@@ -156,6 +156,27 @@ describe('SchedulerService — remindPendingRegistrations()', () => {
     expect(guestHold.releaseReminderClaim).toHaveBeenCalledWith('reg_g');
   });
 
+  it('leaves guest holds to the guest loop, so the useless login link never takes their once-only marker', async () => {
+    const { service, mockPrisma } = makeScheduler();
+    await service.remindPendingRegistrations();
+
+    const leadQuery = mockPrisma.registration.findMany.mock.calls[0][0];
+    expect(leadQuery.where.OR).toEqual([{ userId: { not: null } }, { holdExpiresAt: null }]);
+  });
+
+  it('frees the marker and carries on when a guest reminder link cannot be built', async () => {
+    const { service, guestHold, mockEmail } = makeScheduler({
+      guestHolds: [guestHoldReg('reg_a', 'a@example.com'), guestHoldReg('reg_b', 'b@example.com')],
+    });
+    guestHold.signResumeToken.mockImplementationOnce(() => {
+      throw new Error('no key material');
+    });
+
+    await expect(service.remindPendingRegistrations()).resolves.toEqual({ reminded: 1 });
+    expect(guestHold.releaseReminderClaim).toHaveBeenCalledWith('reg_a');
+    expect(mockEmail.sendGuestHoldReminderEmail).toHaveBeenCalledTimes(1);
+  });
+
   it('queries guest holds by their stored deadline window and requires a saved email', async () => {
     const { service, mockPrisma } = makeScheduler();
     await service.remindPendingRegistrations();
@@ -217,15 +238,18 @@ describe('SchedulerService — cleanupOrphanRegistrations()', () => {
     const { service, holds } = makeCleanup({ deadline: ['guest_1'], legacy: ['old_1'] });
     await service.cleanupOrphanRegistrations();
 
+    const expireCheck = { now: expect.any(Date), legacyCutoff: expect.any(Date) };
     expect(holds.releasePendingHold).toHaveBeenNthCalledWith(1, 'guest_1', {
       reason: 'Guest checkout hold expired',
       auditAction: 'REGISTRATION_AUTO_CANCELLED',
       inclusionMovement: 'expire',
+      onlyIfExpired: expireCheck,
     });
     expect(holds.releasePendingHold).toHaveBeenNthCalledWith(2, 'old_1', {
       reason: 'Registration abandoned',
       auditAction: 'REGISTRATION_AUTO_CANCELLED',
       inclusionMovement: 'expire',
+      onlyIfExpired: expireCheck,
     });
   });
 

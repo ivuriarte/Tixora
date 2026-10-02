@@ -46,6 +46,7 @@ async function bootstrap() {
       environment: process.env.APP_ENV ?? 'development',
       tracesSampleRate: process.env.APP_ENV === 'production' ? 0.1 : 1.0,
       beforeSend: scrubSentryEvent,
+      beforeSendTransaction: scrubSentryEvent,
     });
   }
 

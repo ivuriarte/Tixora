@@ -38,13 +38,15 @@ export default function PaymentStepPage() {
   const [holdExpiresAt, setHoldExpiresAt] = useState<string | null>(null);
   const [endState, setEndState] = useState<ReservationEndVariant | null>(null);
   const [renewed, setRenewed] = useState(false);
+  // True from the moment the on-screen timer hits zero until the server has answered.
+  const [checkingHold, setCheckingHold] = useState(false);
   const [showPayLater, setShowPayLater] = useState(false);
   const [cancelOpen, setCancelOpen] = useState(false);
   const [cancelBusy, setCancelBusy] = useState(false);
   const [cancelProblem, setCancelProblem] = useState<'network' | 'proof' | 'throttled' | null>(null);
 
   const loadReservation = useCallback(
-    async (guestToken: string | null) => {
+    async (guestToken: string | null, options: { quiet?: boolean } = {}) => {
       try {
         const res = guestToken
           ? await api.get(`/registrations/guest/${registrationId}`, {
@@ -66,6 +68,9 @@ export default function PaymentStepPage() {
           // Missing, expired-and-removed, or opened on another device: the API cannot tell
           // which, so use the last deadline this browser saw.
           setEndState(classifyMissingReservation(readRememberedDeadline(window.sessionStorage, registrationId)));
+        } else if (options.quiet) {
+          // A background re-check (the hold timer reached zero) must never replace the
+          // page with an error screen because of a momentary network problem.
         } else if (failure.status === 429) {
           setEndState('throttled');
         } else {
@@ -98,8 +103,10 @@ export default function PaymentStepPage() {
   // The banner reached zero. The server may keep the seats a few minutes longer, so ask it
   // before deciding: only show the expired screen once the reservation is really gone.
   const handleHoldExpired = useCallback(async () => {
-    const latest = await loadReservation(guestAccessToken);
+    setCheckingHold(true);
+    const latest = await loadReservation(guestAccessToken, { quiet: true });
     if (latest?.status === 'cancelled') setEndState('expired');
+    else if (latest) setCheckingHold(false);
   }, [guestAccessToken, loadReservation]);
 
   const goToUpload = useCallback(() => {
@@ -218,6 +225,7 @@ export default function PaymentStepPage() {
           <ReservationEndState
             variant={endState}
             slug={slug}
+            pageHeading
             onRetry={
               endState === 'throttled'
                 ? () => {
@@ -245,7 +253,7 @@ export default function PaymentStepPage() {
     return (
       <main className="min-h-screen bg-gray-50 py-10 flex items-center justify-center">
         <div className="w-full max-w-lg px-4">
-          <ReservationEndState variant="expired" slug={slug} />
+          <ReservationEndState variant="expired" slug={slug} pageHeading />
         </div>
       </main>
     );
@@ -320,6 +328,15 @@ export default function PaymentStepPage() {
 
         {guestAccessToken && reg.status === 'pending_payment' && (
           <HoldBanner deadlineIso={holdExpiresAt} onExpired={handleHoldExpired} renewed={renewed} />
+        )}
+        {guestAccessToken && reg.status === 'pending_payment' && checkingHold && (
+          <div className="mb-5 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900" role="status">
+            <p className="font-semibold">Checking your reservation…</p>
+            <p className="mt-1 text-xs text-amber-800">
+              The hold time on screen has ended. If your seats were released you will be asked to start
+              again; otherwise you can still upload your proof.
+            </p>
+          </div>
         )}
 
         {/* Amount due */}

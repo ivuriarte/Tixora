@@ -122,6 +122,23 @@ describe('GuestHoldService extended-hold cap', () => {
     expect(await service.acquireExtendedSlot('event-2', IP)).toBe(true);
   });
 
+  it('gives an extended-hold slot back, never below zero, and never throws', async () => {
+    const { service, redis } = makeGuestHold({ 'guestHold.extendedPerIp': 1 });
+    expect(await service.acquireExtendedSlot('event-1', IP)).toBe(true);
+    expect(await service.acquireExtendedSlot('event-1', IP)).toBe(false); // cap reached (counter is now 2)
+    await service.refundExtendedSlot('event-1', IP);
+    await service.refundExtendedSlot('event-1', IP);
+    await service.refundExtendedSlot('event-1', IP); // extra refunds must not go negative
+    for (const [key, value] of redis.store) {
+      if (key.startsWith('guest-ext:')) expect(Number(value)).toBeGreaterThanOrEqual(0);
+    }
+    expect(await service.acquireExtendedSlot('event-1', IP)).toBe(true);
+
+    redis.outage = true;
+    await expect(service.refundExtendedSlot('event-1', IP)).resolves.toBeUndefined();
+    await expect(service.refundExtendedSlot('event-1', undefined)).resolves.toBeUndefined();
+  });
+
   it('fails closed: no extension when Redis is down or the IP is unknown', async () => {
     const { service, redis } = makeGuestHold();
     expect(await service.acquireExtendedSlot('event-1', undefined)).toBe(false);

@@ -265,6 +265,33 @@ describe('saveGuestForLater', () => {
     expect(prisma.registration.updateMany).not.toHaveBeenCalled();
   });
 
+  it('gives the extended-hold slot back when the email fails, so provider outages cannot lock a guest out', async () => {
+    const { service, prisma, email, guest } = makeService({ 'guestHold.extendedPerIp': 1 });
+    unpaidGuestHold(prisma);
+    email.sendGuestResumeEmail.mockResolvedValueOnce(false);
+
+    await expect(service.saveGuestForLater(REG, TOKEN, 'guest@example.com', IP)).rejects.toBeInstanceOf(
+      ServiceUnavailableException,
+    );
+
+    // The only allowed extension was refunded, so the guest's next attempt can still extend.
+    guest.redis.store.delete(`resume-mail-cd:${REG}`); // the 60-second send cooldown has passed
+    unpaidGuestHold(prisma, { holdExpiresAt: new Date(NOW.getTime() + 55 * 60_000) });
+    const retry = await service.saveGuestForLater(REG, TOKEN, 'guest@example.com', IP);
+    expect(new Date(retry.holdExpiresAt).getTime()).toBeGreaterThan(NOW.getTime() + 23 * 3_600_000);
+  });
+
+  it('refuses to extend a hold whose deadline already passed and is only waiting for the next cleanup', async () => {
+    const { service, prisma, email } = makeService();
+    unpaidGuestHold(prisma, { holdExpiresAt: new Date(NOW.getTime() - 1_000) });
+
+    await expect(service.saveGuestForLater(REG, TOKEN, 'guest@example.com', IP)).rejects.toBeInstanceOf(
+      BadRequestException,
+    );
+    expect(email.sendGuestResumeEmail).not.toHaveBeenCalled();
+    expect(prisma.registration.updateMany).not.toHaveBeenCalled();
+  });
+
   it('on a resend, updates the address without consuming another extended slot or moving the deadline', async () => {
     const { service, prisma, guest } = makeService({ 'guestHold.extendedPerIp': 1 });
     unpaidGuestHold(prisma, {

@@ -2,7 +2,7 @@
 // This file is automatically loaded by Next.js on the client. No manual import needed.
 // See: https://nextjs.org/docs/app/api-reference/file-conventions/instrumentation-client
 import * as Sentry from '@sentry/nextjs';
-import { stripFragment } from './lib/guestHold';
+import { scrubBreadcrumbData, scrubRequestUrl } from './lib/scrubUrls';
 
 // ── Reservation links keep a secret in the URL fragment (#t=… or #r=…) ─────────────────
 // This file runs before any other client code, so on the resume page the fragment is
@@ -20,11 +20,6 @@ if (typeof window !== 'undefined' && RESUME_PATH.test(window.location.pathname) 
   window.history.replaceState(null, '', window.location.pathname + window.location.search);
 }
 
-function scrubUrl<T extends { url?: string } | undefined>(request: T): T {
-  if (request && typeof request.url === 'string') request.url = stripFragment(request.url);
-  return request;
-}
-
 const dsn = process.env.NEXT_PUBLIC_SENTRY_DSN;
 
 if (dsn) {
@@ -40,21 +35,15 @@ if (dsn) {
     enabled: process.env.NODE_ENV === 'production',
     // Defence in depth: no event, transaction or navigation breadcrumb may carry a fragment.
     beforeSend(event) {
-      scrubUrl(event.request);
+      scrubRequestUrl(event.request);
       return event;
     },
     beforeSendTransaction(event) {
-      scrubUrl(event.request);
+      scrubRequestUrl(event.request);
       return event;
     },
     beforeBreadcrumb(breadcrumb) {
-      const data = breadcrumb.data as Record<string, unknown> | undefined;
-      if (data) {
-        for (const key of ['from', 'to', 'url']) {
-          if (typeof data[key] === 'string') data[key] = stripFragment(data[key] as string);
-        }
-      }
-      return breadcrumb;
+      return scrubBreadcrumbData(breadcrumb);
     },
   });
 }

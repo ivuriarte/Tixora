@@ -146,6 +146,16 @@ export class GuestHoldService {
     }
   }
 
+  /** Give an extended-hold slot back (for example when the email could not be sent). Never throws. */
+  async refundExtendedSlot(eventId: string, ip: string | undefined): Promise<void> {
+    if (!ip) return;
+    try {
+      await this.redis.decrementIfPositive(`guest-ext:${eventId}:${this.keyed(ip)}`);
+    } catch (err: unknown) {
+      this.logger.warn({ msg: 'Could not refund extended guest hold slot', err: (err as Error).message });
+    }
+  }
+
   // ── Email limits (fail closed) ───────────────────────────────────────────
 
   /** True only when ALL limits allow a send. Redis trouble means no send. */

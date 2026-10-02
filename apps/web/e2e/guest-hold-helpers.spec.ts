@@ -16,6 +16,8 @@ import {
   rememberHold,
   stripFragment,
 } from '../src/lib/guestHold';
+import { scrubAnalyticsEvent, scrubBreadcrumbData, scrubRequestUrl } from '../src/lib/scrubUrls';
+import { isPixelExcludedPath } from '../src/lib/metaPixelRoutes';
 
 const REG = '3f2a1b9c-4d5e-4f60-8a7b-9c0d1e2f3a4b';
 const EMAILED = `v1.${REG}.1790000000.${'A'.repeat(43)}`;
@@ -159,5 +161,42 @@ test.describe('guest hold helpers', () => {
     });
     expect(readApiFailure(new Error('Network Error'))).toEqual({ status: null, code: null, message: null });
     expect(readApiFailure(undefined)).toEqual({ status: null, code: null, message: null });
+  });
+
+  test('every tracker scrubber removes a reservation secret from the URL fragment', () => {
+    const secretUrl = `https://axontickets.online/events/x/register/resume#t=${EMAILED}`;
+    const copiedUrl = `https://axontickets.online/events/x/register/resume#r=${REG}.${'x'.repeat(43)}`;
+
+    // Sentry events and transactions
+    expect(scrubRequestUrl({ url: secretUrl }).url).toBe('https://axontickets.online/events/x/register/resume');
+    expect(scrubRequestUrl({ url: copiedUrl }).url).toBe('https://axontickets.online/events/x/register/resume');
+    expect(scrubRequestUrl(undefined)).toBeUndefined();
+    expect(scrubRequestUrl({})).toEqual({});
+
+    // Sentry navigation and fetch breadcrumbs
+    const crumb = scrubBreadcrumbData({ data: { from: secretUrl, to: copiedUrl, url: secretUrl, status_code: 200 } });
+    expect(crumb.data).toEqual({
+      from: 'https://axontickets.online/events/x/register/resume',
+      to: 'https://axontickets.online/events/x/register/resume',
+      url: 'https://axontickets.online/events/x/register/resume',
+      status_code: 200,
+    });
+    expect(JSON.stringify(crumb)).not.toContain(EMAILED);
+    expect(scrubBreadcrumbData({})).toEqual({});
+
+    // Vercel Analytics and Speed Insights
+    const analytics = scrubAnalyticsEvent({ type: 'pageview', url: secretUrl });
+    expect(analytics).toEqual({ type: 'pageview', url: 'https://axontickets.online/events/x/register/resume' });
+  });
+
+  test('the Meta Pixel never tracks the resume page, but still tracks ordinary event pages', () => {
+    expect(isPixelExcludedPath('/events/glee-cabaret/register/resume')).toBe(true);
+    expect(isPixelExcludedPath('/events/glee-cabaret/register/resume/')).toBe(true);
+    expect(isPixelExcludedPath('/admin/orders')).toBe(true);
+    expect(isPixelExcludedPath('/registrations/abc')).toBe(true);
+    expect(isPixelExcludedPath('/events/glee-cabaret')).toBe(false);
+    expect(isPixelExcludedPath('/events/glee-cabaret/register')).toBe(false);
+    expect(isPixelExcludedPath('/events/glee-cabaret/register/payment/abc')).toBe(false);
+    expect(isPixelExcludedPath('/events/glee-cabaret/register/resumed')).toBe(false);
   });
 });

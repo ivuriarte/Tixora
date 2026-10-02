@@ -658,6 +658,10 @@ export class RegistrationsService {
     // Rows created before this release have no stored deadline: they follow the 24 h rule.
     const currentDeadline =
       registration.holdExpiresAt ?? new Date(registration.createdAt.getTime() + LEGACY_HOLD_MS);
+    // An already-ended hold waiting for the next cleanup run cannot be extended.
+    if (currentDeadline.getTime() <= Date.now()) {
+      throw new BadRequestException('This reservation is no longer on hold.');
+    }
 
     const allowed = await policy.allowResumeEmail({ registrationId: id, email, ip });
     if (!allowed) {
@@ -683,7 +687,9 @@ export class RegistrationsService {
       holdExpiresAt: nextDeadline,
     });
     if (!sent) {
-      // The hold is NOT extended when the email did not go out.
+      // The hold is NOT extended when the email did not go out, and the extended-hold slot
+      // taken for it is given back so two provider failures cannot lock the guest out.
+      if (extend) await policy.refundExtendedSlot(registration.eventId, ip);
       throw new ServiceUnavailableException(
         'We could not send the email right now. Your seats are still held for now.',
       );

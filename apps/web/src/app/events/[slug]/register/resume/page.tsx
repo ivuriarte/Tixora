@@ -15,6 +15,15 @@ import {
 
 type ResumeState = 'loading' | 'success' | 'retry' | 'invalid' | 'incomplete' | 'throttled';
 
+/** Remove the tab-scoped copy of the link secret once it will not be needed again. */
+function clearStoredFragment() {
+  try {
+    window.sessionStorage.removeItem('axon_resume_fragment');
+  } catch {
+    // Nothing to remove.
+  }
+}
+
 /**
  * Opened from the "finish your payment" email or a copied link. The secret lives in the
  * URL fragment; `instrumentation-client.ts` has already moved it out of the address bar
@@ -33,6 +42,7 @@ export default function ResumePage() {
     setState('loading');
     const parsed = fragment.current;
     if (!parsed || parsed.kind === 'none') {
+      clearStoredFragment();
       setState('incomplete');
       return;
     }
@@ -63,6 +73,7 @@ export default function ResumePage() {
           tierId = body.tierId ?? '';
           attendeeCount = body.attendeeCount ?? 1;
         } else if (body.status !== 'pending_payment') {
+          clearStoredFragment();
           setState('invalid');
           return;
         }
@@ -71,6 +82,7 @@ export default function ResumePage() {
         rememberDeadline(window.sessionStorage, registrationId, body.holdExpiresAt ?? null);
       }
 
+      clearStoredFragment();
       void trackInternalFunnelEvent({ step: 'hold_resumed', status: 'success' });
       setState('success');
       router.replace(
@@ -80,8 +92,12 @@ export default function ResumePage() {
       );
     } catch (error) {
       const failure = readApiFailure(error);
-      if (failure.status === 404) setState('invalid');
-      else if (failure.status === 429) setState('throttled');
+      // Only a clear 404 is final. A network problem or throttle keeps the stored secret so
+      // a reload can try again.
+      if (failure.status === 404) {
+        clearStoredFragment();
+        setState('invalid');
+      } else if (failure.status === 429) setState('throttled');
       else setState('retry');
     }
   }, [router, slug]);
@@ -100,13 +116,10 @@ export default function ResumePage() {
       }
       if (!raw) raw = window.location.hash;
 
-      // Remove every copy of the secret before doing anything else.
+      // Remove the in-memory copy and any visible fragment now. The tab-scoped sessionStorage
+      // copy stays until the link reaches a final answer, so a reload after a temporary
+      // failure can still retry (see clearStoredFragment).
       delete (window as unknown as { __axonResumeFragment?: string }).__axonResumeFragment;
-      try {
-        window.sessionStorage.removeItem('axon_resume_fragment');
-      } catch {
-        // Nothing to remove.
-      }
       if (window.location.hash) {
         window.history.replaceState(null, '', window.location.pathname + window.location.search);
       }
@@ -131,7 +144,13 @@ export default function ResumePage() {
 
   return (
     <main className="min-h-screen bg-gray-50 py-10">
-      <div className="mx-auto max-w-lg px-4" ref={headingRef} tabIndex={-1}>
+      <h1 className="sr-only">Resuming your reservation</h1>
+      <div
+        className="mx-auto max-w-lg px-4 outline-none"
+        ref={headingRef}
+        tabIndex={-1}
+        aria-label="Reservation status"
+      >
         {state === 'loading' && <ScreenSkeleton rows={3} compact />}
         {state === 'success' && (
           <div className="rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800" role="status">
