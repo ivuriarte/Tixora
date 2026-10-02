@@ -19,6 +19,8 @@ interface CapacityTiersStepProps {
   onRemoveTier: (key: number) => void;
   /** Persist a reordered tier list (optional; reorder UI hidden when omitted). */
   onReorderTiers?: (next: LocalTier[]) => void;
+  /** Reload the seat counts shown on saved tiers (the "Counts unavailable" Retry). */
+  onRetryCounts?: () => void;
 }
 
 const REQ = <span className="text-red-500 ml-0.5">*</span>;
@@ -32,6 +34,7 @@ export default function CapacityTiersStep({
   onEditTier,
   onRemoveTier,
   onReorderTiers,
+  onRetryCounts,
 }: CapacityTiersStepProps) {
   const [tierKey, setTierKey] = useState(0);
   const [showAdd, setShowAdd] = useState(true);
@@ -165,6 +168,7 @@ export default function CapacityTiersStep({
                               awaitingReview: tier.awaitingReviewQuantity,
                               held: tier.heldQuantity,
                             }}
+                            onRetry={onRetryCounts}
                           />
                         </div>
                       )}

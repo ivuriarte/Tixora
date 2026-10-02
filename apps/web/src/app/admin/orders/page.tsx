@@ -83,7 +83,7 @@ export default function AdminOrdersPage() {
     if (linkedStatus && ['all', 'paid', 'pending', 'failed', 'refunded', 'cancelled'].includes(linkedStatus)) {
       setStatusFilter(linkedStatus);
     }
-    if (linkedEvent) setEventId(linkedEvent);
+    if (linkedEvent && /^[A-Za-z0-9_-]{1,64}$/.test(linkedEvent)) setEventId(linkedEvent);
   }, []);
 
   const filtersApplied = !!statusFilter && !!eventId;

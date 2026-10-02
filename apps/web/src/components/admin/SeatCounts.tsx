@@ -12,6 +12,7 @@ export const SEAT_LEGEND = [
   { term: 'Sold', text: 'paid and approved.' },
   { term: 'Awaiting review', text: 'proof sent (or free registration), waiting for an admin.' },
   { term: 'Pending payment', text: 'seat held, no proof yet; released automatically after the hold.' },
+  { term: 'Sold out', text: 'every seat is reserved, including seats still awaiting review or payment.' },
 ];
 
 const isNumber = (n: unknown): n is number => typeof n === 'number' && Number.isFinite(n);
@@ -68,7 +69,7 @@ export default function SeatCounts({
 /** Always-visible explanation (no hover needed). */
 export function SeatLegend() {
   return (
-    <div className="mt-4 rounded-xl border border-gray-200 bg-white p-3 text-xs text-gray-600" aria-label="What the counts mean">
+    <div className="mt-4 rounded-xl border border-gray-200 bg-white p-3 text-xs text-gray-600">
       <p className="font-semibold text-gray-800">What the counts mean</p>
       <ul className="mt-1 space-y-0.5">
         {SEAT_LEGEND.map((l) => (

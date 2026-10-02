@@ -50,9 +50,12 @@ export default function RegistrationDetailPage() {
     try {
       const res = await api.get(`/registrations/${id}`);
       const body = res.data;
-      setReg(body?.data ?? body);
+      const next = (body?.data ?? body) as Registration;
+      setReg(next);
+      return next;
     } catch {
       setError('Registration not found.');
+      return null;
     } finally {
       setLoading(false);
     }
@@ -60,6 +63,22 @@ export default function RegistrationDetailPage() {
 
   useEffect(() => {
     void fetchReg();
+  }, [fetchReg]);
+
+  const [checkingHold, setCheckingHold] = useState(false);
+  // The on-screen timer can reach zero up to a second before the server's deadline, so ask
+  // again shortly after the deadline (the API releases a lapsed hold when it is read).
+  const recheckAfterDeadline = useCallback(async () => {
+    setCheckingHold(true);
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      const latest = await fetchReg();
+      if (!latest || latest.status !== 'pending_payment') break;
+      const deadline = latest.holdExpiresAt ? new Date(latest.holdExpiresAt).getTime() : 0;
+      const wait = Math.max(0, deadline - Date.now()) + 1000;
+      if (!deadline || wait > 15_000 || attempt === 2) break;
+      await new Promise((resolve) => setTimeout(resolve, wait));
+    }
+    setCheckingHold(false);
   }, [fetchReg]);
 
   // Check if the user's demographic profile is incomplete after reg loads
@@ -257,12 +276,17 @@ export default function RegistrationDetailPage() {
         </div>
 
         {/* Payment instructions */}
+        {reg.status === 'pending_payment' && checkingHold && (
+          <div className="mb-5 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900" role="status">
+            <p className="font-semibold">Checking your reservation…</p>
+          </div>
+        )}
         {reg.status === 'pending_payment' && (
           <HoldBanner
             deadlineIso={reg.holdExpiresAt}
             onExpired={() => {
               setHoldExpired(true);
-              void fetchReg();
+              void recheckAfterDeadline();
             }}
           />
         )}
