@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sold vs Held Wireframes</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap">
+<style>
+:root{--doc-bg:#faf8ff;--doc-fg:#1a0533;--doc-muted:#5f5177;--doc-line:#e4dcf4;--doc-panel:#fff;--doc-accent:#6d28d9;--doc-code:#f1ecfb;
+--p-primary:#7c3aed;--p-deep:#4c1d95;--p-ink:#1a0533;--p-muted:#5b4b7a;--p-canvas:#f5f0ff;--p-card:#fff;--p-line:#e4dcf4;--p-soft:#ede9fe;
+--ok-fg:#166534;--ok-bg:#f0fdf4;--ok-line:#bbf7d0;--warn-fg:#92400e;--warn-bg:#fffbeb;--warn-line:#fde68a;--err-fg:#b91c1c;--err-bg:#fef2f2;--err-line:#fecaca;
+--font:"Inter",ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;--mono:"JetBrains Mono",ui-monospace,Menlo,monospace}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--doc-bg:#120a1f;--doc-fg:#efe9fb;--doc-muted:#b3a6cc;--doc-line:#2e2345;--doc-panel:#1a1029;--doc-accent:#c4b5fd;--doc-code:#251838;color-scheme:dark}}
+*{box-sizing:border-box}body{margin:0;background:var(--doc-bg);color:var(--doc-fg);font-family:var(--font);font-size:15px;line-height:1.55}
+.wrap{max-width:1200px;margin:0 auto;padding:40px 20px 72px}h1,h2{margin:0;line-height:1.2;text-wrap:balance}h1{font-size:clamp(26px,4vw,36px);letter-spacing:-.02em}h2{font-size:21px}p{margin:0}
+code{font-family:var(--mono);font-size:.86em;background:var(--doc-code);padding:1px 5px;border-radius:4px}
+.eyebrow{font-size:12px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--doc-accent)}.lede{color:var(--doc-muted);max-width:72ch;font-size:16px}
+header.top{display:grid;gap:12px;padding-bottom:26px;border-bottom:1px solid var(--doc-line)}
+nav.toc{display:flex;flex-wrap:wrap;gap:8px}nav.toc a{font-size:13px;color:var(--doc-fg);text-decoration:none;border:1px solid var(--doc-line);background:var(--doc-panel);padding:6px 12px;border-radius:999px}
+a:focus-visible,button:focus-visible{outline:2px solid var(--doc-accent);outline-offset:2px}
+section.screen{padding-block:40px 6px;display:grid;gap:16px}.num{font-family:var(--mono);font-size:12px;color:var(--doc-accent)}
+.pair{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:20px;align-items:start}@media(max-width:1000px){.pair{grid-template-columns:minmax(0,1fr)}}
+.phones{display:grid;gap:12px;justify-items:start}.frame-label{font-size:12px;font-weight:600;color:var(--doc-muted);margin-bottom:8px}
+.notes{display:grid;gap:6px;font-size:14px;color:var(--doc-muted);max-width:84ch;padding-left:18px;margin:0}.notes b{color:var(--doc-fg)}
+.states{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px}
+.mock{background:var(--p-canvas);color:var(--p-ink);border:1px solid var(--doc-line);border-radius:14px;padding:16px;display:grid;gap:10px;font-size:14px}
+.mock.phone{width:300px;padding:12px;font-size:13px}
+.row{background:#fff;border:1px solid var(--p-line);border-radius:12px;padding:12px 14px;display:flex;justify-content:space-between;gap:10px;align-items:center;flex-wrap:wrap}
+.row .meta{display:grid;gap:2px}.row b{font-weight:600}.muted{color:var(--p-muted);font-size:12px}
+.counts{display:flex;gap:6px;flex-wrap:wrap;align-items:center;font-size:13px}
+.chip{border-radius:999px;padding:2px 10px;font-size:12px;font-weight:600;border:1px solid}
+.chip.sold{background:var(--ok-bg);border-color:var(--ok-line);color:var(--ok-fg)}.chip.review{background:#eff6ff;border-color:#bfdbfe;color:#1e40af}.chip.held{background:var(--warn-bg);border-color:var(--warn-line);color:var(--warn-fg)}
+a.link{color:var(--p-primary);font-weight:600;font-size:12px;text-decoration:underline}
+.card{background:#fff;border:1px solid var(--p-line);border-radius:16px;padding:14px;display:grid;gap:8px}
+.banner{border-radius:12px;padding:10px 12px;border:1px solid;display:grid;gap:2px}.banner.err{background:var(--err-bg);border-color:var(--err-line);color:var(--err-fg)}.banner.ok{background:var(--ok-bg);border-color:var(--ok-line);color:var(--ok-fg)}.banner.warn{background:var(--warn-bg);border-color:var(--warn-line);color:var(--warn-fg)}.banner.info{background:var(--p-soft);border-color:#ddd6fe;color:var(--p-deep)}
+.empty{background:#fff;border:1px dashed #d4d4d8;border-radius:16px;padding:16px;display:grid;gap:6px;text-align:center;justify-items:center}
+table.pdf{border-collapse:collapse;width:100%;font-size:12px;background:#fff}table.pdf th,table.pdf td{padding:6px 8px;border-bottom:1px solid var(--p-line);text-align:left}table.pdf th{background:var(--p-soft)}
+.skel{background:#f1f0f4;border-radius:8px;height:14px;animation:pulse 1.4s ease-in-out infinite}@keyframes pulse{50%{opacity:.5}}
+.tag{font-family:var(--mono);font-size:11px;background:var(--p-soft);color:var(--p-deep);border-radius:999px;padding:2px 8px;justify-self:start}
+.btn{min-height:44px;border-radius:999px;border:1px solid var(--p-primary);background:var(--p-primary);color:#fff;font:600 13px var(--font);padding:0 18px;display:inline-flex;align-items:center;justify-content:center}
+.btn.ghost{background:#fff;color:var(--p-primary)}
+</style>
+</head>
+<body><div class="wrap">
+<header class="top">
+  <span class="eyebrow">Wireframes · design gate</span>
+  <h1>Sold vs held: clearer counts for organizers</h1>
+  <p class="lede">Spec: <code>uniform-holds-and-sold-vs-held.md</code>. Desktop and phone for each admin or organizer surface, with default, loading, empty and error states where they apply. Mock screens use the product's light palette; the navbar and UAT banner stay on every screen. Dates always read <code>Sat, Oct 3, 2026 · 9:30 AM</code> in Philippine time. Held-seat numbers appear in admin and organizer views only, never on a public page.</p>
+  <nav class="toc" aria-label="Screens"><a href="#s1">1 · Dashboard and Events list</a><a href="#s2">2 · Tier cards and capacity rules</a><a href="#s3">3 · Closeout PDF</a><a href="#s4">4 · Logged-in hold banner</a></nav>
+</header>
+
+<section class="screen" id="s1">
+  <div><span class="num">SCREEN 1</span><h2>Dashboard "Recent events" and the Events list</h2></div>
+  <div class="pair">
+    <div>
+      <div class="frame-label">Desktop · four cases</div>
+      <div class="states">
+        <div class="mock"><span class="tag">mixed</span>
+          <div class="row"><div class="meta"><b>WAIT… this song was on glee: A Cabaret</b><span class="muted">Feb 5 – 7, 2027 · Bern's Theater</span></div>
+            <div class="counts"><span class="chip sold">5 sold</span><span class="chip review">2 awaiting approval</span><span class="chip held">7 unpaid holds</span><a class="link" href="#s1">View unpaid checkouts</a></div></div></div>
+        <div class="mock"><span class="tag">only unpaid holds (today's screenshot)</span>
+          <div class="row"><div class="meta"><b>WAIT… this song was on glee: A Cabaret</b><span class="muted">Feb 5 – 7, 2027</span></div>
+            <div class="counts"><span class="chip sold">0 sold</span><span class="chip held">7 unpaid holds</span><a class="link" href="#s1">View unpaid checkouts</a></div></div></div>
+        <div class="mock"><span class="tag">nothing yet</span>
+          <div class="row"><div class="meta"><b>New event</b><span class="muted">Mar 1, 2027</span></div><div class="counts"><span class="chip sold">0 sold</span></div></div></div>
+        <div class="mock"><span class="tag">loading / error</span>
+          <div class="row"><div class="skel" style="width:55%"></div><div class="skel" style="width:30%"></div></div>
+          <div class="banner err" role="alert"><b>Couldn't load the events.</b><span>Check your connection and refresh.</span></div></div>
+      </div>
+    </div>
+    <div class="phones">
+      <div><div class="frame-label">Phone · mixed (chips wrap under the title)</div>
+        <div class="mock phone"><div class="row" style="display:grid"><div class="meta"><b>WAIT… this song was on glee: A Cabaret</b><span class="muted">Feb 5 – 7, 2027</span></div>
+          <div class="counts"><span class="chip sold">5 sold</span><span class="chip review">2 awaiting approval</span><span class="chip held">7 unpaid holds</span></div><a class="link" href="#s1">View unpaid checkouts</a></div></div></div>
+      <div><div class="frame-label">Phone · only unpaid holds</div>
+        <div class="mock phone"><div class="row" style="display:grid"><div class="meta"><b>WAIT… this song was on glee</b></div>
+          <div class="counts"><span class="chip sold">0 sold</span><span class="chip held">7 unpaid holds</span></div></div></div></div>
+    </div>
+  </div>
+  <ul class="notes">
+    <li><b>Meaning, in words not colour:</b> every chip carries its label. <b>Sold</b> = approved registrations and valid tickets. <b>Awaiting approval</b> = proof uploaded, not yet approved. <b>Unpaid holds</b> = checkout started, no proof yet. Zero parts are left out; if everything is zero the row says "0 sold".</li>
+    <li>The chips are text, ≥ 4.5:1 contrast, and the row remains readable at 320 px by wrapping. "View unpaid checkouts" opens Transactions filtered to that event and status "pending" (existing filter).</li>
+    <li>Each chip has a title/long-press explanation (for example "Seats held by checkouts that have not uploaded payment proof yet. They are released automatically after about an hour.").</li>
+    <li>Public pages keep showing only "N slots left"; none of these numbers appear there.</li>
+  </ul>
+</section>
+
+<section class="screen" id="s2">
+  <div><span class="num">SCREEN 2</span><h2>Tier cards in the event editor, and the capacity rules</h2></div>
+  <div class="pair">
+    <div>
+      <div class="frame-label">Desktop</div>
+      <div class="states">
+        <div class="card"><span class="tag">tier card</span><b>February 7 – Balcony</b><span class="muted">Capacity 25 · ₱550</span>
+          <div class="counts"><span class="chip sold">3 sold</span><span class="chip review">1 awaiting approval</span><span class="chip held">2 unpaid holds</span></div>
+          <span class="muted">Available to the public: 19 (capacity minus all three).</span></div>
+        <div class="banner err" role="alert"><span class="tag">capacity cut below reserved</span><b>You can't go below 6.</b><span>3 sold, 1 awaiting approval, 2 unpaid holds. Release the unpaid holds or wait for them to expire, then try again.</span></div>
+        <div class="banner err" role="alert"><span class="tag">delete a tier with reservations</span><b>This tier can't be deleted yet.</b><span>It has 3 sold, 1 awaiting approval and 2 unpaid holds.</span></div>
+      </div>
+    </div>
+    <div class="phones"><div><div class="frame-label">Phone</div>
+      <div class="mock phone"><div class="card"><b>February 7 – Balcony</b><span class="muted">Capacity 25 · ₱550</span><div class="counts"><span class="chip sold">3 sold</span><span class="chip review">1 awaiting approval</span><span class="chip held">2 unpaid holds</span></div></div>
+        <div class="banner err" role="alert"><b>You can't go below 6.</b><span>3 sold, 1 awaiting approval, 2 unpaid holds.</span></div></div></div></div>
+  </div>
+  <ul class="notes"><li>The two protections are unchanged (capacity cannot drop below reserved; a tier with reservations cannot be deleted). Only the wording becomes specific. The error uses <code>role="alert"</code>.</li></ul>
+</section>
+
+<section class="screen" id="s3">
+  <div><span class="num">SCREEN 3</span><h2>Closeout report (PDF) tier table</h2></div>
+  <div class="pair">
+    <div><div class="frame-label">Desktop (the PDF is a fixed A4 page)</div>
+      <div class="mock"><table class="pdf"><tr><th>Tier</th><th>Sold (confirmed)</th><th>Awaiting review</th><th>Unpaid holds</th><th>Capacity</th><th>Price</th><th>Revenue</th></tr>
+        <tr><td>February 7 – Balcony</td><td>3</td><td>1</td><td>2</td><td>25</td><td>₱550</td><td>₱1,650</td></tr>
+        <tr><td>February 7 – VIP</td><td>1</td><td>0</td><td>1</td><td>21</td><td>₱1,050</td><td>₱1,050</td></tr></table>
+        <p class="muted">Sold = approved registrations and valid tickets. Awaiting review = proof uploaded, not yet approved. Unpaid holds = checkout started without proof; released automatically.</p></div></div>
+    <div class="phones"><div><div class="frame-label">Phone / empty</div><div class="mock phone"><div class="empty"><b>No tiers yet</b><span class="muted">Add a ticket tier to see sales here.</span></div></div></div></div>
+  </div>
+  <ul class="notes"><li>The PDF is generated on the server and downloaded, so there is no phone layout of the document itself; the download action uses the existing button. The "Sold" column no longer includes holds. Revenue stays confirmed-only.</li></ul>
+</section>
+
+<section class="screen" id="s4">
+  <div><span class="num">SCREEN 4</span><h2>Logged-in customer: same hold banner and expired screen as guests</h2></div>
+  <div class="pair">
+    <div><div class="frame-label">Desktop</div>
+      <div class="states">
+        <div class="banner warn" role="status"><span class="tag">payment page / registration page</span><b>Upload your proof within 42:10</b><span class="muted">After that your seats are released. Seats are held until Sat, Oct 3, 2026 · 9:30 AM.</span></div>
+        <div class="empty"><span class="tag">after expiry</span><b>Your reservation expired</b><span class="muted">Seats are only held for a short time while payment is pending. Nothing was charged. Start again to pick your seats.</span><button class="btn">Start again</button></div>
+        <div class="banner info"><span class="tag">no deadline (older registration)</span><b>No banner is shown</b><span class="muted">Registrations created before this release keep the old rules and expire on their own.</span></div>
+      </div></div>
+    <div class="phones"><div><div class="frame-label">Phone</div><div class="mock phone"><div class="banner warn" role="status"><b>Upload your proof within 42:10</b><span class="muted">After that your seats are released.</span></div><div class="empty"><b>Your reservation expired</b><button class="btn">Start again</button></div></div></div></div>
+  </div>
+  <ul class="notes"><li>These reuse the guest components (banner, countdown with screen-reader-safe digits, expired screen) with no new design. Their copy, focus handling and date format are already approved.</li></ul>
+</section>
+</div></body></html>
