@@ -31,4 +31,9 @@
 
 - Known UAT-only window (release gate): Vercel can deploy the UAT API before `migrate-db` finishes; until it does, registration queries fail with "column does not exist". Production is protected (`migrate-prod` runs before `deploy-api`). Recovery: wait for `migrate-db`, re-run the failed job.
 - Follow-up (not in this feature): add the Slack failure hook to `.github/workflows/cron.yml`; with 60-minute holds a silently failing cleanup matters more.
-- RLS evidence so far: production `relrowsecurity = true`, `anon` has the default table SELECT grant. Policies on `registrations` are NOT yet listed on production, and UAT is unchecked.
+- **RLS evidence, PRODUCTION (read-only checks run by Ian in the Supabase SQL Editor, 2026-10-02) — PASS:**
+  - Check A (policies on `registrations`): no rows returned, so no policy exposes any row to `anon`, `public` or `authenticated`.
+  - Check B: `relrowsecurity = true`, `relforcerowsecurity = false` (RLS on; the table owner and service roles bypass it, which is how the API connects).
+  - Check C: `anon` has the default `SELECT` grant on `guest_email` (`true`), harmless because RLS is on with no policy.
+  - Check D (`pending_payment` rows that already have a payment proof): `0`, so the shared release helper's "no proof" re-check changes nothing for early-bird cancels.
+  - Database gate condition B is therefore MET for production. UAT checks A to D are still to be run and filed before the UAT migration.
