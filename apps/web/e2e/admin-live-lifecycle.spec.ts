@@ -18,7 +18,7 @@ test.describe('Admin/Super Admin live UAT lifecycle', () => {
   test.skip(!HAS_ADMIN_CREDENTIALS, 'The isolated UAT admin identity is not configured.');
   test.skip(IS_ADMIN_MOCKED, 'This suite exercises the real isolated UAT database.');
 
-  test('@critical creates, publishes, registers, verifies, capacity-blocks, and removes an isolated event', async ({ request }) => {
+  test('@critical creates, publishes, registers, verifies, capacity-blocks, and protects an isolated event', async ({ request }) => {
     test.setTimeout(90_000);
     const login = await request.post(`${API_URL}/api/v1/auth/login`, {
       data: { email: ADMIN_EMAIL, password: ADMIN_PASSWORD },
@@ -29,6 +29,7 @@ test.describe('Admin/Super Admin live UAT lifecycle', () => {
     const headers = { Authorization: `Bearer ${loginBody.accessToken}` };
 
     let eventId: string | null = null;
+    let hasRegistration = false;
     try {
       const nonce = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
       const created = await request.post(`${API_URL}/api/v1/admin/events`, {
@@ -82,6 +83,7 @@ test.describe('Admin/Super Admin live UAT lifecycle', () => {
         data: attendee,
       });
       expect(registered.status()).toBe(201);
+      hasRegistration = true;
       const registration = unwrap<{
         created: boolean;
         attendee: { email: string | null };
@@ -114,8 +116,61 @@ test.describe('Admin/Super Admin live UAT lifecycle', () => {
     } finally {
       if (eventId) {
         const removed = await request.delete(`${API_URL}/api/v1/admin/events/${eventId}`, { headers });
-        expect(removed.status()).toBe(200);
+        if (hasRegistration) {
+          // Events with registrations are protected: deleting is refused and the attendee is kept.
+          expect(removed.status()).toBe(409);
+          expect(await removed.text()).toContain("can't be deleted. Cancel it instead.");
+          const roster = await request.get(`${API_URL}/api/v1/admin/events/${eventId}/attendees?limit=50`, { headers });
+          expect(roster.status()).toBe(200);
+          expect(unwrap<{ meta: { total: number } }>(await roster.json()).meta.total).toBe(1);
+          // Cancel the fixture so it never stays on sale.
+          const cancelled = await request.put(`${API_URL}/api/v1/admin/events/${eventId}`, {
+            headers,
+            data: { status: 'cancelled' },
+          });
+          expect(cancelled.status()).toBe(200);
+        } else {
+          expect(removed.status()).toBe(200);
+        }
       }
     }
+  });
+
+  test('@critical deletes an unpublished draft that has no registrations', async ({ request }) => {
+    const login = await request.post(`${API_URL}/api/v1/auth/login`, {
+      data: { email: ADMIN_EMAIL, password: ADMIN_PASSWORD },
+    });
+    expect(login.status()).toBe(200);
+    const headers = {
+      Authorization: `Bearer ${unwrap<{ accessToken: string }>(await login.json()).accessToken}`,
+    };
+
+    const nonce = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    const created = await request.post(`${API_URL}/api/v1/admin/events`, {
+      headers,
+      data: {
+        title: `PW UAT Draft ${nonce}`,
+        description: 'Automated UAT draft fixture. Safe to delete.',
+        venue: 'Axon Automated QA Venue',
+        city: 'Davao City',
+        startsAt: '2035-08-12T09:00:00+08:00',
+        endsAt: '2035-08-12T17:00:00+08:00',
+        maxCapacity: 10,
+        isFree: true,
+      },
+    });
+    expect(created.status()).toBe(201);
+    const eventId = unwrap<{ id: string }>(await created.json()).id;
+
+    const tier = await request.post(`${API_URL}/api/v1/admin/events/${eventId}/tiers`, {
+      headers,
+      data: { name: 'QA Draft Admission', price: 0, totalQuantity: 10, maxPerOrder: 1, isVisible: true },
+    });
+    expect(tier.status()).toBe(201);
+
+    const removed = await request.delete(`${API_URL}/api/v1/admin/events/${eventId}`, { headers });
+    expect(removed.status()).toBe(200);
+    const gone = await request.get(`${API_URL}/api/v1/admin/events/${eventId}`, { headers });
+    expect(gone.status()).toBe(404);
   });
 });
