@@ -41,6 +41,8 @@ export interface WizardShellProps {
   requireCompleteToSubmit?: boolean;
   /** steps with unsaved changes, marked "Edited" in the stepper */
   editedSteps?: ReadonlySet<StepId>;
+  /** called whenever the visible step changes */
+  onStepChange?: (step: StepId) => void;
 }
 
 export default function WizardShell({
@@ -60,6 +62,7 @@ export default function WizardShell({
   submitOnEveryStep = false,
   requireCompleteToSubmit = true,
   editedSteps,
+  onStepChange,
 }: WizardShellProps) {
   const [step, setStep] = useState<StepId>('basics');
   const [visited, setVisited] = useState<ReadonlySet<StepId>>(new Set());
@@ -96,6 +99,7 @@ export default function WizardShell({
   function goTo(target: StepId) {
     setVisited((prev) => new Set(prev).add(safeStep));
     setStep(target);
+    onStepChange?.(target);
     setBlockedSubmit(false);
     if (typeof window !== 'undefined') window.scrollTo({ top: 0, behavior: 'smooth' });
   }
@@ -116,6 +120,7 @@ export default function WizardShell({
       if (firstBlocked) {
         setVisited((prev) => new Set(prev).add(safeStep));
         setStep(firstBlocked.id);
+        onStepChange?.(firstBlocked.id);
         setBlockedSubmit(true);
         if (typeof window !== 'undefined') window.scrollTo({ top: 0, behavior: 'smooth' });
         return;
@@ -135,7 +140,7 @@ export default function WizardShell({
           : 'border border-[#d3c8e8] text-[#4f416c] hover:border-primary hover:text-primary'
       }`}
     >
-      {submitting ? 'Saving…' : submitLabel}
+      {submitLabel}
     </button>
   );
 

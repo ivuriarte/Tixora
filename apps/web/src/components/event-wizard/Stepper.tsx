@@ -34,7 +34,7 @@ function chipState(step: StepMeta, props: StepperProps): ChipState {
 
 function chipLabel(state: ChipState, reviewIssueCount: number, step: StepMeta, props: StepperProps): string {
   if (state === 'current') return 'Current';
-  if (state === 'edited') return 'Edited';
+  if (state === 'edited') return props.statuses[step.id] === 'needs_info' ? 'Edited · needs info' : 'Edited';
   if (state === 'review') {
     return reviewIssueCount === 0 ? 'Ready' : `${reviewIssueCount} ${reviewIssueCount === 1 ? 'item' : 'items'} left`;
   }

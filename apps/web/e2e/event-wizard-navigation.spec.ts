@@ -83,9 +83,42 @@ test.describe('Event setup: editing an existing event', () => {
 
     const put = page.waitForRequest((r) => EVENT_URL.test(r.url()) && r.method() === 'PUT');
     await page.getByRole('button', { name: 'Save changes' }).click();
-    expect((await put).postDataJSON()).toMatchObject({ title: 'QA Event 2030 (late show)', status: 'on_sale' });
+    const body = (await put).postDataJSON();
+    expect(body).toMatchObject({ title: 'QA Event 2030 (late show)' });
+    expect(body).not.toHaveProperty('status');
     await expect(page.getByText('All changes saved')).toBeVisible();
     await expect(page.getByRole('button', { name: 'Basics: Done' })).toBeVisible();
+    await page.context().close();
+  });
+
+  test('an event that already completed can still be corrected and saved', async ({ browser }) => {
+    const page = await adminPage(browser);
+    await serveEvent(page, { status: 'completed', imageUrl: '/og-image.png' });
+    await page.goto('/admin/events/event-qa');
+    await page.getByPlaceholder(/my awesome concert/i).fill('QA Event 2030 (typo fixed)');
+    const put = page.waitForRequest((r) => EVENT_URL.test(r.url()) && r.method() === 'PUT');
+    await page.getByRole('button', { name: 'Save changes' }).click();
+    const body = (await put).postDataJSON();
+    expect(body).toMatchObject({ title: 'QA Event 2030 (typo fixed)' });
+    expect(body).not.toHaveProperty('status');
+    await expect(page.getByText('All changes saved')).toBeVisible();
+    await page.context().close();
+  });
+
+  test('the on-site registration switch turns back when the save fails', async ({ browser }) => {
+    const page = await adminPage(browser);
+    await serveEvent(page, { imageUrl: '/og-image.png' });
+    await page.route(EVENT_URL, (route) =>
+      route.request().method() === 'PUT'
+        ? route.fulfill({ status: 500, contentType: 'application/json', body: JSON.stringify({ success: false, statusCode: 500, message: 'Internal server error' }) })
+        : route.fallback(),
+    );
+    await page.goto('/admin/events/event-qa');
+    const enabled = page.getByLabel('Enabled');
+    await expect(enabled).toBeChecked();
+    await enabled.uncheck();
+    await expect(page.getByText('On-site registration could not be changed. Please try again.')).toBeVisible();
+    await expect(enabled).toBeChecked();
     await page.context().close();
   });
 

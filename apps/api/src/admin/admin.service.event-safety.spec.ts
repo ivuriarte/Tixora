@@ -16,9 +16,11 @@ function build(overrides: { prisma?: Record<string, unknown> } = {}) {
     },
     reservation: { deleteMany: jest.fn().mockReturnValue('reservation-delete-op') },
     checkoutQuote: { deleteMany: jest.fn().mockReturnValue('quote-delete-op') },
+    inclusionInventoryMovement: { deleteMany: jest.fn().mockReturnValue('movement-delete-op') },
+    auditLog: { create: jest.fn().mockReturnValue('audit-create-op') },
     platformConfig: { findUnique: jest.fn().mockResolvedValue({ value: '75' }) },
     organizationMember: { findFirst: jest.fn().mockResolvedValue({ organizationId: 'org-1' }) },
-    $transaction: jest.fn().mockResolvedValue([{ count: 0 }, { count: 0 }, { id: 'event-1' }]),
+    $transaction: jest.fn().mockResolvedValue([{ count: 0 }, { count: 0 }, { count: 0 }, { id: 'event-1' }, { id: 'audit-1' }]),
     ...overrides.prisma,
   };
   const eventAccess = { assertEventMutationAccess: jest.fn().mockResolvedValue(undefined) };
@@ -63,6 +65,14 @@ describe('AdminService event safety', () => {
       expect(eventsService.update.mock.calls[0][1]).toEqual({ title: 'Show' });
     });
 
+    it('falls back to ₱50 when the stored platform fee setting is not a valid number', async () => {
+      const { service, eventsService, prisma } = build();
+      prisma.event.findUnique.mockResolvedValue({ isFree: true });
+      prisma.platformConfig.findUnique.mockResolvedValue({ value: 'fifty' });
+      await service.updateEvent('event-1', { isFree: false } as any, organizer);
+      expect(eventsService.update.mock.calls[0][1]).toEqual({ isFree: false, platformFee: 50 });
+    });
+
     it('applies the platform fee when an organizer switches a free event to paid', async () => {
       const { service, eventsService, prisma } = build();
       prisma.event.findUnique.mockResolvedValue({ isFree: true });
@@ -99,14 +109,26 @@ describe('AdminService event safety', () => {
   });
 
   describe('deleteEvent', () => {
-    it('deletes holds, unclaimed quotes and the event in one transaction, never registrations or orders', async () => {
+    it('deletes holds, unclaimed quotes, stock history, the event and its audit row in one transaction', async () => {
       const { service, prisma, audit } = build();
       await expect(service.deleteEvent('event-1', organizer)).resolves.toEqual({ id: 'event-1' });
-      expect(prisma.$transaction).toHaveBeenCalledWith(['reservation-delete-op', 'quote-delete-op', 'event-delete-op']);
+      expect(prisma.$transaction).toHaveBeenCalledWith([
+        'reservation-delete-op',
+        'quote-delete-op',
+        'movement-delete-op',
+        'event-delete-op',
+        'audit-create-op',
+      ]);
       expect(prisma.checkoutQuote.deleteMany).toHaveBeenCalledWith({ where: { eventId: 'event-1', registrationId: null } });
+      expect(prisma.inclusionInventoryMovement.deleteMany).toHaveBeenCalledWith({
+        where: { variant: { inclusion: { eventId: 'event-1' } } },
+      });
+      expect(prisma.auditLog.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({ action: 'EVENT_DELETED', entityId: 'event-1', performedById: 'organizer-user', metadata: { title: 'Midnight Matinee' } }),
+      });
       expect(prisma.registration).toBeUndefined();
       expect(prisma.order).toBeUndefined();
-      expect(audit.log).toHaveBeenCalledWith(expect.objectContaining({ action: 'EVENT_DELETED', metadata: { title: 'Midnight Matinee' } }));
+      expect(audit.log).not.toHaveBeenCalled();
     });
 
     it('returns 409 and writes no audit row when registrations or orders block the delete', async () => {

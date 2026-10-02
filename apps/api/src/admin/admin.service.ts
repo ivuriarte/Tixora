@@ -256,7 +256,8 @@ export class AdminService {
 
   private async defaultServiceFee(): Promise<number> {
     const config = await this.prisma.platformConfig.findUnique({ where: { key: 'service_fee' } });
-    return config ? Number(config.value) : 50;
+    const fee = config ? Number(config.value) : NaN;
+    return Number.isFinite(fee) && fee >= 0 ? fee : 50;
   }
 
   private async getApprovedEventManagerOrganizationId(userId: string): Promise<string> {
@@ -497,13 +498,24 @@ export class AdminService {
 
     // Registrations and orders are never deleted here: their foreign keys (ON DELETE RESTRICT)
     // make Postgres refuse the event delete, which protects attendee and payment records.
-    // Reservations (temporary holds) and unclaimed checkout quotes would also block it, so they go first.
+    // Reservations (temporary holds), unclaimed checkout quotes, and inclusion stock history
+    // would also block it, so they go first. The audit row commits with the delete or not at all.
     let deleted;
     try {
-      [, , deleted] = await this.prisma.$transaction([
+      [, , , deleted] = await this.prisma.$transaction([
         this.prisma.reservation.deleteMany({ where: { eventId: id } }),
         this.prisma.checkoutQuote.deleteMany({ where: { eventId: id, registrationId: null } }),
+        this.prisma.inclusionInventoryMovement.deleteMany({ where: { variant: { inclusion: { eventId: id } } } }),
         this.prisma.event.delete({ where: { id } }),
+        this.prisma.auditLog.create({
+          data: {
+            action: 'EVENT_DELETED',
+            entityType: 'Event',
+            entityId: id,
+            performedById: user.sub,
+            metadata: { title: event.title },
+          },
+        }),
       ]);
     } catch (error) {
       // Caught outside the transaction: Postgres aborts it on a foreign-key violation.
@@ -512,14 +524,6 @@ export class AdminService {
       }
       throw error;
     }
-
-    await this.audit.log({
-      action: 'EVENT_DELETED',
-      entityType: 'Event',
-      entityId: id,
-      performedById: user.sub,
-      metadata: { title: event.title },
-    });
     return deleted;
   }
 

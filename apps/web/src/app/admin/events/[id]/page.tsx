@@ -407,25 +407,28 @@ export default function AdminEventEditPage() {
   }, [changedFields, paymentMethodsChanged]);
 
   // Keep unsaved edits in this browser so a closed tab or ended session loses nothing.
+  // Written on every change (small, synchronous) so nothing is lost when the page unmounts.
   useEffect(() => {
-    if (!event || !backupReady || restoreOffer) return;
-    if (!isDirty) {
+    if (!event || !backupReady || !canManageEvent) return;
+    if (!isDirty && !restoreOffer) {
       clearBackup(event.id);
       return;
     }
+    if (!isDirty) return;
     const current = editableFields(draft);
-    const timer = setTimeout(() => {
-      writeBackup(event.id, {
-        changes: Object.fromEntries(changedFields.map((field) => [field, current[field]])) as Partial<DraftFields>,
-        ...(paymentMethodsChanged && {
-          paymentMethods: paymentMethods.map(({ key: _key, qrFile: _file, ...rest }) => rest),
-        }),
-        baseUpdatedAt: event.updatedAt,
-        savedAt: Date.now(),
-      });
-    }, 600);
-    return () => clearTimeout(timer);
-  }, [event, backupReady, restoreOffer, isDirty, draft, changedFields, paymentMethods, paymentMethodsChanged]);
+    const changes = Object.fromEntries(changedFields.map((field) => [field, current[field]])) as Partial<DraftFields>;
+    // While an older backup is still being offered, keep it and layer the new edits on top.
+    writeBackup(event.id, {
+      changes: { ...(restoreOffer?.changes ?? {}), ...changes },
+      ...(paymentMethodsChanged
+        ? { paymentMethods: paymentMethods.map(({ key: _key, qrFile: _file, ...rest }) => rest) }
+        : restoreOffer?.paymentMethods
+        ? { paymentMethods: restoreOffer.paymentMethods }
+        : {}),
+      baseUpdatedAt: restoreOffer?.baseUpdatedAt ?? event.updatedAt,
+      savedAt: Date.now(),
+    });
+  }, [event, backupReady, canManageEvent, restoreOffer, isDirty, draft, changedFields, paymentMethods, paymentMethodsChanged]);
 
   // A backup that matches what the server already has (saved just before the tab closed) is not worth offering.
   useEffect(() => {
@@ -445,8 +448,13 @@ export default function AdminEventEditPage() {
   function restoreBackup() {
     if (!restoreOffer) return;
     // Re-apply only the fields that were changed, on top of the latest saved version.
-    setDraft((d) => ({ ...d, ...restoreOffer.changes }));
-    if (restoreOffer.paymentMethods) {
+    // Fields edited since this page opened win over the older backup.
+    const editedNow = new Set<string>(changedFields);
+    const restorable = Object.fromEntries(
+      Object.entries(restoreOffer.changes).filter(([field]) => !editedNow.has(field)),
+    ) as Partial<DraftFields>;
+    setDraft((d) => ({ ...d, ...restorable }));
+    if (restoreOffer.paymentMethods && !paymentMethodsChanged) {
       setPaymentMethods(restoreOffer.paymentMethods.map((pm) => ({ ...pm, key: nextPMKey.current++, qrFile: null })));
     }
     setRestoreOffer(null);
@@ -593,6 +601,7 @@ export default function AdminEventEditPage() {
     mutationFn: () => api.delete(`/admin/events/${id}`),
     onSuccess: () => {
       toast.success('Event deleted.');
+      clearBackup(id);
       queryClient.invalidateQueries({ queryKey: ['admin-events'] });
       router.push('/admin');
     },
@@ -680,7 +689,6 @@ export default function AdminEventEditPage() {
     const savedDraft = draft;
     const startsAtISO = combineDatetime(draft.startDate, draft.startTime);
     const endsAtISO = combineDatetime(draft.endDate, draft.endTime);
-    const nextStatus = options.publish ? 'on_sale' : status;
 
     try {
       // Upload any newly-attached QR images before sending the event payload.
@@ -711,7 +719,9 @@ export default function AdminEventEditPage() {
         maxCapacity: draft.maxCapacity.trim() === '' ? null : parseInt(draft.maxCapacity, 10),
         isFree: draft.isFree,
         platformFee: draft.isFree ? 0 : Number(draft.platformFee || 50),
-        status: nextStatus,
+        // Status changes go through the status control; a normal save never resends it,
+        // so events that auto-completed stay editable.
+        ...(options.publish ? { status: 'on_sale' } : {}),
         speakerName: draft.speakerName.trim() || null,
         imageUrl: draft.imageUrl.trim() || null,
         allowManualPayment: resolvedPMs.length > 0,
@@ -759,8 +769,24 @@ export default function AdminEventEditPage() {
             : null,
       };
       await updateMutation.mutateAsync(payload);
-      setPaymentMethods(resolvedPMs);
+      // Only fill in uploaded QR URLs; edits made while the request was in flight stay.
+      const uploadedByKey = new Map(
+        resolvedPMs
+          .map((pm, i) => ({ pm, file: paymentMethods[i]?.qrFile ?? null }))
+          .filter(({ file }) => file !== null)
+          .map(({ pm, file }) => [pm.key, { url: pm.qrImageUrl, file }] as const),
+      );
+      setPaymentMethods((current) =>
+        current.map((pm) => {
+          const uploaded = uploadedByKey.get(pm.key);
+          return uploaded && pm.qrFile === uploaded.file
+            ? { ...pm, qrFile: null, qrImageUrl: uploaded.url, qrPreview: uploaded.url }
+            : pm;
+        }),
+      );
       setSaved(savedStateOf(savedDraft, resolvedPMs));
+      if (event) clearBackup(event.id);
+      setRestoreOffer(null);
       setLastSavedAt(Date.now());
       setServerIssues([]);
       if (options.publish) setStatus('on_sale');
@@ -822,7 +848,7 @@ export default function AdminEventEditPage() {
   // ─── Top banner: status + cancel + delete ─────────────────────────────────
   const topBanner = event ? (
     <div className="space-y-3 mb-4">
-      {restoreOffer && (
+      {restoreOffer && canManageEvent && (
         <div className="rounded-2xl border border-[#ddd6fe] bg-[#f5f3ff] px-4 py-3 flex flex-wrap items-center justify-between gap-3 text-sm text-[#4c1d95]">
           <div className="min-w-0">
             <p className="font-semibold">You have unsaved changes from {formatDateTime(restoreOffer.savedAt)}.</p>
@@ -933,7 +959,16 @@ export default function AdminEventEditPage() {
               onChange={(e) => {
                 const enabled = e.target.checked;
                 setOnsiteRegistrationEnabled(enabled);
-                updateMutation.mutate({ onsiteRegistrationEnabled: enabled });
+                updateMutation.mutate(
+                  { onsiteRegistrationEnabled: enabled },
+                  {
+                    onSuccess: () => toast.success(enabled ? 'On-site registration turned on.' : 'On-site registration turned off.'),
+                    onError: (error) => {
+                      setOnsiteRegistrationEnabled(!enabled);
+                      toast.error(apiErrorMessage(error, 'On-site registration could not be changed. Please try again.'));
+                    },
+                  },
+                );
               }}
               className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
               disabled={!canManageEvent}
@@ -1091,8 +1126,11 @@ export default function AdminEventEditPage() {
         draft={draft}
         tiers={tiers}
         paymentMethods={paymentMethods}
-        submitLabel="Save changes"
+        submitLabel={updateMutation.isPending ? 'Saving…' : 'Save changes'}
         submitting={updateMutation.isPending}
+        onStepChange={(next) => {
+          if (next !== 'review') setPublishAttempt(0);
+        }}
         onSubmit={() => void save()}
         onCancel={() => (isDirty ? setLeaveTarget('/admin') : router.push('/admin'))}
         statusIndicator={
