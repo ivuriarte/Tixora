@@ -1,49 +1,106 @@
 name: Weekly Database Backup
 
+# Production pg_dump, ENCRYPTED before it is stored.
+# This repository is public: an unencrypted dump here would expose customer data.
+# Required repo secrets:
+#   DIRECT_URL_PROD               direct (non-pooler) Supabase connection string
+#   BACKUP_ENCRYPTION_PASSPHRASE  long random passphrase. Store a copy in your password manager:
+#                                 without it the backups CANNOT be restored.
+# Restore:  gpg --decrypt <file>.dump.gz.gpg | gunzip > backup.dump
+#           pg_restore --list backup.dump        (then pg_restore into a scratch project)
+
 on:
   schedule:
     - cron: '0 0 * * 0' # Every Sunday at 00:00 UTC
   workflow_dispatch:     # Allow manual trigger
+
+permissions:
+  contents: read
+
+concurrency:
+  group: db-backup
+  cancel-in-progress: false
 
 jobs:
   backup:
     name: pg_dump production database
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    permissions:
+      contents: read
+      issues: write # only used to open an alert issue if the backup fails
 
     steps:
-      - name: Install PostgreSQL client
+      - name: Install PostgreSQL 17 client
+        # Supabase runs Postgres 17; pg_dump refuses to dump a server newer than itself.
         run: |
+          sudo install -d /usr/share/postgresql-common/pgdg
+          sudo curl -fsSL -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc https://www.postgresql.org/media/keys/ACCC4CF8.asc
+          echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" | sudo tee /etc/apt/sources.list.d/pgdg.list > /dev/null
           sudo apt-get update -qq
-          sudo apt-get install -y postgresql-client
+          sudo apt-get install -y -qq postgresql-client-17
+          pg_dump --version
 
-      - name: Create backup
+      - name: Check required secrets exist
         env:
-          DATABASE_URL: ${{ secrets.PRODUCTION_DIRECT_URL }}
+          DIRECT_URL_PROD: ${{ secrets.DIRECT_URL_PROD }}
+          BACKUP_ENCRYPTION_PASSPHRASE: ${{ secrets.BACKUP_ENCRYPTION_PASSPHRASE }}
         run: |
+          if [ -z "$DIRECT_URL_PROD" ]; then echo "::error::Secret DIRECT_URL_PROD is missing"; exit 1; fi
+          if [ -z "$BACKUP_ENCRYPTION_PASSPHRASE" ]; then
+            echo "::error::Secret BACKUP_ENCRYPTION_PASSPHRASE is missing. Refusing to store an unencrypted backup."
+            exit 1
+          fi
+
+      - name: Create, verify and encrypt backup
+        env:
+          DATABASE_URL: ${{ secrets.DIRECT_URL_PROD }}
+          BACKUP_ENCRYPTION_PASSPHRASE: ${{ secrets.BACKUP_ENCRYPTION_PASSPHRASE }}
+        run: |
+          set -euo pipefail
           TIMESTAMP=$(date -u +%Y%m%d_%H%M%S)
           FILENAME="axon-tickets-backup-${TIMESTAMP}.dump"
 
-          pg_dump \
-            "$DATABASE_URL" \
-            --format=custom \
-            --no-acl \
-            --no-owner \
-            --file="${FILENAME}"
+          pg_dump "$DATABASE_URL" --format=custom --no-acl --no-owner --file="${FILENAME}"
+
+          # Sanity checks: a dump that is tiny or unreadable must fail the job.
+          SIZE_BYTES=$(stat -c %s "${FILENAME}")
+          if [ "${SIZE_BYTES}" -lt 100000 ]; then
+            echo "::error::Backup is suspiciously small (${SIZE_BYTES} bytes)"; exit 1
+          fi
+          pg_restore --list "${FILENAME}" > /dev/null
+          TABLES=$(pg_restore --list "${FILENAME}" | grep -c ' TABLE DATA ' || true)
+          echo "Dump readable: ${SIZE_BYTES} bytes, ${TABLES} tables with data"
+          if [ "${TABLES}" -lt 10 ]; then echo "::error::Too few tables in dump (${TABLES})"; exit 1; fi
 
           gzip "${FILENAME}"
-          echo "BACKUP_FILE=${FILENAME}.gz" >> "$GITHUB_ENV"
-          echo "TIMESTAMP=${TIMESTAMP}" >> "$GITHUB_ENV"
+          printf '%s' "$BACKUP_ENCRYPTION_PASSPHRASE" | gpg --batch --yes --pinentry-mode loopback \
+            --passphrase-fd 0 --symmetric --cipher-algo AES256 \
+            -o "${FILENAME}.gz.gpg" "${FILENAME}.gz"
 
-      - name: Upload backup artifact
+          # Never leave plaintext where the upload step could pick it up.
+          rm -f "${FILENAME}.gz" "${FILENAME}"
+          echo "TIMESTAMP=${TIMESTAMP}" >> "$GITHUB_ENV"
+          echo "BACKUP_FILE=${FILENAME}.gz.gpg" >> "$GITHUB_ENV"
+
+      - name: Upload encrypted backup artifact
         uses: actions/upload-artifact@v4
         with:
           name: db-backup-${{ env.TIMESTAMP }}
-          path: '*.dump.gz'
-          retention-days: 90
+          path: '*.gz.gpg' # encrypted files only
+          retention-days: 35
           if-no-files-found: error
 
       - name: Report size
         run: |
-          SIZE=$(du -sh *.dump.gz | cut -f1)
-          echo "Backup complete: ${{ env.BACKUP_FILE }} (${SIZE})"
+          echo "Encrypted backup complete: ${{ env.BACKUP_FILE }} ($(du -sh ./*.gz.gpg | cut -f1))"
+
+      - name: Open an issue if the backup failed
+        if: failure()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh issue create \
+            --repo "${{ github.repository }}" \
+            --title "Production database backup FAILED ($(date -u +%Y-%m-%d))" \
+            --body "The weekly backup workflow failed. Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}. Until it is fixed, the only backups are Supabase's own. Close this issue after a successful run."
