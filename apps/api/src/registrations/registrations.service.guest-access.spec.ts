@@ -1,6 +1,7 @@
 import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { createHash } from 'crypto';
 import { RegistrationsService } from './registrations.service';
+import { makeGuestHold } from './guest-hold.testing';
 
 function makeService() {
   const prisma = {
@@ -19,6 +20,7 @@ function makeService() {
     setIfNotExists: jest.fn().mockResolvedValue(true),
     incrementWithTtl: jest.fn(),
   };
+  const guestHold = makeGuestHold();
   const service = new RegistrationsService(
     prisma as any,
     email as any,
@@ -26,8 +28,11 @@ function makeService() {
     {} as any,
     {} as any,
     redis as any,
+    undefined,
+    guestHold.service,
+    {} as any,
   );
-  return { service, prisma, email, audit, redis };
+  return { service, prisma, email, audit, redis, guestHold };
 }
 
 describe('RegistrationsService guest access', () => {
@@ -148,6 +153,8 @@ describe('RegistrationsService guest access', () => {
       id: 'registration-1',
       attendees: [],
       proofs: [],
+      holdExpiresAt: null,
+      resumeEmailSaved: false,
     });
   });
 

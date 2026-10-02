@@ -1,13 +1,17 @@
-import { ForbiddenException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException } from '@nestjs/common';
 import { createHash } from 'crypto';
 import { PaymentProofsService } from './payment-proofs.service';
 
-function fixture(token = 'valid-scoped-token', attendeesCompletedAt: Date | null = null) {
+function fixture(
+  token = 'valid-scoped-token',
+  attendeesCompletedAt: Date | null = null,
+  options: { status?: string; statusInsideTransaction?: string } = {},
+) {
   const registration = {
     id: 'registration-1',
     userId: null,
     guestAccessTokenHash: createHash('sha256').update(token).digest('hex'),
-    status: 'pending_payment',
+    status: options.status ?? 'pending_payment',
     eventId: 'event-1',
     total: 500,
     attendeeCount: 1,
@@ -23,7 +27,18 @@ function fixture(token = 'valid-scoped-token', attendeesCompletedAt: Date | null
         createdAt: new Date('2026-07-26T12:00:00.000Z'),
       }),
     },
-    registration: { update: jest.fn().mockResolvedValue({}) },
+    registration: {
+      update: jest.fn().mockResolvedValue({}),
+      ...(options.statusInsideTransaction
+        ? {
+            findUnique: jest.fn().mockResolvedValue({
+              status: options.statusInsideTransaction,
+              attendeesCompletedAt,
+            }),
+          }
+        : {}),
+    },
+    ...(options.statusInsideTransaction ? { $queryRaw: jest.fn().mockResolvedValue([]) } : {}),
   };
   const prisma = {
     registration: { findUnique: jest.fn().mockResolvedValue(registration) },
@@ -34,6 +49,7 @@ function fixture(token = 'valid-scoped-token', attendeesCompletedAt: Date | null
       imageUrl: 'https://cdn.example.com/proof.webp',
       cloudinaryPublicId: 'proofs/proof-1',
     }),
+    deleteStoredImage: jest.fn().mockResolvedValue(undefined),
   };
   const audit = { log: jest.fn().mockResolvedValue(undefined) };
   const funnel = { track: jest.fn().mockResolvedValue(undefined) };
@@ -64,7 +80,7 @@ describe('PaymentProofsService guest authorization', () => {
     );
     expect(tx.registration.update).toHaveBeenCalledWith({
       where: { id: 'registration-1' },
-      data: { status: 'proof_submitted', rejectionReason: null },
+      data: { status: 'proof_submitted', rejectionReason: null, guestResumeEmail: null },
     });
     expect(result.status).toBe('pending');
   });
@@ -81,7 +97,7 @@ describe('PaymentProofsService guest authorization', () => {
 
     expect(tx.registration.update).toHaveBeenCalledWith({
       where: { id: 'registration-1' },
-      data: { status: 'pending_approval', rejectionReason: null },
+      data: { status: 'pending_approval', rejectionReason: null, guestResumeEmail: null },
     });
   });
 
@@ -99,5 +115,50 @@ describe('PaymentProofsService guest authorization', () => {
 
     expect(upload.uploadPaymentProof).not.toHaveBeenCalled();
     expect(prisma.$transaction).not.toHaveBeenCalled();
+  });
+
+  it('answers an expired or cancelled reservation with a coded error before uploading anything', async () => {
+    const { service, upload, prisma } = fixture('valid-scoped-token', null, { status: 'cancelled' });
+
+    const attempt = service.createForGuest(
+      'registration-1',
+      'valid-scoped-token',
+      Buffer.from('late-image'),
+      'image/webp',
+    );
+
+    await expect(attempt).rejects.toBeInstanceOf(BadRequestException);
+    await expect(attempt).rejects.toMatchObject({
+      response: expect.objectContaining({ code: 'HOLD_EXPIRED' }),
+    });
+    expect(upload.uploadPaymentProof).not.toHaveBeenCalled();
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+  });
+
+  it('removes the stored image and reports the expiry when the hold is cancelled mid-upload', async () => {
+    const { service, upload, tx } = fixture('valid-scoped-token', null, {
+      statusInsideTransaction: 'cancelled',
+    });
+
+    await expect(
+      service.createForGuest(
+        'registration-1',
+        'valid-scoped-token',
+        Buffer.from('racing-image'),
+        'image/webp',
+      ),
+    ).rejects.toMatchObject({ response: expect.objectContaining({ code: 'HOLD_EXPIRED' }) });
+
+    expect(upload.deleteStoredImage).toHaveBeenCalledWith('proofs/proof-1');
+    expect(tx.paymentProof.create).not.toHaveBeenCalled();
+  });
+
+  it('never masks the original error if removing the orphaned image also fails', async () => {
+    const { service, upload } = fixture('valid-scoped-token', null, { statusInsideTransaction: 'cancelled' });
+    upload.deleteStoredImage.mockRejectedValueOnce(new Error('cloudinary down'));
+
+    await expect(
+      service.createForGuest('registration-1', 'valid-scoped-token', Buffer.from('x'), 'image/webp'),
+    ).rejects.toMatchObject({ response: expect.objectContaining({ code: 'HOLD_EXPIRED' }) });
   });
 });

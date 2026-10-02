@@ -22,6 +22,9 @@ import {
 import { Type } from 'class-transformer';
 import { ApiProperty } from '@nestjs/swagger';
 
+/** Statuses an organizer or admin may set; `completed` is set only by the auto-complete job. */
+export const EDITABLE_EVENT_STATUSES = ['draft', 'on_sale', 'sold_out', 'cancelled'];
+
 // ─── Nested item DTOs ────────────────────────────────────────────────────
 // These are required so class-transformer (with enableImplicitConversion)
 // preserves the object shape of array items. Without @Type(), reflected
@@ -559,7 +562,7 @@ export class UpdateEventDto {
   maxCapacity?: number;
 
   @IsOptional()
-  @IsString()
+  @IsIn(EDITABLE_EVENT_STATUSES)
   status?: string;
 
   @IsOptional()

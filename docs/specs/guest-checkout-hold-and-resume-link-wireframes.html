@@ -1,0 +1,312 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Guest Checkout Hold Wireframes</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap">
+<style>
+:root {
+  --doc-bg:#faf8ff; --doc-fg:#1a0533; --doc-muted:#5f5177; --doc-line:#e4dcf4; --doc-panel:#fff; --doc-accent:#6d28d9; --doc-code-bg:#f1ecfb;
+  --p-primary:#7c3aed; --p-deep:#4c1d95; --p-ink:#1a0533; --p-muted:#5b4b7a; --p-canvas:#f9fafb; --p-card:#fff; --p-line:#e5e7eb; --p-soft:#ede9fe;
+  --ok-fg:#166534; --ok-bg:#f0fdf4; --ok-line:#bbf7d0; --warn-fg:#92400e; --warn-bg:#fffbeb; --warn-line:#fde68a; --err-fg:#b91c1c; --err-bg:#fef2f2; --err-line:#fecaca;
+  --font-ui:"Inter",ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif; --font-mono:"JetBrains Mono",ui-monospace,Menlo,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--doc-bg:#120a1f;--doc-fg:#efe9fb;--doc-muted:#b3a6cc;--doc-line:#2e2345;--doc-panel:#1a1029;--doc-accent:#c4b5fd;--doc-code-bg:#251838;color-scheme:dark}}
+:root[data-theme="dark"]{--doc-bg:#120a1f;--doc-fg:#efe9fb;--doc-muted:#b3a6cc;--doc-line:#2e2345;--doc-panel:#1a1029;--doc-accent:#c4b5fd;--doc-code-bg:#251838;color-scheme:dark}
+*{box-sizing:border-box}
+body{margin:0;background:var(--doc-bg);color:var(--doc-fg);font-family:var(--font-ui);font-size:15px;line-height:1.55}
+.wrap{max-width:1240px;margin:0 auto;padding:40px 20px 72px}
+h1,h2,h3{margin:0;line-height:1.2;text-wrap:balance} h1{font-size:clamp(28px,4vw,38px);letter-spacing:-.02em} h2{font-size:22px} h3{font-size:15px}
+p{margin:0} code{font-family:var(--font-mono);font-size:.86em;background:var(--doc-code-bg);padding:1px 5px;border-radius:4px}
+.eyebrow{font-size:12px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--doc-accent)}
+.lede{color:var(--doc-muted);max-width:72ch;font-size:16px}
+header.top{display:grid;gap:14px;padding-bottom:28px;border-bottom:1px solid var(--doc-line)}
+nav.toc{display:flex;flex-wrap:wrap;gap:8px} nav.toc a{font-size:13px;color:var(--doc-fg);text-decoration:none;border:1px solid var(--doc-line);background:var(--doc-panel);padding:6px 12px;border-radius:999px}
+a:focus-visible,button:focus-visible,input:focus-visible{outline:2px solid var(--doc-accent);outline-offset:2px}
+section.screen{padding-block:44px 8px;display:grid;gap:18px}
+.num{font-family:var(--font-mono);font-size:12px;color:var(--doc-accent)}
+.pair{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:22px;align-items:start}
+@media(max-width:1000px){.pair{grid-template-columns:minmax(0,1fr)}}
+.phones{display:grid;gap:14px;justify-items:start}
+.frame-label{font-size:12px;font-weight:600;color:var(--doc-muted);margin-bottom:8px}
+.notes{display:grid;gap:6px;font-size:14px;color:var(--doc-muted);max-width:84ch;padding-left:18px;margin:0} .notes b{color:var(--doc-fg)}
+.states{display:grid;grid-template-columns:repeat(auto-fit,minmax(270px,1fr));gap:16px}
+table.meta{border-collapse:collapse;width:100%;font-size:13px;background:var(--doc-panel);border:1px solid var(--doc-line);border-radius:10px;overflow:hidden}
+table.meta th,table.meta td{padding:8px 10px;text-align:left;border-bottom:1px solid var(--doc-line);vertical-align:top} table.meta th{background:var(--doc-code-bg)}
+/* mock screens: always light, product palette */
+.mock{background:var(--p-canvas);color:var(--p-ink);border:1px solid var(--doc-line);border-radius:14px;padding:18px;display:grid;gap:12px;font-size:14px}
+.mock.phone{width:300px;padding:14px;font-size:13px}
+.mock h4{margin:0;font-size:16px;font-weight:700}
+.card{background:var(--p-card);border:1px solid var(--p-line);border-radius:16px;padding:14px;display:grid;gap:8px}
+.muted{color:var(--p-muted);font-size:12px}
+.banner{border-radius:12px;padding:10px 12px;border:1px solid;display:grid;gap:2px}
+.banner.info{background:var(--p-soft);border-color:#ddd6fe;color:var(--p-deep)} .banner.warn{background:var(--warn-bg);border-color:var(--warn-line);color:var(--warn-fg)}
+.banner.ok{background:var(--ok-bg);border-color:var(--ok-line);color:var(--ok-fg)} .banner.err{background:var(--err-bg);border-color:var(--err-line);color:var(--err-fg)}
+.banner b{font-weight:600}
+.errstate{background:var(--err-bg);border:1px solid var(--err-line);border-radius:16px;padding:16px;display:grid;gap:8px;color:var(--err-fg)} .errstate p{color:#7f1d1d}
+.empty{background:#fff;border:1px dashed #d4d4d8;border-radius:16px;padding:18px;display:grid;gap:8px;text-align:center;justify-items:center}
+.modal{background:#fff;border-radius:16px;padding:18px;display:grid;gap:10px;text-align:center;justify-items:center;box-shadow:0 8px 28px rgba(0,0,0,.18)}
+.modal .btn{width:100%}
+.icon{width:36px;height:36px;border-radius:999px;background:var(--err-bg);color:var(--err-fg);display:grid;place-items:center;font-weight:700}
+.btn{min-height:44px;border-radius:999px;border:1px solid var(--p-primary);background:var(--p-primary);color:#fff;font:600 13px var(--font-ui);padding:0 18px;display:inline-flex;align-items:center;justify-content:center}
+.btn.ghost{background:#fff;color:var(--p-primary)} .btn.text{background:none;border-color:transparent;color:var(--p-muted);text-decoration:underline}
+.btn.danger{background:#dc2626;border-color:#dc2626} .btn.dangertext{background:none;border-color:transparent;color:var(--err-fg);text-decoration:underline}
+.btn[disabled]{opacity:.55}
+.field label{display:block;font-size:12px;font-weight:600;margin-bottom:4px}
+.input{width:100%;min-height:44px;border:1px solid #d1d5db;border-radius:12px;padding:0 12px;font:14px var(--font-ui);background:#fff;color:var(--p-ink)}
+.row{display:flex;gap:8px;flex-wrap:wrap}
+.skel{background:#f1f0f4;border-radius:8px;height:14px;animation:pulse 1.4s ease-in-out infinite} @keyframes pulse{50%{opacity:.5}}
+.tag{font-family:var(--font-mono);font-size:11px;background:var(--p-soft);color:var(--p-deep);border-radius:999px;padding:2px 8px;justify-self:start}
+table.mini{border-collapse:collapse;width:100%;font-size:12px} table.mini td,table.mini th{padding:6px 8px;border-bottom:1px solid var(--p-line);text-align:left}
+.badge{font-size:11px;font-weight:600;border-radius:999px;padding:2px 8px;background:#fef9c3;color:#854d0e} .badge.src{background:#ffedd5;color:#c2410c}
+.sep{border-top:1px solid var(--p-line);padding-top:8px}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header class="top">
+  <span class="eyebrow">Wireframes · design gate · revision 2.1</span>
+  <h1>Guest checkout hold, resume link and hold controls</h1>
+  <p class="lede">Spec: <code>guest-checkout-hold-and-resume-link.md</code>. Every surface is shown at desktop width and phone width with default, loading, error and success states. Mock screens use the product's light palette and the live components (<code>CountdownTimer</code>, <code>ConfirmModal</code>, <code>ErrorState</code>, <code>EmptyState</code>, <code>axon-pill</code>). All dates use one format: <code>Sat, Oct 3, 2026 · 9:30 AM</code>, always in Asia/Manila time. The navbar and the UAT banner stay on every screen.</p>
+  <nav class="toc" aria-label="Screens">
+    <a href="#s1">1 · Hold banner</a><a href="#s2">2 · Pay later</a><a href="#s3">3 · Cancel</a><a href="#s4">4 · Expired and limit</a><a href="#s5">5 · Resume page</a><a href="#s6">6 · Admin</a><a href="#s7">7 · Page rules</a>
+  </nav>
+</header>
+
+<!-- 1 -->
+<section class="screen" id="s1">
+  <div><span class="num">SCREEN 1</span><h2>Guest payment page: hold banner</h2></div>
+  <div class="pair">
+    <div>
+      <div class="frame-label">Desktop · full page, guest who saved an email (more than 2 hours left)</div>
+      <div class="mock">
+        <h4>Payment &amp; proof</h4>
+        <div class="banner info"><b>Your seats are held until Sat, Oct 3, 2026 · 9:30 AM</b><span class="muted">Upload your payment proof before then to keep your seats.</span></div>
+        <div class="card"><b>Sat, Feb 7, 2026 · Balcony × 1</b><span class="muted">Total ₱550 · Reference AXN-2026-XXXXX</span></div>
+        <div class="card"><b>Upload payment proof</b><div class="skel" style="height:64px"></div></div>
+        <div class="row"><button class="btn text">I will pay later</button></div>
+        <div class="sep row"><button class="btn dangertext">Cancel reservation</button></div>
+      </div>
+      <div class="frame-label" style="margin-top:16px">Desktop · banner variants</div>
+      <div class="states">
+        <div><span class="tag">2 hours or less</span>
+          <div class="banner warn" style="margin-top:6px"><b>Upload your proof within <span aria-hidden="true">42:10</span><span style="position:absolute;left:-9999px"> about 42 minutes</span></b><span class="muted">After that your seats are released.</span></div></div>
+        <div><span class="tag">under 5 minutes</span>
+          <div class="banner warn" style="border-width:2px;margin-top:6px"><b>Only <span aria-hidden="true">4:32</span> left</b><span class="muted">Upload your proof now, or use "I will pay later".</span></div></div>
+        <div><span class="tag">60 to 120 minutes left (static, updates each minute)</span>
+          <div class="banner warn" style="margin-top:6px"><b>Upload your proof within 1 hr 12 min</b><span class="muted">After that your seats are released.</span></div></div>
+        <div><span class="tag">renewed hold</span>
+          <div class="banner info" style="margin-top:6px"><b>Your earlier reservation expired, so we started a new one.</b><span class="muted">Your seats are held until Sat, Oct 3, 2026 · 10:30 AM.</span></div></div>
+        <div><span class="tag">loading / error</span>
+          <div class="card" style="margin-top:6px"><div class="skel" style="width:60%"></div><div class="skel"></div></div>
+          <div class="errstate" style="margin-top:8px" role="alert"><b>Payment screen unavailable</b><p class="muted">This registration may have been removed or the link is incorrect.</p><button class="btn">Back to event</button></div></div>
+      </div>
+    </div>
+    <div class="phones">
+      <div><div class="frame-label">Phone · no email (60-minute hold)</div>
+        <div class="mock phone"><h4>Payment &amp; proof</h4>
+          <div class="banner warn"><b>Upload your proof within <span aria-hidden="true">58:20</span></b><span class="muted">No time? Use "I will pay later".</span></div>
+          <div class="card"><b>Balcony × 1 · ₱550</b></div>
+          <div class="card"><b>Upload payment proof</b><div class="skel" style="height:56px"></div></div>
+          <button class="btn text">I will pay later</button>
+          <div class="sep"><button class="btn dangertext">Cancel reservation</button></div></div></div>
+      <div><div class="frame-label">Phone · long deadline text wraps (never drop the year)</div>
+        <div class="mock phone"><div class="banner info"><b>Your seats are held until Sat, Oct 3, 2026 · 9:30 AM</b><span class="muted">Upload your proof before then.</span></div></div></div>
+      <div><div class="frame-label">Phone · loading and error</div>
+        <div class="mock phone"><div class="card"><div class="skel" style="width:60%"></div><div class="skel"></div></div>
+          <div class="errstate" role="alert"><b>Payment screen unavailable</b><button class="btn">Back to event</button></div></div></div>
+      <div><div class="frame-label">Phone · under 5 minutes, and renewed hold</div>
+        <div class="mock phone"><div class="banner warn" style="border-width:2px"><b>Only <span aria-hidden="true">4:32</span> left</b><span class="muted">Upload your proof now, or use "I will pay later".</span></div>
+          <div class="banner info"><b>Your earlier reservation expired, so we started a new one.</b><span class="muted">Held until Sat, Oct 3, 2026 · 10:30 AM.</span></div></div></div>
+    </div>
+  </div>
+  <ul class="notes">
+    <li><b>Which banner shows:</b> the banner appears only when the registration has a hold deadline. Only add-on-free guest checkouts get one, so this banner can never appear together with the add-on stock banner (add-on registrations have no deadline; the API refuses add-ons on a guest checkout intent).</li>
+    <li><b>Screen readers:</b> the banner sentence is the only live-region text and does not tick. The ticking digits are <code>aria-hidden</code> with a static text equivalent. A separate polite announcement fires only at 10, 5 and 1 minute left (WCAG 2.2.1). <code>CountdownTimer</code> is wrapped, not edited.</li>
+    <li><b>Urgency is never colour-only:</b> every state carries words ("Only 4:32 left"). The timer's own colour (amber, red under 1 minute) is decoration.</li>
+    <li><b>Deadline vs server:</b> the displayed deadline is a promise to the customer. The server may keep the seats up to about 5 minutes longer, never shorter; a proof uploaded in that window is accepted.</li>
+    <li><b>Separation of actions:</b> "Cancel reservation" sits in its own row, red text, away from "I will pay later" so it cannot be mis-tapped.</li>
+    <li>Logged-in users keep today's page; they have no deadline and so no banner.</li>
+  </ul>
+</section>
+
+<!-- 2 -->
+<section class="screen" id="s2">
+  <div><span class="num">SCREEN 2</span><h2>"I will pay later": inline card</h2></div>
+  <div class="pair">
+    <div>
+      <div class="frame-label">Desktop · six states</div>
+      <div class="states">
+        <div class="card"><span class="tag">default</span><b>Finish later?</b>
+          <p class="muted" id="n1">We'll email you a link and hold your seats for 24 hours. No email? Your seats are held for 60 minutes only. After that you'll need to start again.</p>
+          <div class="field"><label for="e1">Email for your link (optional)</label><input id="e1" class="input" type="email" aria-describedby="n1" placeholder="you@example.com"></div>
+          <div class="row"><button class="btn">Email me my link</button><button class="btn ghost">Copy my link</button></div>
+          <p class="muted">Anyone with a copied link can open your reservation, so don't share it publicly.</p>
+          <button class="btn text">No thanks, take me back to the event</button></div>
+        <div class="card"><span class="tag">loading</span><b>Finish later?</b>
+          <div class="field"><label for="e2">Email for your link (optional)</label><input id="e2" class="input" type="email" value="juan@example.com" disabled></div>
+          <div class="row"><button class="btn" disabled aria-busy="true">Sending…</button><button class="btn ghost" disabled>Copy my link</button></div></div>
+        <div class="card"><span class="tag">error · bad address</span><b>Finish later?</b>
+          <div class="banner err" role="alert" id="er3"><b>That email address doesn't look right.</b><span>Check it and try again. Your seats are still held until Sat, Oct 3, 2026 · 9:12 AM.</span></div>
+          <div class="field"><label for="e3">Email for your link (optional)</label><input id="e3" class="input" type="email" value="juan@exmple" aria-invalid="true" aria-describedby="n1 er3"></div>
+          <div class="row"><button class="btn">Email me my link</button></div></div>
+        <div class="card"><span class="tag">error · mail provider</span><b>Finish later?</b>
+          <div class="banner err" role="alert"><b>We couldn't send the email right now.</b><span>Try again in a minute, or copy your link instead. Your seats are still held until Sat, Oct 3, 2026 · 9:12 AM.</span></div>
+          <div class="row"><button class="btn">Try again</button><button class="btn ghost">Copy my link</button></div></div>
+        <div class="card"><span class="tag">error · too many tries</span><b>Finish later?</b>
+          <div class="banner err" role="alert"><b>Too many requests.</b><span>You can ask for another email in 1 minute. You can also copy your link now.</span></div>
+          <div class="row"><button class="btn" disabled>Email me my link</button><button class="btn ghost">Copy my link</button></div></div>
+        <div class="card"><span class="tag">success</span>
+          <div class="banner ok" role="status"><b>If the address is right, your link is on its way to j***@example.com.</b><span>Your seats are held until Sat, Oct 3, 2026 · 9:30 AM. Check your spam folder, or copy your link instead.</span></div>
+          <div class="row"><button class="btn">Upload proof now</button><button class="btn ghost">Copy my link</button></div><button class="btn text">Back to the event</button></div>
+      </div>
+      <div class="frame-label" style="margin-top:16px">Desktop · copy-link feedback</div>
+      <div class="states">
+        <div class="card"><span class="tag">copied</span><div class="banner ok" role="status"><b>Link copied.</b><span>It works until Sat, Oct 3, 2026 · 9:30 AM.</span></div></div>
+        <div class="card"><span class="tag">copy blocked (in-app browsers)</span><div class="banner warn" role="status"><b>Your browser blocked copying.</b><span>Select the link below and copy it yourself.</span></div>
+          <div class="field"><label for="cl">Your link</label><input id="cl" class="input" readonly value="https://axontickets.online/events/…/resume#…"></div></div>
+      </div>
+    </div>
+    <div class="phones">
+      <div><div class="frame-label">Phone · default</div><div class="mock phone"><div class="card"><b>Finish later?</b><p class="muted">We'll email you a link and hold your seats for 24 hours. No email? 60 minutes only, then you'll need to start again.</p>
+        <div class="field"><label for="e4">Email (optional)</label><input id="e4" class="input" type="email" placeholder="you@example.com"></div>
+        <button class="btn">Email me my link</button><button class="btn ghost">Copy my link</button><p class="muted">Anyone with a copied link can open your reservation.</p><button class="btn text">No thanks, take me back</button></div></div></div>
+      <div><div class="frame-label">Phone · loading</div><div class="mock phone"><div class="card"><b>Finish later?</b><input class="input" value="juan@example.com" disabled aria-label="Email"><button class="btn" disabled aria-busy="true">Sending…</button></div></div></div>
+      <div><div class="frame-label">Phone · error (long text, stacked buttons)</div><div class="mock phone"><div class="card"><div class="banner err" role="alert"><b>We couldn't send the email right now.</b><span>Try again in a minute, or copy your link instead. Your seats are still held until Sat, Oct 3, 2026 · 9:12 AM.</span></div><button class="btn">Try again</button><button class="btn ghost">Copy my link</button></div></div></div>
+      <div><div class="frame-label">Phone · bad address and too many tries</div><div class="mock phone"><div class="card"><div class="banner err" role="alert"><b>That email address doesn't look right.</b><span>Check it and try again. Still held until Sat, Oct 3, 2026 · 9:12 AM.</span></div><input class="input" value="juan@exmple" aria-label="Email" aria-invalid="true"><button class="btn">Email me my link</button></div>
+        <div class="card"><div class="banner err" role="alert"><b>Too many requests.</b><span>Ask for another email in 1 minute, or copy your link now.</span></div><button class="btn ghost">Copy my link</button></div></div></div>
+      <div><div class="frame-label">Phone · copy blocked by the browser</div><div class="mock phone"><div class="card"><div class="banner warn" role="status"><b>Your browser blocked copying.</b><span>Select the link below and copy it yourself.</span></div><input class="input" readonly value="https://axontickets.online/events/…/resume#…" aria-label="Your link"></div></div></div>
+      <div><div class="frame-label">Phone · success and copied</div><div class="mock phone"><div class="banner ok" role="status"><b>Your link is on its way to j***@example.com.</b><span>Held until Sat, Oct 3, 2026 · 9:30 AM.</span></div><button class="btn">Upload proof now</button><div class="banner ok" role="status"><b>Link copied.</b></div></div></div>
+    </div>
+  </div>
+  <ul class="notes">
+    <li><b>Why inline, not a modal:</b> no new pattern, works with the phone keyboard, and the notice stays next to the field.</li>
+    <li><b>Focus:</b> opening the card moves focus to the email field. After send, focus moves to the success message. Errors are linked to the field with <code>aria-describedby</code> and use <code>role="alert"</code>.</li>
+    <li><b>Messages:</b> invalid address, mail-provider failure and rate limit have separate wording. None reveals whether an email is known to us.</li>
+    <li>The card appears only after the payment step has loaded. No funnel step is moved or removed.</li>
+  </ul>
+</section>
+
+<!-- 3 -->
+<section class="screen" id="s3">
+  <div><span class="num">SCREEN 3</span><h2>Guest cancels their reservation</h2></div>
+  <div class="pair">
+    <div>
+      <div class="frame-label">Desktop · uses the existing <code>ConfirmModal</code> (danger variant) with explicit labels</div>
+      <div class="states">
+        <div class="modal"><span class="tag">confirm</span><div class="icon" aria-hidden="true">!</div><b>Cancel this reservation?</b><p class="muted">Your seats go back on sale right away. Nothing was charged.</p><button class="btn danger">Cancel reservation</button><button class="btn ghost">Keep my seats</button></div>
+        <div class="modal"><span class="tag">loading</span><div class="icon" aria-hidden="true">!</div><b>Cancel this reservation?</b><button class="btn danger" disabled aria-busy="true">Processing…</button><button class="btn ghost" disabled>Keep my seats</button></div>
+        <div class="modal"><span class="tag">error · network</span><div class="icon" aria-hidden="true">!</div><b>We couldn't cancel your reservation.</b><p class="muted">Check your connection and try again.</p><button class="btn danger">Try again</button><button class="btn ghost">Keep my seats</button></div>
+        <div class="modal"><span class="tag">error · proof already uploaded (400)</span><div class="icon" aria-hidden="true">!</div><b>This reservation can't be cancelled here</b><p class="muted">Your payment proof was already uploaded, so it is waiting for review.</p><button class="btn">Upload proof</button><button class="btn ghost">Keep my seats</button></div>
+        <div class="modal"><span class="tag">error · too many attempts (429)</span><div class="icon" aria-hidden="true">!</div><b>Too many attempts</b><p class="muted">Please wait a minute and try again.</p><button class="btn ghost">Keep my seats</button></div>
+        <div class="empty"><span class="tag">success landing</span><b>Your reservation was cancelled</b><p class="muted">Your seats are available to others again. Nothing was charged.</p><button class="btn">Start again</button></div>
+      </div>
+    </div>
+    <div class="phones">
+      <div><div class="frame-label">Phone · confirm</div><div class="mock phone"><div class="modal"><div class="icon" aria-hidden="true">!</div><b>Cancel this reservation?</b><p class="muted">Your seats go back on sale right away. Nothing was charged.</p><button class="btn danger">Cancel reservation</button><button class="btn ghost">Keep my seats</button></div></div></div>
+      <div><div class="frame-label">Phone · loading and errors</div><div class="mock phone"><div class="modal"><b>Cancel this reservation?</b><button class="btn danger" disabled aria-busy="true">Processing…</button></div>
+        <div class="modal"><b>We couldn't cancel your reservation.</b><p class="muted">Check your connection and try again.</p><button class="btn danger">Try again</button><button class="btn ghost">Keep my seats</button></div>
+        <div class="modal"><b>This reservation can't be cancelled here</b><button class="btn">Upload proof</button><button class="btn ghost">Keep my seats</button></div></div></div>
+      <div><div class="frame-label">Phone · success landing</div><div class="mock phone"><div class="empty"><b>Your reservation was cancelled</b><button class="btn">Start again</button></div></div></div>
+    </div>
+  </div>
+  <ul class="notes"><li>Default <code>ConfirmModal</code> cancel label is a bare "Cancel"; we pass "Keep my seats" (content rule 9). No new props are needed, so there is no collision with the other worktree's ConfirmModal change.</li><li>After success the screen swaps to the landing state and focus moves to its heading.</li></ul>
+</section>
+
+<!-- 4 -->
+<section class="screen" id="s4">
+  <div><span class="num">SCREEN 4</span><h2>Expired reservation, hold limit, and "opened elsewhere"</h2></div>
+  <div class="pair">
+    <div>
+      <div class="frame-label">Desktop</div>
+      <div class="states">
+        <div class="empty"><span class="tag">expired (calm end state)</span><b>Your reservation expired</b><p class="muted">Seats are only held for a short time while payment is pending. Nothing was charged. Start again to pick your seats.</p><button class="btn">Start again</button></div>
+        <div class="errstate" role="alert"><span class="tag">hold limit reached (409)</span><b>Too many reservations from this connection</b><p>Finish or cancel one you already started, or try again in about an hour.</p><div class="row"><button class="btn">Back to event</button></div></div>
+        <div class="errstate" role="alert"><span class="tag">opened on another device</span><b>We couldn't open this reservation here</b><p>It may have been opened on another device. Open the link from your email again, or start again. (Shown only while the saved deadline has not passed; after that the "Your reservation expired" screen is shown.)</p><div class="row"><button class="btn">Start again</button></div></div>
+        <div class="errstate" role="alert"><span class="tag">too many attempts (429)</span><b>Too many attempts</b><p>Please wait a minute and try again.</p><div class="row"><button class="btn">Try again</button></div></div>
+      </div>
+    </div>
+    <div class="phones">
+      <div><div class="frame-label">Phone · opened elsewhere and too many attempts</div><div class="mock phone"><div class="errstate" role="alert"><b>We couldn't open this reservation here</b><p>It may have been opened on another device. Open the link from your email again, or start again.</p><button class="btn">Start again</button></div><div class="errstate" role="alert"><b>Too many attempts</b><p>Please wait a minute and try again.</p><button class="btn">Try again</button></div></div></div>
+      <div><div class="frame-label">Phone · hold limit reached</div><div class="mock phone"><div class="errstate" role="alert"><b>Too many reservations from this connection</b><p>Finish or cancel one you already started, or try again in about an hour.</p><button class="btn">Back to event</button></div></div></div>
+      <div><div class="frame-label">Phone · expired</div><div class="mock phone"><div class="empty"><b>Your reservation expired</b><p class="muted">Nothing was charged.</p><button class="btn">Start again</button></div></div></div>
+    </div>
+  </div>
+  <ul class="notes"><li><b>Hold limit:</b> shown at the ticket step where the hold is created, as an alert on the existing error state. Shared mobile connections are common; the message tells people what to do, not just that they were blocked.</li><li><b>Expired:</b> also shown when proof upload hits a cancelled registration (replaces the raw "Cannot upload proof" error). No error state needed: its only action is navigation.</li><li><b>Opened elsewhere:</b> resuming rotates the access token, so the previous tab gets this state instead of "Payment screen unavailable".</li></ul>
+</section>
+
+<!-- 5 -->
+<section class="screen" id="s5">
+  <div><span class="num">SCREEN 5</span><h2>Resume page (opened from the email or a copied link)</h2></div>
+  <div class="pair">
+    <div>
+      <div class="frame-label">Desktop</div>
+      <div class="states">
+        <div class="card"><span class="tag">loading</span><div class="skel" style="width:60%"></div><div class="skel"></div><div class="skel" style="width:80%"></div></div>
+        <div class="card"><span class="tag">success (brief)</span><div class="banner ok" role="status"><b>Welcome back.</b><span>Taking you to your payment page…</span></div></div>
+        <div class="errstate" role="alert"><span class="tag">temporary failure (retry)</span><b>We couldn't open your reservation</b><p>Check your connection and try again. Your seats are still held.</p><button class="btn">Try again</button></div>
+        <div class="errstate" role="alert"><span class="tag">invalid, expired or cancelled link</span><b>This link is no longer valid</b><p>The reservation may have expired or been cancelled. Nothing was charged. Start again to pick your seats.</p><button class="btn">Start again</button></div>
+        <div class="errstate" role="alert"><span class="tag">link cut off (no token)</span><b>This link looks incomplete</b><p>Open the link from your email again. If it still doesn't work, start again.</p><button class="btn">Start again</button></div>
+      </div>
+    </div>
+    <div class="phones">
+      <div><div class="frame-label">Phone · loading and success</div><div class="mock phone"><div class="card"><div class="skel"></div><div class="skel" style="width:70%"></div></div><div class="banner ok" role="status"><b>Welcome back.</b><span>Taking you to your payment page…</span></div></div></div>
+      <div><div class="frame-label">Phone · link cut off</div><div class="mock phone"><div class="errstate" role="alert"><b>This link looks incomplete</b><p>Open the link from your email again. If it still doesn't work, start again.</p><button class="btn">Start again</button></div></div></div>
+      <div><div class="frame-label">Phone · retry and invalid</div><div class="mock phone"><div class="errstate" role="alert"><b>We couldn't open your reservation</b><button class="btn">Try again</button></div><div class="errstate" role="alert"><b>This link is no longer valid</b><button class="btn">Start again</button></div></div></div>
+    </div>
+  </div>
+  <ul class="notes"><li>A network or server error shows the retry state and never the "invalid link" state, so a patchy phone connection doesn't tell people to start over and lose their seats. Only a clear 404 means invalid.</li><li>The token is read from the URL fragment in the browser and the fragment is removed from the address bar immediately. The page is excluded from the Meta Pixel and from funnel URL capture (see screen 7).</li><li>Focus moves to the heading of whichever state is shown.</li></ul>
+</section>
+
+<!-- 6 -->
+<section class="screen" id="s6">
+  <div><span class="num">SCREEN 6</span><h2>Admin: clearer labels and Release hold</h2></div>
+  <div class="pair">
+    <div>
+      <div class="frame-label">Desktop · Transactions list</div>
+      <div class="mock">
+        <h4>Transactions</h4><p class="muted">All checkouts and payments — online and manual (GCash / bank transfer).</p>
+        <table class="mini"><tr><th>Reference</th><th>Customer</th><th>Source</th><th>Status</th><th>Total</th></tr>
+          <tr><td>AXN-2026-QF5N8</td><td>Checkout started (no details yet)</td><td><span class="badge src">Manual</span></td><td><span class="badge">pending</span></td><td>₱550</td></tr>
+          <tr><td>AXN-2026-F8FC3</td><td>Checkout started (no details yet)</td><td><span class="badge src">Manual</span></td><td><span class="badge">pending</span></td><td>₱1,050</td></tr></table>
+      </div>
+      <div class="frame-label" style="margin-top:16px">Desktop · registration detail, release hold (existing <code>ConfirmModal</code>, no reason field in v1)</div>
+      <div class="states">
+        <div class="card"><span class="tag">default</span><b>Unpaid checkout</b><p class="muted">Seats held until Sat, Oct 3, 2026 · 9:30 AM. No attendee details or proof yet.</p><button class="btn ghost">Release hold</button></div>
+        <div class="modal"><span class="tag">confirm</span><div class="icon" aria-hidden="true">!</div><b>Release this hold?</b><p class="muted">The seats go back on sale right away. The customer will see an expired message if they return.</p><button class="btn danger">Release hold</button><button class="btn ghost">Keep hold</button></div>
+        <div class="card"><span class="tag">success</span><div class="banner ok" role="status"><b>Hold released.</b><span>2 seats are available again.</span></div></div>
+        <div class="card"><span class="tag">error</span><div class="banner err" role="alert"><b>Couldn't release this hold.</b><span>It may already have a payment proof or have been cancelled. Refresh and try again.</span></div></div>
+      </div>
+    </div>
+    <div class="phones">
+      <div><div class="frame-label">Phone · detail and confirm</div><div class="mock phone"><div class="card"><b>Unpaid checkout</b><p class="muted">Held until Sat, Oct 3, 2026 · 9:30 AM.</p><button class="btn ghost">Release hold</button></div>
+        <div class="modal"><div class="icon" aria-hidden="true">!</div><b>Release this hold?</b><button class="btn danger">Release hold</button><button class="btn ghost">Keep hold</button></div></div></div>
+      <div><div class="frame-label">Phone · success and error</div><div class="mock phone"><div class="banner ok" role="status"><b>Hold released.</b></div><div class="banner err" role="alert"><b>Couldn't release this hold.</b><span>Refresh and try again.</span></div></div></div>
+    </div>
+  </div>
+  <ul class="notes"><li>Button shown only for unpaid holds and only to people who can manage the event (same access check as approve/reject).</li><li>Source stays "Manual": every registration is a manual-payment flow. On-site registrations keep the label "Walk-in attendee"; the new label applies only to unpaid checkouts with no details.</li></ul>
+</section>
+
+<!-- 7 -->
+<section class="screen" id="s7">
+  <div><span class="num">PAGE RULES</span><h2>Declarations for the Frontend gate</h2></div>
+  <table class="meta">
+    <tr><th>Item</th><th>Declaration</th></tr>
+    <tr><td>Resume page URL</td><td><code>/events/[slug]/register/resume</code> (token only in the URL fragment)</td></tr>
+    <tr><td>Metadata</td><td>Title "Resuming your reservation | Axon Tickets"; robots <code>noindex, nofollow</code>; referrer policy <code>no-referrer</code>; not in the sitemap. No public facts to render (not a public page).</td></tr>
+    <tr><td>Trackers</td><td>Excluded from the Meta Pixel (route exclusion). Internal funnel and Sentry URLs are sent without the fragment.</td></tr>
+    <tr><td>Extended holds</td><td>Max 2 extended (24-hour) holds per IP per event per day (configurable). Beyond that the email is still sent but the hold stays at 60 minutes and the page shows the real deadline.</td></tr>
+    <tr><td>Banner time format</td><td>Under 60 min: <code>42:10</code>. 60 to 120 min: <code>1 hr 12 min</code>. Over 120 min: the deadline date. Screen-reader announcements at 10, 5 and 1 minute.</td></tr>
+    <tr><td>Expired vs elsewhere</td><td>On a 404 for the reservation: "expired" screen if the locally known deadline has passed, else the neutral "opened on another device" wording.</td></tr>
+    <tr><td>Cap default</td><td>5 unpaid guest holds per IP per event per hour (configurable).</td></tr>
+    <tr><td>Date format</td><td>One helper: weekday, month, day, year, time with a dot separator, always Asia/Manila. Wrap on narrow phones; never drop the year.</td></tr>
+    <tr><td>Focus</td><td>Moves to the new content's heading or field after every in-place swap (pay-later card, expired, cancelled, resume states).</td></tr>
+    <tr><td>Funnel review (design rule 6)</td><td>No step moved or removed. Conversion-relevant changes to record in the ledger: guest hold shortened 24 h → 60 min, "I will pay later" now opens a card first, raw errors replaced by "Start again". New funnel events are additive.</td></tr>
+  </table>
+</section>
+</div>
+</body>
+</html>

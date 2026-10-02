@@ -121,7 +121,7 @@ export default function AdminOrdersPage() {
           <div>
             <h1 className="axon-page-title text-3xl sm:text-4xl">Transactions</h1>
             <p className="text-sm text-gray-500 mt-1">
-              All paid transactions — online and manual (GCash / bank transfer).
+              All checkouts and payments — online and manual (GCash / bank transfer).
             </p>
           </div>
           {filtersApplied && (

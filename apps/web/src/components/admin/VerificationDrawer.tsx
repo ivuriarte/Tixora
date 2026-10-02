@@ -255,7 +255,9 @@ export default function VerificationDrawer({
       ? [reg.user.firstName, reg.user.lastName].filter(Boolean).join(' ') || 'Unnamed buyer'
       : reg?.paymentMethod === 'onsite_qr'
         ? 'Walk-in attendee'
-        : 'Guest registration';
+        : reg?.status === 'pending_payment'
+          ? 'Checkout started (no details yet)'
+          : 'Guest registration';
   const buyerEmail = lead?.email ?? reg?.user?.email ?? reg?.guestEmail ?? '';
 
   return (

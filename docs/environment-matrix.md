@@ -46,13 +46,17 @@ This document lists every environment variable consumed by the API and Web apps,
 | `CLOUDINARY_CLOUD_NAME` | No | Dev cloud | UAT folder prefix `axon-tickets/uat/` | Production folder prefix `axon-tickets/prod/` | Same cloud account is OK; use separate folder prefixes. |
 | `CLOUDINARY_API_KEY` | **Yes** | Dev | UAT | Production | |
 | `CLOUDINARY_API_SECRET` | **Yes** | Dev | UAT | Production | |
-| `PAYMONGO_SECRET_KEY` | **Yes** | `sk_test_…` | `sk_test_…` | `sk_live_…` | UAT **must** use test keys. Startup assertion enforces this. |
-| `PAYMONGO_PUBLIC_KEY` | **Yes** | `pk_test_…` | `pk_test_…` | `pk_live_…` | |
+| `PAYMONGO_SECRET_KEY` | **Yes** | `sk_test_…` | `sk_test_…` | live secret key | UAT **must** use test keys. Startup assertion enforces this. |
+| `PAYMONGO_PUBLIC_KEY` | **Yes** | `pk_test_…` | `pk_test_…` | live public key | |
 | `PAYMONGO_WEBHOOK_SECRET` | **Yes** | Dev webhook secret | UAT webhook secret | Production webhook secret | |
 | `HCAPTCHA_SECRET` | **Yes** | `0x0000000000000000000000000000000000000000` (test bypass) | Test key | Production key | |
 | `THROTTLE_TTL` | No | `60000` | `60000` | `60000` | |
 | `THROTTLE_LIMIT` | No | `60` | `60` | `60` | |
 | `OTP_HOURLY_LIMIT` | No | `10` | `10` | `10` | |
+| `GUEST_HOLD_MINUTES` | No | `60` | `60` | `60` | Seat hold for an unpaid guest checkout that saved no email (10–240). Cleanup runs every 5 minutes, so the real hold is this value plus up to ~5 minutes. Logged-in registrations keep the 24-hour rule. |
+| `GUEST_HOLD_EXTENDED_HOURS` | No | `24` | `24` | `24` | Hold length after a guest saves an email on "I will pay later" (1–72). Also drives the one-time reminder (about 12 hours before expiry). |
+| `GUEST_HOLDS_PER_IP` | No | `5` | `5` | `5` | Unpaid guest holds one IP can start per event per hour (1–20). Counted in Redis with a hashed IP; a lower value can block shared mobile/venue connections. |
+| `GUEST_EXTENDED_HOLDS_PER_IP` | No | `2` | `2` | `2` | Extended (long) guest holds one IP can get per event per day (1–10). Over the limit the hold stays at `GUEST_HOLD_MINUTES`. |
 | `OPTIONAL_INCLUSIONS_ENABLED` | No | `false` until local feature testing | `true` for approved UAT events | `true` only after UAT sign-off and the production backup gate | Global kill switch. An event must also have `optionalInclusionsEnabled=true`; disabling this variable hides the catalog and rejects new inclusion quotes without deleting purchases. |
 | `INCLUSION_QUOTE_TTL_MINUTES` | No | `15` | `15` | `15` | Validity of an authoritative quote. A consumed or expired quote cannot be reused. |
 | `INCLUSION_PAYMENT_HOLD_MINUTES` | No | `120` | `120` | `120` | Initial stock-hold duration after registration creation and before proof submission. |

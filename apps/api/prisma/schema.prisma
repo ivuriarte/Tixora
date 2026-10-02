@@ -657,6 +657,13 @@ model Registration {
   userId               String?            @map("user_id")
   guestEmail           String?            @map("guest_email")
   guestAccessTokenHash String?            @map("guest_access_token_hash")
+  // Unverified contact the guest typed on "I will pay later". NEVER an identity
+  // claim and never mixed into guestEmail (guestEmail IS NOT NULL means the
+  // email-OTP step is not required). Cleared on proof submit, cancel, release,
+  // auto-cancel and by the retention job.
+  guestResumeEmail     String?            @map("guest_resume_email")
+  // Server-set deadline for an unpaid guest hold. NULL = legacy rule (24 h after createdAt).
+  holdExpiresAt        DateTime?          @map("hold_expires_at")
   accountConsent       Boolean            @default(false) @map("account_consent")
   accountConsentAt     DateTime?          @map("account_consent_at")
   partnerConsent       Boolean            @default(false) @map("partner_consent")
@@ -702,6 +709,7 @@ model Registration {
   @@index([eventId, status])
   @@index([tierId, status])
   @@index([status, createdAt])
+  @@index([status, holdExpiresAt])
   @@index([status, verifiedAt])
   @@index([referenceNumber])
   @@map("registrations")

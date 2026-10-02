@@ -176,11 +176,15 @@ test.describe('Admin Create Event — Form Fields', () => {
     await expect(page.getByPlaceholder(/jp laurel ave/i)).toBeVisible();
   });
 
-  test('invalid basics cannot advance to the next step', async ({ adminPage: page }) => {
+  test('incomplete basics can move on and list what is still needed', async ({ adminPage: page }) => {
     await page.evaluate((key) => localStorage.removeItem(key), EVENT_DRAFT_KEY);
     await gotoAdmin(page, '/admin/events/new');
-    await expect(page.getByRole('button', { name: 'Next →', exact: true })).toBeDisabled();
-    await expect(page.getByRole('heading', { name: 'Basics' })).toBeVisible();
+    await page.getByPlaceholder(/my awesome concert/i).fill('QA Partial Event');
+    await page.getByRole('button', { name: 'Next →', exact: true }).click();
+    await expect(page.getByRole('heading', { name: 'Location & Schedule' })).toBeVisible();
+    await page.getByRole('button', { name: '← Back' }).click();
+    await expect(page.getByText('Still needed before publishing:')).toBeVisible();
+    await expect(page.getByText('Description is required')).toBeVisible();
     await expect(page).toHaveURL(/events\/new/);
   });
 
@@ -201,7 +205,10 @@ test.describe('Admin Create Event — Form Fields', () => {
   test('new events require an end time', async ({ adminPage: page }) => {
     await openCreateWizardStep(page, 'location', { endDate: '', endTime: '' });
     await expect(page.getByText('Ends At*')).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Next →', exact: true })).toBeDisabled();
+    await page.getByRole('button', { name: 'Next →', exact: true }).click();
+    await expect(page.getByRole('button', { name: 'Location & Schedule: Needs info' }).first()).toBeAttached();
+    await page.getByRole('button', { name: /^Review:/ }).first().click();
+    await expect(page.getByText('End date and time are required')).toBeVisible();
   });
 
   test('end time is pre-filled three hours after the start', async ({ adminPage: page }) => {
@@ -216,9 +223,15 @@ test.describe('Admin Create Event — Form Fields', () => {
     await expect(page.getByRole('button', { name: 'Next →', exact: true })).toBeEnabled();
   });
 
-  test('a start date in the past cannot advance', async ({ adminPage: page }) => {
+  test('a start date in the past is listed before the event can be created', async ({ adminPage: page }) => {
     await openCreateWizardStep(page, 'location', { startDate: '2020-01-10', endDate: '2020-01-10' });
-    await expect(page.getByRole('button', { name: 'Next →', exact: true })).toBeDisabled();
+    await page.getByRole('button', { name: /^Review:/ }).first().click();
+    await expect(page.getByText('Start date and time cannot be in the past')).toBeVisible();
+    await page.getByRole('button', { name: 'Create Event' }).click();
+    await expect(page.getByRole('heading', { name: 'Location & Schedule' })).toBeVisible();
+    await expect(
+      page.getByRole('alert').filter({ hasText: 'before saving' }),
+    ).toContainText('Start date and time cannot be in the past');
   });
 
   test('Conference Details section renders sponsors manager', async ({ adminPage: page }) => {
@@ -654,5 +667,112 @@ test.describe('Super Admin portfolio — platform governance', () => {
     await page.getByRole('button', { name: 'Save Changes' }).click();
     expect((await requestPromise).postDataJSON()).toEqual({ serviceFee: 75 });
     await expect(page.getByText('Platform settings saved.')).toBeVisible();
+  });
+});
+
+test.describe('Admin unpaid checkout holds', () => {
+  const holdRegistration = (status: string) => ({
+    id: 'reg-hold-1',
+    referenceNumber: 'AXN-2026-HOLD1',
+    status,
+    tierName: 'Balcony',
+    attendeeCount: 2,
+    subtotal: 1000,
+    fees: 50,
+    discount: 0,
+    total: 1050,
+    currency: 'PHP',
+    rejectionReason: null,
+    verifiedAt: null,
+    createdAt: '2026-10-02T04:13:57.000Z',
+    paymentMethod: null,
+    holdExpiresAt: '2026-10-03T04:13:57.000Z',
+    event: {
+      title: 'QA Event 2030',
+      slug: 'qa-event-2030',
+      startsAt: '2030-01-01T01:00:00.000Z',
+      venue: 'QA Hall',
+      address: null,
+      landmark: null,
+    },
+    user: null,
+    attendees: [],
+    proofs: [],
+    lineItems: [],
+    verifiedBy: null,
+  });
+
+  async function mockHold(page: Page, release: 'ok' | 'fail') {
+    const state = { released: false, releaseCalls: 0 };
+    await page.route('**/api/v1/admin/registrations/reg-hold-1**', async (route) => {
+      const request = route.request();
+      if (request.method() === 'PATCH' && request.url().endsWith('/release-hold')) {
+        state.releaseCalls += 1;
+        if (release === 'fail') {
+          return route.fulfill({
+            status: 400,
+            contentType: 'application/json',
+            body: JSON.stringify({ success: false, message: 'not an unpaid hold' }),
+          });
+        }
+        state.released = true;
+        return route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({ success: true, data: { message: 'Hold released' } }),
+        });
+      }
+      if (request.method() === 'GET') {
+        return route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            success: true,
+            data: holdRegistration(state.released ? 'cancelled' : 'pending_payment'),
+          }),
+        });
+      }
+      return route.continue();
+    });
+    return state;
+  }
+
+  test('an unfinished checkout is labelled honestly and its hold can be released', async ({ adminPage: page }) => {
+    const state = await mockHold(page, 'ok');
+    await gotoAdmin(page, '/admin/registrations/reg-hold-1');
+
+    await expect(page.getByText('Checkout started (no details yet)')).toBeVisible();
+    await expect(page.getByText('Walk-in attendee')).toHaveCount(0);
+    await expect(page.getByText(/Seats held until \w{3}, \w{3} \d{1,2}, \d{4} · /)).toBeVisible();
+
+    await page.getByRole('button', { name: 'Release hold' }).click();
+    const dialog = page.getByRole('dialog');
+    await expect(dialog).toContainText('Release this hold?');
+    await expect(dialog).toContainText('The seats go back on sale right away.');
+    await dialog.getByRole('button', { name: 'Release hold' }).click();
+
+    await expect(page.getByRole('status').filter({ hasText: 'Hold released. The seats are available again.' })).toBeVisible();
+    expect(state.releaseCalls).toBe(1);
+    await expect(page.getByRole('button', { name: 'Release hold' })).toHaveCount(0);
+  });
+
+  test('keeping the hold releases nothing', async ({ adminPage: page }) => {
+    const state = await mockHold(page, 'ok');
+    await gotoAdmin(page, '/admin/registrations/reg-hold-1');
+    await page.getByRole('button', { name: 'Release hold' }).click();
+    await page.getByRole('dialog').getByRole('button', { name: 'Keep hold' }).click();
+    await expect(page.getByRole('dialog')).toHaveCount(0);
+    expect(state.releaseCalls).toBe(0);
+  });
+
+  test('a failed release explains what to do next and keeps the hold', async ({ adminPage: page }) => {
+    await mockHold(page, 'fail');
+    await gotoAdmin(page, '/admin/registrations/reg-hold-1');
+    await page.getByRole('button', { name: 'Release hold' }).click();
+    await page.getByRole('dialog').getByRole('button', { name: 'Release hold' }).click();
+
+    await expect(page.getByRole('alert').filter({ hasText: "Couldn't release this hold" })).toBeVisible();
+    // Scoped to the page: the dialog is still fading out for a moment after it closes.
+    await expect(page.getByRole('main').getByRole('button', { name: 'Release hold' })).toBeVisible();
   });
 });

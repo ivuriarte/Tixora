@@ -9,10 +9,13 @@ interface ConfirmModalProps {
   message: string;
   confirmLabel?: string;
   cancelLabel?: string;
-  variant?: 'danger' | 'warning';
+  variant?: 'danger' | 'warning' | 'primary';
   loading?: boolean;
   onConfirm: () => void;
   onCancel: () => void;
+  /** Optional middle action, e.g. "Leave without saving" between Save and Stay. */
+  secondaryLabel?: string;
+  onSecondary?: () => void;
 }
 
 export default function ConfirmModal({
@@ -25,8 +28,11 @@ export default function ConfirmModal({
   loading = false,
   onConfirm,
   onCancel,
+  secondaryLabel,
+  onSecondary,
 }: ConfirmModalProps) {
   const isDanger = variant === 'danger';
+  const isPrimary = variant === 'primary';
 
   return (
     <Transition.Root show={open} as={Fragment}>
@@ -63,10 +69,15 @@ export default function ConfirmModal({
             <Dialog.Panel className="relative mx-4 w-full max-w-sm rounded-lg border border-[#e4dcf4] bg-white p-6 shadow-2xl">
               <div
                 className={`mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full ${
-                  isDanger ? 'bg-red-100' : 'bg-amber-100'
+                  isDanger ? 'bg-red-100' : isPrimary ? 'bg-[#ede9fe]' : 'bg-amber-100'
                 }`}
               >
-                {isDanger ? (
+                {isPrimary ? (
+                  <svg className="h-6 w-6 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden>
+                    <circle cx="12" cy="12" r="9" />
+                    <path strokeLinecap="round" d="M12 11v5M12 8h.01" />
+                  </svg>
+                ) : isDanger ? (
                   <svg className="h-6 w-6 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                   </svg>
@@ -89,7 +100,7 @@ export default function ConfirmModal({
                   onClick={onConfirm}
                   disabled={loading}
                   className={`inline-flex min-h-[44px] w-full items-center justify-center rounded-[40px] px-5 text-sm font-bold uppercase tracking-[0.06em] text-white transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${
-                    isDanger ? 'bg-red-600 hover:bg-red-700' : 'bg-amber-500 hover:bg-amber-600'
+                    isDanger ? 'bg-red-600 hover:bg-red-700' : isPrimary ? 'bg-primary hover:bg-primary-hover' : 'bg-amber-500 hover:bg-amber-600'
                   }`}
                 >
                   {loading && (
@@ -100,6 +111,15 @@ export default function ConfirmModal({
                   )}
                   {loading ? 'Processing…' : (confirmLabel ?? (isDanger ? 'Delete' : 'Confirm'))}
                 </button>
+                {secondaryLabel && onSecondary && (
+                  <button
+                    onClick={onSecondary}
+                    disabled={loading}
+                    className="min-h-[44px] w-full rounded-[40px] border border-[#d3c8e8] px-5 text-sm font-bold uppercase tracking-[0.06em] text-[#4f416c] transition-colors hover:border-primary hover:text-primary disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {secondaryLabel}
+                  </button>
+                )}
                 <button
                   onClick={onCancel}
                   disabled={loading}
