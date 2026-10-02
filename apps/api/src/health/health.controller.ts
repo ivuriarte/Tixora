@@ -1,4 +1,4 @@
-import { Controller, Get, HttpCode, HttpStatus } from '@nestjs/common';
+import { Controller, Get, HttpCode, HttpStatus, ServiceUnavailableException } from '@nestjs/common';
 import { ApiTags, ApiOperation } from '@nestjs/swagger';
 import { ConfigService } from '@nestjs/config';
 import { Public } from '../common/decorators/public.decorator';
@@ -24,7 +24,7 @@ export class HealthController {
 
     const healthy = db && redis;
 
-    return {
+    const body = {
       status: healthy ? 'ok' : 'degraded',
       environment: this.config.get<string>('appEnv'),
       timestamp: new Date().toISOString(),
@@ -33,5 +33,10 @@ export class HealthController {
         redis: redis ? 'ok' : 'error',
       },
     };
+
+    // Uptime monitors and deploy smoke checks only look at the status code,
+    // so an unhealthy dependency must not return 200.
+    if (!healthy) throw new ServiceUnavailableException(body);
+    return body;
   }
 }
