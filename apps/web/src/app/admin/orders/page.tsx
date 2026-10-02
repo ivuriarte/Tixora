@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import api from '@/lib/api';
 import { useDebounce } from '@/lib/useDebounce';
@@ -74,6 +74,17 @@ export default function AdminOrdersPage() {
   const [searchQ, setSearchQ] = useState('');
   const [exporting, setExporting] = useState(false);
   const debouncedQ = useDebounce(searchQ, 300);
+
+  // Deep link from the dashboard / Events list: /admin/orders?eventId=<id>&status=pending
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const linkedStatus = params.get('status');
+    const linkedEvent = params.get('eventId');
+    if (linkedStatus && ['all', 'paid', 'pending', 'failed', 'refunded', 'cancelled'].includes(linkedStatus)) {
+      setStatusFilter(linkedStatus);
+    }
+    if (linkedEvent) setEventId(linkedEvent);
+  }, []);
 
   const filtersApplied = !!statusFilter && !!eventId;
 

@@ -13,6 +13,8 @@ import FulfillmentInstructions from '@/components/FulfillmentInstructions';
 import type { Registration, RegistrationStatus } from '@axon-tickets/types';
 import { trackPixelCustomEvent, trackPixelEvent } from '@/lib/metaPixel';
 import { ErrorState, ScreenSkeleton } from '@/components/ScreenState';
+import HoldBanner from '@/components/guest-hold/HoldBanner';
+import ReservationEndState from '@/components/guest-hold/ReservationEndState';
 
 const STATUS_LABELS: Record<RegistrationStatus, string> = {
   pending_payment: 'Waiting for Payment',
@@ -42,6 +44,7 @@ export default function RegistrationDetailPage() {
   const [cancelling, setCancelling] = useState(false);
   const [profileNudgeDismissed, setProfileNudgeDismissed] = useState(false);
   const [profileIncomplete, setProfileIncomplete] = useState(false);
+  const [holdExpired, setHoldExpired] = useState(false);
 
   const fetchReg = useCallback(async () => {
     try {
@@ -154,6 +157,18 @@ export default function RegistrationDetailPage() {
     );
   }
 
+  // Same expired screen guests get. The API releases a lapsed hold when it is read, so a
+  // fresh load that comes back cancelled tells the truth.
+  if (holdExpired && reg?.status === 'cancelled') {
+    return (
+      <main className="min-h-screen bg-gray-50 py-10 flex items-center justify-center">
+        <div className="w-full max-w-lg px-4">
+          <ReservationEndState variant="expired" slug={reg.event.slug} pageHeading />
+        </div>
+      </main>
+    );
+  }
+
   if (error || !reg) {
     return (
       <main className="min-h-screen bg-gray-50 py-10 flex items-center justify-center">
@@ -242,6 +257,16 @@ export default function RegistrationDetailPage() {
         </div>
 
         {/* Payment instructions */}
+        {reg.status === 'pending_payment' && (
+          <HoldBanner
+            deadlineIso={reg.holdExpiresAt}
+            onExpired={() => {
+              setHoldExpired(true);
+              void fetchReg();
+            }}
+          />
+        )}
+
         {hasPaymentInfo && reg.status === 'pending_payment' && (
           <div className="bg-violet-50 border border-violet-200 rounded-2xl p-5 space-y-3">
             <h2 className="font-semibold text-gray-900">Payment Instructions</h2>

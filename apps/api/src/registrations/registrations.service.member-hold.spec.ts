@@ -145,6 +145,32 @@ describe('GET /registrations/:id exposes the hold deadline to its owner', () => 
     return service.findById('reg_1', 'user_1') as Promise<{ holdExpiresAt: string | null }>;
   }
 
+  it('releases an expired unpaid hold on read, then returns the cancelled registration', async () => {
+    const { service, prisma, holds } = makeService();
+    const expiredRow = row('pending_payment', new Date(NOW.getTime() - 60_000));
+    (prisma.registration as any).findFirst = jest
+      .fn()
+      .mockResolvedValueOnce({ id: 'reg_1' }) // the expired-hold probe
+      .mockResolvedValueOnce({ ...expiredRow, status: 'cancelled' }); // the page read after release
+    const out = (await service.findById('reg_1', 'user_1')) as unknown as { status: string; holdExpiresAt: string | null };
+    expect(holds.releasePendingHold).toHaveBeenCalledWith(
+      'reg_1',
+      expect.objectContaining({ onlyIfExpired: expect.objectContaining({ now: NOW }) }),
+    );
+    expect(out.status).toBe('cancelled');
+    expect(out.holdExpiresAt).toBeNull();
+  });
+
+  it('does not release a hold that is still running', async () => {
+    const { service, prisma, holds } = makeService();
+    (prisma.registration as any).findFirst = jest
+      .fn()
+      .mockResolvedValueOnce(null) // probe: nothing expired
+      .mockResolvedValueOnce(row('pending_payment', new Date(NOW.getTime() + 60_000)));
+    await service.findById('reg_1', 'user_1');
+    expect(holds.releasePendingHold).not.toHaveBeenCalled();
+  });
+
   it('returns an ISO deadline for an unpaid hold', async () => {
     const d = new Date(NOW.getTime() + 60 * 60_000);
     expect((await find('pending_payment', d)).holdExpiresAt).toBe(d.toISOString());

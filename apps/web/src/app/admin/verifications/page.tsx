@@ -11,6 +11,7 @@ const VerificationDrawer = dynamic(
 );
 import { formatManila, formatPHP } from '@axon-tickets/utils';
 import { EmptyState, ScreenSkeleton } from '@/components/ScreenState';
+import { STATUS_CONFIG } from '@/components/admin/StatusChip';
 
 interface VerificationRow {
   id: string;
@@ -64,14 +65,6 @@ const STATUSES = [
   { value: 'verified',         label: 'Verified' },
   { value: 'rejected',         label: 'Rejected' },
 ];
-
-const STATUS_CONFIG: Record<string, { label: string; dot: string; chip: string }> = {
-  pending_approval: { label: 'Awaiting Review',       dot: 'bg-blue-500',    chip: 'bg-blue-50 text-blue-700 ring-1 ring-inset ring-blue-600/20' },
-  proof_submitted:  { label: 'Under Review',          dot: 'bg-blue-500',    chip: 'bg-blue-50 text-blue-700 ring-1 ring-inset ring-blue-600/20' },
-  verified:         { label: 'Verified',              dot: 'bg-emerald-500', chip: 'bg-emerald-50 text-emerald-700 ring-1 ring-inset ring-emerald-600/20' },
-  rejected:         { label: 'Rejected',              dot: 'bg-red-500',     chip: 'bg-red-50 text-red-700 ring-1 ring-inset ring-red-600/20' },
-  pending_payment:  { label: 'Pending Payment',       dot: 'bg-amber-500',   chip: 'bg-amber-50 text-amber-700 ring-1 ring-inset ring-amber-600/20' },
-};
 
 export default function VerificationsQueuePage() {
   const [rows, setRows] = useState<VerificationRow[]>([]);

@@ -5,6 +5,7 @@ import type { EventDraft, LocalTier } from '../types';
 import { emptyTier } from '../types';
 import TierForm from '../TierForm';
 import ReorderButtons, { moveItem } from '@/components/ReorderButtons';
+import SeatCounts from '@/components/admin/SeatCounts';
 
 interface CapacityTiersStepProps {
   draft: EventDraft;
@@ -156,6 +157,17 @@ export default function CapacityTiersStep({
                         {draft.isFree ? 'Free' : `₱${parseFloat(tier.price || '0').toLocaleString()}`} · {tier.totalQuantity} total · max {tier.maxPerOrder}/order
                         {tier.inclusions.length > 0 ? ` · ${tier.inclusions.length} included benefit${tier.inclusions.length === 1 ? '' : 's'}` : ''}
                       </p>
+                      {tier.serverId && (
+                        <div className="mt-1">
+                          <SeatCounts
+                            counts={{
+                              confirmed: tier.confirmedQuantity,
+                              awaitingReview: tier.awaitingReviewQuantity,
+                              held: tier.heldQuantity,
+                            }}
+                          />
+                        </div>
+                      )}
                     </div>
                   </div>
                   <div className="flex items-center gap-3">

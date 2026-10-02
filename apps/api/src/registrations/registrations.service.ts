@@ -1624,7 +1624,29 @@ export class RegistrationsService {
     };
   }
 
+  /**
+   * The owner is looking at an unpaid hold whose deadline has passed (the 5-minute cleanup has
+   * not run yet): release it now so the page can say so truthfully. The shared helper re-checks
+   * the deadline and the absence of a payment proof under the row lock.
+   */
+  private async releaseIfHoldExpired(id: string, userId: string): Promise<void> {
+    if (!this.holds) return;
+    const current = await this.prisma.registration.findFirst({
+      where: { id, userId, status: 'pending_payment', holdExpiresAt: { lt: new Date() } },
+      select: { id: true },
+    });
+    if (!current) return;
+    const now = new Date();
+    await this.holds.releasePendingHold(current.id, {
+      reason: 'Hold expired',
+      auditAction: 'REGISTRATION_AUTO_CANCELLED',
+      inclusionMovement: 'expire',
+      onlyIfExpired: { now, legacyCutoff: new Date(now.getTime() - 24 * 3_600_000) },
+    });
+  }
+
   async findById(id: string, userId: string) {
+    await this.releaseIfHoldExpired(id, userId);
     const reg = await this.prisma.registration.findFirst({
       where: { id, userId },
       include: {
