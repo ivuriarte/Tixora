@@ -7,7 +7,8 @@ import api from '@/lib/api';
 import { useDebounce } from '@/lib/useDebounce';
 import { formatDateRange } from '@axon-tickets/utils';
 import { useAuthStore } from '@/store/auth.store';
-import { EmptyState, ScreenSkeleton } from '@/components/ScreenState';
+import { EmptyState, ErrorState, ScreenSkeleton } from '@/components/ScreenState';
+import SeatCounts, { PendingCheckoutsLink, SeatLegend } from '@/components/admin/SeatCounts';
 import { useOrganizerAccess } from '@/lib/useOrganizerAccess';
 
 interface EventRow {
@@ -20,6 +21,9 @@ interface EventRow {
   status: string;
   onsiteRegistrationEnabled?: boolean;
   ticketsSold: number;
+  ticketsConfirmed?: number;
+  ticketsAwaitingReview?: number;
+  ticketsHeld?: number;
   organization: { id: string; name: string } | null;
 }
 
@@ -46,7 +50,7 @@ export default function EventHistoryPage() {
   const [statusFilter, setStatusFilter] = useState('');
   const [organizationId, setOrganizationId] = useState('');
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['admin-event-history', organizationId, debouncedQ],
     queryFn: () => {
       const params = new URLSearchParams({ limit: '100' });
@@ -128,7 +132,15 @@ export default function EventHistoryPage() {
 
         {isLoading && <ScreenSkeleton rows={5} compact />}
 
-        {!isLoading && filtered.length === 0 && (
+        {isError && (
+          <ErrorState
+            title="Couldn't load the events"
+            message="Check your connection and try again."
+            action={<button type="button" onClick={() => refetch()} className="min-h-11 rounded-xl border border-red-300 px-4 text-sm font-semibold text-red-800">Retry</button>}
+          />
+        )}
+
+        {!isLoading && !isError && filtered.length === 0 && (
           <EmptyState title="No events match" message="Adjust the status or organizer filter to see more events." />
         )}
 
@@ -150,10 +162,17 @@ export default function EventHistoryPage() {
                   </span>
                 </div>
                 <p className="text-sm text-gray-500">
-                  {formatDateRange(event.startsAt, event.endsAt)} · {event.venue} ·{' '}
-                  <span className="font-medium text-gray-700">{event.ticketsSold} sold</span>
+                  {formatDateRange(event.startsAt, event.endsAt)} · {event.venue}
                   {event.organization && <span> · {event.organization.name}</span>}
                 </p>
+                <div className="mt-2 flex flex-wrap items-center gap-2">
+                  <SeatCounts
+                    compact
+                    counts={{ confirmed: event.ticketsConfirmed, awaitingReview: event.ticketsAwaitingReview, held: event.ticketsHeld }}
+                    onRetry={() => refetch()}
+                  />
+                  <PendingCheckoutsLink eventId={event.id} held={event.ticketsHeld} />
+                </div>
               </div>
               <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto sm:flex-wrap sm:items-center">
                 {event.onsiteRegistrationEnabled && (
@@ -186,6 +205,7 @@ export default function EventHistoryPage() {
             </div>
           ))}
         </div>
+        {filtered.length > 0 && <SeatLegend />}
     </main>
   );
 }

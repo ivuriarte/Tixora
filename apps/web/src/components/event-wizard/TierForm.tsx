@@ -84,6 +84,9 @@ export default function TierForm({ initial, onSave, onCancel, isFree = false }: 
             value={t.totalQuantity}
             onChange={(e) => upd('totalQuantity', e.target.value)}
           />
+          {t.serverId && (
+            <p className="mt-1 text-xs text-gray-500">Capacity can&apos;t be lowered below the seats already reserved.</p>
+          )}
         </div>
         <div>
           <label className="block text-xs font-medium text-gray-600 mb-1">Max Per Order <span className="text-red-500">*</span></label>

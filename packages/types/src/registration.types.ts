@@ -86,7 +86,7 @@ export interface Registration {
   lineItems?: RegistrationLineItem[];
   inclusionSubtotal?: number;
   inclusionHoldExpiresAt?: string | null;
-  /** Guest checkouts only: when the unpaid seat hold ends. Null or absent means no deadline is shown. */
+  /** When the unpaid seat hold ends (guests and logged-in customers). Null or absent means no deadline is shown. */
   holdExpiresAt?: string | null;
   /** Guest checkouts only: true once the guest saved an email for the resume link. */
   resumeEmailSaved?: boolean;

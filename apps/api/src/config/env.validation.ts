@@ -37,6 +37,7 @@ export const validationSchema = Joi.object({
   THROTTLE_LIMIT: Joi.number().default(60),
   OTP_HOURLY_LIMIT: Joi.number().integer().min(1).default(10),
 
+  MEMBER_HOLD_MINUTES: Joi.number().integer().min(10).max(1440).default(60),
   GUEST_HOLD_MINUTES: Joi.number().integer().min(10).max(240).default(60),
   GUEST_HOLD_EXTENDED_HOURS: Joi.number().integer().min(1).max(72).default(24),
   GUEST_HOLDS_PER_IP: Joi.number().integer().min(1).max(20).default(5),

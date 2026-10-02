@@ -776,3 +776,164 @@ test.describe('Admin unpaid checkout holds', () => {
     await expect(page.getByRole('main').getByRole('button', { name: 'Release hold' })).toBeVisible();
   });
 });
+
+test.describe('Admin seat counts: Sold, Awaiting review, Pending payment', () => {
+  test.skip(!IS_ADMIN_MOCKED, 'Uses deterministic mocked seat counts.');
+
+  const listEvent = (overrides: Record<string, unknown>) => ({
+    id: 'event-seat',
+    slug: 'seat-event',
+    title: 'WAIT… this song was on glee: A Cabaret',
+    description: 'd',
+    venue: "Bern's Theater",
+    city: 'Davao',
+    startsAt: '2027-02-05T02:00:00.000Z',
+    endsAt: '2027-02-07T12:00:00.000Z',
+    status: 'on_sale',
+    isFree: false,
+    onsiteRegistrationEnabled: false,
+    organization: null,
+    ticketsSold: 0,
+    ...overrides,
+  });
+
+  async function mockList(page: Page, events: Array<Record<string, unknown>>, mode: 'ok' | 'fail' = 'ok') {
+    const handler = async (route: import('@playwright/test').Route) => {
+      if (route.request().method() !== 'GET') return route.fallback();
+      if (mode === 'fail') {
+        return route.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ success: false }) });
+      }
+      return route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          success: true,
+          data: { data: events, meta: { total: events.length, page: 1, limit: 100, totalPages: 1 } },
+        }),
+      });
+    };
+    await page.route(/\/api\/v1\/admin\/events(\?.*)?$/, handler);
+    return async () => page.unroute(/\/api\/v1\/admin\/events(\?.*)?$/, handler);
+  }
+
+  test('the dashboard shows each part in admin words and never calls unpaid seats "sold"', async ({ adminPage: page }) => {
+    const done = await mockList(page, [
+      listEvent({ id: 'e-mixed', ticketsSold: 14, ticketsConfirmed: 5, ticketsAwaitingReview: 2, ticketsHeld: 7 }),
+      listEvent({ id: 'e-held', title: 'Only pending', ticketsSold: 7, ticketsConfirmed: 0, ticketsAwaitingReview: 0, ticketsHeld: 7 }),
+      listEvent({ id: 'e-none', title: 'Nothing yet', ticketsSold: 0, ticketsConfirmed: 0, ticketsAwaitingReview: 0, ticketsHeld: 0 }),
+    ]);
+    try {
+      await gotoAdmin(page, '/admin');
+      const groups = page.getByRole('group', { name: 'Seat counts' });
+      await expect(groups).toHaveCount(3);
+
+      await expect(groups.nth(0)).toContainText('5 Sold');
+      await expect(groups.nth(0)).toContainText('2 Awaiting review');
+      await expect(groups.nth(0)).toContainText('7 Pending payment');
+
+      // Today's screenshot case: nothing paid, seven pending checkouts.
+      await expect(groups.nth(1)).toContainText('7 Pending payment');
+      await expect(groups.nth(1)).not.toContainText('Sold');
+      await expect(groups.nth(2)).toHaveText(/^\s*0 Sold\s*$/);
+
+      // The old wording is gone.
+      await expect(page.getByText(/\b7 sold\b/i)).toHaveCount(0);
+
+      // Always-visible legend (no hover needed).
+      await expect(page.getByText('What the counts mean')).toBeVisible();
+      await expect(page.getByText(/seat held, no proof yet/)).toBeVisible();
+
+      // Link only where something is pending, and it opens Transactions for that event.
+      const links = page.getByRole('link', { name: 'View pending checkouts' });
+      await expect(links).toHaveCount(2);
+      await expect(links.first()).toHaveAttribute('href', '/admin/orders?eventId=e-mixed&status=pending');
+      const box = await links.first().boundingBox();
+      expect(box?.height ?? 0).toBeGreaterThanOrEqual(44);
+    } finally {
+      await done();
+    }
+  });
+
+  test('a missing breakdown says "Counts unavailable" instead of showing 0', async ({ adminPage: page }) => {
+    const done = await mockList(page, [listEvent({ id: 'e-old', ticketsSold: 9 })]);
+    try {
+      await gotoAdmin(page, '/admin');
+      await expect(page.getByText('Counts unavailable')).toBeVisible();
+      await expect(page.getByRole('button', { name: 'Retry' })).toBeVisible();
+      await expect(page.getByRole('group', { name: 'Seat counts' })).toHaveCount(0);
+    } finally {
+      await done();
+    }
+  });
+
+  test('a failed list load shows an error with Retry', async ({ adminPage: page }) => {
+    const done = await mockList(page, [], 'fail');
+    try {
+      await gotoAdmin(page, '/admin');
+      await expect(page.getByRole('alert').filter({ hasText: "Couldn't load the events" })).toBeVisible();
+      await expect(page.getByRole('button', { name: 'Retry' })).toBeVisible();
+    } finally {
+      await done();
+    }
+  });
+
+  test('Event History uses the same counts and the row does not scroll sideways at 320 px', async ({ adminPage: page }) => {
+    const done = await mockList(page, [
+      listEvent({ id: 'e-mixed', ticketsSold: 14, ticketsConfirmed: 5, ticketsAwaitingReview: 2, ticketsHeld: 7 }),
+    ]);
+    try {
+      await page.setViewportSize({ width: 320, height: 800 });
+      await gotoAdmin(page, '/admin/events');
+      const group = page.getByRole('group', { name: 'Seat counts' });
+      await expect(group).toContainText('5 Sold');
+      await expect(group).toContainText('7 Pending payment');
+      await expect(page.getByText('What the counts mean')).toBeVisible();
+      const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+      expect(overflow).toBeLessThanOrEqual(0);
+    } finally {
+      await page.setViewportSize({ width: 1280, height: 720 });
+      await done();
+    }
+  });
+
+  test('the Transactions deep link preselects the event and the pending filter', async ({ adminPage: page }) => {
+    await gotoAdmin(page, '/admin/orders?eventId=event-qa&status=pending');
+    await expect(page.getByRole('heading', { name: /transactions/i })).toBeVisible();
+    await expect(page.locator('select').filter({ has: page.locator('option[value="pending"]') })).toHaveValue('pending');
+  });
+});
+
+test.describe('Admin tier cards and the capacity guard', () => {
+  test.skip(!IS_ADMIN_MOCKED, 'Uses deterministic mocked seat counts.');
+
+  test('the tier card shows the three parts and a refused capacity cut explains itself', async ({ adminPage: page }) => {
+    const message =
+      "You can't go below 10: 6 sold, 1 awaiting review, 3 pending payment. Wait for pending checkouts to expire, or release them in Transactions.";
+    await page.route(/\/api\/v1\/admin\/tiers\/tier-qa$/, async (route) => {
+      if (route.request().method() !== 'PUT') return route.fallback();
+      return route.fulfill({
+        status: 409,
+        contentType: 'application/json',
+        body: JSON.stringify({ success: false, message }),
+      });
+    });
+    await gotoAdmin(page, '/admin/events/event-qa');
+    await page.getByRole('button', { name: /Capacity & Tiers/ }).first().click();
+
+    const counts = page.getByRole('group', { name: 'Seat counts' });
+    await expect(counts).toContainText('6 Sold');
+    await expect(counts).toContainText('1 Awaiting review');
+    await expect(counts).toContainText('3 Pending payment');
+
+    await page.getByRole('button', { name: 'Edit', exact: true }).first().click();
+    await expect(page.getByText("Capacity can't be lowered below the seats already reserved.")).toBeVisible();
+    await page.getByRole('button', { name: 'Save Changes', exact: true }).click();
+
+    const alert = page.getByRole('alert').filter({ hasText: "You can't go below 10" });
+    await expect(alert).toContainText('6 sold, 1 awaiting review, 3 pending payment');
+    await expect(alert.getByRole('link', { name: 'View pending checkouts' })).toHaveAttribute(
+      'href',
+      '/admin/orders?eventId=event-qa&status=pending',
+    );
+  });
+});

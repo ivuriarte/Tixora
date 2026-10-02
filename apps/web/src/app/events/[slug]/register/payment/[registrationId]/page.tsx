@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import Image from 'next/image';
 import { useParams, useRouter } from 'next/navigation';
 import { getAccessToken } from '@/lib/auth';
@@ -41,6 +41,8 @@ export default function PaymentStepPage() {
   // True from the moment the on-screen timer hits zero until the server has answered.
   const [checkingHold, setCheckingHold] = useState(false);
   const [showPayLater, setShowPayLater] = useState(false);
+  // True once this page has seen a hold deadline, so a cancelled read afterwards means "expired".
+  const sawHold = useRef(false);
   const [cancelOpen, setCancelOpen] = useState(false);
   const [cancelBusy, setCancelBusy] = useState(false);
   const [cancelProblem, setCancelProblem] = useState<'network' | 'proof' | 'throttled' | null>(null);
@@ -56,11 +58,10 @@ export default function PaymentStepPage() {
         const body = res.data?.data ?? res.data;
         setReg(body);
         setError(null);
-        if (guestToken) {
-          const deadline = typeof body?.holdExpiresAt === 'string' ? body.holdExpiresAt : null;
-          setHoldExpiresAt(deadline);
-          rememberDeadline(window.sessionStorage, registrationId, deadline);
-        }
+        const deadline = typeof body?.holdExpiresAt === 'string' ? body.holdExpiresAt : null;
+        if (deadline) sawHold.current = true;
+        setHoldExpiresAt(deadline);
+        if (guestToken) rememberDeadline(window.sessionStorage, registrationId, deadline);
         return body as Registration;
       } catch (err) {
         const failure = readApiFailure(err);
@@ -104,9 +105,21 @@ export default function PaymentStepPage() {
   // before deciding: only show the expired screen once the reservation is really gone.
   const handleHoldExpired = useCallback(async () => {
     setCheckingHold(true);
-    const latest = await loadReservation(guestAccessToken, { quiet: true });
-    if (latest?.status === 'cancelled') setEndState('expired');
-    else if (latest) setCheckingHold(false);
+    // The on-screen timer can reach zero up to a second before the server's deadline, so ask
+    // again shortly after the deadline instead of giving up on the first answer.
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      const latest = await loadReservation(guestAccessToken, { quiet: true });
+      if (latest?.status === 'cancelled') {
+        setEndState('expired');
+        return;
+      }
+      if (!latest) break;
+      const deadline = latest.holdExpiresAt ? new Date(latest.holdExpiresAt).getTime() : 0;
+      const wait = Math.max(0, deadline - Date.now()) + 1000;
+      if (!deadline || wait > 15_000 || attempt === 2) break;
+      await new Promise((resolve) => setTimeout(resolve, wait));
+    }
+    setCheckingHold(false);
   }, [guestAccessToken, loadReservation]);
 
   const goToUpload = useCallback(() => {
@@ -249,7 +262,7 @@ export default function PaymentStepPage() {
     );
   }
 
-  if (reg.status === 'cancelled' && guestAccessToken) {
+  if (reg.status === 'cancelled' && (guestAccessToken || sawHold.current)) {
     return (
       <main className="min-h-screen bg-gray-50 py-10 flex items-center justify-center">
         <div className="w-full max-w-lg px-4">
@@ -326,10 +339,11 @@ export default function PaymentStepPage() {
           </p>
         </div>
 
-        {guestAccessToken && reg.status === 'pending_payment' && (
+        {/* Guests and logged-in customers share the same hold banner and expired screen. */}
+        {reg.status === 'pending_payment' && (
           <HoldBanner deadlineIso={holdExpiresAt} onExpired={handleHoldExpired} renewed={renewed} />
         )}
-        {guestAccessToken && reg.status === 'pending_payment' && checkingHold && (
+        {reg.status === 'pending_payment' && checkingHold && (
           <div className="mb-5 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900" role="status">
             <p className="font-semibold">Checking your reservation…</p>
             <p className="mt-1 text-xs text-amber-800">
@@ -563,7 +577,7 @@ export default function PaymentStepPage() {
             registrationId={registrationId}
             guestAccessToken={guestAccessToken ?? undefined}
             onUploaded={handleUploaded}
-            onExpired={guestAccessToken ? () => setEndState('expired') : undefined}
+            onExpired={() => setEndState('expired')}
           />
         </section>
 
@@ -610,7 +624,8 @@ export default function PaymentStepPage() {
               onClick={() => router.push(`/registrations/${registrationId}`)}
               className="min-h-[44px] font-medium hover:text-primary"
             >
-              I will pay later
+              {/* Logged-in holds are not extended, so this does not promise more time. */}
+              View my registration
             </button>
           )}
           <span>
