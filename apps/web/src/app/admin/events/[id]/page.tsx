@@ -458,7 +458,14 @@ export default function AdminEventEditPage() {
       setPaymentMethods(restoreOffer.paymentMethods.map((pm) => ({ ...pm, key: nextPMKey.current++, qrFile: null })));
     }
     setRestoreOffer(null);
-    toast.success('Your unsaved changes are back. Save to keep them.');
+    const skipped =
+      Object.keys(restorable).length < Object.keys(restoreOffer.changes).length ||
+      (Boolean(restoreOffer.paymentMethods) && paymentMethodsChanged);
+    toast.success(
+      skipped
+        ? "Restored what you hadn't edited since. Save to keep it."
+        : 'Your unsaved changes are back. Save to keep them.',
+    );
   }
 
   function discardBackup() {
