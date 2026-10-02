@@ -67,6 +67,11 @@ export default () => ({
     extendedPerIp: parseInt(process.env.GUEST_EXTENDED_HOLDS_PER_IP ?? '2', 10),
   },
 
+  // Unpaid hold for a logged-in customer's checkout (uniform-holds-and-sold-vs-held spec).
+  memberHold: {
+    minutes: parseInt(process.env.MEMBER_HOLD_MINUTES ?? '60', 10),
+  },
+
   optionalInclusions: {
     enabled: process.env.OPTIONAL_INCLUSIONS_ENABLED === 'true',
     quoteTtlMinutes: parseInt(process.env.INCLUSION_QUOTE_TTL_MINUTES ?? '15', 10),

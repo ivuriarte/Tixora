@@ -53,7 +53,8 @@ This document lists every environment variable consumed by the API and Web apps,
 | `THROTTLE_TTL` | No | `60000` | `60000` | `60000` | |
 | `THROTTLE_LIMIT` | No | `60` | `60` | `60` | |
 | `OTP_HOURLY_LIMIT` | No | `10` | `10` | `10` | |
-| `GUEST_HOLD_MINUTES` | No | `60` | `60` | `60` | Seat hold for an unpaid guest checkout that saved no email (10–240). Cleanup runs every 5 minutes, so the real hold is this value plus up to ~5 minutes. Logged-in registrations keep the 24-hour rule. |
+| `GUEST_HOLD_MINUTES` | No | `60` | `60` | `60` | Seat hold for an unpaid guest checkout that saved no email (10–240). Cleanup runs every 5 minutes, so the real hold is this value plus up to ~5 minutes. Logged-in registrations use `MEMBER_HOLD_MINUTES`. |
+| `MEMBER_HOLD_MINUTES` | No | `60` | `60` | `60` | Seat hold for a logged-in customer's unpaid checkout on a paid event without add-ons (10–1440). Cleanup runs every 5 minutes, so the real hold is this value plus up to ~5 minutes. Older registrations keep the 24-hour rule. |
 | `GUEST_HOLD_EXTENDED_HOURS` | No | `24` | `24` | `24` | Hold length after a guest saves an email on "I will pay later" (1–72). Also drives the one-time reminder (about 12 hours before expiry). |
 | `GUEST_HOLDS_PER_IP` | No | `5` | `5` | `5` | Unpaid guest holds one IP can start per event per hour (1–20). Counted in Redis with a hashed IP; a lower value can block shared mobile/venue connections. |
 | `GUEST_EXTENDED_HOLDS_PER_IP` | No | `2` | `2` | `2` | Extended (long) guest holds one IP can get per event per day (1–10). Over the limit the hold stays at `GUEST_HOLD_MINUTES`. |

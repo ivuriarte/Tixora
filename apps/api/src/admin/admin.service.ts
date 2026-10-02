@@ -10,6 +10,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { Prisma } from '@prisma/client';
 import { EventAccessService } from '../common/services/event-access.service';
 import { EventsService } from '../events/events.service';
+import { querySeatBreakdowns, reservedSeats, emptySeatBreakdown } from '../common/seats/seat-usage';
 import { TicketTiersService } from '../ticket-tiers/ticket-tiers.service';
 import { OrdersService } from '../orders/orders.service';
 import { CreateEventDto, UpdateEventDto } from '../events/dto/event.dto';
@@ -275,6 +276,29 @@ export class AdminService {
     return membership.organizationId;
   }
 
+  /**
+   * Admin/organizer only. Adds the Sold / Awaiting review / Pending payment split to tiers
+   * with ONE registration groupBy and ONE ticket groupBy for every tier given. soldQuantity,
+   * availableQuantity and isSoldOut keep their meaning (reserved), exactly as withLiveInventory.
+   */
+  private async withSeatBreakdown<T extends { id: string; totalQuantity: number }>(tiers: T[]) {
+    const breakdowns = await querySeatBreakdowns(this.prisma as any, tiers.map((t) => t.id));
+    return tiers.map((tier) => {
+      const b = breakdowns.get(tier.id) ?? emptySeatBreakdown();
+      const reserved = reservedSeats(b);
+      const availableQuantity = Math.max(0, tier.totalQuantity - reserved);
+      return {
+        ...tier,
+        soldQuantity: reserved,
+        availableQuantity,
+        isSoldOut: availableQuantity <= 0,
+        confirmedQuantity: b.confirmed,
+        awaitingReviewQuantity: b.awaitingReview,
+        heldQuantity: b.held,
+      };
+    });
+  }
+
   async getEvent(id: string, user: JwtPayload) {
     const event = await this.prisma.event.findFirst({
       where: { id, ...this.eventOwnerWhere(user) },
@@ -286,7 +310,7 @@ export class AdminService {
       },
     });
     if (!event) throw new NotFoundException('Event not found');
-    const tiers = await this.eventsService.withLiveInventory(event.tiers);
+    const tiers = await this.withSeatBreakdown(event.tiers);
     const role = await this.eventAccess.getEventOrganizationRole(id, user);
     return {
       ...event,
@@ -552,9 +576,10 @@ export class AdminService {
       }),
     ]);
 
-    const tiersByEvent = await Promise.all(
-      events.map((e) => this.eventsService.withLiveInventory(e.tiers)),
-    );
+    // One grouped query set for every tier on the page (was two queries per event).
+    const allTiers = await this.withSeatBreakdown(events.flatMap((e) => e.tiers));
+    const tiersById = new Map(allTiers.map((t) => [t.id, t]));
+    const tiersByEvent = events.map((e) => e.tiers.map((t) => tiersById.get(t.id)!));
 
     return {
       data: events.map((e: (typeof events)[number], index) => ({
@@ -577,7 +602,11 @@ export class AdminService {
         onsiteRegistrationEnabled: e.onsiteRegistrationEnabled,
         organization: e.organization ? { id: e.organization.id, name: e.organization.name } : null,
         maxCapacity: e.maxCapacity ?? null,
+        // ticketsSold keeps its meaning (reserved). The three below split it for admin screens.
         ticketsSold: tiersByEvent[index].reduce((sum, tier) => sum + tier.soldQuantity, 0),
+        ticketsConfirmed: tiersByEvent[index].reduce((sum, tier) => sum + tier.confirmedQuantity, 0),
+        ticketsAwaitingReview: tiersByEvent[index].reduce((sum, tier) => sum + tier.awaitingReviewQuantity, 0),
+        ticketsHeld: tiersByEvent[index].reduce((sum, tier) => sum + tier.heldQuantity, 0),
         ordersCount: e._count.orders,
         lowestPrice: e.isFree
           ? 0
@@ -589,6 +618,9 @@ export class AdminService {
           totalQuantity: t.totalQuantity,
           soldQuantity: t.soldQuantity,
           availableQuantity: t.availableQuantity,
+          confirmedQuantity: t.confirmedQuantity,
+          awaitingReviewQuantity: t.awaitingReviewQuantity,
+          heldQuantity: t.heldQuantity,
         })),
       })),
       meta: {
