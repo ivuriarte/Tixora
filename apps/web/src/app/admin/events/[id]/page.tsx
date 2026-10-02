@@ -265,6 +265,9 @@ export default function AdminEventEditPage() {
   const [publishConfirmOpen, setPublishConfirmOpen] = useState(false);
   const [publishAttempt, setPublishAttempt] = useState(0);
   const [serverIssues, setServerIssues] = useState<string[]>([]);
+  // Covers the QR upload too, which happens before the update request starts.
+  const [saving, setSaving] = useState(false);
+  const savingRef = useRef(false);
 
   const initialised = useRef(false);
   useEffect(() => {
@@ -693,6 +696,9 @@ export default function AdminEventEditPage() {
   // ─── Save (whole-event update) ────────────────────────────────────────────
   /** Saves every event field. Returns whether the server accepted it. */
   async function save(options: { publish?: boolean } = {}): Promise<boolean> {
+    if (savingRef.current) return false;
+    savingRef.current = true;
+    setSaving(true);
     const savedDraft = draft;
     const startsAtISO = combineDatetime(draft.startDate, draft.startTime);
     const endsAtISO = combineDatetime(draft.endDate, draft.endTime);
@@ -810,6 +816,9 @@ export default function AdminEventEditPage() {
         ),
       );
       return false;
+    } finally {
+      savingRef.current = false;
+      setSaving(false);
     }
   }
 
@@ -836,7 +845,11 @@ export default function AdminEventEditPage() {
   function leaveWithoutSaving() {
     const target = leaveTarget;
     setLeaveTarget(null);
-    if (event) clearBackup(event.id);
+    if (event) {
+      // An older backup still waiting for Restore or Discard is kept; only this visit's edits are dropped.
+      if (restoreOffer) writeBackup(event.id, restoreOffer);
+      else clearBackup(event.id);
+    }
     setSaved(savedStateOf(draft, paymentMethods));
     if (target) router.push(target);
   }
@@ -1119,7 +1132,7 @@ export default function AdminEventEditPage() {
         onSecondary={leaveWithoutSaving}
         cancelLabel="Stay on this page"
         variant="primary"
-        loading={updateMutation.isPending}
+        loading={saving}
         onConfirm={saveAndLeave}
         onCancel={() => setLeaveTarget(null)}
       />
@@ -1130,7 +1143,7 @@ export default function AdminEventEditPage() {
         confirmLabel="Publish event"
         cancelLabel="Keep as draft"
         variant="primary"
-        loading={updateMutation.isPending}
+        loading={saving}
         onConfirm={async () => {
           const published = await save({ publish: true });
           setPublishConfirmOpen(false);
@@ -1143,8 +1156,8 @@ export default function AdminEventEditPage() {
         draft={draft}
         tiers={tiers}
         paymentMethods={paymentMethods}
-        submitLabel={updateMutation.isPending ? 'Saving…' : 'Save changes'}
-        submitting={updateMutation.isPending}
+        submitLabel={saving ? 'Saving…' : 'Save changes'}
+        submitting={saving}
         onStepChange={(next) => {
           if (next !== 'review') setPublishAttempt(0);
         }}

@@ -39,6 +39,9 @@ test.describe('Event setup: open any step', () => {
     await expect(page.getByRole('heading', { name: /Before creating this event: \d+ things left/ })).toBeVisible();
     await page.getByRole('button', { name: 'Fix: Title is required (Basics)' }).click();
     await expect(page.getByRole('heading', { name: 'Basics' })).toBeVisible();
+    // Basics has nothing entered yet, but arriving from a Fix link still lists what is missing.
+    await expect(page.getByText('Still needed before publishing:')).toBeVisible();
+    await expect(page.getByText('Description is required')).toBeVisible();
     await expect(page.getByRole('button', { name: 'Back to events' })).toBeVisible();
     await page.context().close();
   });
