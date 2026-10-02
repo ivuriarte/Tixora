@@ -1,0 +1,585 @@
+<title>Event Drafts Wireframes</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap">
+<style>
+/* Layout: a review document. Each screen shows its desktop frame beside its phone frame, notes underneath.
+   Doc chrome follows the viewer's theme; the mock screens always use the product's light admin palette. */
+:root {
+  --doc-bg: #faf8ff;
+  --doc-fg: #1a0533;
+  --doc-muted: #5f5177;
+  --doc-line: #e4dcf4;
+  --doc-panel: #ffffff;
+  --doc-accent: #6d28d9;
+  --doc-code-bg: #f1ecfb;
+  /* product tokens (Axon admin, light only, as shipped) */
+  --p-primary: #7c3aed;
+  --p-primary-hover: #6d28d9;
+  --p-deep: #4c1d95;
+  --p-ink: #1a0533;
+  --p-muted: #6b5b8a;
+  --p-canvas: #f5f0ff;
+  --p-card: #ffffff;
+  --p-line: #e4dcf4;
+  --p-soft: #ede9fe;
+  --p-ok-fg: #166534;  --p-ok-bg: #f0fdf4;  --p-ok-line: #bbf7d0;
+  --p-warn-fg: #92400e; --p-warn-bg: #fffbeb; --p-warn-line: #fde68a;
+  --p-err-fg: #b91c1c;  --p-err-bg: #fef2f2;  --p-err-line: #fecaca;
+  --p-skel: #f1f0f4;
+  --font-ui: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --doc-bg: #120a1f; --doc-fg: #efe9fb; --doc-muted: #b3a6cc; --doc-line: #2e2345;
+    --doc-panel: #1a1029; --doc-accent: #c4b5fd; --doc-code-bg: #251838; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --doc-bg: #120a1f; --doc-fg: #efe9fb; --doc-muted: #b3a6cc; --doc-line: #2e2345;
+  --doc-panel: #1a1029; --doc-accent: #c4b5fd; --doc-code-bg: #251838; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { background: var(--doc-bg); color: var(--doc-fg); font-family: var(--font-ui); font-size: 15px; line-height: 1.55; }
+.wrap { max-width: 1240px; margin: 0 auto; padding-inline: 20px; padding-block: 40px 72px; }
+h1, h2, h3 { text-wrap: balance; line-height: 1.2; margin: 0; }
+h1 { font-size: clamp(28px, 4vw, 38px); font-weight: 700; letter-spacing: -0.02em; }
+h2 { font-size: 22px; font-weight: 700; letter-spacing: -0.01em; }
+p { margin: 0; }
+code { font-family: var(--font-mono); font-size: 0.86em; background: var(--doc-code-bg); padding: 1px 5px; border-radius: 4px; }
+.eyebrow { font-size: 12px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--doc-accent); }
+.lede { color: var(--doc-muted); max-width: 70ch; font-size: 16px; }
+header.top { display: grid; gap: 14px; padding-bottom: 28px; border-bottom: 1px solid var(--doc-line); }
+.meta { display: flex; flex-wrap: wrap; gap: 8px 18px; font-size: 13px; color: var(--doc-muted); }
+nav.toc { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 4px; }
+nav.toc a { font-size: 13px; color: var(--doc-fg); text-decoration: none; border: 1px solid var(--doc-line); background: var(--doc-panel); padding: 6px 12px; border-radius: 999px; }
+nav.toc a:hover { border-color: var(--doc-accent); }
+a:focus-visible, button:focus-visible { outline: 2px solid var(--doc-accent); outline-offset: 2px; }
+
+section.screen { padding-block: 44px 8px; display: grid; gap: 18px; scroll-margin-top: 16px; }
+.screen-head { display: grid; gap: 6px; max-width: 80ch; }
+.screen-head .num { font-family: var(--font-mono); font-size: 12px; color: var(--doc-accent); }
+.pair { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 22px; align-items: start; }
+@media (max-width: 980px) { .pair { grid-template-columns: minmax(0, 1fr); } .phone-col { justify-self: center; } }
+.frame-label { font-size: 12px; font-weight: 600; color: var(--doc-muted); margin-bottom: 8px; display: flex; gap: 8px; align-items: center; }
+.frame-label span { font-family: var(--font-mono); font-weight: 500; }
+.notes { display: grid; gap: 6px; font-size: 14px; color: var(--doc-muted); max-width: 80ch; padding-left: 18px; margin: 0; }
+.notes li::marker { color: var(--doc-accent); }
+.notes b { color: var(--doc-fg); font-weight: 600; }
+
+/* ---------- product mock primitives ---------- */
+.desk { background: var(--p-canvas); border: 1px solid var(--p-line); border-radius: 14px; overflow: hidden; color: var(--p-ink); font-size: 13px; display: grid; grid-template-columns: 150px minmax(0, 1fr); min-height: 420px; }
+@media (max-width: 720px) { .desk { grid-template-columns: minmax(0, 1fr); } .desk .side { display: none; } }
+.side { background: var(--p-card); border-right: 1px solid var(--p-line); padding: 14px 10px; display: grid; align-content: start; gap: 4px; }
+.logo { font-weight: 800; color: var(--p-deep); letter-spacing: 0.04em; font-size: 15px; padding: 0 8px 10px; }
+.nav-i { padding: 7px 8px; border-radius: 8px; color: var(--p-muted); font-size: 12px; }
+.nav-i.on { background: var(--p-soft); color: var(--p-primary); font-weight: 600; }
+.main { padding: 16px 18px 18px; display: grid; gap: 12px; align-content: start; min-width: 0; }
+.row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.between { justify-content: space-between; }
+.title-l { font-weight: 800; font-size: 20px; letter-spacing: -0.01em; text-transform: uppercase; color: var(--p-ink); }
+.card { background: var(--p-card); border: 1px solid var(--p-line); border-radius: 16px; padding: 14px; display: grid; gap: 10px; min-width: 0; }
+.muted { color: var(--p-muted); }
+.small { font-size: 11.5px; }
+.lbl { font-size: 11.5px; font-weight: 600; color: var(--p-ink); }
+.req { color: var(--p-err-fg); }
+.field { height: 32px; border: 1px solid #d3c8e8; border-radius: 8px; background: #fff; display: flex; align-items: center; padding: 0 10px; color: var(--p-muted); font-size: 12px; min-width: 0; overflow: hidden; white-space: nowrap; }
+.field.filled { color: var(--p-ink); }
+.field.bad { border-color: var(--p-err-line); background: var(--p-err-bg); }
+.area { height: 56px; align-items: flex-start; padding-top: 8px; white-space: normal; }
+.grid2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.hint { font-size: 11px; color: var(--p-muted); }
+.hint.warn { color: var(--p-warn-fg); }
+.btn { min-height: 34px; padding: 0 14px; border-radius: 999px; font-size: 12px; font-weight: 700; border: 1px solid var(--p-line); background: #fff; color: var(--p-ink); display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; font-family: inherit; }
+.btn.pri { background: var(--p-primary); border-color: var(--p-primary); color: #fff; }
+.btn.ghost { border-color: transparent; background: transparent; color: var(--p-muted); }
+.btn.danger { color: var(--p-err-fg); border-color: var(--p-err-line); }
+.foot { display: flex; justify-content: space-between; align-items: center; gap: 8px; border-top: 1px solid var(--p-line); padding-top: 12px; flex-wrap: wrap; }
+.badge { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 600; border-radius: 999px; padding: 3px 9px; border: 1px solid transparent; white-space: nowrap; }
+.b-ok { background: var(--p-ok-bg); color: var(--p-ok-fg); border-color: var(--p-ok-line); }
+.b-warn { background: var(--p-warn-bg); color: var(--p-warn-fg); border-color: var(--p-warn-line); }
+.b-err { background: var(--p-err-bg); color: var(--p-err-fg); border-color: var(--p-err-line); }
+.b-info { background: var(--p-soft); color: var(--p-deep); border-color: #ddd6fe; }
+.b-neutral { background: #f4f2f8; color: var(--p-muted); border-color: var(--p-line); }
+.ico { width: 13px; height: 13px; flex: none; }
+
+/* stepper */
+.stepper { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 6px; }
+.step { border: 1px solid var(--p-line); background: #fff; border-radius: 12px; padding: 8px 6px; display: grid; justify-items: center; gap: 4px; text-align: center; min-height: 58px; min-width: 0; }
+.step .dot { width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; font-size: 11px; font-weight: 700; border: 1.5px solid #cfc4e6; color: var(--p-muted); background: #fff; }
+.step .nm { font-size: 10.5px; line-height: 1.2; color: var(--p-muted); overflow-wrap: anywhere; }
+.step .st { font-size: 9.5px; font-weight: 600; }
+.step.done .dot { background: var(--p-primary); border-color: var(--p-primary); color: #fff; }
+.step.done .st { color: var(--p-ok-fg); }
+.step.warn { background: var(--p-warn-bg); border-color: var(--p-warn-line); }
+.step.warn .dot { border-color: #d97706; color: var(--p-warn-fg); }
+.step.warn .st { color: var(--p-warn-fg); }
+.step.cur { border: 2px solid var(--p-primary); }
+.step.cur .dot { border-color: var(--p-primary); color: var(--p-primary); }
+.step.cur .nm { color: var(--p-primary); font-weight: 700; }
+.step.cur .st { color: var(--p-primary); }
+.step .st.none { color: var(--p-muted); font-weight: 500; }
+
+/* save indicator */
+.save { display: inline-flex; align-items: center; gap: 6px; font-size: 11.5px; font-weight: 600; padding: 5px 10px; border-radius: 999px; border: 1px solid; white-space: nowrap; }
+
+/* banners */
+.banner { border-radius: 12px; padding: 10px 12px; display: flex; gap: 10px; align-items: flex-start; justify-content: space-between; flex-wrap: wrap; border: 1px solid; font-size: 12px; }
+.banner .txt { display: grid; gap: 2px; min-width: 0; flex: 1 1 220px; }
+.banner.warn { background: var(--p-warn-bg); border-color: var(--p-warn-line); color: var(--p-warn-fg); }
+.banner.err { background: var(--p-err-bg); border-color: var(--p-err-line); color: var(--p-err-fg); }
+.banner.info { background: var(--p-soft); border-color: #ddd6fe; color: var(--p-deep); }
+.banner b { font-weight: 700; }
+
+/* preview column */
+.two { display: grid; grid-template-columns: minmax(0, 1fr) 190px; gap: 12px; align-items: start; }
+@media (max-width: 860px) { .two { grid-template-columns: minmax(0, 1fr); } .two .preview { display: none; } }
+.preview { background: #fff; border: 1px solid var(--p-line); border-radius: 16px; overflow: hidden; }
+.preview .img { aspect-ratio: 1200 / 630; background: repeating-linear-gradient(135deg, #ede9fe 0 8px, #f5f3ff 8px 16px); display: grid; place-items: center; font-size: 10px; font-weight: 700; letter-spacing: 0.08em; color: var(--p-primary); text-align: center; padding: 6px; max-width: 100%; }
+.preview .body { padding: 10px; display: grid; gap: 4px; font-size: 11px; }
+
+/* checklist */
+.check { display: grid; gap: 0; }
+.ci { display: grid; grid-template-columns: 18px minmax(0, 1fr) auto; gap: 8px; align-items: center; padding: 9px 2px; border-bottom: 1px solid var(--p-line); font-size: 12px; }
+.ci:last-child { border-bottom: 0; }
+.ci .fix { color: var(--p-primary); font-weight: 600; font-size: 11.5px; white-space: nowrap; min-height: 44px; display: inline-flex; align-items: center; padding: 0 6px; text-decoration: none; }
+.ci .where { color: var(--p-muted); font-size: 11px; white-space: nowrap; }
+.grp { font-size: 10.5px; font-weight: 700; letter-spacing: 0.07em; text-transform: uppercase; color: var(--p-muted); padding-top: 8px; }
+
+/* table */
+.tbl { width: 100%; border-collapse: collapse; font-size: 12px; min-width: 560px; }
+.tbl th { text-align: left; font-size: 10.5px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--p-muted); font-weight: 600; padding: 8px 10px; border-bottom: 1px solid var(--p-line); }
+.tbl td { padding: 10px; border-bottom: 1px solid var(--p-line); vertical-align: middle; }
+.scroll-x { overflow-x: auto; }
+.prog { width: 90px; height: 6px; border-radius: 99px; background: #eee9f7; overflow: hidden; }
+.prog i { display: block; height: 100%; background: var(--p-primary); border-radius: 99px; }
+.skel { background: var(--p-skel); border-radius: 6px; height: 12px; }
+
+/* phone */
+.phone { width: 300px; max-width: 100%; border-radius: 34px; background: #1a1523; padding: 9px; }
+.phone .scr { background: var(--p-canvas); border-radius: 27px; overflow: hidden; color: var(--p-ink); font-size: 12px; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; min-height: 560px; }
+.pbar { background: #fff; border-bottom: 1px solid var(--p-line); height: 46px; display: flex; align-items: center; justify-content: space-between; padding: 0 12px; }
+.pbar .logo { padding: 0; font-size: 13px; }
+.pmain { padding: 12px; display: grid; gap: 10px; align-content: start; min-width: 0; }
+.pfoot { background: #fff; border-top: 1px solid var(--p-line); padding: 10px 12px 14px; display: flex; gap: 8px; }
+.pfoot .btn { flex: 1; justify-content: center; min-height: 44px; }
+.stepbar { background: #fff; border: 1px solid var(--p-line); border-radius: 14px; padding: 10px 12px; display: grid; gap: 6px; }
+.stepbar .top { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.stepbar .segs { display: grid; grid-template-columns: repeat(6, 1fr); gap: 4px; }
+.stepbar .segs i { height: 5px; border-radius: 99px; background: #e6def5; display: block; }
+.stepbar .segs i.d { background: var(--p-primary); }
+.stepbar .segs i.w { background: #f59e0b; }
+.stepbar .segs i.c { background: var(--p-deep); }
+.sheet-wrap { position: relative; }
+.sheet { background: #fff; border-radius: 18px 18px 0 0; border: 1px solid var(--p-line); padding: 12px; display: grid; gap: 2px; box-shadow: 0 -8px 24px rgb(26 5 51 / 12%); }
+.sheet .grab { width: 36px; height: 4px; background: #d7cdea; border-radius: 99px; justify-self: center; margin-bottom: 6px; }
+.srow { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 44px; padding: 0 4px; border-bottom: 1px solid var(--p-line); font-size: 12px; }
+.srow:last-child { border-bottom: 0; }
+.srow.cur { color: var(--p-primary); font-weight: 700; }
+
+/* states strip */
+.states { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 12px; }
+.state { background: var(--doc-panel); border: 1px solid var(--doc-line); border-radius: 14px; padding: 14px; display: grid; gap: 10px; align-content: start; }
+.state .when { font-size: 12.5px; color: var(--doc-muted); }
+.state .mock { background: var(--p-canvas); border-radius: 10px; padding: 12px; display: grid; gap: 8px; }
+
+.modal-scrim { background: rgb(26 5 51 / 45%); border-radius: 12px; padding: 22px 16px; display: grid; place-items: center; }
+.modal { background: #fff; border-radius: 16px; padding: 16px; max-width: 360px; width: 100%; display: grid; gap: 10px; color: var(--p-ink); font-size: 12.5px; }
+.modal h4 { margin: 0; font-size: 15px; }
+
+.decisions { background: var(--doc-panel); border: 1px solid var(--doc-line); border-radius: 16px; padding: 20px 22px; display: grid; gap: 10px; margin-top: 44px; }
+.decisions ol { margin: 0; padding-left: 20px; display: grid; gap: 6px; font-size: 14.5px; }
+@media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; } }
+</style>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <symbol id="i-check" viewBox="0 0 16 16"><path d="M3.5 8.5l3 3 6-7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-alert" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6.5" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M8 4.8v3.6M8 11h.01" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></symbol>
+    <symbol id="i-cloud" viewBox="0 0 16 16"><path d="M4.5 12.5h7a3 3 0 00.3-6 4 4 0 00-7.6 1A2.5 2.5 0 004.5 12.5z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M6.2 9.4l1.4 1.3 2.4-2.6" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-device" viewBox="0 0 16 16"><rect x="2" y="3" width="12" height="8" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M5.5 13.5h5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></symbol>
+    <symbol id="i-sync" viewBox="0 0 16 16"><path d="M13 6.5A5 5 0 004 5M3 9.5A5 5 0 0012 11" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><path d="M4 2.5V5h2.5M12 13.5V11H9.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-pen" viewBox="0 0 16 16"><path d="M10.5 3l2.5 2.5L6 12.5H3.5V10z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></symbol>
+    <symbol id="i-x" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6.5" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M5.8 5.8l4.4 4.4M10.2 5.8l-4.4 4.4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></symbol>
+    <symbol id="i-lock" viewBox="0 0 16 16"><rect x="3.5" y="7" width="9" height="6.5" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M5.5 7V5a2.5 2.5 0 015 0v2" fill="none" stroke="currentColor" stroke-width="1.5"/></symbol>
+    <symbol id="i-list" viewBox="0 0 16 16"><path d="M3 4.5h10M3 8h10M3 11.5h10" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></symbol>
+  </defs>
+</svg>
+
+<div class="wrap">
+  <header class="top">
+    <p class="eyebrow">Axon Tickets · Design approved · Release A in development</p>
+    <h1>Event drafts and free step navigation</h1>
+    <p class="lede">Wireframes for saving unfinished event setup to the organizer's account, opening any setup step in any order, and a single checklist before publishing. Each screen is drawn at desktop width and at phone width (375px), in the shipped admin look. Rules and API details live in <code>event-drafts-and-step-navigation.md</code>. Revision 2, after the design, API and database gate reviews.</p>
+    <div class="meta"><span>Spec date: Thu, Oct 1, 2026</span><span>Author: Claude · decisions by Ian</span><span>Source feedback: Andrew, Loft Bed Theater</span></div>
+    <nav class="toc" aria-label="Screens">
+      <a href="#s1">1 · New event, not yet saved</a>
+      <a href="#s2">2 · Draft with autosave</a>
+      <a href="#s3">3 · Save status states</a>
+      <a href="#s4">4 · Ready to publish?</a>
+      <a href="#s5">5 · Editing a published event</a>
+      <a href="#s6">6 · Drafts in the events list</a>
+    </nav>
+  </header>
+
+  <!-- 1 -->
+  <section class="screen" id="s1">
+    <div class="screen-head">
+      <p class="num">Screen 1 · D1</p>
+      <h2>New event, before it's saved to the account</h2>
+      <p class="lede">The organizer has typed a title but no venue or dates yet. Work is kept in this browser, and the indicator says exactly what will move it to their account.</p>
+    </div>
+    <div class="pair">
+      <div>
+        <p class="frame-label">Desktop <span>1280px</span></p>
+        <div class="desk" role="img" aria-label="Desktop wireframe: new event wizard on the Basics step, saved on this device only">
+          <div class="side"><div class="logo">AXON</div><div class="nav-i">Dashboard</div><div class="nav-i on">Events</div><div class="nav-i">Verification queue</div><div class="nav-i">Guest check-in</div><div class="nav-i">Analytics</div></div>
+          <div class="main">
+            <div class="row between">
+              <span class="title-l">New event</span>
+              <span class="save" style="color:var(--p-muted);border-color:var(--p-line);background:#fff"><svg class="ico"><use href="#i-device"/></svg>Saved on this device</span>
+            </div>
+            <div class="stepper">
+              <div class="step cur"><span class="dot">1</span><span class="nm">Basics</span><span class="st">Current</span></div>
+              <div class="step"><span class="dot">2</span><span class="nm">Location &amp; Schedule</span><span class="st none">Not started</span></div>
+              <div class="step"><span class="dot">3</span><span class="nm">Capacity &amp; Tiers</span><span class="st none">Not started</span></div>
+              <div class="step"><span class="dot">4</span><span class="nm">Program &amp; Details</span><span class="st none">Optional</span></div>
+              <div class="step"><span class="dot">5</span><span class="nm">Payment</span><span class="st none">Not started</span></div>
+              <div class="step"><span class="dot">6</span><span class="nm">Review</span><span class="st none">Not started</span></div>
+            </div>
+            <div class="banner info"><div class="txt"><b>Add a title, venue and dates to save this draft to your account.</b><span>Until then it's kept in this browser only. Venue and dates are on the Location &amp; Schedule step.</span></div><button class="btn" type="button">Go to Location &amp; Schedule</button></div>
+            <div class="two">
+              <div class="card">
+                <span class="lbl">Title <span class="req">*</span></span><div class="field filled">Loft Bed Theater: Midnight Matinee</div>
+                <span class="lbl">Description</span><div class="field area">Describe your event for attendees…</div>
+                <span class="hint">Needed before publishing. You can add it later.</span>
+                <div class="grid2"><div style="display:grid;gap:4px"><span class="lbl">Category</span><div class="field filled">Theater</div></div><div style="display:grid;gap:4px"><span class="lbl">Event format</span><div class="field filled">Standard event</div></div></div>
+                <span class="lbl">Cover image</span><div class="field" style="height:44px;justify-content:center;border-style:dashed">Upload JPG, PNG or WebP · up to 5 MB</div>
+                <div class="foot"><button class="btn ghost" type="button">Back to events</button><button class="btn pri" type="button">Next →</button></div>
+              </div>
+              <div class="preview"><div class="img">COVER NEEDED BEFORE PUBLISHING</div><div class="body"><b>Loft Bed Theater: Midnight Matinee</b><span class="muted">Venue and date appear here</span></div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="phone-col">
+        <p class="frame-label">Phone <span>375px</span></p>
+        <div class="phone" role="img" aria-label="Phone wireframe: compact step bar on the Basics step, saved on this device">
+          <div class="scr">
+            <div class="pbar"><span class="logo">AXON</span><svg class="ico" style="width:18px;height:18px;color:var(--p-muted)"><use href="#i-list"/></svg></div>
+            <div class="pmain">
+              <div class="row between"><b style="font-size:15px">New event</b><span class="save" style="color:var(--p-muted);border-color:var(--p-line);background:#fff"><svg class="ico"><use href="#i-device"/></svg>On this device</span></div>
+              <div class="stepbar">
+                <div class="top"><span><b>Step 1 of 6</b> · Basics</span><button class="btn" type="button" style="min-height:44px;padding:0 12px">All steps</button></div>
+                <div class="segs" aria-hidden="true"><i class="c"></i><i></i><i></i><i></i><i></i><i></i></div>
+                <span class="small muted">Not started · 1 of 5 steps ready (Program &amp; Details is optional)</span>
+              </div>
+              <div class="banner info"><div class="txt"><b>Add a venue and dates to save to your account.</b></div></div>
+              <div class="card">
+                <span class="lbl">Title <span class="req">*</span></span><div class="field filled">Loft Bed Theater: Midnight…</div>
+                <span class="lbl">Description</span><div class="field area">Describe your event…</div>
+                <span class="hint">Needed before publishing.</span>
+                <span class="lbl">Cover image</span><div class="field" style="height:44px;justify-content:center;border-style:dashed">Upload image</div>
+              </div>
+            </div>
+            <div class="pfoot"><button class="btn" type="button">Back to events</button><button class="btn pri" type="button">Next →</button></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <ul class="notes">
+      <li><b>Every step is clickable</b>, even before anything is saved. Next never blocks; missing fields are hinted, not enforced.</li>
+      <li>The moment title, venue, start and end are valid, the page creates the draft, then swaps the URL to <code>/admin/events/{id}?step=…</code> without leaving the current step. The indicator changes to <b>Draft saved · time</b>.</li>
+      <li>Description and cover image are no longer blockers here. They appear in the publish checklist (screen 4).</li>
+      <li>If this browser can't store data (private mode), the info banner switches to: "Your browser isn't saving progress. Keep this tab open until the draft is saved to your account."</li>
+    </ul>
+    <div class="states">
+      <div class="state"><p class="when">This browser can't store data (private window, storage blocked)</p><div class="mock"><div class="banner warn"><div class="txt"><b>Your browser isn't saving progress.</b><span>Keep this tab open until the draft is saved to your account. Adding a title, venue and dates saves it.</span></div></div></div></div>
+      <div class="state"><p class="when">The draft couldn't be created (for example, start date is in the past)</p><div class="mock"><div class="banner err"><div class="txt"><b>Couldn't save this draft to your account.</b><span>The start date is in the past. Change it on Location &amp; Schedule. Your work is still kept on this device.</span></div><button class="btn" type="button" style="min-height:44px">Go to Location &amp; Schedule</button></div></div></div>
+      <div class="state"><p class="when">An existing event couldn't be loaded (existing ErrorState)</p><div class="mock" style="text-align:center;justify-items:center"><b>Unable to load event</b><span class="small muted">The event editor could not load. Check your connection and try again.</span><button class="btn pri" type="button" style="min-height:44px">Try again</button></div></div>
+    </div>
+  </section>
+
+  <!-- 2 -->
+  <section class="screen" id="s2">
+    <div class="screen-head">
+      <p class="num">Screen 2 · D2, D4</p>
+      <h2>Draft event: autosave, open any step</h2>
+      <p class="lede">The same screen serves new drafts and existing drafts. Andrew can jump to Payment before finishing Tiers, and every change is on the server within a few seconds.</p>
+    </div>
+    <div class="pair">
+      <div>
+        <p class="frame-label">Desktop <span>1280px</span></p>
+        <div class="desk" role="img" aria-label="Desktop wireframe: draft event on the Capacity and Tiers step, with step statuses and Draft saved indicator">
+          <div class="side"><div class="logo">AXON</div><div class="nav-i">Dashboard</div><div class="nav-i on">Events</div><div class="nav-i">Verification queue</div><div class="nav-i">Guest check-in</div><div class="nav-i">Analytics</div></div>
+          <div class="main">
+            <div class="row between">
+              <div class="row"><span class="title-l">Edit event</span><span class="badge b-neutral">Draft</span></div>
+              <span class="save" role="status" style="color:var(--p-ok-fg);border-color:var(--p-ok-line);background:var(--p-ok-bg)"><svg class="ico"><use href="#i-cloud"/></svg>Draft saved · 2:14 PM</span>
+            </div>
+            <div class="stepper">
+              <div class="step done"><span class="dot"><svg class="ico"><use href="#i-check"/></svg></span><span class="nm">Basics</span><span class="st">Done</span></div>
+              <div class="step warn"><span class="dot"><svg class="ico"><use href="#i-alert"/></svg></span><span class="nm">Location &amp; Schedule</span><span class="st">Needs info</span></div>
+              <div class="step cur"><span class="dot">3</span><span class="nm">Capacity &amp; Tiers</span><span class="st">Current</span></div>
+              <div class="step done"><span class="dot"><svg class="ico"><use href="#i-check"/></svg></span><span class="nm">Program &amp; Details</span><span class="st">Done</span></div>
+              <div class="step"><span class="dot">5</span><span class="nm">Payment</span><span class="st none">Not started</span></div>
+              <div class="step"><span class="dot">6</span><span class="nm">Review</span><span class="st none">3 items left</span></div>
+            </div>
+            <div class="two">
+              <div class="card">
+                <div class="row between"><b>Capacity &amp; Tiers</b><span class="hint">Step 3 of 6</span></div>
+                <div class="grid2"><div style="display:grid;gap:4px"><span class="lbl">Maximum capacity</span><div class="field filled">120</div></div><div style="display:grid;gap:4px"><span class="lbl">Max tickets per person</span><div class="field filled">4</div></div></div>
+                <div class="card" style="padding:10px;gap:6px;border-radius:12px">
+                  <div class="row between"><b>General Admission</b><span>₱500 · 80 seats</span></div>
+                  <div class="row between"><b>VIP Front Row</b><span>₱1,250 · 20 seats</span></div>
+                </div>
+                <p class="hint warn"><svg class="ico" style="vertical-align:-2px"><use href="#i-alert"/></svg> Tier quantities total 100 but capacity is 120. Difference: +20. Fix before publishing.</p>
+                <button class="btn" type="button" style="justify-self:start">+ Add tier</button>
+                <div class="foot"><button class="btn ghost" type="button">← Back</button><div class="row"><button class="btn" type="button">Save and exit</button><button class="btn pri" type="button">Next →</button></div></div>
+              </div>
+              <div class="preview"><div class="img">COVER UPLOADED</div><div class="body"><b>Loft Bed Theater: Midnight Matinee</b><span class="muted">Sat, Nov 14, 2026 · 11:30 PM</span><span class="muted">From ₱500</span></div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="phone-col">
+        <p class="frame-label">Phone <span>375px</span> · All steps sheet open</p>
+        <div class="phone" role="img" aria-label="Phone wireframe: All steps bottom sheet listing each step with its status">
+          <div class="scr">
+            <div class="pbar"><span class="logo">AXON</span><svg class="ico" style="width:18px;height:18px;color:var(--p-muted)"><use href="#i-list"/></svg></div>
+            <div class="pmain">
+              <div class="row between"><b style="font-size:15px">Edit event</b><span class="save" style="color:var(--p-ok-fg);border-color:var(--p-ok-line);background:var(--p-ok-bg)"><svg class="ico"><use href="#i-cloud"/></svg>Saved 2:14 PM</span></div>
+              <div class="stepbar">
+                <div class="top"><span><b>Step 3 of 6</b> · Capacity &amp; Tiers</span><button class="btn" type="button" style="min-height:44px;padding:0 12px">All steps</button></div>
+                <div class="segs" aria-hidden="true"><i class="d"></i><i class="w"></i><i class="c"></i><i class="d"></i><i></i><i></i></div>
+                <span class="small" style="color:var(--p-warn-fg)"><svg class="ico" style="vertical-align:-2px"><use href="#i-alert"/></svg> Needs info · 1 step needs info</span>
+              </div>
+              <div class="card" style="opacity:.55"><span class="lbl">Maximum capacity</span><div class="field filled">120</div></div>
+            </div>
+            <div class="sheet-wrap">
+              <div class="sheet" role="dialog" aria-label="All steps">
+                <span class="grab"></span>
+                <div class="srow"><span>1 · Basics</span><span class="badge b-ok"><svg class="ico"><use href="#i-check"/></svg>Done</span></div>
+                <div class="srow"><span>2 · Location &amp; Schedule</span><span class="badge b-warn"><svg class="ico"><use href="#i-alert"/></svg>Needs info</span></div>
+                <div class="srow cur"><span>3 · Capacity &amp; Tiers</span><span class="badge b-info">Current</span></div>
+                <div class="srow"><span>4 · Program &amp; Details</span><span class="badge b-ok"><svg class="ico"><use href="#i-check"/></svg>Done</span></div>
+                <div class="srow"><span>5 · Payment</span><span class="badge b-neutral">Not started</span></div>
+                <div class="srow"><span>6 · Review</span><span class="badge b-neutral">3 items left</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <ul class="notes">
+      <li><b>Step status is icon + word + color</b>: Done, Needs info, Not started, Current. Never color alone.</li>
+      <li><b>Autosave</b> runs 2 seconds after typing stops, on every step change, and when the tab is hidden. <b>Save and exit</b> saves now and returns to the events list.</li>
+      <li>Inline warnings (the tier total here) explain the problem and the fix, but don't stop Next.</li>
+      <li>Phone: the six chips become a one-line step bar with a segmented progress strip; <b>All steps</b> opens a bottom sheet with 44px rows.</li>
+    </ul>
+  </section>
+
+  <!-- 3 -->
+  <section class="screen" id="s3">
+    <div class="screen-head">
+      <p class="num">Screen 3 · D3</p>
+      <h2>Save status states</h2>
+      <p class="lede">One indicator in the header, always in the same place, announced politely to screen readers. Banners appear under the stepper only when the organizer needs to act.</p>
+    </div>
+    <div class="states">
+      <div class="state"><p class="when">New event before title, venue and dates exist</p><div class="mock"><span class="save" style="color:var(--p-muted);border-color:var(--p-line);background:#fff;justify-self:start"><svg class="ico"><use href="#i-device"/></svg>Saved on this device</span></div></div>
+      <div class="state"><p class="when">Request in flight</p><div class="mock"><span class="save" style="color:var(--p-deep);border-color:#ddd6fe;background:var(--p-soft);justify-self:start"><svg class="ico"><use href="#i-sync"/></svg>Saving…</span></div></div>
+      <div class="state"><p class="when">Server confirmed (draft / published)</p><div class="mock"><span class="save" style="color:var(--p-ok-fg);border-color:var(--p-ok-line);background:var(--p-ok-bg);justify-self:start"><svg class="ico"><use href="#i-cloud"/></svg>Draft saved · 2:14 PM</span><span class="save" style="color:var(--p-ok-fg);border-color:var(--p-ok-line);background:var(--p-ok-bg);justify-self:start"><svg class="ico"><use href="#i-check"/></svg>All changes saved</span></div></div>
+      <div class="state"><p class="when">Published event with edits not yet saved</p><div class="mock"><span class="save" style="color:var(--p-warn-fg);border-color:var(--p-warn-line);background:var(--p-warn-bg);justify-self:start"><svg class="ico"><use href="#i-pen"/></svg>Unsaved changes</span></div></div>
+      <div class="state"><p class="when">Network error, server error or rate limit. Retries after 10s, 30s, 60s.</p><div class="mock"><div class="banner err"><div class="txt"><b>Couldn't save. Your changes are kept on this device.</b><span>We'll keep trying. Check your connection if this continues.</span></div><button class="btn danger" type="button">Try again</button></div></div></div>
+      <div class="state"><p class="when">Someone saved this event in another tab or account (409)</p><div class="mock"><div class="banner warn"><div class="txt"><b>This event was changed somewhere else.</b><span>Load the latest version. Your unsaved changes stay on this device and can be restored.</span></div><button class="btn" type="button">Load latest version</button></div></div></div>
+      <div class="state"><p class="when">Editor opens and this browser has newer unsaved changes</p><div class="mock"><div class="banner info"><div class="txt"><b>You have unsaved changes from Thu, Oct 1 · 2:41 PM.</b><span>They were kept on this device when your session ended.</span></div><div class="row"><button class="btn pri" type="button">Restore my changes</button><button class="btn ghost" type="button">Discard</button></div></div></div></div>
+      <div class="state"><p class="when">Loading an existing event (existing ScreenSkeleton)</p><div class="mock"><div class="skel" style="width:40%;height:16px"></div><div class="skel" style="height:46px"></div><div class="skel"></div><div class="skel" style="width:70%"></div><div class="skel" style="width:55%"></div></div></div>
+    </div>
+  </section>
+
+  <!-- 4 -->
+  <section class="screen" id="s4">
+    <div class="screen-head">
+      <p class="num">Screen 4 · D4, A2</p>
+      <h2>Ready to publish?</h2>
+      <p class="lede">The Review step becomes a complete list of what's left, grouped by step. Publish stays enabled; pressing it with items left moves focus here. The server runs the same checks.</p>
+    </div>
+    <div class="pair">
+      <div>
+        <p class="frame-label">Desktop <span>1280px</span></p>
+        <div class="desk" role="img" aria-label="Desktop wireframe: publish checklist with three items left">
+          <div class="side"><div class="logo">AXON</div><div class="nav-i">Dashboard</div><div class="nav-i on">Events</div><div class="nav-i">Verification queue</div><div class="nav-i">Guest check-in</div><div class="nav-i">Analytics</div></div>
+          <div class="main">
+            <div class="row between"><div class="row"><span class="title-l">Edit event</span><span class="badge b-neutral">Draft</span></div><span class="save" style="color:var(--p-ok-fg);border-color:var(--p-ok-line);background:var(--p-ok-bg)"><svg class="ico"><use href="#i-cloud"/></svg>Draft saved · 2:20 PM</span></div>
+            <div class="card">
+              <div class="row between"><b style="font-size:16px">Ready to publish? 3 things left</b><span class="hint">Checked just now</span></div>
+              <div class="check" role="list">
+                <p class="grp">Location &amp; Schedule</p>
+                <div class="ci" role="listitem"><svg class="ico" style="color:var(--p-warn-fg)"><use href="#i-alert"/></svg><span>Add the venue's street address.</span><a class="fix" href="#s2" aria-label="Fix street address in Location and Schedule">Fix in Location →</a></div>
+                <p class="grp">Capacity &amp; Tiers</p>
+                <div class="ci" role="listitem"><svg class="ico" style="color:var(--p-warn-fg)"><use href="#i-alert"/></svg><span>Tier quantities (100) must equal capacity (120).</span><a class="fix" href="#s2" aria-label="Fix tier quantities in Capacity and Tiers">Fix in Tiers →</a></div>
+                <p class="grp">Payment</p>
+                <div class="ci" role="listitem"><svg class="ico" style="color:var(--p-warn-fg)"><use href="#i-alert"/></svg><span>Add at least one bank or e-wallet account for this paid event.</span><a class="fix" href="#s2" aria-label="Add a payment account in Payment">Fix in Payment →</a></div>
+                <p class="grp">Ready</p>
+                <div class="ci" role="listitem"><svg class="ico" style="color:var(--p-ok-fg)"><use href="#i-check"/></svg><span>Title, description and cover image</span><span class="where">Basics</span></div>
+                <div class="ci" role="listitem"><svg class="ico" style="color:var(--p-ok-fg)"><use href="#i-check"/></svg><span>Sat, Nov 14, 2026 · 11:30 PM to Sun, Nov 15, 2026 · 1:30 AM</span><span class="where">Schedule</span></div>
+                <div class="ci" role="listitem"><svg class="ico" style="color:var(--p-ok-fg)"><use href="#i-check"/></svg><span>2 ticket tiers from ₱500</span><span class="where">Tiers</span></div>
+              </div>
+              <div class="foot"><button class="btn ghost" type="button">← Back</button><div class="row"><button class="btn" type="button">Save and exit</button><button class="btn pri" type="button">Publish event</button></div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="phone-col">
+        <p class="frame-label">Phone <span>375px</span> · Publish pressed with items left</p>
+        <div class="phone" role="img" aria-label="Phone wireframe: publish attempt shows error summary above the checklist">
+          <div class="scr">
+            <div class="pbar"><span class="logo">AXON</span><svg class="ico" style="width:18px;height:18px;color:var(--p-muted)"><use href="#i-list"/></svg></div>
+            <div class="pmain">
+              <div class="stepbar"><div class="top"><span><b>Step 6 of 6</b> · Review</span><button class="btn" type="button" style="min-height:44px;padding:0 12px">All steps</button></div><div class="segs" aria-hidden="true"><i class="d"></i><i class="w"></i><i class="w"></i><i class="d"></i><i class="w"></i><i class="c"></i></div><span class="small" style="color:var(--p-warn-fg)"><svg class="ico" style="vertical-align:-2px"><use href="#i-alert"/></svg> 3 steps need info</span></div>
+              <div class="banner err" role="alert"><div class="txt"><b>This event isn't ready to publish.</b><span>Fix the 3 items below, then publish again.</span></div></div>
+              <div class="card" style="gap:0;padding:10px">
+                <div class="ci"><svg class="ico" style="color:var(--p-warn-fg)"><use href="#i-alert"/></svg><span>Add the street address.</span><a class="fix" href="#s2" aria-label="Fix street address">Fix →</a></div>
+                <div class="ci"><svg class="ico" style="color:var(--p-warn-fg)"><use href="#i-alert"/></svg><span>Tiers (100) must equal capacity (120).</span><a class="fix" href="#s2" aria-label="Fix tier quantities">Fix →</a></div>
+                <div class="ci"><svg class="ico" style="color:var(--p-warn-fg)"><use href="#i-alert"/></svg><span>Add a bank or e-wallet account.</span><a class="fix" href="#s2" aria-label="Add a payment account">Fix →</a></div>
+              </div>
+            </div>
+            <div class="pfoot"><button class="btn" type="button">Save and exit</button><button class="btn pri" type="button">Publish event</button></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="states">
+      <div class="state"><p class="when">Everything is ready</p><div class="mock"><div class="banner info" style="background:var(--p-ok-bg);border-color:var(--p-ok-line);color:var(--p-ok-fg)"><div class="txt"><b>Everything's ready.</b><span>Publishing makes this event visible on the public events page and opens registration.</span></div><button class="btn pri" type="button">Publish event</button></div></div></div>
+      <div class="state"><p class="when">Publish confirmation (existing ConfirmModal)</p><div class="modal-scrim"><div class="modal"><h4>Publish this event?</h4><p>Attendees can find it and register as soon as it's published.</p><div class="row" style="justify-content:flex-end"><button class="btn ghost" type="button">Keep as draft</button><button class="btn pri" type="button">Publish event</button></div></div></div></div>
+      <div class="state"><p class="when">After publishing</p><div class="mock"><span class="badge b-ok" style="justify-self:start"><svg class="ico"><use href="#i-check"/></svg>On sale</span><p class="small">Toast: "Event published." The footer now shows <b>Save changes</b> instead of Publish.</p></div></div>
+    </div>
+    <ul class="notes">
+      <li>The list shows <b>every</b> remaining requirement, not just the first per step as today. Each item links to its step and focuses the field.</li>
+      <li>If the server refuses (A2), its <code>errors</code> list replaces the client list, so the organizer always sees the authoritative reason.</li>
+    </ul>
+  </section>
+
+  <!-- 5 -->
+  <section class="screen" id="s5">
+    <div class="screen-head">
+      <p class="num">Screen 5 · D2 (published events)</p>
+      <h2>Editing a published event</h2>
+      <p class="lede">Changes go live, so there's no autosave. Save changes is in the footer of every step, unsaved edits are backed up in the browser, and leaving asks first.</p>
+    </div>
+    <div class="pair">
+      <div>
+        <p class="frame-label">Desktop <span>1280px</span></p>
+        <div class="desk" role="img" aria-label="Desktop wireframe: published event on the Location step with unsaved changes and a Save changes button">
+          <div class="side"><div class="logo">AXON</div><div class="nav-i">Dashboard</div><div class="nav-i on">Events</div><div class="nav-i">Verification queue</div><div class="nav-i">Guest check-in</div><div class="nav-i">Analytics</div></div>
+          <div class="main">
+            <div class="row between"><div class="row"><span class="title-l">Edit event</span><span class="badge b-ok">On sale</span></div><span class="save" style="color:var(--p-warn-fg);border-color:var(--p-warn-line);background:var(--p-warn-bg)"><svg class="ico"><use href="#i-pen"/></svg>Unsaved changes</span></div>
+            <div class="stepper">
+              <div class="step done"><span class="dot"><svg class="ico"><use href="#i-check"/></svg></span><span class="nm">Basics</span><span class="st">Done</span></div>
+              <div class="step cur"><span class="dot">2</span><span class="nm">Location &amp; Schedule</span><span class="st">Edited</span></div>
+              <div class="step done"><span class="dot"><svg class="ico"><use href="#i-check"/></svg></span><span class="nm">Capacity &amp; Tiers</span><span class="st">Done</span></div>
+              <div class="step done"><span class="dot"><svg class="ico"><use href="#i-check"/></svg></span><span class="nm">Program &amp; Details</span><span class="st">Done</span></div>
+              <div class="step done"><span class="dot"><svg class="ico"><use href="#i-check"/></svg></span><span class="nm">Payment</span><span class="st">Done</span></div>
+              <div class="step done"><span class="dot"><svg class="ico"><use href="#i-check"/></svg></span><span class="nm">Review</span><span class="st">Done</span></div>
+            </div>
+            <div class="card">
+              <div class="grid2"><div style="display:grid;gap:4px"><span class="lbl">Venue</span><div class="field filled">Loft Bed Theater, Poblacion</div></div><div style="display:grid;gap:4px"><span class="lbl">City</span><div class="field filled">Makati</div></div></div>
+              <div class="grid2"><div style="display:grid;gap:4px"><span class="lbl">Starts</span><div class="field filled">Sat, Nov 14, 2026 · 11:00 PM</div></div><div style="display:grid;gap:4px"><span class="lbl">Ends</span><div class="field filled">Sun, Nov 15, 2026 · 1:30 AM</div></div></div>
+              <p class="hint">These edits reach the public event page only after Save changes.</p>
+              <div class="foot"><button class="btn ghost" type="button">← Back</button><div class="row"><button class="btn ghost" type="button">Discard changes</button><button class="btn pri" type="button">Save changes</button></div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="phone-col">
+        <p class="frame-label">Phone <span>375px</span> · Leaving with unsaved changes</p>
+        <div class="phone" role="img" aria-label="Phone wireframe: dialog asking to save before leaving">
+          <div class="scr">
+            <div class="pbar"><span class="logo">AXON</span><svg class="ico" style="width:18px;height:18px;color:var(--p-muted)"><use href="#i-list"/></svg></div>
+            <div class="pmain" style="background:rgb(26 5 51 / 45%);align-content:center;min-height:100%">
+              <div class="modal"><h4>Save your changes?</h4><p>You changed the schedule for this event. Unsaved changes will be lost if you leave.</p><div style="display:grid;gap:8px"><button class="btn pri" type="button" style="min-height:44px;justify-content:center">Save and leave</button><button class="btn" type="button" style="min-height:44px;justify-content:center">Leave without saving</button><button class="btn ghost" type="button" style="min-height:44px;justify-content:center">Stay on this page</button></div></div>
+            </div>
+            <div class="pfoot"><button class="btn ghost" type="button">Discard changes</button><button class="btn pri" type="button">Save changes</button></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <ul class="notes">
+      <li>The in-app dialog covers links inside the admin (sidebar, back). For closing the tab or reloading, browsers only allow their own generic "Leave site?" prompt.</li>
+      <li>Tier changes keep saving immediately, as today.</li>
+      <li>Cancelled and completed events stay as they behave today.</li>
+    </ul>
+  </section>
+
+  <!-- 6 -->
+  <section class="screen" id="s6">
+    <div class="screen-head">
+      <p class="num">Screen 6 · D5</p>
+      <h2>Drafts in the events list</h2>
+      <p class="lede">Drafts get a quick filter, progress, and a clear way back in. Uses the existing admin table, skeleton, empty and error components.</p>
+    </div>
+    <div class="pair">
+      <div>
+        <p class="frame-label">Desktop <span>1280px</span></p>
+        <div class="desk" role="img" aria-label="Desktop wireframe: events list filtered to drafts with progress and actions">
+          <div class="side"><div class="logo">AXON</div><div class="nav-i">Dashboard</div><div class="nav-i on">Events</div><div class="nav-i">Verification queue</div><div class="nav-i">Guest check-in</div><div class="nav-i">Analytics</div></div>
+          <div class="main">
+            <div class="row between"><span class="title-l">Event history</span><button class="btn pri" type="button">+ New event</button></div>
+            <div class="row"><button class="btn" type="button" style="min-height:44px">All (10)</button><button class="btn" type="button" style="min-height:44px">Published (8)</button><button class="btn" type="button" aria-pressed="true" style="min-height:44px;background:var(--p-soft);border:2px solid var(--p-primary);color:var(--p-deep)">Drafts (2)</button><div class="field" style="width:180px;margin-left:auto">Search events</div></div>
+            <div class="card scroll-x" style="padding:4px 10px">
+              <table class="tbl">
+                <thead><tr><th scope="col">Event</th><th scope="col">Status</th><th scope="col">Setup</th><th scope="col">Last edited</th><th scope="col"><span style="position:absolute;left:-9999px">Actions</span></th></tr></thead>
+                <tbody>
+                  <tr><td><b>Loft Bed Theater: Midnight Matinee</b><br><span class="muted small">Sat, Nov 14, 2026 · 11:30 PM</span></td><td><span class="badge b-neutral">Draft</span></td><td><div class="row"><span class="prog"><i style="width:40%"></i></span><span class="small">2 of 5 ready</span></div></td><td class="small">Thu, Oct 1, 2026 · 2:20 PM</td><td><div class="row" style="justify-content:flex-end"><button class="btn" type="button">Continue editing</button><button class="btn ghost" type="button">Delete draft</button></div></td></tr>
+                  <tr><td><b>Improv Night Vol. 3</b><br><span class="muted small">Fri, Dec 4, 2026 · 8:00 PM</span></td><td><span class="badge b-neutral">Draft</span></td><td><div class="row"><span class="prog"><i style="width:20%"></i></span><span class="small">1 of 5 ready</span></div></td><td class="small">Tue, Sep 29, 2026 · 9:05 PM</td><td><div class="row" style="justify-content:flex-end"><button class="btn" type="button">Continue editing</button><button class="btn ghost" type="button">Delete draft</button></div></td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="phone-col">
+        <p class="frame-label">Phone <span>375px</span></p>
+        <div class="phone" role="img" aria-label="Phone wireframe: draft events as stacked cards">
+          <div class="scr">
+            <div class="pbar"><span class="logo">AXON</span><svg class="ico" style="width:18px;height:18px;color:var(--p-muted)"><use href="#i-list"/></svg></div>
+            <div class="pmain">
+              <div class="row between"><b style="font-size:15px">Event history</b><button class="btn pri" type="button" style="min-height:44px">+ New event</button></div>
+              <div class="row" role="group" aria-label="Filter events"><button class="btn" type="button" style="min-height:44px">All</button><button class="btn" type="button" style="min-height:44px">Published</button><button class="btn" type="button" aria-pressed="true" style="min-height:44px;background:var(--p-soft);border:2px solid var(--p-primary);color:var(--p-deep)">Drafts (2)</button></div>
+              <div class="card" style="gap:8px"><div class="row between"><b>Midnight Matinee</b><span class="badge b-neutral">Draft</span></div><span class="muted small">Sat, Nov 14, 2026 · 11:30 PM</span><div class="row"><span class="prog" style="flex:1"><i style="width:40%"></i></span><span class="small">2 of 5 ready</span></div><div class="row"><button class="btn" type="button" style="flex:1;justify-content:center;min-height:44px">Continue editing</button><button class="btn ghost" type="button" style="min-height:44px">Delete draft</button></div></div>
+              <div class="card" style="gap:8px"><div class="row between"><b>Improv Night Vol. 3</b><span class="badge b-neutral">Draft</span></div><span class="muted small">Fri, Dec 4, 2026 · 8:00 PM</span><div class="row"><span class="prog" style="flex:1"><i style="width:20%"></i></span><span class="small">1 of 5 ready</span></div><div class="row"><button class="btn" type="button" style="flex:1;justify-content:center;min-height:44px">Continue editing</button><button class="btn ghost" type="button" style="min-height:44px">Delete draft</button></div></div>
+            </div>
+            <div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="states">
+      <div class="state"><p class="when">Loading (existing SkeletonAdminTable)</p><div class="mock"><div class="skel" style="height:14px;width:50%"></div><div class="skel" style="height:28px"></div><div class="skel" style="height:28px"></div><div class="skel" style="height:28px"></div></div></div>
+      <div class="state"><p class="when">No drafts (existing EmptyState)</p><div class="mock" style="text-align:center;justify-items:center"><b>No drafts</b><span class="small muted">Events you start and don't publish yet appear here.</span><button class="btn pri" type="button">Create event</button></div></div>
+      <div class="state"><p class="when">Couldn't load (existing ErrorState)</p><div class="mock" style="text-align:center;justify-items:center"><b>Couldn't load your events</b><span class="small muted">Check your connection and try again.</span><button class="btn" type="button">Try again</button></div></div>
+      <div class="state"><p class="when">Delete draft (existing ConfirmModal)</p><div class="modal-scrim"><div class="modal"><h4>Delete this draft?</h4><p>"Improv Night Vol. 3" and its ticket tiers will be deleted. This can't be undone.</p><div class="row" style="justify-content:flex-end"><button class="btn ghost" type="button">Keep draft</button><button class="btn danger" type="button">Delete draft</button></div></div></div></div>
+    </div>
+    <ul class="notes">
+      <li>Setup progress uses the same rules as the publish checklist, so "2 of 5 ready" and "3 things left" never disagree.</li>
+      <li><b>Delete draft</b> appears only on drafts that were never published (an event moved back to Draft after going on sale may have registrations, so it never shows this action). The server also refuses to delete an event that has registrations or orders.</li>
+    </ul>
+  </section>
+
+  <aside class="decisions" aria-labelledby="dec-h">
+    <p class="eyebrow">Decisions · recorded Fri, Oct 2, 2026</p>
+    <h2 id="dec-h">What was approved</h2>
+    <ol>
+      <li>Save a new event to the account once it has a valid title, venue and dates. No schema change and no placeholder data.</li>
+      <li>Autosave drafts only. Published events keep an explicit Save changes button, now on every step.</li>
+      <li>The server enforces the publish checklist whenever a draft becomes public, including via "Sold out".</li>
+      <li>Audit rows stay append-only: one draft-save row per event, per person, per 15 minutes, with field names only.</li>
+      <li>Skipped: refreshing the public link (slug) on title change, because it would break draft preview links already shared.</li>
+      <li>Events with registrations or orders can't be deleted; cancel them instead. Today deleting removes them.</li>
+      <li>Only platform admins can set the service fee and featured placement. Today organizers can change them.</li>
+      <li>Ship in two releases: A (free navigation, checklist, save on every step, and the fee and deletion fixes), then B (server drafts and autosave).</li>
+    </ol>
+  </aside>
+</div>
