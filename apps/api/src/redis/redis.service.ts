@@ -102,6 +102,27 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
     };
   }
 
+  /**
+   * Decrements a counter only while it is above zero and never creates a missing
+   * key, so a counter that already expired cannot be pushed negative (which would
+   * give the next caller extra headroom). Returns the new value, or 0 when nothing
+   * was decremented.
+   */
+  async decrementIfPositive(key: string): Promise<number> {
+    const result = await this.client.eval(
+      `
+        local current = tonumber(redis.call('GET', KEYS[1]) or '0')
+        if current > 0 then
+          return redis.call('DECR', KEYS[1])
+        end
+        return 0
+      `,
+      1,
+      key,
+    );
+    return Number(result);
+  }
+
   async setIfNotExists(key: string, value: string, ttlSeconds: number): Promise<boolean> {
     const result = await this.client.set(key, value, 'EX', ttlSeconds, 'NX');
     return result === 'OK';

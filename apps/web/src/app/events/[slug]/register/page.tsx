@@ -5,6 +5,8 @@ import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { getAccessToken } from '@/lib/auth';
 import { useAuthStore } from '@/store/auth.store';
 import api from '@/lib/api';
+import ReservationEndState from '@/components/guest-hold/ReservationEndState';
+import { forgetHold, readApiFailure, readRememberedHold, rememberHold } from '@/lib/guestHold';
 import RegistrationForm from '@/components/RegistrationForm';
 import CheckoutStepper from '@/components/CheckoutStepper';
 import InAppBrowserBanner from '@/components/InAppBrowserBanner';
@@ -743,6 +745,8 @@ export default function RegisterPage() {
   const [paidCheckoutStage, setPaidCheckoutStage] = useState<'details' | 'confirmation' | 'otp'>('details');
   const [intentError, setIntentError] = useState<string | null>(null);
   const [intentAttempt, setIntentAttempt] = useState(0);
+  // 'limit' = too many unpaid holds from this connection (409); 'throttled' = too many requests (429).
+  const [intentProblem, setIntentProblem] = useState<'limit' | 'throttled' | null>(null);
   const intentStartedRef = useRef(false);
 
   // Holds attendee data collected by GuestWizard so RegistrationForm can pre-fill after OTP success.
@@ -899,9 +903,43 @@ export default function RegisterPage() {
 
     intentStartedRef.current = true;
     setIntentError(null);
+    setIntentProblem(null);
     const startPaidCheckout = async () => {
       try {
         const partnerConsentValue = searchParams.partnerConsent === 'true';
+        let renewedHold = false;
+
+        if (!isAuthenticated) {
+          // A guest's own earlier hold for this event: reuse it when the choice is the
+          // same, give its seats back when it changed, and say so when it expired.
+          const remembered = readRememberedHold(window.sessionStorage, event.id);
+          if (remembered) {
+            const rememberedToken = window.sessionStorage.getItem(`axon_guest_registration_${remembered.registrationId}`);
+            const headers = rememberedToken ? { 'x-registration-token': rememberedToken } : undefined;
+            const sameChoice = remembered.tierId === selectedTier.id && remembered.qty === qty;
+            if (sameChoice && headers) {
+              try {
+                const existing = await api.get(`/registrations/guest/${remembered.registrationId}`, { headers });
+                const body = existing.data?.data ?? existing.data;
+                const deadline = body?.holdExpiresAt ? Date.parse(body.holdExpiresAt) : NaN;
+                if (body?.status === 'pending_payment' && (!Number.isFinite(deadline) || deadline > Date.now())) {
+                  router.replace(`/events/${event.slug}/register/payment/${remembered.registrationId}`);
+                  return;
+                }
+                renewedHold = true;
+              } catch {
+                // Could not read it (gone or opened elsewhere): start a fresh hold below.
+              }
+            } else if (headers) {
+              // The guest changed tickets or quantity: release the old seats first.
+              await api
+                .post(`/registrations/guest/${remembered.registrationId}/cancel`, undefined, { headers })
+                .catch(() => undefined);
+            }
+            forgetHold(window.sessionStorage, event.id);
+          }
+        }
+
         const response = isAuthenticated
           ? await api.post('/registrations', {
               eventId: event.id,
@@ -923,11 +961,27 @@ export default function RegisterPage() {
             `axon_guest_registration_${registration.id}`,
             registration.guestAccessToken,
           );
+          rememberHold(window.sessionStorage, event.id, {
+            registrationId: registration.id,
+            tierId: selectedTier.id,
+            qty,
+          });
         }
-        router.replace(`/events/${event.slug}/register/payment/${registration.id}`);
-      } catch (err: any) {
-        const message = err?.response?.data?.message ?? 'Secure checkout could not be started.';
-        setIntentError(Array.isArray(message) ? message.join(' ') : message);
+        router.replace(
+          `/events/${event.slug}/register/payment/${registration.id}${renewedHold ? '?renewed=1' : ''}`,
+        );
+      } catch (err: unknown) {
+        const failure = readApiFailure(err);
+        if (failure.code === 'GUEST_HOLD_LIMIT') {
+          setIntentProblem('limit');
+          return;
+        }
+        if (failure.status === 429) {
+          setIntentProblem('throttled');
+          return;
+        }
+        const message = failure.message ?? 'Secure checkout could not be started.';
+        setIntentError(message);
       }
     };
     void startPaidCheckout();
@@ -1072,8 +1126,22 @@ export default function RegisterPage() {
         )}
 
         {!existingRegistrationId && isPaidEvent && !hasOptionalInclusions ? (
-          <div className="rounded-2xl border border-gray-200 bg-white p-6 text-center">
-            {intentError ? (
+          <div className={intentProblem ? undefined : 'rounded-2xl border border-gray-200 bg-white p-6 text-center'}>
+            {intentProblem ? (
+              <ReservationEndState
+                variant={intentProblem}
+                slug={event.slug}
+                onRetry={
+                  intentProblem === 'throttled'
+                    ? () => {
+                        intentStartedRef.current = false;
+                        setIntentProblem(null);
+                        setIntentAttempt((attempt) => attempt + 1);
+                      }
+                    : undefined
+                }
+              />
+            ) : intentError ? (
               <>
                 <p role="alert" className="text-sm text-red-700">{intentError}</p>
                 <button

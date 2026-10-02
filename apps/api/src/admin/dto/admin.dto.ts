@@ -14,7 +14,7 @@ import {
   Min,
   Max,
 } from 'class-validator';
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class RejectOrganizerDto {
   @ApiProperty({ description: 'Reason for rejection shown to the organizer (5-500 chars)' })
@@ -40,6 +40,14 @@ export class RejectRegistrationDto {
   @MinLength(5)
   @MaxLength(500)
   reason: string;
+}
+
+export class ReleaseHoldDto {
+  @ApiPropertyOptional({ description: 'Optional internal note recorded in the audit trail' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  reason?: string;
 }
 
 export class BulkApproveDto {

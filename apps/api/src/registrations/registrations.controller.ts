@@ -6,6 +6,7 @@ import {
   Body,
   Param,
   Query,
+  Header,
   Headers,
   Req,
   UseGuards,
@@ -20,6 +21,7 @@ import { JwtPayload } from '@axon-tickets/types';
 import { RegistrationsService } from './registrations.service';
 import { CreateRegistrationDto } from './dto/create-registration.dto';
 import { UpdateRegistrationAttendeesDto } from './dto/update-registration-attendees.dto';
+import { ResumeGuestDto, SaveForLaterDto } from './dto/guest-hold.dto';
 import {
   ClaimRegistrationDto,
   CheckGuestDuplicatesDto,
@@ -36,6 +38,16 @@ import { Public } from '../common/decorators/public.decorator';
 @ApiBearerAuth()
 export class RegistrationsController {
   constructor(private readonly registrationsService: RegistrationsService) {}
+
+  /** Client IP for caps and limits: x-real-ip, else the LAST x-forwarded-for entry (set by the trusted proxy). */
+  private clientIp(req: Request): string {
+    return (
+      (req.headers['x-real-ip'] as string | undefined)?.trim() ??
+      (req.headers['x-forwarded-for'] as string | undefined)?.split(',').pop()?.trim() ??
+      req.ip ??
+      ''
+    );
+  }
 
   @Post()
   @ApiOperation({ summary: 'Create a new registration (manual-payment flow)' })
@@ -70,12 +82,18 @@ export class RegistrationsController {
   @Throttle({ default: { ttl: 60_000, limit: 10 } })
   @ApiOperation({ summary: 'Create an anonymous paid checkout intent' })
   createGuestIntent(@Body() dto: CreateRegistrationDto, @Req() req: Request) {
-    const ip =
-      (req.headers['x-real-ip'] as string | undefined)?.trim() ??
-      (req.headers['x-forwarded-for'] as string | undefined)?.split(',').pop()?.trim() ??
-      req.ip ??
-      '';
-    return this.registrationsService.createGuestIntent(dto, ip);
+    return this.registrationsService.createGuestIntent(dto, this.clientIp(req));
+  }
+
+  // Registered before the other guest/:id routes. Authenticated by a signed token in the body.
+  @Public()
+  @Post('guest/resume')
+  @Throttle({ default: { ttl: 60_000, limit: 10 } })
+  @HttpCode(HttpStatus.OK)
+  @Header('Cache-Control', 'no-store')
+  @ApiOperation({ summary: 'Exchange a signed resume link for a fresh guest access token' })
+  resumeGuest(@Body() dto: ResumeGuestDto, @Req() req: Request) {
+    return this.registrationsService.resumeGuest(dto.token, this.clientIp(req));
   }
 
   @Public()
@@ -99,6 +117,32 @@ export class RegistrationsController {
     @Headers('x-registration-token') token?: string,
   ) {
     return this.registrationsService.updateGuestAttendees(id, token, dto);
+  }
+
+  @Public()
+  @Post('guest/:id/save-for-later')
+  @Throttle({ default: { ttl: 60_000, limit: 5 } })
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Email a guest a link to finish payment later (extends the hold within limits)' })
+  saveGuestForLater(
+    @Param('id') id: string,
+    @Body() dto: SaveForLaterDto,
+    @Req() req: Request,
+    @Headers('x-registration-token') token?: string,
+  ) {
+    return this.registrationsService.saveGuestForLater(id, token, dto.email, this.clientIp(req));
+  }
+
+  @Public()
+  @Post('guest/:id/cancel')
+  @Throttle({ default: { ttl: 60_000, limit: 5 } })
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Cancel an unpaid guest reservation and release its seats' })
+  cancelGuest(
+    @Param('id') id: string,
+    @Headers('x-registration-token') token?: string,
+  ) {
+    return this.registrationsService.cancelGuest(id, token);
   }
 
   @Public()

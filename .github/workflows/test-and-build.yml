@@ -99,6 +99,8 @@ jobs:
         run: >-
           npx playwright test
           e2e/checkout-critical.spec.ts
+          e2e/guest-hold.spec.ts
+          e2e/guest-hold-helpers.spec.ts
           e2e/admin-flows.spec.ts
           e2e/session-refresh.spec.ts
           e2e/event-wizard-navigation.spec.ts

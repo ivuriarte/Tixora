@@ -3,8 +3,8 @@
 import { useEffect, useMemo, useRef } from 'react';
 import Script from 'next/script';
 import { usePathname } from 'next/navigation';
+import { isPixelExcludedPath } from '@/lib/metaPixelRoutes';
 
-const EXCLUDED_PREFIXES = ['/admin', '/auth', '/account', '/profile', '/checkout', '/registrations'];
 
 declare global {
   interface Window {
@@ -19,7 +19,7 @@ export default function MetaPixel() {
   const pixelId = process.env.NEXT_PUBLIC_META_PIXEL_ID;
   const pageKey = useMemo(() => pathname, [pathname]);
 
-  const isExcludedRoute = EXCLUDED_PREFIXES.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`));
+  const isExcludedRoute = isPixelExcludedPath(pathname);
   const shouldTrack =
     process.env.NEXT_PUBLIC_APP_ENV === 'production' &&
     Boolean(pixelId) &&

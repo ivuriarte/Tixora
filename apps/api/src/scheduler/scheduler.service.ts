@@ -7,6 +7,13 @@ import { ConfigService } from '@nestjs/config';
 import { UploadService } from '../upload/upload.service';
 import { manilaDateKey, workspaceDueState } from '../workspaces/workspaces.service';
 import { OptionalInclusionsService } from '../optional-inclusions/optional-inclusions.service';
+import { GuestHoldService } from '../registrations/guest-hold.service';
+import { RegistrationHoldService } from '../registrations/registration-hold.service';
+
+/** Max rows a cleanup run handles, and how long it may run (Vercel's limit is 10 s). */
+const CLEANUP_BATCH = 100;
+const CLEANUP_BUDGET_MS = 7_000;
+const LEGACY_HOLD_MS = 24 * 60 * 60 * 1000;
 
 @Injectable()
 export class SchedulerService {
@@ -19,22 +26,41 @@ export class SchedulerService {
     private readonly config: ConfigService,
     private readonly upload: UploadService,
     @Optional() private readonly optionalInclusions?: OptionalInclusionsService,
+    // Trailing and TS-optional so specs that build the service by hand keep compiling;
+    // Nest still injects both (GuestHoldModule).
+    private readonly guestHold?: GuestHoldService,
+    private readonly holds?: RegistrationHoldService,
   ) {}
+
+  private requireHolds(): RegistrationHoldService {
+    if (!this.holds) throw new Error('RegistrationHoldService is not configured');
+    return this.holds;
+  }
+
+  private requireGuestHold(): GuestHoldService {
+    if (!this.guestHold) throw new Error('GuestHoldService is not configured');
+    return this.guestHold;
+  }
 
   /**
    * P5-06 — Early bird auto-cancel.
-   * Runs every hour. Cancels pending_payment registrations whose tier's sale period
-   * has ended (tier.saleEndsAt < now). Sends a cancellation email to the lead attendee
-   * and writes an audit log entry per registration.
+   * Cancels pending_payment registrations whose tier's sale period has ended
+   * (tier.saleEndsAt < now) through the shared release helper, sends a cancellation
+   * email to the lead attendee, and writes an audit log entry per registration.
+   * Capped and time-budgeted like the hold cleanup; rows are independent, so a
+   * partial run is safe and the next run continues.
    */
   async autoCancelExpiredRegistrations(): Promise<void> {
     const now = new Date();
+    const startedAt = Date.now();
 
     const expired = await this.prisma.registration.findMany({
       where: {
         status: 'pending_payment',
         tier: { saleEndsAt: { lt: now } },
       },
+      orderBy: { createdAt: 'asc' },
+      take: CLEANUP_BATCH,
       include: {
         attendees: { where: { isLead: true }, take: 1 },
         event: { select: { title: true, slug: true } },
@@ -50,40 +76,18 @@ export class SchedulerService {
       this.config.get<string>('webUrl') ?? 'https://axontickets.online';
 
     for (const reg of expired) {
+      if (Date.now() - startedAt > CLEANUP_BUDGET_MS) {
+        this.logger.warn({ msg: 'Auto-cancel stopped at its time budget; the next run continues' });
+        break;
+      }
       try {
-        // Cancel the registration and release the seat.
-        await this.prisma.$transaction(async (tx) => {
-          await tx.$queryRaw(Prisma.sql`SELECT id FROM registrations WHERE id = ${reg.id} FOR UPDATE`);
-          const current = await tx.registration.findUnique({ where: { id: reg.id }, select: { status: true } });
-          if (current?.status !== 'pending_payment') return;
-          await this.optionalInclusions?.releaseRegistrationReservationsTx(
-            tx,
-            reg.id,
-            'Ticket tier sale period ended',
-            'expire',
-          );
-          await tx.registration.update({
-            where: { id: reg.id },
-            data: { status: 'cancelled' },
-          });
-          if (reg.tierId) {
-            await tx.$queryRaw(Prisma.sql`SELECT id FROM ticket_tiers WHERE id = ${reg.tierId} FOR UPDATE`);
-            const tier = await tx.ticketTier.findUnique({ where: { id: reg.tierId }, select: { soldQuantity: true } });
-            if (tier) {
-              await tx.ticketTier.update({
-                where: { id: reg.tierId },
-                data: { soldQuantity: Math.max(0, tier.soldQuantity - reg.attendeeCount) },
-              });
-            }
-          }
-          await this.audit.logWith(tx, {
-            action: 'REGISTRATION_AUTO_CANCELLED',
-            entityType: 'Registration',
-            entityId: reg.id,
-            registrationId: reg.id,
-            metadata: { reason: 'Sale period ended', tierName: reg.tier?.name ?? null },
-          });
+        const result = await this.requireHolds().releasePendingHold(reg.id, {
+          reason: 'Sale period ended',
+          auditAction: 'REGISTRATION_AUTO_CANCELLED',
+          inclusionMovement: 'expire',
+          metadata: { tierName: reg.tier?.name ?? null },
         });
+        if (!result.released) continue;
 
         const lead = reg.attendees[0];
         if (lead?.email) {
@@ -110,20 +114,33 @@ export class SchedulerService {
   }
 
   /**
-   * Pending-payment reminder.
-   * Runs every hour. Finds pending_payment registrations between 12 and 13 hours
-   * old and sends a reminder email to the lead attendee. Capped at 200 per run to
-   * stay within Vercel's 10s serverless limit.
+   * Pending-payment reminder, sent ONCE per registration.
+   *
+   * The cron workflow calls this every 5 minutes but each send window is an hour wide,
+   * so a Redis marker (set before sending, removed if the send fails) is what makes it
+   * once-only. If Redis is unavailable the reminder is skipped, never duplicated.
+   *
+   * - Registrations with a lead attendee email (logged-in or finished guests): 12–13
+   *   hours after creation, link to the registration page (unchanged behaviour).
+   * - Guests who saved a "pay later" email: about 12 hours before their hold expires,
+   *   with a signed resume link (never the raw access token).
+   * Capped per run to stay inside Vercel's 10 s limit.
    */
   async remindPendingRegistrations(): Promise<{ reminded: number }> {
     const now = Date.now();
     const twelveHoursAgo = new Date(now - 12 * 60 * 60 * 1000);
     const thirteenHoursAgo = new Date(now - 13 * 60 * 60 * 1000);
+    const guestHold = this.requireGuestHold();
+    const webBase = this.config.get<string>('webUrl') ?? 'https://axontickets.online';
+    let reminded = 0;
 
     const pending = await this.prisma.registration.findMany({
       where: {
         status: 'pending_payment',
         createdAt: { gte: thirteenHoursAgo, lte: twelveHoursAgo },
+        // Guest holds are reminded by the second loop below, with a working resume link.
+        // This loop's link needs a login and would also take the once-only marker first.
+        OR: [{ userId: { not: null } }, { holdExpiresAt: null }],
       },
       take: 200,
       include: {
@@ -132,14 +149,10 @@ export class SchedulerService {
       },
     });
 
-    if (!pending.length) return { reminded: 0 };
-
-    const webBase = this.config.get<string>('webUrl') ?? 'https://axontickets.online';
-    let reminded = 0;
-
     for (const reg of pending) {
       const lead = reg.attendees[0];
       if (!lead?.email) continue;
+      if (!(await guestHold.claimReminder(reg.id))) continue;
       try {
         await this.emailService.sendPaymentReminderEmail(
           lead.email ?? '',
@@ -150,6 +163,7 @@ export class SchedulerService {
         );
         reminded++;
       } catch (err: unknown) {
+        await guestHold.releaseReminderClaim(reg.id);
         this.logger.warn({
           msg: 'Payment reminder email failed',
           regId: reg.id,
@@ -158,7 +172,53 @@ export class SchedulerService {
       }
     }
 
-    this.logger.log({ msg: 'Payment reminders sent', reminded });
+    const guestHolds = await this.prisma.registration.findMany({
+      where: {
+        status: 'pending_payment',
+        userId: null,
+        guestResumeEmail: { not: null },
+        holdExpiresAt: {
+          gte: new Date(now + 11 * 60 * 60 * 1000),
+          lte: new Date(now + 12 * 60 * 60 * 1000),
+        },
+      },
+      orderBy: { holdExpiresAt: 'asc' },
+      take: 200,
+      select: {
+        id: true,
+        referenceNumber: true,
+        guestResumeEmail: true,
+        holdExpiresAt: true,
+        event: { select: { title: true, slug: true } },
+      },
+    });
+
+    for (const reg of guestHolds) {
+      if (!reg.guestResumeEmail || !reg.holdExpiresAt) continue;
+      if (!(await guestHold.claimReminder(reg.id))) continue;
+      let sent = false;
+      try {
+        sent = await this.emailService.sendGuestHoldReminderEmail(reg.guestResumeEmail, {
+          eventTitle: reg.event.title,
+          referenceNumber: reg.referenceNumber,
+          resumeUrl:
+            `${webBase}/events/${reg.event.slug}/register/resume` +
+            `#t=${guestHold.signResumeToken(reg.id, reg.holdExpiresAt)}`,
+          holdExpiresAt: reg.holdExpiresAt,
+        });
+      } catch (err: unknown) {
+        // For example missing key material: free the marker so a later run can retry.
+        this.logger.warn({ msg: 'Guest hold reminder could not be built', regId: reg.id, err: (err as Error).message });
+      }
+      if (sent) {
+        reminded++;
+      } else {
+        await guestHold.releaseReminderClaim(reg.id);
+        this.logger.warn({ msg: 'Guest hold reminder email failed', regId: reg.id });
+      }
+    }
+
+    if (reminded > 0) this.logger.log({ msg: 'Payment reminders sent', reminded });
     return { reminded };
   }
 
@@ -289,6 +349,7 @@ export class SchedulerService {
             createdAt: { lt: cutoff },
             OR: [
               { guestEmail: { not: null } },
+              { guestResumeEmail: { not: null } },
               { guestAccessTokenHash: { not: null } },
               { notes: { not: null } },
             ],
@@ -367,6 +428,7 @@ export class SchedulerService {
               where: { id: registration.id },
               data: {
                 guestEmail: null,
+                guestResumeEmail: null,
                 guestAccessTokenHash: null,
                 notes: null,
               },
@@ -404,74 +466,69 @@ export class SchedulerService {
   }
 
   /**
-   * Orphan registration cleanup.
-   * Runs every hour. Cancels pending_payment registrations older than 2 hours
-   * where the user abandoned the flow before uploading proof. Releases the
-   * reserved seats back to the tier's soldQuantity so inventory stays accurate.
+   * Unpaid-hold cleanup. The cron workflow runs it every 5 minutes, so a hold lasts
+   * its deadline plus up to ~5 minutes.
+   *
+   * Two explicit rules (never COALESCE, so NULL is handled exactly):
+   *  1. Guest holds with a stored deadline: cancelled once `holdExpiresAt` has passed
+   *     (60 minutes by default, 24 hours after the guest saved an email).
+   *  2. Everything else (logged-in users, rows from before the deadline column existed):
+   *     cancelled when still `pending_payment` 24 hours after creation, as before.
+   *
+   * Each cancel goes through the shared release helper, which re-checks that the row is
+   * still an unpaid hold with no proof and returns the seats. Capped at 100 rows per
+   * run and stopped at a 7-second budget; rows are independent so partial runs are safe.
    */
   async cleanupOrphanRegistrations(): Promise<void> {
+    const startedAt = Date.now();
     const expiredInclusionHolds = await this.optionalInclusions?.expireDueReservations() ?? 0;
     if (expiredInclusionHolds > 0) {
       this.logger.log({ msg: 'Expired optional inclusion holds released', count: expiredInclusionHolds });
     }
-    const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    const now = new Date();
+    const legacyCutoff = new Date(now.getTime() - LEGACY_HOLD_MS);
 
-    const orphans = await this.prisma.registration.findMany({
-      where: {
-        status: 'pending_payment',
-        createdAt: { lt: cutoff },
-      },
-      select: {
-        id: true,
-        tierId: true,
-        attendeeCount: true,
-      },
-    });
+    const [deadlinePassed, legacyStale] = await Promise.all([
+      this.prisma.registration.findMany({
+        where: { status: 'pending_payment', holdExpiresAt: { lt: now } },
+        orderBy: { createdAt: 'asc' },
+        take: CLEANUP_BATCH,
+        select: { id: true },
+      }),
+      this.prisma.registration.findMany({
+        where: { status: 'pending_payment', holdExpiresAt: null, createdAt: { lt: legacyCutoff } },
+        orderBy: { createdAt: 'asc' },
+        take: CLEANUP_BATCH,
+        select: { id: true },
+      }),
+    ]);
 
-    if (!orphans.length) return;
+    const work = [
+      ...deadlinePassed.map((r) => ({ id: r.id, reason: 'Guest checkout hold expired' })),
+      ...legacyStale.map((r) => ({ id: r.id, reason: 'Registration abandoned' })),
+    ];
+    if (!work.length) return;
 
-    this.logger.log({ msg: 'Orphan cleanup: found stale registrations', count: orphans.length });
+    this.logger.log({ msg: 'Hold cleanup: found expired holds', count: work.length });
 
-    for (const reg of orphans) {
+    for (const item of work) {
+      if (Date.now() - startedAt > CLEANUP_BUDGET_MS) {
+        this.logger.warn({ msg: 'Hold cleanup stopped at its time budget; the next run continues' });
+        break;
+      }
       try {
-        await this.prisma.$transaction(async (tx) => {
-          await tx.$queryRaw(Prisma.sql`SELECT id FROM registrations WHERE id = ${reg.id} FOR UPDATE`);
-          const current = await tx.registration.findUnique({ where: { id: reg.id }, select: { status: true } });
-          if (current?.status !== 'pending_payment') return;
-          await this.optionalInclusions?.releaseRegistrationReservationsTx(
-            tx,
-            reg.id,
-            'Registration abandoned',
-            'expire',
-          );
-          await tx.registration.update({
-            where: { id: reg.id },
-            data: { status: 'cancelled' },
-          });
-          if (reg.tierId) {
-            await tx.$queryRaw(Prisma.sql`SELECT id FROM ticket_tiers WHERE id = ${reg.tierId} FOR UPDATE`);
-            const tier = await tx.ticketTier.findUnique({ where: { id: reg.tierId }, select: { soldQuantity: true } });
-            if (tier) {
-              await tx.ticketTier.update({
-                where: { id: reg.tierId },
-                data: { soldQuantity: Math.max(0, tier.soldQuantity - reg.attendeeCount) },
-              });
-            }
-          }
-          await this.audit.logWith(tx, {
-            action: 'REGISTRATION_AUTO_CANCELLED',
-            entityType: 'Registration',
-            entityId: reg.id,
-            registrationId: reg.id,
-            metadata: { reason: 'Registration abandoned' },
-          });
+        const result = await this.requireHolds().releasePendingHold(item.id, {
+          reason: item.reason,
+          auditAction: 'REGISTRATION_AUTO_CANCELLED',
+          inclusionMovement: 'expire',
+          // Re-checked under the row lock: a guest may have extended this hold since we read it.
+          onlyIfExpired: { now, legacyCutoff },
         });
-
-        this.logger.log({ msg: 'Orphan registration cancelled', id: reg.id });
+        if (result.released) this.logger.log({ msg: 'Expired hold cancelled', id: item.id });
       } catch (err: unknown) {
         this.logger.error({
-          msg: 'Orphan cleanup failed for registration',
-          id: reg.id,
+          msg: 'Hold cleanup failed for registration',
+          id: item.id,
           err: (err as Error).message,
         });
       }

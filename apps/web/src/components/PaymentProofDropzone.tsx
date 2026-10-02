@@ -2,12 +2,15 @@
 
 import { useCallback, useRef, useState } from 'react';
 import api from '@/lib/api';
+import { readApiFailure } from '@/lib/guestHold';
 
 interface Props {
   registrationId: string;
   guestAccessToken?: string;
   /** Called with the uploaded proof's image URL on success. */
   onUploaded: (imageUrl: string) => void;
+  /** The reservation expired or was cancelled while the guest was uploading. */
+  onExpired?: () => void;
 }
 
 const ALLOWED = ['image/jpeg', 'image/png', 'image/webp'];
@@ -20,7 +23,7 @@ function formatBytes(bytes: number) {
   return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
 }
 
-export default function PaymentProofDropzone({ registrationId, guestAccessToken, onUploaded }: Props) {
+export default function PaymentProofDropzone({ registrationId, guestAccessToken, onUploaded, onExpired }: Props) {
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -86,6 +89,10 @@ export default function PaymentProofDropzone({ registrationId, guestAccessToken,
       const body = res.data?.data ?? res.data;
       onUploaded(body?.imageUrl ?? '');
     } catch (e: unknown) {
+      if (onExpired && readApiFailure(e).code === 'HOLD_EXPIRED') {
+        onExpired();
+        return;
+      }
       const err = e as { response?: { data?: { message?: string | string[] } } };
       const msg = err.response?.data?.message;
       setError(Array.isArray(msg) ? msg.join(', ') : (msg ?? 'Upload failed. Try again.'));

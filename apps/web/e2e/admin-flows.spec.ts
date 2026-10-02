@@ -669,3 +669,110 @@ test.describe('Super Admin portfolio — platform governance', () => {
     await expect(page.getByText('Platform settings saved.')).toBeVisible();
   });
 });
+
+test.describe('Admin unpaid checkout holds', () => {
+  const holdRegistration = (status: string) => ({
+    id: 'reg-hold-1',
+    referenceNumber: 'AXN-2026-HOLD1',
+    status,
+    tierName: 'Balcony',
+    attendeeCount: 2,
+    subtotal: 1000,
+    fees: 50,
+    discount: 0,
+    total: 1050,
+    currency: 'PHP',
+    rejectionReason: null,
+    verifiedAt: null,
+    createdAt: '2026-10-02T04:13:57.000Z',
+    paymentMethod: null,
+    holdExpiresAt: '2026-10-03T04:13:57.000Z',
+    event: {
+      title: 'QA Event 2030',
+      slug: 'qa-event-2030',
+      startsAt: '2030-01-01T01:00:00.000Z',
+      venue: 'QA Hall',
+      address: null,
+      landmark: null,
+    },
+    user: null,
+    attendees: [],
+    proofs: [],
+    lineItems: [],
+    verifiedBy: null,
+  });
+
+  async function mockHold(page: Page, release: 'ok' | 'fail') {
+    const state = { released: false, releaseCalls: 0 };
+    await page.route('**/api/v1/admin/registrations/reg-hold-1**', async (route) => {
+      const request = route.request();
+      if (request.method() === 'PATCH' && request.url().endsWith('/release-hold')) {
+        state.releaseCalls += 1;
+        if (release === 'fail') {
+          return route.fulfill({
+            status: 400,
+            contentType: 'application/json',
+            body: JSON.stringify({ success: false, message: 'not an unpaid hold' }),
+          });
+        }
+        state.released = true;
+        return route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({ success: true, data: { message: 'Hold released' } }),
+        });
+      }
+      if (request.method() === 'GET') {
+        return route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            success: true,
+            data: holdRegistration(state.released ? 'cancelled' : 'pending_payment'),
+          }),
+        });
+      }
+      return route.continue();
+    });
+    return state;
+  }
+
+  test('an unfinished checkout is labelled honestly and its hold can be released', async ({ adminPage: page }) => {
+    const state = await mockHold(page, 'ok');
+    await gotoAdmin(page, '/admin/registrations/reg-hold-1');
+
+    await expect(page.getByText('Checkout started (no details yet)')).toBeVisible();
+    await expect(page.getByText('Walk-in attendee')).toHaveCount(0);
+    await expect(page.getByText(/Seats held until \w{3}, \w{3} \d{1,2}, \d{4} · /)).toBeVisible();
+
+    await page.getByRole('button', { name: 'Release hold' }).click();
+    const dialog = page.getByRole('dialog');
+    await expect(dialog).toContainText('Release this hold?');
+    await expect(dialog).toContainText('The seats go back on sale right away.');
+    await dialog.getByRole('button', { name: 'Release hold' }).click();
+
+    await expect(page.getByRole('status').filter({ hasText: 'Hold released. The seats are available again.' })).toBeVisible();
+    expect(state.releaseCalls).toBe(1);
+    await expect(page.getByRole('button', { name: 'Release hold' })).toHaveCount(0);
+  });
+
+  test('keeping the hold releases nothing', async ({ adminPage: page }) => {
+    const state = await mockHold(page, 'ok');
+    await gotoAdmin(page, '/admin/registrations/reg-hold-1');
+    await page.getByRole('button', { name: 'Release hold' }).click();
+    await page.getByRole('dialog').getByRole('button', { name: 'Keep hold' }).click();
+    await expect(page.getByRole('dialog')).toHaveCount(0);
+    expect(state.releaseCalls).toBe(0);
+  });
+
+  test('a failed release explains what to do next and keeps the hold', async ({ adminPage: page }) => {
+    await mockHold(page, 'fail');
+    await gotoAdmin(page, '/admin/registrations/reg-hold-1');
+    await page.getByRole('button', { name: 'Release hold' }).click();
+    await page.getByRole('dialog').getByRole('button', { name: 'Release hold' }).click();
+
+    await expect(page.getByRole('alert').filter({ hasText: "Couldn't release this hold" })).toBeVisible();
+    // Scoped to the page: the dialog is still fading out for a moment after it closes.
+    await expect(page.getByRole('main').getByRole('button', { name: 'Release hold' })).toBeVisible();
+  });
+});

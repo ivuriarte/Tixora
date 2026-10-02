@@ -4,6 +4,9 @@ import {
   NotFoundException,
   BadRequestException,
   ConflictException,
+  HttpException,
+  HttpStatus,
+  ServiceUnavailableException,
   Optional,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -25,6 +28,9 @@ import { ConfirmGuestCheckoutDto } from './dto/checkout-confirmation.dto';
 import { ValidateReferralCodeDto } from '../admin/dto/referral-code.dto';
 import { getAgendaSubEvents, resolveAgendaSubEvent } from '../events/agenda-sub-events';
 import { OptionalInclusionsService } from '../optional-inclusions/optional-inclusions.service';
+import { GuestHoldService } from './guest-hold.service';
+import { RegistrationHoldService } from './registration-hold.service';
+import { anonymousBuyerLabel } from './registration-labels';
 
 const ACTIVE_REGISTRATION_STATUSES = ['pending_payment', 'proof_submitted', 'pending_approval', 'verified'] as const;
 const VALID_TICKET_STATUSES = ['valid', 'used'] as const;
@@ -32,6 +38,9 @@ const DUPLICATE_SUCCESSFUL_REGISTRATION_MESSAGE =
   'You have already successfully registered for this event. You cannot register twice for the same event.';
 const GUEST_CHECKOUT_OTP_TTL_SECONDS = 300;
 const GUEST_CHECKOUT_OTP_MAX_ATTEMPTS = 5;
+/** Same reply whether or not an email was actually sent (no oracle for limits or addresses). */
+const SAVE_FOR_LATER_MESSAGE = 'If the address is right, your link is on its way.';
+const LEGACY_HOLD_MS = 24 * 60 * 60 * 1000;
 
 type SelectedSubEvent = {
   id: string;
@@ -51,7 +60,21 @@ export class RegistrationsService {
     private readonly funnel: FunnelService,
     private readonly redis: RedisService,
     @Optional() private readonly optionalInclusions?: OptionalInclusionsService,
+    // Trailing and TS-optional so older specs that build the service by hand keep
+    // compiling; Nest still injects both (GuestHoldModule) and fails at boot if absent.
+    private readonly guestHold?: GuestHoldService,
+    private readonly holds?: RegistrationHoldService,
   ) {}
+
+  private requireGuestHold(): GuestHoldService {
+    if (!this.guestHold) throw new Error('GuestHoldService is not configured');
+    return this.guestHold;
+  }
+
+  private requireHolds(): RegistrationHoldService {
+    if (!this.holds) throw new Error('RegistrationHoldService is not configured');
+    return this.holds;
+  }
 
   async create(dto: CreateRegistrationDto, userId: string, ip?: string) {
     try {
@@ -93,17 +116,40 @@ export class RegistrationsService {
     if (dto.accountConsent === true) {
       throw new BadRequestException('Account consent is collected after payment proof.');
     }
+    // A guest hold never carries add-ons: add-on stock has its own hold policy, and
+    // a deadline here must never coexist with it.
+    if (dto.quoteToken || (dto.inclusionSelections?.length ?? 0) > 0) {
+      throw new BadRequestException('Add-ons are chosen after attendee details, not at this step.');
+    }
+
+    const policy = this.requireGuestHold();
+    const slot = await policy.acquireCreateSlot(dto.eventId, ip);
+    if (!slot.allowed) {
+      throw new ConflictException({
+        message:
+          'Too many reservations from this connection. Finish or cancel one you already started, or try again in about an hour.',
+        code: 'GUEST_HOLD_LIMIT',
+      });
+    }
 
     const guestAccessToken = randomBytes(32).toString('base64url');
     const guestAccessTokenHash = createHash('sha256').update(guestAccessToken).digest('hex');
-    const registration = await this.createImpl(
-      { ...dto, accountConsent: false },
-      null,
-      ip,
-      undefined,
-      guestAccessTokenHash,
-      true,
-    );
+    let registration: Awaited<ReturnType<RegistrationsService['createImpl']>>;
+    try {
+      registration = await this.createImpl(
+        { ...dto, accountConsent: false },
+        null,
+        ip,
+        undefined,
+        guestAccessTokenHash,
+        true,
+        policy.initialDeadline(),
+      );
+    } catch (err) {
+      await policy.undoSlot(slot.counterKey);
+      throw err;
+    }
+    await policy.bindSlot(registration.id, slot.counterKey);
     return { ...registration, guestAccessToken };
   }
 
@@ -114,6 +160,7 @@ export class RegistrationsService {
     guestEmail?: string,
     guestAccessTokenHash?: string,
     requirePaid = false,
+    holdExpiresAt?: Date,
   ) {
     const attendees = dto.attendees ?? [];
     this.validateAttendeeDemographics(attendees);
@@ -330,6 +377,7 @@ export class RegistrationsService {
             userId,
             guestEmail: guestEmail ?? null,
             guestAccessTokenHash: guestAccessTokenHash ?? null,
+            holdExpiresAt: holdExpiresAt ?? null,
             eventId: dto.eventId,
             tierId: dto.tierId,
             tierName: tier.name,
@@ -496,6 +544,7 @@ export class RegistrationsService {
       currency: registration.currency,
       status: registration.status,
       createdAt: registration.createdAt.toISOString(),
+      holdExpiresAt: registration.holdExpiresAt?.toISOString() ?? null,
       lineItems: registration.lineItems.map((item) => ({
         id: item.id,
         kind: item.kind,
@@ -560,8 +609,223 @@ export class RegistrationsService {
       },
     });
     if (!registration) throw new NotFoundException('Registration not found');
-    const { guestAccessTokenHash: _secret, ...safe } = registration;
-    return safe;
+    // Never return the token hash or the unverified resume email; expose only
+    // what the page needs (a boolean and the deadline).
+    const { guestAccessTokenHash: _secret, guestResumeEmail, holdExpiresAt, ...safe } = registration;
+    return {
+      ...safe,
+      holdExpiresAt: holdExpiresAt?.toISOString() ?? null,
+      resumeEmailSaved: Boolean(guestResumeEmail),
+    };
+  }
+
+  /**
+   * "I will pay later": the guest leaves an email, we send a resume link and (within
+   * the extended-hold cap) extend the hold. The email is an unverified contact, never
+   * an identity: it is stored in `guestResumeEmail`, never in `guestEmail`, and is not
+   * used to look up, merge or block registrations.
+   *
+   * The reply has one shape in every case (sent, limit hit, Redis down, hold not
+   * extended) and always carries the real current deadline.
+   */
+  async saveGuestForLater(
+    id: string,
+    token: string | undefined,
+    rawEmail: string,
+    ip?: string,
+  ) {
+    await this.assertGuestAccess(id, token);
+    const policy = this.requireGuestHold();
+    const email = rawEmail.trim().toLowerCase();
+
+    const registration = await this.prisma.registration.findUnique({
+      where: { id },
+      select: {
+        status: true,
+        total: true,
+        eventId: true,
+        createdAt: true,
+        holdExpiresAt: true,
+        referenceNumber: true,
+        guestResumeEmail: true,
+        event: { select: { slug: true, title: true } },
+      },
+    });
+    if (!registration || registration.status !== 'pending_payment' || Number(registration.total) <= 0) {
+      throw new BadRequestException('This reservation is no longer on hold.');
+    }
+
+    // Rows created before this release have no stored deadline: they follow the 24 h rule.
+    const currentDeadline =
+      registration.holdExpiresAt ?? new Date(registration.createdAt.getTime() + LEGACY_HOLD_MS);
+    // An already-ended hold waiting for the next cleanup run cannot be extended.
+    if (currentDeadline.getTime() <= Date.now()) {
+      throw new BadRequestException('This reservation is no longer on hold.');
+    }
+
+    const allowed = await policy.allowResumeEmail({ registrationId: id, email, ip });
+    if (!allowed) {
+      return { message: SAVE_FOR_LATER_MESSAGE, holdExpiresAt: currentDeadline.toISOString() };
+    }
+
+    const alreadyExtended = Boolean(registration.guestResumeEmail) || !registration.holdExpiresAt;
+    let nextDeadline = currentDeadline;
+    let extend = false;
+    if (!alreadyExtended) {
+      extend = await policy.acquireExtendedSlot(registration.eventId, ip);
+      if (extend) nextDeadline = policy.laterOf(currentDeadline, policy.extendedDeadline());
+    }
+
+    const webBase = this.config.get<string>('webUrl') ?? 'https://axontickets.online';
+    const resumeUrl =
+      `${webBase}/events/${registration.event.slug}/register/resume` +
+      `#t=${policy.signResumeToken(id, nextDeadline)}`;
+    const sent = await this.emailService.sendGuestResumeEmail(email, {
+      eventTitle: registration.event.title,
+      referenceNumber: registration.referenceNumber,
+      resumeUrl,
+      holdExpiresAt: nextDeadline,
+    });
+    if (!sent) {
+      // The hold is NOT extended when the email did not go out, and the extended-hold slot
+      // taken for it is given back so two provider failures cannot lock the guest out.
+      if (extend) await policy.refundExtendedSlot(registration.eventId, ip);
+      throw new ServiceUnavailableException(
+        'We could not send the email right now. Your seats are still held for now.',
+      );
+    }
+
+    if (extend || registration.guestResumeEmail) {
+      // Conditional on still being an unpaid guest hold, so a concurrent cancel,
+      // cleanup or proof upload always wins over this write.
+      const updated = await this.prisma.registration.updateMany({
+        where: { id, userId: null, status: 'pending_payment' },
+        data: {
+          guestResumeEmail: email,
+          ...(extend ? { holdExpiresAt: nextDeadline } : {}),
+        },
+      });
+      if (updated.count !== 1) {
+        throw new BadRequestException('This reservation is no longer on hold.');
+      }
+    }
+
+    await this.audit.log({
+      action: 'GUEST_HOLD_EMAIL_SAVED',
+      entityType: 'Registration',
+      entityId: id,
+      registrationId: id,
+      metadata: { extended: extend },
+    });
+
+    return { message: SAVE_FOR_LATER_MESSAGE, holdExpiresAt: nextDeadline.toISOString() };
+  }
+
+  /**
+   * Exchanges a signed resume link for a fresh access token. Every failure returns the
+   * same 404. The signature and expiry are checked before any database access.
+   */
+  async resumeGuest(token: string, ip?: string) {
+    const policy = this.requireGuestHold();
+    const notValid = () => new NotFoundException('This link is no longer valid.');
+
+    const verified = policy.verifyResumeToken(token);
+    if (!verified) throw notValid();
+    if (!(await policy.allowResumeExchange(ip))) {
+      throw new HttpException(
+        'Too many attempts. Please wait a minute and try again.',
+        HttpStatus.TOO_MANY_REQUESTS,
+      );
+    }
+
+    const registration = await this.prisma.registration.findFirst({
+      where: {
+        id: verified.registrationId,
+        userId: null,
+        status: 'pending_payment',
+        guestAccessTokenHash: { not: null },
+      },
+      select: {
+        id: true,
+        guestAccessTokenHash: true,
+        holdExpiresAt: true,
+        event: { select: { slug: true } },
+      },
+    });
+    if (!registration?.guestAccessTokenHash) throw notValid();
+
+    // Rotate the access token. The server only keeps a hash, so it cannot hand back
+    // the old token. The update is conditional on the hash just read, so parallel
+    // exchanges cannot both succeed.
+    const guestAccessToken = randomBytes(32).toString('base64url');
+    const rotated = await this.prisma.registration.updateMany({
+      where: {
+        id: registration.id,
+        userId: null,
+        status: 'pending_payment',
+        guestAccessTokenHash: registration.guestAccessTokenHash,
+      },
+      data: { guestAccessTokenHash: createHash('sha256').update(guestAccessToken).digest('hex') },
+    });
+    if (rotated.count !== 1) throw notValid();
+
+    await this.audit.log({
+      action: 'GUEST_HOLD_RESUMED',
+      entityType: 'Registration',
+      entityId: registration.id,
+      registrationId: registration.id,
+    });
+
+    return {
+      registrationId: registration.id,
+      eventSlug: registration.event.slug,
+      guestAccessToken,
+      holdExpiresAt: registration.holdExpiresAt?.toISOString() ?? null,
+    };
+  }
+
+  /** A guest cancels their own unpaid hold. Seats go back immediately. */
+  async cancelGuest(id: string, token: string | undefined) {
+    await this.assertGuestAccess(id, token);
+    const result = await this.requireHolds().releasePendingHold(id, {
+      reason: 'Guest cancelled reservation',
+      auditAction: 'REGISTRATION_CANCELLED',
+      guestOnly: true,
+      metadata: { by: 'guest' },
+    });
+    if (!result.released) {
+      if (result.why === 'not_found' || result.why === 'not_guest') {
+        throw new NotFoundException('Registration not found');
+      }
+      throw new BadRequestException({
+        message:
+          result.why === 'has_proof'
+            ? 'This reservation already has a payment proof and can no longer be cancelled here.'
+            : 'This reservation can no longer be cancelled.',
+        code: result.why === 'has_proof' ? 'HAS_PROOF' : 'NOT_PENDING',
+      });
+    }
+    return { message: 'Reservation cancelled' };
+  }
+
+  /**
+   * An admin or organizer releases an unpaid hold that is blocking seats. The caller
+   * must already have passed `assertRegistrationAccess`. Only unpaid holds with no
+   * payment proof can be released this way.
+   */
+  async releaseHoldByAdmin(id: string, adminUserId: string, note?: string) {
+    const trimmed = note?.trim();
+    const result = await this.requireHolds().releasePendingHold(id, {
+      reason: 'Hold released by organizer',
+      auditAction: 'REGISTRATION_HOLD_RELEASED',
+      actorUserId: adminUserId,
+      metadata: { by: 'admin', ...(trimmed ? { note: trimmed } : {}) },
+    });
+    if (!result.released) {
+      if (result.why === 'not_found') throw new NotFoundException('Registration not found');
+      throw new BadRequestException('This registration is not an unpaid hold that can be released.');
+    }
+    return { message: 'Hold released' };
   }
 
   async updateGuestAttendees(
@@ -1682,7 +1946,7 @@ export class RegistrationsService {
           ? `${r.attendees[0].firstName} ${r.attendees[0].lastName}`
           : r.user
             ? `${r.user.firstName} ${r.user.lastName}`
-            : 'Walk-in attendee',
+            : anonymousBuyerLabel(r),
         leadEmail: r.attendees[0]?.email ?? r.user?.email ?? '',
         hasProof: r.proofs.length > 0,
         proofStatus: r.proofs[0]?.status ?? null,
@@ -1705,8 +1969,12 @@ export class RegistrationsService {
       },
     });
     if (!reg) throw new NotFoundException('Registration not found');
+    // Organizers must never receive the guest token hash or the unverified resume email.
+    const { guestAccessTokenHash: _secret, guestResumeEmail, holdExpiresAt, ...rest } = reg;
     return {
-      ...reg,
+      ...rest,
+      holdExpiresAt: holdExpiresAt?.toISOString() ?? null,
+      resumeEmailSaved: Boolean(guestResumeEmail),
       lineItems: reg.lineItems.map((item) => ({
         id: item.id,
         kind: item.kind,
@@ -2192,9 +2460,7 @@ export class RegistrationsService {
           ? `${r.attendees[0].firstName} ${r.attendees[0].lastName}`
           : r.user
             ? `${r.user.firstName} ${r.user.lastName}`
-            : r.paymentMethod === 'onsite_qr'
-              ? 'Walk-in attendee'
-              : 'Guest registration',
+            : anonymousBuyerLabel(r),
         leadEmail: r.attendees[0]?.email ?? r.user?.email ?? r.guestEmail ?? '',
         hasProof: r.proofs.length > 0,
         proofStatus: r.proofs[0]?.status ?? null,

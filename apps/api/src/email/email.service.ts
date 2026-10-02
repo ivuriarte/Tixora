@@ -195,6 +195,102 @@ export class EmailService implements OnModuleDestroy {
     );
   }
 
+  /** `Sat, Oct 3, 2026 · 9:30 AM` in Philippine time (design rule 8). */
+  private formatDeadline(date: Date): string {
+    const parts = new Intl.DateTimeFormat('en-PH', {
+      weekday: 'short',
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true,
+      timeZone: 'Asia/Manila',
+    }).formatToParts(date);
+    const get = (type: string) => parts.find((p) => p.type === type)?.value ?? '';
+    const time = `${get('hour')}:${get('minute')} ${get('dayPeriod').toUpperCase()}`;
+    return `${get('weekday')}, ${get('month')} ${get('day')}, ${get('year')} · ${time}`;
+  }
+
+  /**
+   * One attempt with a hard ceiling so a slow mail provider cannot use up the
+   * serverless time budget. Returns false on failure or timeout.
+   */
+  private async sendOnceWithin(
+    to: string,
+    subject: string,
+    html: string,
+    timeoutMs: number,
+  ): Promise<boolean> {
+    let timer: NodeJS.Timeout | undefined;
+    const timeout = new Promise<boolean>((resolve) => {
+      timer = setTimeout(() => resolve(false), timeoutMs);
+    });
+    try {
+      return await Promise.race([this.sendWithRetry(to, subject, html, 1), timeout]);
+    } finally {
+      if (timer) clearTimeout(timer);
+    }
+  }
+
+  /**
+   * Resume link for a guest who chose "I will pay later". Fixed template: nothing
+   * a guest typed (other than the recipient address) appears in the message.
+   */
+  async sendGuestResumeEmail(
+    to: string,
+    input: { eventTitle: string; referenceNumber: string; resumeUrl: string; holdExpiresAt: Date },
+  ): Promise<boolean> {
+    const title = this.escapeHtml(input.eventTitle);
+    const reference = this.escapeHtml(input.referenceNumber);
+    const deadline = this.escapeHtml(this.formatDeadline(input.holdExpiresAt));
+    return this.sendOnceWithin(
+      to,
+      `Your seats for ${input.eventTitle} are on hold`,
+      `<div style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:24px">
+        <h1 style="color:#4C1D95;margin-bottom:4px">Finish your payment when you're ready</h1>
+        <h2 style="margin-top:0;color:#1A3A5C">${title}</h2>
+        <p style="color:#374151">You asked us to email you a link so you can come back and upload your payment proof.</p>
+        <div style="background:#f5f3ff;border-radius:12px;padding:16px;margin:20px 0;border-left:4px solid #7C3AED">
+          <p style="margin:0 0 4px;font-size:12px;color:#6b7280;text-transform:uppercase;letter-spacing:0.05em">Reference Number</p>
+          <p style="font-size:22px;font-weight:bold;color:#4C1D95;margin:0;letter-spacing:2px">${reference}</p>
+          <p style="margin:8px 0 0;color:#4C1D95;font-size:13px">Your seats are held until <strong>${deadline}</strong>. After that they are released.</p>
+        </div>
+        <p style="margin-top:16px">
+          <a href="${input.resumeUrl}" style="background:#7C3AED;color:#ffffff;text-decoration:none;font-weight:600;padding:12px 24px;border-radius:8px;display:inline-block">Continue to payment →</a>
+        </p>
+        <p style="color:#64748b;font-size:13px">Anyone with this link can open this reservation, so please don't forward it. Didn't ask for this email? You can ignore it; nothing was charged and the seats are released automatically.</p>
+        <p style="margin-top:24px;color:#9ca3af;font-size:12px">Axon Tickets · Online Ticketing Platform</p>
+      </div>`,
+      5_000,
+    );
+  }
+
+  /** One-time reminder for a guest hold that is about to expire. Fixed template. */
+  async sendGuestHoldReminderEmail(
+    to: string,
+    input: { eventTitle: string; referenceNumber: string; resumeUrl: string; holdExpiresAt: Date },
+  ): Promise<boolean> {
+    const title = this.escapeHtml(input.eventTitle);
+    const reference = this.escapeHtml(input.referenceNumber);
+    const deadline = this.escapeHtml(this.formatDeadline(input.holdExpiresAt));
+    return this.sendOnceWithin(
+      to,
+      `Reminder: your seats for ${input.eventTitle} expire soon`,
+      `<div style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:24px">
+        <h1 style="color:#EA6C00;margin-bottom:4px">Your seats expire soon</h1>
+        <h2 style="margin-top:0;color:#1A3A5C">${title}</h2>
+        <p style="color:#374151">We haven't received your payment proof yet. Your seats (reference <strong>${reference}</strong>) are held until <strong>${deadline}</strong>, then released automatically.</p>
+        <p style="margin-top:16px">
+          <a href="${input.resumeUrl}" style="background:#7C3AED;color:#ffffff;text-decoration:none;font-weight:600;padding:12px 24px;border-radius:8px;display:inline-block">Upload payment proof →</a>
+        </p>
+        <p style="color:#64748b;font-size:13px">Anyone with this link can open this reservation, so please don't forward it.</p>
+        <p style="margin-top:24px;color:#9ca3af;font-size:12px">Axon Tickets · Online Ticketing Platform</p>
+      </div>`,
+      5_000,
+    );
+  }
+
   async sendRegistrationSubmittedEmail(
     to: string,
     attendeeName: string,
