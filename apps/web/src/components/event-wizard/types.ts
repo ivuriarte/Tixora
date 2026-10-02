@@ -230,41 +230,114 @@ export function isEndTimeRequired(d: EventDraft): boolean {
 }
 
 // Per-step validation -------------------------------------------------------
+// Each collector lists every unmet publish requirement for its step, in the order the
+// form shows the fields. `validateStep` returns the first one.
 
-export function validateBasics(d: EventDraft): string | null {
-  if (!d.title.trim()) return 'Title is required';
-  if (!d.description.trim()) return 'Description is required';
-  if (!d.imageUrl.trim()) return 'A cover image is required before this event can be published';
-  return null;
+function basicsIssues(d: EventDraft): string[] {
+  const issues: string[] = [];
+  if (!d.title.trim()) issues.push('Title is required');
+  if (!d.description.trim()) issues.push('Description is required');
+  if (!d.imageUrl.trim()) issues.push('A cover image is required before this event can be published');
+  return issues;
 }
 
-export function validateLocation(d: EventDraft): string | null {
-  if (!d.venue.trim()) return 'Venue is required';
-  if (!d.address.trim()) return 'Address is required';
-  if (!d.city.trim()) return 'City is required';
-  if (!d.startDate || !d.startTime) return 'Start date and time are required';
+function locationIssues(d: EventDraft): string[] {
+  const issues: string[] = [];
+  if (!d.venue.trim()) issues.push('Venue is required');
+  if (!d.address.trim()) issues.push('Address is required');
+  if (!d.city.trim()) issues.push('City is required');
+  if (!d.startDate || !d.startTime) issues.push('Start date and time are required');
   const start = combineDatetime(d.startDate, d.startTime);
   const end = combineDatetime(d.endDate, d.endTime);
   const startUnchanged =
     !!start && !!d.savedStartsAt && Math.abs(new Date(start).getTime() - new Date(d.savedStartsAt).getTime()) < 60_000;
   if (start && !startUnchanged && new Date(start).getTime() < Date.now()) {
-    return 'Start date and time cannot be in the past';
+    issues.push('Start date and time cannot be in the past');
   }
-  if (isEndTimeRequired(d) && !end) return 'End date and time are required';
-  if (start && end && new Date(end) <= new Date(start)) return 'End must be after start';
-  return null;
+  if (isEndTimeRequired(d) && !end) issues.push('End date and time are required');
+  if (start && end && new Date(end) <= new Date(start)) issues.push('End must be after start');
+  return issues;
+}
+
+function capacityIssues(d: EventDraft, tiers: LocalTier[]): string[] {
+  const issues: string[] = [];
+  const cap = parseInt(d.maxCapacity, 10) || 0;
+  if (cap <= 0) issues.push('Maximum capacity must be greater than zero');
+  if (tiers.length === 0) issues.push('Add at least one ticket tier');
+  if (cap > 0 && tiers.length > 0) {
+    const total = tiers.reduce((s, t) => s + (parseInt(t.totalQuantity, 10) || 0), 0);
+    if (total !== cap) {
+      const diff = total - cap;
+      issues.push(
+        `Tier quantity total (${total.toLocaleString()}) must equal capacity (${cap.toLocaleString()}). Difference: ${diff > 0 ? '+' : ''}${diff.toLocaleString()}.`,
+      );
+    }
+  }
+  return issues;
+}
+
+function detailsIssues(d: EventDraft): string[] {
+  if (d.eventType !== 'running') return [];
+  const issues: string[] = [];
+  const config = d.runningConfig;
+  if (config.distances.length === 0) issues.push('Add at least one race distance');
+  if (config.ageGroups.length === 0) {
+    issues.push('Add at least one age group');
+  } else {
+    const sorted = [...config.ageGroups].sort((a, b) => a.minAge - b.minAge);
+    if (sorted.some((group) => group.minAge > group.maxAge)) {
+      issues.push('Every age group needs a valid age range');
+    } else if (sorted.some((group, index) => index > 0 && group.minAge <= sorted[index - 1].maxAge)) {
+      issues.push('Age groups cannot overlap');
+    } else if (sorted.some((group, index) => index > 0 && group.minAge !== sorted[index - 1].maxAge + 1)) {
+      issues.push('Age groups must be continuous');
+    }
+  }
+  if (config.raceDivisions.length === 0) issues.push('Add at least one Race Division');
+  if (config.merchandiseSizes.length === 0) issues.push('Add at least one merchandise size');
+  return issues;
+}
+
+function paymentIssues(d: EventDraft, paymentMethods: LocalPaymentMethod[]): string[] {
+  if (d.isFree) return [];
+  if (paymentMethods.length === 0) return ['Add at least one payment method for this paid event'];
+  return paymentMethods
+    .filter((method) => !method.name.trim() || !method.accountName.trim() || !method.accountNumber.trim())
+    .map((method) => `Complete every required payment account field for ${method.name.trim() || 'the payment method'}`);
+}
+
+export function stepIssues(
+  step: StepId,
+  draft: EventDraft,
+  tiers: LocalTier[],
+  paymentMethods: LocalPaymentMethod[] = [],
+): string[] {
+  switch (step) {
+    case 'basics':
+      return basicsIssues(draft);
+    case 'location':
+      return locationIssues(draft);
+    case 'capacity':
+      return capacityIssues(draft, tiers);
+    case 'details':
+      return detailsIssues(draft);
+    case 'payment':
+      return paymentIssues(draft, paymentMethods);
+    case 'review':
+      return [];
+  }
+}
+
+export function validateBasics(d: EventDraft): string | null {
+  return basicsIssues(d)[0] ?? null;
+}
+
+export function validateLocation(d: EventDraft): string | null {
+  return locationIssues(d)[0] ?? null;
 }
 
 export function validateCapacity(d: EventDraft, tiers: LocalTier[]): string | null {
-  const cap = parseInt(d.maxCapacity, 10) || 0;
-  if (cap <= 0) return 'Maximum capacity must be greater than zero';
-  if (tiers.length === 0) return 'Add at least one ticket tier';
-  const total = tiers.reduce((s, t) => s + (parseInt(t.totalQuantity, 10) || 0), 0);
-  if (total !== cap) {
-    const diff = total - cap;
-    return `Tier quantity total (${total.toLocaleString()}) must equal capacity (${cap.toLocaleString()}). Difference: ${diff > 0 ? '+' : ''}${diff.toLocaleString()}.`;
-  }
-  return null;
+  return capacityIssues(d, tiers)[0] ?? null;
 }
 
 export function validateStep(
@@ -273,44 +346,83 @@ export function validateStep(
   tiers: LocalTier[],
   paymentMethods: LocalPaymentMethod[] = [],
 ): string | null {
+  return stepIssues(step, draft, tiers, paymentMethods)[0] ?? null;
+}
+
+// Step status ---------------------------------------------------------------
+
+export type StepStatus = 'done' | 'needs_info' | 'not_started' | 'optional';
+
+/** Whether the organizer has entered anything on this step yet. */
+export function stepHasInput(
+  step: StepId,
+  d: EventDraft,
+  tiers: LocalTier[],
+  paymentMethods: LocalPaymentMethod[],
+): boolean {
   switch (step) {
     case 'basics':
-      return validateBasics(draft);
+      return Boolean(d.title.trim() || d.description.trim() || d.imageUrl.trim());
     case 'location':
-      return validateLocation(draft);
+      return Boolean(d.venue.trim() || d.address.trim() || d.city.trim() || d.startDate || d.endDate);
     case 'capacity':
-      return validateCapacity(draft, tiers);
+      return Boolean(d.maxCapacity.trim()) || tiers.length > 0;
     case 'details':
-      if (draft.eventType === 'running') {
-        if (draft.runningConfig.distances.length === 0) return 'Add at least one race distance';
-        if (draft.runningConfig.ageGroups.length === 0) return 'Add at least one age group';
-        const sorted = [...draft.runningConfig.ageGroups].sort((a, b) => a.minAge - b.minAge);
-        if (sorted.some((group) => group.minAge > group.maxAge))
-          return 'Every age group needs a valid age range';
-        if (sorted.some((group, index) => index > 0 && group.minAge <= sorted[index - 1].maxAge))
-          return 'Age groups cannot overlap';
-        if (
-          sorted.some((group, index) => index > 0 && group.minAge !== sorted[index - 1].maxAge + 1)
-        )
-          return 'Age groups must be continuous';
-        if (draft.runningConfig.raceDivisions.length === 0) return 'Add at least one Race Division';
-        if (draft.runningConfig.merchandiseSizes.length === 0)
-          return 'Add at least one merchandise size';
-      }
-      return null;
-    case 'payment': {
-      if (draft.isFree) return null;
-      if (paymentMethods.length === 0) return 'Add at least one payment method for this paid event';
-      const incomplete = paymentMethods.find(
-        (method) =>
-          !method.name.trim() || !method.accountName.trim() || !method.accountNumber.trim(),
+      return (
+        d.eventType === 'running' ||
+        Boolean(d.speakerName.trim()) ||
+        d.agenda.length > 0 ||
+        d.sponsors.length > 0 ||
+        d.faqs.length > 0 ||
+        d.customSections.length > 0
       );
-      if (incomplete) {
-        return `Complete every required payment account field for ${incomplete.name.trim() || 'the payment method'}`;
-      }
-      return null;
-    }
+    case 'payment':
+      return paymentMethods.length > 0;
     case 'review':
-      return null;
+      return false;
   }
+}
+
+/** Status shown for a step chip. Review is summarized separately by its issue count. */
+export function stepStatus(
+  step: StepId,
+  d: EventDraft,
+  tiers: LocalTier[],
+  paymentMethods: LocalPaymentMethod[],
+): StepStatus {
+  const optional = STEPS.find((s) => s.id === step)?.optional === true;
+  const hasInput = stepHasInput(step, d, tiers, paymentMethods);
+  if (optional && !hasInput) return 'optional';
+  if (stepIssues(step, d, tiers, paymentMethods).length === 0) return 'done';
+  return hasInput ? 'needs_info' : 'not_started';
+}
+
+export interface PublishIssue {
+  step: StepId;
+  message: string;
+}
+
+/** Every unmet publish requirement across the steps shown for this event, in step order. */
+export function publishIssues(
+  steps: readonly StepMeta[],
+  d: EventDraft,
+  tiers: LocalTier[],
+  paymentMethods: LocalPaymentMethod[],
+): PublishIssue[] {
+  return steps.flatMap((s) => stepIssues(s.id, d, tiers, paymentMethods).map((message) => ({ step: s.id, message })));
+}
+
+/** Steps counted as ready, excluding Review. Optional steps with nothing entered count as ready. */
+export function readyStepCount(
+  steps: readonly StepMeta[],
+  d: EventDraft,
+  tiers: LocalTier[],
+  paymentMethods: LocalPaymentMethod[],
+): { ready: number; total: number } {
+  const counted = steps.filter((s) => s.id !== 'review');
+  const ready = counted.filter((s) => {
+    const status = stepStatus(s.id, d, tiers, paymentMethods);
+    return status === 'done' || status === 'optional';
+  }).length;
+  return { ready, total: counted.length };
 }

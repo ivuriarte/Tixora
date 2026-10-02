@@ -370,6 +370,7 @@ export default function AdminNewEventPage() {
               return (
                 <ReviewStep
                   draft={draft} tiers={tiers} paymentMethods={paymentMethods} onJump={jump}
+                  heading="Before creating this event:"
                 />
               );
           }

@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { apiErrorMessage } from '@/lib/api-error';
 import api from '@/lib/api';
 import ConfirmModal from '@/components/ConfirmModal';
 import Link from 'next/link';
@@ -100,9 +101,9 @@ export default function AdminDashboardPage() {
       );
       return { previous };
     },
-    onError: (_, __, ctx) => {
+    onError: (error, __, ctx) => {
       if (ctx?.previous) queryClient.setQueryData(['admin-events'], ctx.previous);
-      toast.error('Status could not be updated. The change has been rolled back.');
+      toast.error(apiErrorMessage(error, 'Status could not be updated. The change has been rolled back.'));
     },
     onSettled: () => queryClient.invalidateQueries({ queryKey: ['admin-events'] }),
   });
@@ -113,7 +114,7 @@ export default function AdminDashboardPage() {
       queryClient.setQueryData<Event[]>(['admin-events'], (old) => old?.filter((e) => e.id !== id) ?? []);
       toast.success('Event deleted');
     },
-    onError: () => toast.error('Event could not be deleted. Please try again.'),
+    onError: (error) => toast.error(apiErrorMessage(error, 'Event could not be deleted. Please try again.')),
   });
 
   const fmtRevenue = (n: number) => formatPHP(n);
@@ -231,7 +232,7 @@ export default function AdminDashboardPage() {
                     onClick={() => {
                       setDialog({
                         title: `Delete "${event.title}"?`,
-                        message: 'This permanently removes the event and all its data. This cannot be undone.',
+                        message: "This permanently removes the event and its ticket tiers. Events with registrations or orders can't be deleted; cancel them instead.",
                         confirmLabel: 'Delete event',
                         variant: 'danger',
                         onConfirm: () => deleteMutation.mutate(event.id),

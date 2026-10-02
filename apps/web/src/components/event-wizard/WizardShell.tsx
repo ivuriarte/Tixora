@@ -3,30 +3,44 @@
 import { useMemo, useState, type ReactNode } from 'react';
 import Stepper from './Stepper';
 import EventPreview from './EventPreview';
-import { STEPS, type StepId, type EventDraft, type LocalPaymentMethod, type LocalTier, validateStep } from './types';
+import {
+  STEPS,
+  publishIssues,
+  stepIssues,
+  stepStatus,
+  type StepId,
+  type StepStatus,
+  type EventDraft,
+  type LocalPaymentMethod,
+  type LocalTier,
+} from './types';
 
 export interface WizardShellProps {
   title: string;
   draft: EventDraft;
   tiers: LocalTier[];
   paymentMethods: LocalPaymentMethod[];
-  /** rendered for the active step. `jump` lets the Review step navigate back. */
+  /** rendered for the active step. `jump` lets the Review step navigate to any step. */
   renderStep: (step: StepId, jump: (s: StepId) => void) => ReactNode;
-  /** label of the final action button (e.g. "Create Event" or "Save Changes") */
+  /** label of the save action (e.g. "Create Event" or "Save changes") */
   submitLabel: string;
-  /** called when user clicks submit on the Review step */
   onSubmit: () => void;
-  /** called when user clicks Cancel */
+  /** called when the user leaves with the back-to-list button */
   onCancel: () => void;
+  cancelLabel?: string;
   submitting?: boolean;
-  /** optional indicator to show in the top bar (e.g. "Draft saved 3s ago") */
+  /** indicator shown in the header (e.g. "Draft saved" or "Unsaved changes") */
   statusIndicator?: ReactNode;
-  /** optional banner at the top (e.g. restore-draft prompt) */
+  /** optional banner at the top (e.g. restore prompt) */
   topBanner?: ReactNode;
   /** renders event fields for reference without allowing mutations */
   readOnly?: boolean;
-  /** lets existing or view-only events reach every section even when legacy data is incomplete */
-  allowIncompleteNavigation?: boolean;
+  /** shows the save action in the footer of every step, not only Review */
+  submitOnEveryStep?: boolean;
+  /** when true, saving is blocked until every required step is complete */
+  requireCompleteToSubmit?: boolean;
+  /** steps with unsaved changes, marked "Edited" in the stepper */
+  editedSteps?: ReadonlySet<StepId>;
 }
 
 export default function WizardShell({
@@ -38,19 +52,22 @@ export default function WizardShell({
   submitLabel,
   onSubmit,
   onCancel,
+  cancelLabel = 'Back to events',
   submitting = false,
   statusIndicator,
   topBanner,
   readOnly = false,
-  allowIncompleteNavigation = false,
+  submitOnEveryStep = false,
+  requireCompleteToSubmit = true,
+  editedSteps,
 }: WizardShellProps) {
   const [step, setStep] = useState<StepId>('basics');
-  const [completed, setCompleted] = useState<Set<StepId>>(new Set());
-  const [attemptedNext, setAttemptedNext] = useState(false);
+  const [visited, setVisited] = useState<ReadonlySet<StepId>>(new Set());
+  const [blockedSubmit, setBlockedSubmit] = useState(false);
   const [showPreviewMobile, setShowPreviewMobile] = useState(false);
 
   const activeSteps = useMemo(
-    () => draft.isFree ? STEPS.filter((item) => item.id !== 'payment') : [...STEPS],
+    () => (draft.isFree ? STEPS.filter((item) => item.id !== 'payment') : [...STEPS]),
     [draft.isFree],
   );
   const safeStep = activeSteps.some((item) => item.id === step) ? step : 'review';
@@ -58,53 +75,69 @@ export default function WizardShell({
   const currentStep = activeSteps[currentIdx];
   const isLast = safeStep === 'review';
 
-  const validationError = validateStep(safeStep, draft, tiers, paymentMethods);
-  const optionalStep = !!currentStep.optional;
-  // Optional steps can always advance. Required steps need to validate.
-  const canAdvance = allowIncompleteNavigation || optionalStep || !validationError;
+  const statuses = useMemo(() => {
+    const result: Partial<Record<StepId, StepStatus>> = {};
+    for (const s of activeSteps) {
+      if (s.id !== 'review') result[s.id] = stepStatus(s.id, draft, tiers, paymentMethods);
+    }
+    return result;
+  }, [activeSteps, draft, tiers, paymentMethods]);
+  const reviewIssueCount = useMemo(
+    () => publishIssues(activeSteps, draft, tiers, paymentMethods).length,
+    [activeSteps, draft, tiers, paymentMethods],
+  );
+
+  const currentIssues = stepIssues(safeStep, draft, tiers, paymentMethods);
+  const showIssues =
+    !readOnly &&
+    currentIssues.length > 0 &&
+    (blockedSubmit || (visited.has(safeStep) && statuses[safeStep] !== 'not_started'));
+
+  function goTo(target: StepId) {
+    setVisited((prev) => new Set(prev).add(safeStep));
+    setStep(target);
+    setBlockedSubmit(false);
+    if (typeof window !== 'undefined') window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
 
   function handleNext() {
-    setAttemptedNext(true);
-    if (!canAdvance) return;
-    if (!optionalStep) {
-      setCompleted((prev) => new Set(prev).add(safeStep));
-    } else {
-      setCompleted((prev) => new Set(prev).add(safeStep));
-    }
-    if (!isLast) {
-      setStep(activeSteps[currentIdx + 1].id);
-      setAttemptedNext(false);
-      // Scroll form to top on step change
-      if (typeof window !== 'undefined') window.scrollTo({ top: 0, behavior: 'smooth' });
-    }
+    if (!isLast) goTo(activeSteps[currentIdx + 1].id);
   }
 
   function handleBack() {
-    if (currentIdx === 0) return;
-    setStep(activeSteps[currentIdx - 1].id);
-    setAttemptedNext(false);
-    if (typeof window !== 'undefined') window.scrollTo({ top: 0, behavior: 'smooth' });
-  }
-
-  function handleJump(target: StepId) {
-    setStep(target);
-    setAttemptedNext(false);
-    if (typeof window !== 'undefined') window.scrollTo({ top: 0, behavior: 'smooth' });
+    if (currentIdx > 0) goTo(activeSteps[currentIdx - 1].id);
   }
 
   function handleSubmit() {
-    // Re-validate all required steps before final submit
-    for (const s of activeSteps) {
-      if (s.optional) continue;
-      const err = validateStep(s.id, draft, tiers, paymentMethods);
-      if (err) {
-        setStep(s.id);
-        setAttemptedNext(true);
+    if (requireCompleteToSubmit) {
+      const firstBlocked = activeSteps.find(
+        (s) => !s.optional && stepIssues(s.id, draft, tiers, paymentMethods).length > 0,
+      );
+      if (firstBlocked) {
+        setVisited((prev) => new Set(prev).add(safeStep));
+        setStep(firstBlocked.id);
+        setBlockedSubmit(true);
+        if (typeof window !== 'undefined') window.scrollTo({ top: 0, behavior: 'smooth' });
         return;
       }
     }
     onSubmit();
   }
+
+  const submitButton = (primary: boolean) => (
+    <button
+      type="button"
+      onClick={handleSubmit}
+      disabled={submitting}
+      className={`axon-pill text-xs disabled:opacity-50 ${
+        primary
+          ? 'bg-primary text-white hover:bg-primary-hover'
+          : 'border border-[#d3c8e8] text-[#4f416c] hover:border-primary hover:text-primary'
+      }`}
+    >
+      {submitting ? 'Saving…' : submitLabel}
+    </button>
+  );
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -128,7 +161,14 @@ export default function WizardShell({
 
         {/* Stepper */}
         <div className="mb-4 rounded-lg border border-[#e4dcf4] bg-white p-4 sm:p-6">
-          <Stepper steps={activeSteps} currentStep={safeStep} completedSteps={completed} onJump={handleJump} />
+          <Stepper
+            steps={activeSteps}
+            currentStep={safeStep}
+            statuses={statuses}
+            reviewIssueCount={reviewIssueCount}
+            editedSteps={editedSteps}
+            onJump={goTo}
+          />
         </div>
 
         {/* Mobile preview drawer */}
@@ -153,16 +193,25 @@ export default function WizardShell({
 
             {/* Animated step content */}
             <div key={safeStep} className={`animate-fade-in space-y-5 ${readOnly ? 'pointer-events-none opacity-80' : ''}`} aria-readonly={readOnly}>
-              {renderStep(safeStep, handleJump)}
+              {renderStep(safeStep, goTo)}
             </div>
 
-            {/* Inline validation error */}
-            {attemptedNext && validationError && !optionalStep && (
-              <div className="mt-6 flex items-start gap-2 bg-red-50 border border-red-200 rounded-lg px-3 py-2 text-sm text-red-600">
-                <svg className="w-4 h-4 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-                </svg>
-                <span>{validationError}</span>
+            {/* What this step still needs. Never blocks moving between steps. */}
+            {showIssues && (
+              <div
+                role={blockedSubmit ? 'alert' : 'status'}
+                className={`mt-6 rounded-lg border px-3 py-2 text-sm ${
+                  blockedSubmit ? 'border-red-200 bg-red-50 text-red-700' : 'border-amber-200 bg-amber-50 text-amber-800'
+                }`}
+              >
+                <p className="font-semibold">
+                  {blockedSubmit ? `Fix ${currentIssues.length === 1 ? 'this' : 'these'} before saving:` : 'Still needed before publishing:'}
+                </p>
+                <ul className="mt-1 list-disc space-y-0.5 pl-5">
+                  {currentIssues.map((issue, index) => (
+                    <li key={index}>{issue}</li>
+                  ))}
+                </ul>
               </div>
             )}
 
@@ -173,9 +222,9 @@ export default function WizardShell({
                 onClick={onCancel}
                 className="min-h-[44px] px-3 text-sm font-medium text-[#756a92] hover:text-primary"
               >
-                Cancel
+                {cancelLabel}
               </button>
-              <div className="flex items-center gap-2 ml-auto">
+              <div className="flex flex-wrap items-center gap-2 ml-auto">
                 {currentIdx > 0 && (
                   <button
                     type="button"
@@ -185,28 +234,19 @@ export default function WizardShell({
                     ← Back
                   </button>
                 )}
+                {!readOnly && submitOnEveryStep && !isLast && submitButton(false)}
                 {!isLast ? (
                   <button
                     type="button"
                     onClick={handleNext}
-                    disabled={!canAdvance}
-                    title={!canAdvance && validationError ? validationError : undefined}
-                    aria-disabled={!canAdvance}
-                    className="axon-pill bg-primary text-xs text-white hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-40"
+                    className="axon-pill bg-primary text-xs text-white hover:bg-primary-hover"
                   >
                     Next →
                   </button>
                 ) : readOnly ? (
                   <span className="axon-pill border border-gray-200 bg-gray-50 text-xs text-gray-500">View only</span>
                 ) : (
-                  <button
-                    type="button"
-                    onClick={handleSubmit}
-                    disabled={submitting}
-                    className="axon-pill bg-primary text-xs text-white hover:bg-primary-hover disabled:opacity-50"
-                  >
-                    {submitting ? 'Working…' : submitLabel}
-                  </button>
+                  submitButton(true)
                 )}
               </div>
             </div>

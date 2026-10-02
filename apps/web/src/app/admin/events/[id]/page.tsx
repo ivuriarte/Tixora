@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuthStore } from '@/store/auth.store';
@@ -22,13 +22,17 @@ import PaymentStep from '@/components/event-wizard/steps/PaymentStep';
 import ReviewStep from '@/components/event-wizard/steps/ReviewStep';
 import ReferralCodesPanel from '@/components/event-wizard/ReferralCodesPanel';
 import { ErrorState, ScreenSkeleton } from '@/components/ScreenState';
+import { apiErrorList, apiErrorMessage } from '@/lib/api-error';
 import {
   emptyDraft,
   combineDatetime,
   toManilaParts,
+  publishIssues,
+  STEPS,
   type EventDraft,
   type LocalTier,
   type LocalPaymentMethod,
+  type StepId,
 } from '@/components/event-wizard/types';
 
 // ─── Types from API ─────────────────────────────────────────────────────────
@@ -92,6 +96,7 @@ interface ApiEvent {
   isOnline?: boolean;
   runningConfig?: EventDraft['runningConfig'] | null;
   access: { role: 'platform_admin' | 'owner' | 'co_owner' | 'manager' | 'member'; canManageEvent: boolean; capabilities: string[] };
+  updatedAt?: string;
 }
 
 interface WorkspaceSummary {
@@ -116,6 +121,94 @@ interface WorkspaceSummary {
 }
 
 const STATUS_OPTIONS = ['draft', 'on_sale', 'sold_out', 'cancelled'];
+
+// ─── Unsaved-change tracking ──────────────────────────────────────────────
+// Tiers save immediately through their own endpoints, so only event fields and
+// payment methods can be unsaved.
+
+type DraftFields = Omit<EventDraft, 'savedStartsAt' | 'savedEndsAt'>;
+
+const STEP_OF_FIELD: Record<keyof DraftFields, StepId> = {
+  title: 'basics', description: 'basics', imageUrl: 'basics', tagline: 'basics',
+  category: 'basics', eventType: 'basics', isOnline: 'basics',
+  venue: 'location', address: 'location', landmark: 'location', city: 'location',
+  latitude: 'location', longitude: 'location',
+  startDate: 'location', startTime: 'location', endDate: 'location', endTime: 'location',
+  maxCapacity: 'capacity', isFree: 'capacity', platformFee: 'capacity',
+  speakerName: 'details', agenda: 'details', sponsors: 'details', faqs: 'details',
+  customSections: 'details', runningConfig: 'details',
+};
+
+interface SavedState {
+  fields: DraftFields;
+  paymentMethods: string;
+}
+
+function editableFields(d: EventDraft): DraftFields {
+  const { savedStartsAt: _start, savedEndsAt: _end, ...fields } = d;
+  return fields;
+}
+
+function paymentMethodsKey(pms: LocalPaymentMethod[]): string {
+  return JSON.stringify(
+    pms.map((pm) => ({
+      type: pm.type,
+      name: pm.name,
+      accountName: pm.accountName,
+      accountNumber: pm.accountNumber,
+      qrImageUrl: pm.qrImageUrl,
+      newQr: Boolean(pm.qrFile),
+    })),
+  );
+}
+
+function savedStateOf(d: EventDraft, pms: LocalPaymentMethod[]): SavedState {
+  return { fields: editableFields(d), paymentMethods: paymentMethodsKey(pms) };
+}
+
+/** Unsaved edits kept in this browser until the server confirms the save. */
+interface EditBackup {
+  changes: Partial<DraftFields>;
+  paymentMethods?: Array<Omit<LocalPaymentMethod, 'key' | 'qrFile'>>;
+  baseUpdatedAt?: string;
+  savedAt: number;
+}
+
+const backupKey = (eventId: string) => `tixora:event-edit:${eventId}:v1`;
+
+function readBackup(eventId: string): EditBackup | null {
+  try {
+    const raw = localStorage.getItem(backupKey(eventId));
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as EditBackup;
+    return parsed && typeof parsed.savedAt === 'number' && parsed.changes ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeBackup(eventId: string, backup: EditBackup) {
+  try {
+    localStorage.setItem(backupKey(eventId), JSON.stringify(backup));
+  } catch {
+    /* storage full or blocked: the in-page copy is still intact */
+  }
+}
+
+function clearBackup(eventId: string) {
+  try {
+    localStorage.removeItem(backupKey(eventId));
+  } catch {
+    /* ignore */
+  }
+}
+
+function formatDateTime(ms: number): string {
+  return new Date(ms).toLocaleString('en-US', {
+    weekday: 'short', month: 'short', day: 'numeric', year: 'numeric',
+    hour: 'numeric', minute: '2-digit', timeZone: 'Asia/Manila',
+  }).replace(/, (\d{1,2}:\d{2})/, ' · $1');
+}
 
 function apiTierToLocal(t: ApiTier, key: number): LocalTier {
   return {
@@ -162,10 +255,24 @@ export default function AdminEventEditPage() {
 
   const [status, setStatus] = useState('draft');
 
+  // What the server last confirmed; anything different is an unsaved change.
+  const [saved, setSaved] = useState<SavedState | null>(null);
+  const [captureSaved, setCaptureSaved] = useState(false);
+  const [restoreOffer, setRestoreOffer] = useState<EditBackup | null>(null);
+  const [backupReady, setBackupReady] = useState(false);
+  const [lastSavedAt, setLastSavedAt] = useState<number | null>(null);
+  const [leaveTarget, setLeaveTarget] = useState<string | null>(null);
+  const [publishConfirmOpen, setPublishConfirmOpen] = useState(false);
+  const [publishAttempt, setPublishAttempt] = useState(0);
+  const [serverIssues, setServerIssues] = useState<string[]>([]);
+
   const initialised = useRef(false);
   useEffect(() => {
     if (!event || initialised.current) return;
     initialised.current = true;
+    setCaptureSaved(true);
+    setRestoreOffer(readBackup(event.id));
+    setBackupReady(true);
     const start = toManilaParts(event.startsAt);
     const end = toManilaParts(event.endsAt);
     setDraft({
@@ -277,6 +384,109 @@ export default function AdminEventEditPage() {
     }
   }, [event]);
 
+  // Runs on the render after initialisation, when draft and payment methods hold the loaded values.
+  useEffect(() => {
+    if (!captureSaved) return;
+    setCaptureSaved(false);
+    setSaved(savedStateOf(draft, paymentMethods));
+  }, [captureSaved, draft, paymentMethods]);
+
+  const changedFields = useMemo(() => {
+    if (!saved) return [] as Array<keyof DraftFields>;
+    const current = editableFields(draft);
+    return (Object.keys(current) as Array<keyof DraftFields>).filter(
+      (field) => JSON.stringify(current[field]) !== JSON.stringify(saved.fields[field]),
+    );
+  }, [draft, saved]);
+  const paymentMethodsChanged = saved !== null && paymentMethodsKey(paymentMethods) !== saved.paymentMethods;
+  const isDirty = changedFields.length > 0 || paymentMethodsChanged;
+  const editedSteps = useMemo(() => {
+    const steps = new Set<StepId>(changedFields.map((field) => STEP_OF_FIELD[field]));
+    if (paymentMethodsChanged) steps.add('payment');
+    return steps;
+  }, [changedFields, paymentMethodsChanged]);
+
+  // Keep unsaved edits in this browser so a closed tab or ended session loses nothing.
+  useEffect(() => {
+    if (!event || !backupReady || restoreOffer) return;
+    if (!isDirty) {
+      clearBackup(event.id);
+      return;
+    }
+    const current = editableFields(draft);
+    const timer = setTimeout(() => {
+      writeBackup(event.id, {
+        changes: Object.fromEntries(changedFields.map((field) => [field, current[field]])) as Partial<DraftFields>,
+        ...(paymentMethodsChanged && {
+          paymentMethods: paymentMethods.map(({ key: _key, qrFile: _file, ...rest }) => rest),
+        }),
+        baseUpdatedAt: event.updatedAt,
+        savedAt: Date.now(),
+      });
+    }, 600);
+    return () => clearTimeout(timer);
+  }, [event, backupReady, restoreOffer, isDirty, draft, changedFields, paymentMethods, paymentMethodsChanged]);
+
+  // A backup that matches what the server already has (saved just before the tab closed) is not worth offering.
+  useEffect(() => {
+    if (!restoreOffer || !saved) return;
+    const sameFields = (Object.keys(restoreOffer.changes) as Array<keyof DraftFields>).every(
+      (field) => JSON.stringify(restoreOffer.changes[field]) === JSON.stringify(saved.fields[field]),
+    );
+    const samePayments =
+      !restoreOffer.paymentMethods ||
+      paymentMethodsKey(restoreOffer.paymentMethods.map((pm) => ({ ...pm, key: 0, qrFile: null }))) === saved.paymentMethods;
+    if (sameFields && samePayments) {
+      if (event) clearBackup(event.id);
+      setRestoreOffer(null);
+    }
+  }, [restoreOffer, saved, event]);
+
+  function restoreBackup() {
+    if (!restoreOffer) return;
+    // Re-apply only the fields that were changed, on top of the latest saved version.
+    setDraft((d) => ({ ...d, ...restoreOffer.changes }));
+    if (restoreOffer.paymentMethods) {
+      setPaymentMethods(restoreOffer.paymentMethods.map((pm) => ({ ...pm, key: nextPMKey.current++, qrFile: null })));
+    }
+    setRestoreOffer(null);
+    toast.success('Your unsaved changes are back. Save to keep them.');
+  }
+
+  function discardBackup() {
+    if (event) clearBackup(event.id);
+    setRestoreOffer(null);
+  }
+
+  // Closing the tab or reloading: browsers only allow their own generic prompt.
+  useEffect(() => {
+    if (!isDirty) return;
+    const warn = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = '';
+    };
+    window.addEventListener('beforeunload', warn);
+    return () => window.removeEventListener('beforeunload', warn);
+  }, [isDirty]);
+
+  // Links inside the admin (sidebar, breadcrumbs) ask first when there are unsaved changes.
+  useEffect(() => {
+    if (!isDirty) return;
+    const intercept = (e: MouseEvent) => {
+      if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+      const anchor = (e.target as Element | null)?.closest?.('a[href]') as HTMLAnchorElement | null;
+      if (!anchor || anchor.target === '_blank' || anchor.hasAttribute('download')) return;
+      const url = new URL(anchor.href, window.location.href);
+      if (url.origin !== window.location.origin) return;
+      if (url.pathname === window.location.pathname && url.search === window.location.search) return;
+      e.preventDefault();
+      e.stopPropagation();
+      setLeaveTarget(`${url.pathname}${url.search}${url.hash}`);
+    };
+    document.addEventListener('click', intercept, true);
+    return () => document.removeEventListener('click', intercept, true);
+  }, [isDirty]);
+
   // Keep local tier state in sync with server tiers (preserves key across refresh)
   const tierKeysByServerId = useRef<Record<string, number>>({});
   const nextKey = useRef(1);
@@ -308,11 +518,9 @@ export default function AdminEventEditPage() {
           savedEndsAt: typeof data.endsAt === 'string' ? data.endsAt : null,
         }));
       }
-      toast.success('Changes saved successfully.');
       queryClient.invalidateQueries({ queryKey: ['admin-event', id] });
       queryClient.invalidateQueries({ queryKey: ['admin-events'] });
     },
-    onError: () => toast.error('Changes could not be saved. Please try again.'),
   });
 
   const feeMutation = useMutation({
@@ -337,7 +545,10 @@ export default function AdminEventEditPage() {
       queryClient.invalidateQueries({ queryKey: ['admin-event', id] });
       queryClient.invalidateQueries({ queryKey: ['admin-events'] });
     },
-    onError: () => toast.error('Status could not be updated. Please try again.'),
+    onError: (error) => {
+      if (event) setStatus(event.status);
+      toast.error(apiErrorMessage(error, 'Status could not be updated. Please try again.'));
+    },
   });
 
   const { data: workspaceSummary } = useQuery({
@@ -385,7 +596,7 @@ export default function AdminEventEditPage() {
       queryClient.invalidateQueries({ queryKey: ['admin-events'] });
       router.push('/admin');
     },
-    onError: () => toast.error('Event could not be deleted. Please try again.'),
+    onError: (error) => toast.error(apiErrorMessage(error, 'Event could not be deleted. Please try again.')),
   });
 
   // ─── Tier handlers (wired to mutations) ───────────────────────────────────
@@ -464,86 +675,135 @@ export default function AdminEventEditPage() {
   }
 
   // ─── Save (whole-event update) ────────────────────────────────────────────
-  async function handleSubmit() {
+  /** Saves every event field. Returns whether the server accepted it. */
+  async function save(options: { publish?: boolean } = {}): Promise<boolean> {
+    const savedDraft = draft;
     const startsAtISO = combineDatetime(draft.startDate, draft.startTime);
     const endsAtISO = combineDatetime(draft.endDate, draft.endTime);
+    const nextStatus = options.publish ? 'on_sale' : status;
 
-    // Upload any newly-attached QR images before sending the event payload.
-    const resolvedPMs = await Promise.all(
-      paymentMethods.map(async (pm) => {
-        if (!pm.qrFile) return pm;
-        const fd = new FormData();
-        fd.append('image', pm.qrFile);
-        const res = await api.post<{ data: { url: string } }>('/upload/payment-qr', fd);
-        return { ...pm, qrImageUrl: res.data.data.url };
-      }),
-    );
+    try {
+      // Upload any newly-attached QR images before sending the event payload.
+      const resolvedPMs = await Promise.all(
+        paymentMethods.map(async (pm) => {
+          if (!pm.qrFile) return pm;
+          const fd = new FormData();
+          fd.append('image', pm.qrFile);
+          const res = await api.post<{ data: { url: string } }>('/upload/payment-qr', fd);
+          return { ...pm, qrImageUrl: res.data.data.url, qrPreview: res.data.data.url, qrFile: null };
+        }),
+      );
 
-    const payload: Record<string, unknown> = {
-      title: draft.title.trim(),
-      description: draft.description.trim(),
-      category: draft.category,
-      eventType: draft.eventType,
-      isOnline: draft.isOnline,
-      runningConfig: draft.eventType === 'running' ? draft.runningConfig : undefined,
-      venue: draft.venue.trim(),
-      address: draft.address.trim() || null,
-      city: draft.city.trim(),
-      latitude: draft.latitude.trim() ? parseFloat(draft.latitude) : null,
-      longitude: draft.longitude.trim() ? parseFloat(draft.longitude) : null,
-      startsAt: startsAtISO,
-      endsAt: endsAtISO ?? null,
-      maxCapacity: draft.maxCapacity.trim() === '' ? null : parseInt(draft.maxCapacity, 10),
-      isFree: draft.isFree,
-      platformFee: draft.isFree ? 0 : Number(draft.platformFee || 50),
-      status,
-      speakerName: draft.speakerName.trim() || null,
-      imageUrl: draft.imageUrl.trim() || null,
-      allowManualPayment: resolvedPMs.length > 0,
-      onsiteRegistrationEnabled,
-      paymentMethods: resolvedPMs.length > 0
-        ? resolvedPMs.map((pm) => ({
-            type: pm.type,
-            name: pm.name.trim() || undefined,
-            accountName: pm.accountName.trim() || undefined,
-            accountNumber: pm.accountNumber.trim() || undefined,
-            qrImageUrl: pm.qrImageUrl || undefined,
-          }))
-        : null,
-      agenda: draft.agenda.length > 0
-        ? draft.agenda.map((a) => ({
-            ...(a.id ? { id: a.id } : {}),
-            time: a.time.trim(),
-            title: a.title.trim(),
-            ...(a.description?.trim() ? { description: a.description.trim() } : {}),
-            ...(a.isSubEvent ? { isSubEvent: true } : {}),
-          }))
-        : null,
-      sponsors:
-        draft.sponsors.length > 0
-          ? draft.sponsors.map((s) => ({
-              name: s.name,
-              ...(s.logoUrl && { logoUrl: s.logoUrl }),
-              ...(s.tier && { tier: s.tier }),
-              ...(s.websiteUrl?.trim() && { websiteUrl: s.websiteUrl.trim() }),
-              ...(s.description?.trim() && { description: s.description.trim() }),
-              isVisible: s.isVisible,
+      const payload: Record<string, unknown> = {
+        title: draft.title.trim(),
+        description: draft.description.trim(),
+        category: draft.category,
+        eventType: draft.eventType,
+        isOnline: draft.isOnline,
+        runningConfig: draft.eventType === 'running' ? draft.runningConfig : undefined,
+        venue: draft.venue.trim(),
+        address: draft.address.trim() || null,
+        city: draft.city.trim(),
+        latitude: draft.latitude.trim() ? parseFloat(draft.latitude) : null,
+        longitude: draft.longitude.trim() ? parseFloat(draft.longitude) : null,
+        startsAt: startsAtISO,
+        endsAt: endsAtISO ?? null,
+        maxCapacity: draft.maxCapacity.trim() === '' ? null : parseInt(draft.maxCapacity, 10),
+        isFree: draft.isFree,
+        platformFee: draft.isFree ? 0 : Number(draft.platformFee || 50),
+        status: nextStatus,
+        speakerName: draft.speakerName.trim() || null,
+        imageUrl: draft.imageUrl.trim() || null,
+        allowManualPayment: resolvedPMs.length > 0,
+        onsiteRegistrationEnabled,
+        paymentMethods: resolvedPMs.length > 0
+          ? resolvedPMs.map((pm) => ({
+              type: pm.type,
+              name: pm.name.trim() || undefined,
+              accountName: pm.accountName.trim() || undefined,
+              accountNumber: pm.accountNumber.trim() || undefined,
+              qrImageUrl: pm.qrImageUrl || undefined,
             }))
           : null,
-      faqs: draft.faqs.length > 0 ? draft.faqs : null,
-      tagline: draft.tagline.trim() || null,
-      customSections:
-        draft.customSections.length > 0
-          ? draft.customSections.map((section) => ({
-              title: section.title.trim(),
-              description: section.description.trim(),
-              ...(section.imageUrl?.trim() && { imageUrl: section.imageUrl.trim() }),
-              ...(section.imageUrl?.trim() && section.imageAlt?.trim() && { imageAlt: section.imageAlt.trim() }),
-              isVisible: section.isVisible,
+        agenda: draft.agenda.length > 0
+          ? draft.agenda.map((a) => ({
+              ...(a.id ? { id: a.id } : {}),
+              time: a.time.trim(),
+              title: a.title.trim(),
+              ...(a.description?.trim() ? { description: a.description.trim() } : {}),
+              ...(a.isSubEvent ? { isSubEvent: true } : {}),
             }))
           : null,
-    };
-    await updateMutation.mutateAsync(payload);
+        sponsors:
+          draft.sponsors.length > 0
+            ? draft.sponsors.map((s) => ({
+                name: s.name,
+                ...(s.logoUrl && { logoUrl: s.logoUrl }),
+                ...(s.tier && { tier: s.tier }),
+                ...(s.websiteUrl?.trim() && { websiteUrl: s.websiteUrl.trim() }),
+                ...(s.description?.trim() && { description: s.description.trim() }),
+                isVisible: s.isVisible,
+              }))
+            : null,
+        faqs: draft.faqs.length > 0 ? draft.faqs : null,
+        tagline: draft.tagline.trim() || null,
+        customSections:
+          draft.customSections.length > 0
+            ? draft.customSections.map((section) => ({
+                title: section.title.trim(),
+                description: section.description.trim(),
+                ...(section.imageUrl?.trim() && { imageUrl: section.imageUrl.trim() }),
+                ...(section.imageUrl?.trim() && section.imageAlt?.trim() && { imageAlt: section.imageAlt.trim() }),
+                isVisible: section.isVisible,
+              }))
+            : null,
+      };
+      await updateMutation.mutateAsync(payload);
+      setPaymentMethods(resolvedPMs);
+      setSaved(savedStateOf(savedDraft, resolvedPMs));
+      setLastSavedAt(Date.now());
+      setServerIssues([]);
+      if (options.publish) setStatus('on_sale');
+      toast.success(options.publish ? 'Event published.' : 'Changes saved.');
+      return true;
+    } catch (error) {
+      if (options.publish) setServerIssues(apiErrorList(error));
+      toast.error(
+        apiErrorMessage(
+          error,
+          options.publish
+            ? "This event couldn't be published. Your changes are kept on this device. Try again."
+            : "Couldn't save. Your changes are kept on this device. Try again.",
+        ),
+      );
+      return false;
+    }
+  }
+
+  function handlePublishClick() {
+    const steps = draft.isFree ? STEPS.filter((s) => s.id !== 'payment') : STEPS;
+    if (publishIssues(steps, draft, tiers, paymentMethods).length > 0) {
+      setPublishAttempt((n) => n + 1);
+      return;
+    }
+    setPublishConfirmOpen(true);
+  }
+
+  async function saveAndLeave() {
+    const target = leaveTarget;
+    setLeaveTarget(null);
+    if (target && (await save())) {
+      if (event) clearBackup(event.id);
+      router.push(target);
+    }
+  }
+
+  function leaveWithoutSaving() {
+    const target = leaveTarget;
+    setLeaveTarget(null);
+    if (event) clearBackup(event.id);
+    setSaved(savedStateOf(draft, paymentMethods));
+    if (target) router.push(target);
   }
 
   // ─── Confirm dialog ───────────────────────────────────────────────────────
@@ -562,6 +822,27 @@ export default function AdminEventEditPage() {
   // ─── Top banner: status + cancel + delete ─────────────────────────────────
   const topBanner = event ? (
     <div className="space-y-3 mb-4">
+      {restoreOffer && (
+        <div className="rounded-2xl border border-[#ddd6fe] bg-[#f5f3ff] px-4 py-3 flex flex-wrap items-center justify-between gap-3 text-sm text-[#4c1d95]">
+          <div className="min-w-0">
+            <p className="font-semibold">You have unsaved changes from {formatDateTime(restoreOffer.savedAt)}.</p>
+            <p>
+              They were kept on this device.
+              {restoreOffer.baseUpdatedAt && event.updatedAt && restoreOffer.baseUpdatedAt !== event.updatedAt
+                ? ' This event was saved since then; restoring re-applies only the fields you changed.'
+                : ''}
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <button type="button" onClick={restoreBackup} className="axon-pill bg-primary text-xs text-white hover:bg-primary-hover">
+              Restore my changes
+            </button>
+            <button type="button" onClick={discardBackup} className="axon-pill border border-[#d3c8e8] text-xs text-[#4f416c] hover:border-primary hover:text-primary">
+              Discard
+            </button>
+          </div>
+        </div>
+      )}
       {!canManageEvent && <div className="rounded-2xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800"><span className="font-semibold">View-only event access.</span> Your role does not have permission to change event details, ticket configuration, publication status, or delete this event.</div>}
       {/* ── Status / Cancel / Delete row ──────────────────────────────── */}
       <div className="rounded-2xl border border-gray-200 bg-white px-4 py-3 flex flex-wrap items-center justify-between gap-3">
@@ -623,7 +904,7 @@ export default function AdminEventEditPage() {
           onClick={() =>
             setDialog({
               title: `Delete "${event.title}"?`,
-              message: 'This permanently removes the event and all its data. This cannot be undone.',
+              message: "This permanently removes the event and its ticket tiers. Events with registrations or orders can't be deleted; cancel them instead.",
               confirmLabel: 'Delete event',
               variant: 'danger',
               onConfirm: () => deleteMutation.mutate(),
@@ -777,18 +1058,69 @@ export default function AdminEventEditPage() {
         }}
         onCancel={() => setDialog(null)}
       />
+      <ConfirmModal
+        open={leaveTarget !== null}
+        title="Save your changes?"
+        message="You have unsaved changes to this event. They'll be lost if you leave without saving."
+        confirmLabel="Save and leave"
+        secondaryLabel="Leave without saving"
+        onSecondary={leaveWithoutSaving}
+        cancelLabel="Stay on this page"
+        variant="primary"
+        loading={updateMutation.isPending}
+        onConfirm={saveAndLeave}
+        onCancel={() => setLeaveTarget(null)}
+      />
+      <ConfirmModal
+        open={publishConfirmOpen}
+        title="Publish this event?"
+        message="Attendees can find it and register as soon as it's published."
+        confirmLabel="Publish event"
+        cancelLabel="Keep as draft"
+        variant="primary"
+        loading={updateMutation.isPending}
+        onConfirm={async () => {
+          const published = await save({ publish: true });
+          setPublishConfirmOpen(false);
+          if (!published) setPublishAttempt((n) => n + 1);
+        }}
+        onCancel={() => setPublishConfirmOpen(false)}
+      />
       <WizardShell
         title={canManageEvent ? 'Edit Event' : 'Event Details'}
         draft={draft}
         tiers={tiers}
         paymentMethods={paymentMethods}
-        submitLabel={updateMutation.isPending ? 'Saving…' : 'Save Changes'}
+        submitLabel="Save changes"
         submitting={updateMutation.isPending}
-        onSubmit={handleSubmit}
-        onCancel={() => router.push('/admin')}
+        onSubmit={() => void save()}
+        onCancel={() => (isDirty ? setLeaveTarget('/admin') : router.push('/admin'))}
+        statusIndicator={
+          canManageEvent ? (
+            <span aria-live="polite" className="text-xs">
+              {isDirty ? (
+                <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-200 bg-amber-50 px-3 py-1 font-semibold text-amber-800">
+                  <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 3.5l4 4L8 20H4v-4L16.5 3.5z" />
+                  </svg>
+                  Unsaved changes
+                </span>
+              ) : lastSavedAt ? (
+                <span className="inline-flex items-center gap-1.5 rounded-full border border-green-200 bg-green-50 px-3 py-1 font-semibold text-green-800">
+                  <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3} aria-hidden>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                  </svg>
+                  All changes saved
+                </span>
+              ) : null}
+            </span>
+          ) : undefined
+        }
         topBanner={topBanner}
         readOnly={!canManageEvent}
-        allowIncompleteNavigation
+        submitOnEveryStep
+        requireCompleteToSubmit={status !== 'draft'}
+        editedSteps={editedSteps}
         renderStep={(step, jump) => {
           switch (step) {
             case 'basics': return <BasicsStep draft={draft} update={update} />;
@@ -829,6 +1161,21 @@ export default function AdminEventEditPage() {
                   tiers={tiers}
                   paymentMethods={paymentMethods}
                   onJump={jump}
+                  heading={status === 'draft' ? 'Ready to publish?' : 'Still needed:'}
+                  publishBlocked={publishAttempt > 0}
+                  key={publishAttempt}
+                  serverIssues={serverIssues}
+                  action={
+                    canManageEvent && status === 'draft' ? (
+                      <button
+                        type="button"
+                        onClick={handlePublishClick}
+                        className="axon-pill bg-primary text-xs text-white hover:bg-primary-hover"
+                      >
+                        Publish event
+                      </button>
+                    ) : undefined
+                  }
                 />
               );
           }

@@ -101,6 +101,7 @@ jobs:
           e2e/checkout-critical.spec.ts
           e2e/admin-flows.spec.ts
           e2e/session-refresh.spec.ts
+          e2e/event-wizard-navigation.spec.ts
           --project=chromium
           --project=admin-mocked
 
