@@ -65,7 +65,11 @@ export function buildSeatBreakdowns(
   return result;
 }
 
-/** The slice of the Prisma client (or a transaction client) the query needs. */
+/**
+ * The slice of the Prisma client (or a transaction client) the query needs. Typed loosely on
+ * purpose: PrismaService and Prisma.TransactionClient both satisfy it structurally, and the
+ * result rows are read through explicit field access below.
+ */
 export interface SeatQueryClient {
   registration: { groupBy: (args: any) => Promise<any[]> };
   ticket: { groupBy: (args: any) => Promise<any[]> };

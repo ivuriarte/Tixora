@@ -273,7 +273,12 @@ export class RegistrationsService {
       (userId && !isFreeEvent && !quote && (dto.inclusionSelections?.length ?? 0) === 0
         ? this.memberDeadline()
         : undefined);
-    if (userId) await this.releaseExpiredMemberHolds(userId, dto.eventId);
+    if (userId) {
+      // Housekeeping must never block a customer from registering; cleanup will catch up.
+      await this.releaseExpiredMemberHolds(userId, dto.eventId).catch((err: unknown) =>
+        this.logger.warn(`Could not release expired holds before registering: ${(err as Error).message}`),
+      );
+    }
 
     const registration = await this.prisma.$transaction(
       async (tx: Prisma.TransactionClient) => {
@@ -1646,7 +1651,10 @@ export class RegistrationsService {
   }
 
   async findById(id: string, userId: string) {
-    await this.releaseIfHoldExpired(id, userId);
+    // A read must never fail because of housekeeping; cleanup will catch up.
+    await this.releaseIfHoldExpired(id, userId).catch((err: unknown) =>
+      this.logger.warn(`Could not release expired hold on read: ${(err as Error).message}`),
+    );
     const reg = await this.prisma.registration.findFirst({
       where: { id, userId },
       include: {
