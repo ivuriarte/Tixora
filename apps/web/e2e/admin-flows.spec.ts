@@ -176,11 +176,15 @@ test.describe('Admin Create Event — Form Fields', () => {
     await expect(page.getByPlaceholder(/jp laurel ave/i)).toBeVisible();
   });
 
-  test('invalid basics cannot advance to the next step', async ({ adminPage: page }) => {
+  test('incomplete basics can move on and list what is still needed', async ({ adminPage: page }) => {
     await page.evaluate((key) => localStorage.removeItem(key), EVENT_DRAFT_KEY);
     await gotoAdmin(page, '/admin/events/new');
-    await expect(page.getByRole('button', { name: 'Next →', exact: true })).toBeDisabled();
-    await expect(page.getByRole('heading', { name: 'Basics' })).toBeVisible();
+    await page.getByPlaceholder(/my awesome concert/i).fill('QA Partial Event');
+    await page.getByRole('button', { name: 'Next →', exact: true }).click();
+    await expect(page.getByRole('heading', { name: 'Location & Schedule' })).toBeVisible();
+    await page.getByRole('button', { name: '← Back' }).click();
+    await expect(page.getByText('Still needed before publishing:')).toBeVisible();
+    await expect(page.getByText('Description is required')).toBeVisible();
     await expect(page).toHaveURL(/events\/new/);
   });
 
@@ -201,7 +205,10 @@ test.describe('Admin Create Event — Form Fields', () => {
   test('new events require an end time', async ({ adminPage: page }) => {
     await openCreateWizardStep(page, 'location', { endDate: '', endTime: '' });
     await expect(page.getByText('Ends At*')).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Next →', exact: true })).toBeDisabled();
+    await page.getByRole('button', { name: 'Next →', exact: true }).click();
+    await expect(page.getByRole('button', { name: 'Location & Schedule: Needs info' }).first()).toBeAttached();
+    await page.getByRole('button', { name: /^Review:/ }).first().click();
+    await expect(page.getByText('End date and time are required')).toBeVisible();
   });
 
   test('end time is pre-filled three hours after the start', async ({ adminPage: page }) => {
@@ -216,9 +223,15 @@ test.describe('Admin Create Event — Form Fields', () => {
     await expect(page.getByRole('button', { name: 'Next →', exact: true })).toBeEnabled();
   });
 
-  test('a start date in the past cannot advance', async ({ adminPage: page }) => {
+  test('a start date in the past is listed before the event can be created', async ({ adminPage: page }) => {
     await openCreateWizardStep(page, 'location', { startDate: '2020-01-10', endDate: '2020-01-10' });
-    await expect(page.getByRole('button', { name: 'Next →', exact: true })).toBeDisabled();
+    await page.getByRole('button', { name: /^Review:/ }).first().click();
+    await expect(page.getByText('Start date and time cannot be in the past')).toBeVisible();
+    await page.getByRole('button', { name: 'Create Event' }).click();
+    await expect(page.getByRole('heading', { name: 'Location & Schedule' })).toBeVisible();
+    await expect(
+      page.getByRole('alert').filter({ hasText: 'before saving' }),
+    ).toContainText('Start date and time cannot be in the past');
   });
 
   test('Conference Details section renders sponsors manager', async ({ adminPage: page }) => {

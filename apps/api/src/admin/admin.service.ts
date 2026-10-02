@@ -62,6 +62,8 @@ function alreadyCheckedInException(checkedInAt: Date | null): ConflictException 
   });
 }
 
+const PLATFORM_ONLY_EVENT_FIELDS = ['platformFee', 'isFeatured', 'featuredOrder', 'featuredUntil'] as const;
+
 @Injectable()
 export class AdminService {
   private readonly logger = new Logger(AdminService.name);
@@ -242,7 +244,21 @@ export class AdminService {
     const organizationId = user.isAdmin
       ? undefined
       : await this.getApprovedEventManagerOrganizationId(user.sub);
-    return this.eventsService.create(dto, user.sub, organizationId);
+    return this.eventsService.create(this.withoutPlatformOnlyFields(dto, user), user.sub, organizationId);
+  }
+
+  /** The service fee and homepage placement are platform decisions; organizer values are ignored, not rejected. */
+  private withoutPlatformOnlyFields<T extends object>(dto: T, user: JwtPayload): T {
+    if (user.isAdmin) return dto;
+    const copy = { ...dto } as Record<string, unknown>;
+    for (const field of PLATFORM_ONLY_EVENT_FIELDS) delete copy[field];
+    return copy as T;
+  }
+
+  private async defaultServiceFee(): Promise<number> {
+    const config = await this.prisma.platformConfig.findUnique({ where: { key: 'service_fee' } });
+    const fee = config ? Number(config.value) : NaN;
+    return Number.isFinite(fee) && fee >= 0 ? fee : 50;
   }
 
   private async getApprovedEventManagerOrganizationId(userId: string): Promise<string> {
@@ -287,15 +303,24 @@ export class AdminService {
 
   async updateEvent(id: string, dto: UpdateEventDto, user: JwtPayload) {
     await this.eventAccess.assertEventMutationAccess(id, user);
-    const updated = await this.eventsService.update(id, dto);
+    const safeDto = this.withoutPlatformOnlyFields(dto, user);
+    if (!user.isAdmin && dto.isFree === false) {
+      // A free event stores a ₱0 fee; switching it to paid must restore the platform fee.
+      const existing = await this.prisma.event.findUnique({ where: { id }, select: { isFree: true } });
+      if (existing?.isFree) safeDto.platformFee = await this.defaultServiceFee();
+    }
+    const updated = await this.eventsService.update(id, safeDto);
     await this.audit.log({
       action: 'EVENT_UPDATED',
       entityType: 'Event',
       entityId: id,
       performedById: user.sub,
-      metadata: Object.fromEntries(
-        Object.entries(dto).filter(([, v]) => v !== undefined),
-      ) as Record<string, unknown>,
+      // Field names only: values include bank and e-wallet account numbers.
+      metadata: {
+        fields: Object.entries(safeDto)
+          .filter(([, value]) => value !== undefined)
+          .map(([field]) => field),
+      },
     });
     return updated;
   }
@@ -469,14 +494,38 @@ export class AdminService {
   async deleteEvent(id: string, user: JwtPayload) {
     await this.eventAccess.assertEventMutationAccess(id, user);
 
-    // Single transaction: remove all dependents without a prior findMany round-trip
-    await this.prisma.$transaction([
-      this.prisma.auditLog.deleteMany({ where: { registration: { eventId: id } } }),
-      this.prisma.registration.deleteMany({ where: { eventId: id } }),   // cascades Attendees, PaymentProofs
-      this.prisma.order.deleteMany({ where: { eventId: id } }),          // cascades OrderItems, Tickets, FraudFlags
-      this.prisma.reservation.deleteMany({ where: { eventId: id } }),
-    ]);
-    return this.prisma.event.delete({ where: { id } });                  // cascades TicketTiers, EventViews
+    const event = await this.prisma.event.findUnique({ where: { id }, select: { title: true } });
+    if (!event) throw new NotFoundException('Event not found');
+
+    // Registrations and orders are never deleted here: their foreign keys (ON DELETE RESTRICT)
+    // make Postgres refuse the event delete, which protects attendee and payment records.
+    // Reservations (temporary holds), unclaimed checkout quotes, and inclusion stock history
+    // would also block it, so they go first. The audit row commits with the delete or not at all.
+    let deleted;
+    try {
+      [, , , deleted] = await this.prisma.$transaction([
+        this.prisma.reservation.deleteMany({ where: { eventId: id } }),
+        this.prisma.checkoutQuote.deleteMany({ where: { eventId: id, registrationId: null } }),
+        this.prisma.inclusionInventoryMovement.deleteMany({ where: { variant: { inclusion: { eventId: id } } } }),
+        this.prisma.event.delete({ where: { id } }),
+        this.prisma.auditLog.create({
+          data: {
+            action: 'EVENT_DELETED',
+            entityType: 'Event',
+            entityId: id,
+            performedById: user.sub,
+            metadata: { title: event.title },
+          },
+        }),
+      ]);
+    } catch (error) {
+      // Caught outside the transaction: Postgres aborts it on a foreign-key violation.
+      if (error instanceof Prisma.PrismaClientKnownRequestError && ['P2003', 'P2014'].includes(error.code)) {
+        throw new ConflictException("This event has registrations or orders and can't be deleted. Cancel it instead.");
+      }
+      throw error;
+    }
+    return deleted;
   }
 
   async listEvents(user: JwtPayload, page = 1, limit = 20, organizationId?: string, q?: string) {
