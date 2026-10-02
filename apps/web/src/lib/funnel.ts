@@ -36,7 +36,7 @@ interface FunnelPayload {
 }
 
 function devDebug(...args: unknown[]) {
-  if (process.env.NODE_ENV !== 'development') return;
+  if (process.env.NEXT_PUBLIC_APP_ENV !== 'development') return;
   // eslint-disable-next-line no-console
   console.debug('[Funnel]', ...args);
 }

@@ -21,18 +21,21 @@ if (typeof window !== 'undefined' && RESUME_PATH.test(window.location.pathname) 
 }
 
 const dsn = process.env.NEXT_PUBLIC_SENTRY_DSN;
+// Deployed environments (UAT and production) report to Sentry; local development does not.
+const appEnv = process.env.NEXT_PUBLIC_APP_ENV;
+const isDeployed = appEnv === 'production' || appEnv === 'uat';
 
 if (dsn) {
   Sentry.init({
     dsn,
     // Capture 10% of traces in production — raise when comfortable with volume
-    tracesSampleRate: process.env.NODE_ENV === 'production' ? 0.1 : 1.0,
+    tracesSampleRate: isDeployed ? 0.1 : 1.0,
     // Replay deliberately disabled for now — re-enable after baseline event flow is verified
     // Capture 100% of sessions where an error occurs, 1% of normal browsing
     replaysOnErrorSampleRate: 1.0,
     replaysSessionSampleRate: 0.01,
     integrations: [Sentry.replayIntegration()],
-    enabled: process.env.NODE_ENV === 'production',
+    enabled: isDeployed,
     // Defence in depth: no event, transaction or navigation breadcrumb may carry a fragment.
     beforeSend(event) {
       scrubRequestUrl(event.request);
