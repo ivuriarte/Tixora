@@ -11,9 +11,9 @@
 | Design | 2026-10-01 | 7c8cc50 (docs uncommitted) | PASS WITH CONDITIONS (round 1: 8 findings; round 2: all 8 fixed, 1 new count mismatch, fixed after review) | Approved with conditions (delegated, 2026-10-02) | Progress counts corrected to the D4 counting rule after round 2. Rulebook gaps noted below. |
 | Database | 2026-10-01 | 7c8cc50 (docs uncommitted) | APPROVE (round 2) | Approved (delegated, 2026-10-02) | No migration. C1 (delete relies on existing RESTRICT foreign keys) and C2 (race-safe conditional update) met. Round 2 note on stray checkout quotes added to A7. |
 | API | 2026-10-01 | 7c8cc50 (docs uncommitted) | APPROVE WITH CONDITIONS (round 2: conditions 1–6 met) | Approved with conditions (delegated, 2026-10-02) | Round 2 condition (delete 409 message + read-only fee in Release A frontend) added to Section 9. Implementation notes for A1/A7 carried to the backend gate. |
-| Frontend | | | | | Not started (after design approval) |
-| Backend | | | | | Not started |
-| Release | | | | | Not started |
+| Frontend | 2026-10-02 | 9e6b72e | APPROVE (round 2; round 1 APPROVE WITH CONDITIONS, 9 findings, all fixed in 2032f31/9e6b72e) | Pending | Release A. |
+| Backend | 2026-10-02 | 9e6b72e | APPROVE WITH CONDITIONS (round 2; round 1 REJECT: completed events unsavable, audit outside delete transaction, inclusion stock blocking delete; all fixed) | Pending | Condition: manual UAT delete check recorded here before promoting to main (see Release A conditions). Admin free→paid ₱0 fee (pre-existing) deferred to Release B. |
+| Release | 2026-10-02 | 2032f31 | PASS WITH CONDITIONS | Pending | Merge into uat before the guest-hold branch (that branch adds a migration); re-run API tests, typecheck and test-and-build after the second merge; deploy-uat admin regression must pass; UAT sign-off before main. |
 | SEO | | | | | Skip expected: admin-only screens, no public page changes |
 
 **Decisions (2026-10-02):** Ian delegated the eight design decisions to Claude's recommendation in writing ("For the Decisions you need from me, I will rely on your best recommendation"). Recorded outcomes:
@@ -26,6 +26,13 @@
 6. A7 events with registrations or orders can't be deleted: approved.
 7. A8 platform-only service fee and featured fields: approved.
 8. Two-release plan with existing-risk fixes in Release A: approved.
+
+## Release A conditions before main
+
+- [ ] UAT: an empty draft with tiers, an optional inclusion, a stock adjustment and a referral code deletes successfully.
+- [ ] UAT: an event with one registration refuses to delete (shows "can't be deleted. Cancel it instead.") and keeps its registration.
+- [ ] UAT: golden path 4 (create event, publish, visible on public listing).
+- [ ] UAT sign-off: build SHA, tester, date, scenarios.
 
 ## Notes
 
