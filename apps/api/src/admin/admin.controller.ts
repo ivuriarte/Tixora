@@ -17,7 +17,7 @@ import {
   ForbiddenException,
 } from '@nestjs/common';
 import type { Request, Response } from 'express';
-import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiBearerAuth, ApiResponse } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { AdminGuard } from '../common/guards/admin.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
@@ -198,13 +198,15 @@ export class AdminController {
   }
 
   @Put('tiers/:tierId')
-  @ApiOperation({ summary: 'Update ticket tier' })
+  @ApiOperation({ summary: 'Update ticket tier (capacity cannot go below the seats already reserved)' })
+  @ApiResponse({ status: 409, description: 'Capacity would be lower than sold + awaiting review + pending payment' })
   updateTier(@Param('tierId') tierId: string, @Body() dto: UpdateTierDto, @CurrentUser() user: JwtPayload) {
     return this.adminService.updateTier(tierId, dto, user);
   }
 
   @Delete('tiers/:tierId')
-  @ApiOperation({ summary: 'Delete ticket tier (only if no tickets sold)' })
+  @ApiOperation({ summary: 'Delete ticket tier (only if no seats are reserved)' })
+  @ApiResponse({ status: 409, description: 'The tier still has sold, awaiting-review or pending-payment seats' })
   deleteTier(@Param('tierId') tierId: string, @CurrentUser() user: JwtPayload) {
     return this.adminService.deleteTier(tierId, user);
   }

@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
+import axios from 'axios';
 import { useAuthStore } from '@/store/auth.store';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '@/lib/api';
@@ -44,6 +45,9 @@ interface ApiTier {
   price: number; // pesos
   totalQuantity: number;
   soldQuantity: number;
+  confirmedQuantity?: number;
+  awaitingReviewQuantity?: number;
+  heldQuantity?: number;
   maxPerOrder: number;
   isVisible: boolean;
   sortOrder?: number;
@@ -227,6 +231,9 @@ function apiTierToLocal(t: ApiTier, key: number): LocalTier {
       sortOrder: item.sortOrder,
     })),
     soldQuantity: t.soldQuantity,
+    confirmedQuantity: t.confirmedQuantity,
+    awaitingReviewQuantity: t.awaitingReviewQuantity,
+    heldQuantity: t.heldQuantity,
     sortOrder: t.sortOrder ?? 0,
   };
 }
@@ -588,23 +595,29 @@ export default function AdminEventEditPage() {
     onError: () => toast.error('Could not add the ticket tier. Please try again.'),
   });
 
+  // Tier rules (capacity guard, delete protection) explain themselves in a persistent alert.
+  const [tierError, setTierError] = useState<{ message: string; showLink: boolean } | null>(null);
+
   const updateTierMutation = useMutation({
     mutationFn: ({ tierId, data }: { tierId: string; data: Record<string, unknown> }) =>
       api.put(`/admin/tiers/${tierId}`, data),
     onSuccess: () => {
+      setTierError(null);
       toast.success('Ticket tier updated.');
       queryClient.invalidateQueries({ queryKey: ['admin-event', id] });
     },
-    onError: () => toast.error('Tier changes could not be saved. Please try again.'),
+    // 409 carries the exact reason (for example "You can't go below 12: ..."), so show it.
+    onError: (error) => setTierError({ message: apiErrorMessage(error, 'Tier changes could not be saved. Please try again.'), showLink: axios.isAxiosError(error) && error.response?.status === 409 }),
   });
 
   const deleteTierMutation = useMutation({
     mutationFn: (tierId: string) => api.delete(`/admin/tiers/${tierId}`),
     onSuccess: () => {
+      setTierError(null);
       toast.success('Ticket tier removed.');
       queryClient.invalidateQueries({ queryKey: ['admin-event', id] });
     },
-    onError: () => toast.error('Cannot delete a tier that has sold tickets.'),
+    onError: (error) => setTierError({ message: apiErrorMessage(error, 'This tier could not be deleted. Please try again.'), showLink: axios.isAxiosError(error) && error.response?.status === 409 }),
   });
 
   const deleteMutation = useMutation({
@@ -1195,6 +1208,20 @@ export default function AdminEventEditPage() {
             case 'location': return <LocationStep draft={draft} update={update} />;
             case 'capacity':
               return (
+                <>
+                {tierError && (
+                  <div role="alert" className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+                    <p className="font-semibold">{tierError.message}</p>
+                    {tierError.showLink && (
+                    <Link
+                      href={`/admin/orders?eventId=${encodeURIComponent(id)}&status=pending`}
+                      className="mt-1 inline-flex min-h-11 items-center font-semibold underline"
+                    >
+                      View pending checkouts
+                    </Link>
+                    )}
+                  </div>
+                )}
                 <CapacityTiersStep
                   draft={draft}
                   update={update}
@@ -1203,7 +1230,9 @@ export default function AdminEventEditPage() {
                   onEditTier={handleEditTier}
                   onRemoveTier={handleRemoveTier}
                   onReorderTiers={handleReorderTiers}
+                  onRetryCounts={() => queryClient.invalidateQueries({ queryKey: ['admin-event', id] })}
                 />
+                </>
               );
             case 'details': return <ConferenceStep draft={draft} update={update} />;
             case 'payment':

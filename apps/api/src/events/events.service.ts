@@ -20,16 +20,10 @@ import {
 import { resolveAgendaSubEvent } from './agenda-sub-events';
 import { generateAttendeeQrToken, generateReferenceNumber, uniqueSlug } from '@axon-tickets/utils';
 import { OptionalInclusionsService } from '../optional-inclusions/optional-inclusions.service';
+import { ACTIVE_REGISTRATION_STATUSES, VALID_TICKET_STATUSES } from '../common/seats/seat-usage';
 
 const TIER_INVENTORY_PREFIX = 'ticket_tier:';
 const INVENTORY_SUFFIX = ':available';
-const ACTIVE_REGISTRATION_STATUSES = [
-  'pending_payment',
-  'proof_submitted',
-  'pending_approval',
-  'verified',
-] as const;
-const VALID_TICKET_STATUSES = ['valid', 'used'] as const;
 const ONSITE_DUPLICATE_REGISTRATION_MESSAGE =
   'You have already successfully registered for this event. You cannot register twice for the same event.';
 const CUSTOMER_EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;

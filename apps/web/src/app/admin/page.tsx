@@ -8,7 +8,8 @@ import ConfirmModal from '@/components/ConfirmModal';
 import Link from 'next/link';
 import { formatPHP, formatDateRange } from '@axon-tickets/utils';
 import toast from 'react-hot-toast';
-import { EmptyState, ScreenSkeleton } from '@/components/ScreenState';
+import { EmptyState, ErrorState, ScreenSkeleton } from '@/components/ScreenState';
+import SeatCounts, { PendingCheckoutsLink, SeatLegend } from '@/components/admin/SeatCounts';
 import { useOrganizerAccess } from '@/lib/useOrganizerAccess';
 
 // completed is auto-only — never in the dropdown
@@ -34,6 +35,9 @@ interface Event {
   status: string;
   onsiteRegistrationEnabled?: boolean;
   ticketsSold: number;
+  ticketsConfirmed?: number;
+  ticketsAwaitingReview?: number;
+  ticketsHeld?: number;
   organization: { id: string; name: string } | null;
 }
 
@@ -74,7 +78,7 @@ export default function AdminDashboardPage() {
     );
   }, []);
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['admin-events'],
     queryFn: () =>
       api.get<{ data: { data: Event[] } }>('/admin/events').then((r) => r.data.data.data),
@@ -170,12 +174,19 @@ export default function AdminDashboardPage() {
 
         <h2 className="text-lg font-semibold text-gray-900 mb-4">Recent Events</h2>
         {isLoading && <ScreenSkeleton rows={3} compact />}
-        {!isLoading && data?.length === 0 && (
+        {isError && (
+          <ErrorState
+            title="Couldn't load the events"
+            message="Check your connection and try again."
+            action={<button type="button" onClick={() => refetch()} className="min-h-11 rounded-xl border border-red-300 px-4 text-sm font-semibold text-red-800">Retry</button>}
+          />
+        )}
+        {!isLoading && !isError && data?.length === 0 && (
           <EmptyState title="No events yet" message="Events you create for your organizer account will appear here." />
         )}
         <div className="space-y-3">
           {data?.map((event) => (
-            <div key={event.id} className="flex items-center justify-between bg-white shadow rounded-2xl p-4">
+            <div key={event.id} className="flex flex-col gap-3 bg-white shadow rounded-2xl p-4 sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <p className="font-semibold text-gray-900">{event.title}</p>
                 <p className="text-sm text-gray-500">
@@ -185,8 +196,13 @@ export default function AdminDashboardPage() {
                   <p className="text-xs text-violet-600 mt-0.5">by {event.organization.name}</p>
                 )}
               </div>
-              <div className="flex items-center gap-3">
-                <span className="text-sm text-gray-500">{event.ticketsSold} sold</span>
+              <div className="flex flex-wrap items-center gap-3">
+                <SeatCounts
+                  compact
+                  counts={{ confirmed: event.ticketsConfirmed, awaitingReview: event.ticketsAwaitingReview, held: event.ticketsHeld }}
+                  onRetry={() => refetch()}
+                />
+                <PendingCheckoutsLink eventId={event.id} held={event.ticketsHeld} />
                 {event.onsiteRegistrationEnabled && (
                   <a
                     href={`${API_URL}/events/${event.slug}/onsite-registration/qr.pdf?eventId=${event.id}`}
@@ -248,6 +264,7 @@ export default function AdminDashboardPage() {
             </div>
           ))}
         </div>
+        {!!data?.length && <SeatLegend />}
       </main>
     </>
   );

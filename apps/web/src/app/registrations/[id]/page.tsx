@@ -13,6 +13,8 @@ import FulfillmentInstructions from '@/components/FulfillmentInstructions';
 import type { Registration, RegistrationStatus } from '@axon-tickets/types';
 import { trackPixelCustomEvent, trackPixelEvent } from '@/lib/metaPixel';
 import { ErrorState, ScreenSkeleton } from '@/components/ScreenState';
+import HoldBanner from '@/components/guest-hold/HoldBanner';
+import ReservationEndState from '@/components/guest-hold/ReservationEndState';
 
 const STATUS_LABELS: Record<RegistrationStatus, string> = {
   pending_payment: 'Waiting for Payment',
@@ -42,14 +44,18 @@ export default function RegistrationDetailPage() {
   const [cancelling, setCancelling] = useState(false);
   const [profileNudgeDismissed, setProfileNudgeDismissed] = useState(false);
   const [profileIncomplete, setProfileIncomplete] = useState(false);
+  const [holdExpired, setHoldExpired] = useState(false);
 
   const fetchReg = useCallback(async () => {
     try {
       const res = await api.get(`/registrations/${id}`);
       const body = res.data;
-      setReg(body?.data ?? body);
+      const next = (body?.data ?? body) as Registration;
+      setReg(next);
+      return next;
     } catch {
       setError('Registration not found.');
+      return null;
     } finally {
       setLoading(false);
     }
@@ -57,6 +63,22 @@ export default function RegistrationDetailPage() {
 
   useEffect(() => {
     void fetchReg();
+  }, [fetchReg]);
+
+  const [checkingHold, setCheckingHold] = useState(false);
+  // The on-screen timer can reach zero up to a second before the server's deadline, so ask
+  // again shortly after the deadline (the API releases a lapsed hold when it is read).
+  const recheckAfterDeadline = useCallback(async () => {
+    setCheckingHold(true);
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      const latest = await fetchReg();
+      if (!latest || latest.status !== 'pending_payment') break;
+      const deadline = latest.holdExpiresAt ? new Date(latest.holdExpiresAt).getTime() : 0;
+      const wait = Math.max(0, deadline - Date.now()) + 1000;
+      if (!deadline || wait > 15_000 || attempt === 2) break;
+      await new Promise((resolve) => setTimeout(resolve, wait));
+    }
+    setCheckingHold(false);
   }, [fetchReg]);
 
   // Check if the user's demographic profile is incomplete after reg loads
@@ -154,6 +176,18 @@ export default function RegistrationDetailPage() {
     );
   }
 
+  // Same expired screen guests get. The API releases a lapsed hold when it is read, so a
+  // fresh load that comes back cancelled tells the truth.
+  if (holdExpired && reg?.status === 'cancelled') {
+    return (
+      <main className="min-h-screen bg-gray-50 py-10 flex items-center justify-center">
+        <div className="w-full max-w-lg px-4">
+          <ReservationEndState variant="expired" slug={reg.event.slug} pageHeading />
+        </div>
+      </main>
+    );
+  }
+
   if (error || !reg) {
     return (
       <main className="min-h-screen bg-gray-50 py-10 flex items-center justify-center">
@@ -242,6 +276,21 @@ export default function RegistrationDetailPage() {
         </div>
 
         {/* Payment instructions */}
+        {reg.status === 'pending_payment' && checkingHold && (
+          <div className="mb-5 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900" role="status">
+            <p className="font-semibold">Checking your reservation…</p>
+          </div>
+        )}
+        {reg.status === 'pending_payment' && (
+          <HoldBanner
+            deadlineIso={reg.holdExpiresAt}
+            onExpired={() => {
+              setHoldExpired(true);
+              void recheckAfterDeadline();
+            }}
+          />
+        )}
+
         {hasPaymentInfo && reg.status === 'pending_payment' && (
           <div className="bg-violet-50 border border-violet-200 rounded-2xl p-5 space-y-3">
             <h2 className="font-semibold text-gray-900">Payment Instructions</h2>

@@ -19,6 +19,10 @@ export interface LocalTier {
   isVisible: boolean;
   inclusions: LocalTierInclusion[];
   soldQuantity?: number;
+  /** Admin-only split of soldQuantity (reserved). Undefined when the API did not send it. */
+  confirmedQuantity?: number;
+  awaitingReviewQuantity?: number;
+  heldQuantity?: number;
   /** Position in the list. Persisted to API as `sortOrder` so the tier order survives reloads. */
   sortOrder?: number;
 }

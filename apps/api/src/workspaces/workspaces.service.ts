@@ -4,6 +4,7 @@ import { AuditService } from '../audit/audit.service';
 import { EmailService } from '../email/email.service';
 import { PDFDocument, PDFFont, PDFPage, StandardFonts, rgb } from 'pdf-lib';
 import { JwtPayload } from '@axon-tickets/types';
+import { emptySeatBreakdown, querySeatBreakdowns } from '../common/seats/seat-usage';
 import {
   CreateWorkspaceItemDto,
   UpdateWorkspaceItemDto,
@@ -2166,12 +2167,18 @@ export class WorkspacesService {
     drawKV('Total Attendees',    fmt(verifiedAttendees));
     ctx.cur -= 4;
 
-    // Tier breakdown table
+    // Tier breakdown table. "Sold" is confirmed sales only; seats still awaiting review or
+    // pending payment are shown separately, from one grouped query for all tiers.
     if (tiers.length > 0) {
+      const seatBreakdowns = await querySeatBreakdowns(this.prisma as any, tiers.map((t) => t.id));
+      const colSold = ML + 180, colReview = ML + 225, colPending = ML + 285, colQty = ML + 350, colPrice = ML + 395, colRev = ML + 450;
       ctx.page.drawText('Tier', { x: ML, y: ctx.cur, font: bold, size: 8, color: cSecond });
-      ctx.page.drawText('Sold / Qty', { x: ML + 220, y: ctx.cur, font: bold, size: 8, color: cSecond });
-      ctx.page.drawText('Price', { x: ML + 310, y: ctx.cur, font: bold, size: 8, color: cSecond });
-      ctx.page.drawText('Revenue', { x: ML + 390, y: ctx.cur, font: bold, size: 8, color: cSecond });
+      ctx.page.drawText('Sold', { x: colSold, y: ctx.cur, font: bold, size: 8, color: cSecond });
+      ctx.page.drawText('Review', { x: colReview, y: ctx.cur, font: bold, size: 8, color: cSecond });
+      ctx.page.drawText('Pending', { x: colPending, y: ctx.cur, font: bold, size: 8, color: cSecond });
+      ctx.page.drawText('Qty', { x: colQty, y: ctx.cur, font: bold, size: 8, color: cSecond });
+      ctx.page.drawText('Price', { x: colPrice, y: ctx.cur, font: bold, size: 8, color: cSecond });
+      ctx.page.drawText('Revenue', { x: colRev, y: ctx.cur, font: bold, size: 8, color: cSecond });
       ctx.cur -= 5;
       ctx.page.drawLine({ start: { x: ML, y: ctx.cur }, end: { x: ML + CW, y: ctx.cur }, color: cBorder, thickness: 0.5 });
       ctx.cur -= 12;
@@ -2179,13 +2186,19 @@ export class WorkspacesService {
       for (const t of tiers) {
         ensureSpace(18);
         const tr = tierRevMap.get(t.id);
-        ctx.page.drawText(trunc(t.name, regular, 9, 210), { x: ML,       y: ctx.cur, font: regular, size: 9, color: cBody });
-        ctx.page.drawText(`${t.soldQuantity} / ${t.totalQuantity}`,       { x: ML + 220, y: ctx.cur, font: regular, size: 9, color: cSecond });
-        ctx.page.drawText(fmtMoney(Number(t.price)),                       { x: ML + 310, y: ctx.cur, font: regular, size: 9, color: cBody });
-        ctx.page.drawText(tr ? fmtMoney(tr.rev) : '—',                    { x: ML + 390, y: ctx.cur, font: bold,    size: 9, color: cViolet });
+        const seats = seatBreakdowns.get(t.id) ?? emptySeatBreakdown();
+        ctx.page.drawText(trunc(t.name, regular, 9, 170), { x: ML,        y: ctx.cur, font: regular, size: 9, color: cBody });
+        ctx.page.drawText(String(seats.confirmed),         { x: colSold,    y: ctx.cur, font: bold,    size: 9, color: cBody });
+        ctx.page.drawText(String(seats.awaitingReview),    { x: colReview,  y: ctx.cur, font: regular, size: 9, color: cSecond });
+        ctx.page.drawText(String(seats.held),              { x: colPending, y: ctx.cur, font: regular, size: 9, color: cSecond });
+        ctx.page.drawText(String(t.totalQuantity),         { x: colQty,     y: ctx.cur, font: regular, size: 9, color: cSecond });
+        ctx.page.drawText(fmtMoney(Number(t.price)),       { x: colPrice,   y: ctx.cur, font: regular, size: 9, color: cBody });
+        ctx.page.drawText(tr ? fmtMoney(tr.rev) : '—',     { x: colRev,     y: ctx.cur, font: bold,    size: 9, color: cViolet });
         ctx.cur -= 15;
       }
-      ctx.cur -= 6;
+      ensureSpace(24);
+      ctx.page.drawText('Sold = paid and approved. Review = proof sent, not yet approved. Pending = checkout started without proof; released automatically.', { x: ML, y: ctx.cur, font: regular, size: 7, color: cSecond });
+      ctx.cur -= 12;
     }
 
     // Payment method

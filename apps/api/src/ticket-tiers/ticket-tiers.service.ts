@@ -1,7 +1,13 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
+import { querySeatBreakdowns, reservedSeats, type SeatBreakdown } from '../common/seats/seat-usage';
 import { PrismaService } from '../prisma/prisma.service';
 import { EventsService } from '../events/events.service';
 import { CreateTierDto, TierInclusionDto, UpdateTierDto } from './dto/tier.dto';
+
+/** One sentence, identical in the spec and the UI. Counts are lowercase. */
+export const describeSeatBreakdown = (b: SeatBreakdown): string =>
+  `${b.confirmed} sold, ${b.awaitingReview} awaiting review, ${b.held} pending payment`;
 
 @Injectable()
 export class TicketTiersService {
@@ -45,7 +51,22 @@ export class TicketTiersService {
 
   async update(tierId: string, dto: UpdateTierDto) {
     const tier = await this.findById(tierId);
+    let liveReserved: number | null = null;
     const updated = await this.prisma.$transaction(async (tx) => {
+      // Capacity guard: only when the capacity actually changes. Takes the same row lock the
+      // registration path takes (FOR UPDATE on the tier) BEFORE counting, so a registration
+      // arriving at the same moment cannot slip under the new capacity. The pre-read value
+      // above is never used for this decision (it was read outside the transaction).
+      if (dto.totalQuantity !== undefined && dto.totalQuantity !== tier.totalQuantity) {
+        await tx.$queryRaw(Prisma.sql`SELECT id FROM ticket_tiers WHERE id = ${tierId} FOR UPDATE`);
+        const breakdown = (await querySeatBreakdowns(tx as any, [tierId])).get(tierId)!;
+        liveReserved = reservedSeats(breakdown);
+        if (dto.totalQuantity < liveReserved) {
+          throw new ConflictException(
+            `You can't go below ${liveReserved}: ${describeSeatBreakdown(breakdown)}. Wait for pending checkouts to expire, or release them in Transactions.`,
+          );
+        }
+      }
       const saved = await tx.ticketTier.update({
         where: { id: tierId },
         data: {
@@ -84,7 +105,8 @@ export class TicketTiersService {
     });
 
     if (dto.totalQuantity !== undefined && dto.totalQuantity !== tier.totalQuantity) {
-      const available = Math.max(0, dto.totalQuantity - tier.soldQuantity);
+      // Reseed from the live count measured under the lock, not the stored column.
+      const available = Math.max(0, dto.totalQuantity - (liveReserved ?? tier.soldQuantity));
       await this.eventsService.seedTierInventory(tierId, available);
     }
 
@@ -109,11 +131,19 @@ export class TicketTiersService {
   }
 
   async delete(tierId: string) {
-    const tier = await this.findById(tierId);
-    if (tier.soldQuantity > 0) {
-      throw new BadRequestException('Cannot delete a tier that already has sold tickets');
-    }
-    await this.prisma.ticketTier.delete({ where: { id: tierId } });
+    await this.findById(tierId);
+    // Live count under the same tier row lock, so a registration cannot commit between the
+    // check and the delete. 409 (was 400 on the stored column): see the spec, D4.
+    await this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw(Prisma.sql`SELECT id FROM ticket_tiers WHERE id = ${tierId} FOR UPDATE`);
+      const breakdown = (await querySeatBreakdowns(tx as any, [tierId])).get(tierId)!;
+      if (reservedSeats(breakdown) > 0) {
+        throw new ConflictException(
+          `This tier can't be deleted yet: ${describeSeatBreakdown(breakdown)}. Wait for pending checkouts to expire or release them in Transactions.`,
+        );
+      }
+      await tx.ticketTier.delete({ where: { id: tierId } });
+    });
     return { deleted: true };
   }
 

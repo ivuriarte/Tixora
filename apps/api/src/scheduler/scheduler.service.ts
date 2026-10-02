@@ -122,6 +122,8 @@ export class SchedulerService {
    *
    * - Registrations with a lead attendee email (logged-in or finished guests): 12–13
    *   hours after creation, link to the registration page (unchanged behaviour).
+   *   New logged-in holds last MEMBER_HOLD_MINUTES (60 by default) and expire long before this
+   *   window, so it now only serves older registrations and holds set to 12 h or more.
    * - Guests who saved a "pay later" email: about 12 hours before their hold expires,
    *   with a signed resume link (never the raw access token).
    * Capped per run to stay inside Vercel's 10 s limit.

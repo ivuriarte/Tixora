@@ -31,9 +31,8 @@ import { OptionalInclusionsService } from '../optional-inclusions/optional-inclu
 import { GuestHoldService } from './guest-hold.service';
 import { RegistrationHoldService } from './registration-hold.service';
 import { anonymousBuyerLabel } from './registration-labels';
+import { ACTIVE_REGISTRATION_STATUSES, VALID_TICKET_STATUSES } from '../common/seats/seat-usage';
 
-const ACTIVE_REGISTRATION_STATUSES = ['pending_payment', 'proof_submitted', 'pending_approval', 'verified'] as const;
-const VALID_TICKET_STATUSES = ['valid', 'used'] as const;
 const DUPLICATE_SUCCESSFUL_REGISTRATION_MESSAGE =
   'You have already successfully registered for this event. You cannot register twice for the same event.';
 const GUEST_CHECKOUT_OTP_TTL_SECONDS = 300;
@@ -74,6 +73,35 @@ export class RegistrationsService {
   private requireHolds(): RegistrationHoldService {
     if (!this.holds) throw new Error('RegistrationHoldService is not configured');
     return this.holds;
+  }
+
+  /** Deadline for a logged-in customer's unpaid checkout (MEMBER_HOLD_MINUTES, default 60). */
+  private memberDeadline(now = new Date()): Date {
+    const minutes = this.config.get<number>('memberHold.minutes') ?? 60;
+    return new Date(now.getTime() + minutes * 60_000);
+  }
+
+  /**
+   * A logged-in customer whose own hold passed its deadline (cleanup has not run yet) must be
+   * able to start again at once. Releases such holds through the shared release helper
+   * (seats, add-on stock, audit), re-checking the deadline under the row lock.
+   */
+  private async releaseExpiredMemberHolds(userId: string, eventId: string): Promise<void> {
+    if (!this.holds) return;
+    const now = new Date();
+    const expired = await this.prisma.registration.findMany({
+      where: { userId, eventId, status: 'pending_payment', holdExpiresAt: { lt: now } },
+      select: { id: true },
+      take: 5,
+    });
+    for (const row of expired) {
+      await this.holds.releasePendingHold(row.id, {
+        reason: 'Hold expired before a new registration was started',
+        auditAction: 'REGISTRATION_AUTO_CANCELLED',
+        inclusionMovement: 'expire',
+        onlyIfExpired: { now, legacyCutoff: new Date(now.getTime() - 24 * 3_600_000) },
+      });
+    }
   }
 
   async create(dto: CreateRegistrationDto, userId: string, ip?: string) {
@@ -238,6 +266,19 @@ export class RegistrationsService {
     }
     const referenceNumber = generateReferenceNumber();
     const maxPerUser = event.maxPerUser ?? 0;
+    // Logged-in, paid, no add-ons: same short hold as guests. A caller-supplied deadline wins
+    // (guest intent), and guest pay-later, free events and add-on checkouts get none.
+    const effectiveHoldExpiresAt =
+      holdExpiresAt ??
+      (userId && !isFreeEvent && !quote && (dto.inclusionSelections?.length ?? 0) === 0
+        ? this.memberDeadline()
+        : undefined);
+    if (userId) {
+      // Housekeeping must never block a customer from registering; cleanup will catch up.
+      await this.releaseExpiredMemberHolds(userId, dto.eventId).catch((err: unknown) =>
+        this.logger.warn(`Could not release expired holds before registering: ${(err as Error).message}`),
+      );
+    }
 
     const registration = await this.prisma.$transaction(
       async (tx: Prisma.TransactionClient) => {
@@ -377,7 +418,7 @@ export class RegistrationsService {
             userId,
             guestEmail: guestEmail ?? null,
             guestAccessTokenHash: guestAccessTokenHash ?? null,
-            holdExpiresAt: holdExpiresAt ?? null,
+            holdExpiresAt: effectiveHoldExpiresAt ?? null,
             eventId: dto.eventId,
             tierId: dto.tierId,
             tierName: tier.name,
@@ -1588,7 +1629,32 @@ export class RegistrationsService {
     };
   }
 
+  /**
+   * The owner is looking at an unpaid hold whose deadline has passed (the 5-minute cleanup has
+   * not run yet): release it now so the page can say so truthfully. The shared helper re-checks
+   * the deadline and the absence of a payment proof under the row lock.
+   */
+  private async releaseIfHoldExpired(id: string, userId: string): Promise<void> {
+    if (!this.holds) return;
+    const current = await this.prisma.registration.findFirst({
+      where: { id, userId, status: 'pending_payment', holdExpiresAt: { lt: new Date() } },
+      select: { id: true },
+    });
+    if (!current) return;
+    const now = new Date();
+    await this.holds.releasePendingHold(current.id, {
+      reason: 'Hold expired',
+      auditAction: 'REGISTRATION_AUTO_CANCELLED',
+      inclusionMovement: 'expire',
+      onlyIfExpired: { now, legacyCutoff: new Date(now.getTime() - 24 * 3_600_000) },
+    });
+  }
+
   async findById(id: string, userId: string) {
+    // A read must never fail because of housekeeping; cleanup will catch up.
+    await this.releaseIfHoldExpired(id, userId).catch((err: unknown) =>
+      this.logger.warn(`Could not release expired hold on read: ${(err as Error).message}`),
+    );
     const reg = await this.prisma.registration.findFirst({
       where: { id, userId },
       include: {
@@ -1651,6 +1717,8 @@ export class RegistrationsService {
       currency: reg.currency,
       notes: reg.notes,
       rejectionReason: reg.rejectionReason,
+      // Only an unpaid hold has a countdown; null for everything else.
+      holdExpiresAt: reg.status === 'pending_payment' ? reg.holdExpiresAt?.toISOString() ?? null : null,
       isFree: Number(reg.total) === 0,
       createdAt: reg.createdAt.toISOString(),
       updatedAt: reg.updatedAt.toISOString(),
