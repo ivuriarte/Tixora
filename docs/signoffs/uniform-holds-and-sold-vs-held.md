@@ -8,9 +8,9 @@
 
 | Gate | Date | Git SHA | Agent verdict | Ian's decision | Conditions / notes |
 |---|---|---|---|---|---|
-| Design | | | | | Review running |
-| Database | 2026-10-02 | | SKIP (proposed) | Pending | No schema change: `holdExpiresAt` already exists and the cleanup already honours it. Ian to confirm the skip. |
-| API | | | | | Review running |
+| Design | 2026-10-02 | 2b39f77 | Round 1: APPROVE WITH CONDITIONS (12 findings) | Pending (round 2) | Spec/wireframes rev 2 address all findings. Funnel sign-off recorded by Ian 2026-10-02: logged-in hold 24 h to 60 min, no step moved, Pixel/funnel events unchanged, no pay-later route for logged-in (start again), check logged-in checkout-to-proof rate for one week after release. |
+| Database | 2026-10-02 | | SKIP | Confirmed by Ian 2026-10-02 | No schema change: `holdExpiresAt` already exists and the cleanup already honours it. |
+| API | 2026-10-02 | 2b39f77 | Round 1: APPROVE WITH CONDITIONS (10 findings, 8 conditions) | Pending (round 2) | Rev 2: separate admin-only `getTierBreakdown` (no change to `withLiveInventory`), one grouped query set per request, public-leak test, in-transaction capacity guard (Ian approved the behavior change 2026-10-02), routes fixed to `/admin/tiers/:tierId`, deadline set in `createImpl` for paid non-add-on only, expired-but-not-cleaned handling, `MEMBER_HOLD_MINUTES` in Joi/config/.env.example/environment-matrix. |
 | Frontend | | | | | Not started |
 | Backend | | | | | Not started |
 | Release | | | | | Not started |
