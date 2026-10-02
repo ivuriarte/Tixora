@@ -67,6 +67,7 @@ export default function WizardShell({
   const [step, setStep] = useState<StepId>('basics');
   const [visited, setVisited] = useState<ReadonlySet<StepId>>(new Set());
   const [blockedSubmit, setBlockedSubmit] = useState(false);
+  const [arrivedFromReview, setArrivedFromReview] = useState<StepId | null>(null);
   const [showPreviewMobile, setShowPreviewMobile] = useState(false);
 
   const activeSteps = useMemo(() => activeStepsFor({ isFree: draft.isFree }), [draft.isFree]);
@@ -91,7 +92,9 @@ export default function WizardShell({
   const showIssues =
     !readOnly &&
     currentIssues.length > 0 &&
-    (blockedSubmit || (visited.has(safeStep) && statuses[safeStep] !== 'not_started'));
+    (blockedSubmit ||
+      arrivedFromReview === safeStep ||
+      (visited.has(safeStep) && statuses[safeStep] !== 'not_started'));
 
   function goTo(target: StepId) {
     // Arriving from Review (a Fix link) should show what is missing on that step right away.
@@ -100,6 +103,7 @@ export default function WizardShell({
       if (safeStep === 'review') next.add(target);
       return next;
     });
+    setArrivedFromReview(safeStep === 'review' ? target : null);
     setStep(target);
     onStepChange?.(target);
     setBlockedSubmit(false);
