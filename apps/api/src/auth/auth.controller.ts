@@ -4,6 +4,7 @@ import {
   Get,
   Patch,
   Body,
+  GoneException,
   Req,
   HttpCode,
   HttpStatus,
@@ -13,7 +14,6 @@ import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import { Request } from 'express';
 import { AuthService } from './auth.service';
-import { RegisterDto } from './dto/register.dto';
 import { LoginDto, VerifyOtpDto, ResendOtpDto, RefreshTokenDto, RequestAccessDto, VerifyAccessDto, ChangePasswordDto } from './dto/auth.dto';
 import { Public } from '../common/decorators/public.decorator';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
@@ -27,17 +27,13 @@ export class AuthController {
     private readonly authService: AuthService,
   ) {}
 
+  /** Retired: sign-up is passwordless now (POST /auth/request-access, then /auth/verify-access). */
   @Public()
   @Post('register')
   @Throttle({ default: { ttl: 60000, limit: 5 } })
-  @ApiOperation({ summary: 'Register a new user' })
-  async register(@Body() dto: RegisterDto, @Req() req: Request) {
-    const ip =
-      (req.headers['x-real-ip'] as string | undefined)?.trim() ??
-      (req.headers['x-forwarded-for'] as string | undefined)?.split(',').pop()?.trim() ??
-      req.ip ??
-      '';
-    return this.authService.register(dto, ip);
+  @ApiOperation({ summary: 'Retired. Use /auth/request-access.', deprecated: true })
+  register(): never {
+    throw new GoneException('Password sign-up has been retired. Please sign in with your email code.');
   }
 
   @Public()
