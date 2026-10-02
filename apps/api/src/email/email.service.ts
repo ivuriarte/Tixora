@@ -104,10 +104,13 @@ export class EmailService implements OnModuleDestroy {
     subject: string,
     html: string,
     maxRetries = 3,
+    redactSubjectInLogs = false,
   ): Promise<boolean> {
     const recipient = this.redactRecipient(to);
+    // OTP subjects contain the one-time code itself; it must never reach the logs.
+    const loggedSubject = redactSubjectInLogs ? '[redacted: contains one-time code]' : subject;
     if (!this.transporter) {
-      this.logger.warn({ msg: 'OTP/critical email skipped (SMTP disabled)', recipient, subject });
+      this.logger.warn({ msg: 'OTP/critical email skipped (SMTP disabled)', recipient, subject: loggedSubject });
       return false;
     }
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
@@ -122,7 +125,7 @@ export class EmailService implements OnModuleDestroy {
         this.logger.log({
           msg: 'Email sent successfully',
           recipient,
-          subject,
+          subject: loggedSubject,
           messageId: info.messageId,
           attempt,
         });
@@ -135,7 +138,7 @@ export class EmailService implements OnModuleDestroy {
           this.logger.error({
             msg: 'Failed to send email after all retries',
             recipient,
-            subject,
+            subject: loggedSubject,
             from: this.fromEmail,
             attempts: maxRetries,
             errorMessage: message,
@@ -148,7 +151,7 @@ export class EmailService implements OnModuleDestroy {
         this.logger.warn({
           msg: 'Email send failed, retrying',
           recipient,
-          subject,
+          subject: loggedSubject,
           attempt,
           nextRetryIn: `${delay}ms`,
           errorMessage: message,
@@ -192,6 +195,7 @@ export class EmailService implements OnModuleDestroy {
         <p style="margin-top:24px;color:#9ca3af;font-size:12px">Axon Tickets · Online Ticketing Platform</p>
       </div>`,
       2,
+      true,
     );
   }
 
@@ -680,12 +684,12 @@ export class EmailService implements OnModuleDestroy {
       `Your spot is saved — ${eventTitle}`,
       `<div style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:24px">
         <h1 style="color:#7C3AED;margin-bottom:4px">Your spot is saved!</h1>
-        <h2 style="margin-top:0;color:#1A3A5C">${eventTitle}</h2>
-        <p style="color:#374151">Hi ${firstName}, we got your registration. Here is what to do next.</p>
+        <h2 style="margin-top:0;color:#1A3A5C">${this.escapeHtml(eventTitle)}</h2>
+        <p style="color:#374151">Hi ${this.escapeHtml(firstName)}, we got your registration. Here is what to do next.</p>
 
         <div style="background:#f7f9fc;border-radius:12px;padding:16px;margin:20px 0;border-left:4px solid #7C3AED">
           <p style="margin:0 0 4px;font-size:12px;color:#6b7280;text-transform:uppercase;letter-spacing:0.05em">Your Reference Number</p>
-          <p style="font-size:24px;font-weight:bold;color:#7C3AED;margin:0;letter-spacing:2px">${referenceNumber}</p>
+          <p style="font-size:24px;font-weight:bold;color:#7C3AED;margin:0;letter-spacing:2px">${this.escapeHtml(referenceNumber)}</p>
           <p style="margin:8px 0 0;color:#64748b;font-size:13px">
             Write this number in the transfer note or remarks when you pay.
           </p>
@@ -694,9 +698,9 @@ export class EmailService implements OnModuleDestroy {
         <h3 style="color:#1A3A5C">Step 1 — Send your payment</h3>
         <p style="color:#374151;font-size:14px">Transfer the exact amount to this bank account:</p>
         <table style="border-collapse:collapse;width:100%;background:#f9fafb;border-radius:8px">
-          <tr><td style="padding:10px 12px;color:#64748b;font-size:14px;width:40%">Bank</td><td style="padding:10px 12px;font-weight:600;font-size:14px">${bankName}</td></tr>
-          <tr style="border-top:1px solid #e5e7eb"><td style="padding:10px 12px;color:#64748b;font-size:14px">Account Number</td><td style="padding:10px 12px;font-weight:600;font-size:14px">${bankAccountNumber}</td></tr>
-          <tr style="border-top:1px solid #e5e7eb"><td style="padding:10px 12px;color:#64748b;font-size:14px">Account Name</td><td style="padding:10px 12px;font-weight:600;font-size:14px">${bankAccountName}</td></tr>
+          <tr><td style="padding:10px 12px;color:#64748b;font-size:14px;width:40%">Bank</td><td style="padding:10px 12px;font-weight:600;font-size:14px">${this.escapeHtml(bankName)}</td></tr>
+          <tr style="border-top:1px solid #e5e7eb"><td style="padding:10px 12px;color:#64748b;font-size:14px">Account Number</td><td style="padding:10px 12px;font-weight:600;font-size:14px">${this.escapeHtml(bankAccountNumber)}</td></tr>
+          <tr style="border-top:1px solid #e5e7eb"><td style="padding:10px 12px;color:#64748b;font-size:14px">Account Name</td><td style="padding:10px 12px;font-weight:600;font-size:14px">${this.escapeHtml(bankAccountName)}</td></tr>
         </table>
 
         <h3 style="color:#1A3A5C">Step 2 — Upload your payment screenshot</h3>
@@ -798,8 +802,8 @@ export class EmailService implements OnModuleDestroy {
       to,
       `We got your payment screenshot — ${eventTitle}`,
       `<div style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:24px">
-        <h2 style="color:#1A3A5C">${eventTitle}</h2>
-        <p style="color:#374151">Hi ${firstName}, we received your payment screenshot for reference <strong style="color:#7C3AED">${referenceNumber}</strong>.</p>
+        <h2 style="color:#1A3A5C">${this.escapeHtml(eventTitle)}</h2>
+        <p style="color:#374151">Hi ${this.escapeHtml(firstName)}, we received your payment screenshot for reference <strong style="color:#7C3AED">${this.escapeHtml(referenceNumber)}</strong>.</p>
         <p style="color:#374151">Our team is checking it now. This usually takes up to <strong>24 hours</strong>.</p>
         <p style="color:#374151">Once approved, we will send your QR ticket to this email. You just need to show it at the door — no printing needed!</p>
         <p style="margin-top:24px;color:#9ca3af;font-size:12px">Axon Tickets · Online Ticketing Platform</p>
@@ -845,11 +849,13 @@ export class EmailService implements OnModuleDestroy {
 
     const rows = await Promise.all(
       attendees.map(async (a, index) => {
+        const displayName = this.escapeHtml(`${a.firstName} ${a.lastName}`);
+        const displayEmail = this.escapeHtml(a.email ?? '');
         if (!a.qrToken) {
           return `<tr style="border-bottom:1px solid #e5e7eb">
             <td style="padding:16px;vertical-align:top">
-              <strong style="color:#1A3A5C">${a.firstName} ${a.lastName}</strong><br/>
-              <span style="color:#64748b;font-size:13px">${a.email}</span>
+              <strong style="color:#1A3A5C">${displayName}</strong><br/>
+              <span style="color:#64748b;font-size:13px">${displayEmail}</span>
             </td>
             <td style="padding:16px;text-align:center;color:#dc2626;font-size:13px">
               QR not generated yet
@@ -881,15 +887,15 @@ export class EmailService implements OnModuleDestroy {
 
         return `<tr style="border-bottom:1px solid #e5e7eb">
           <td style="padding:16px;vertical-align:middle">
-            <strong style="color:#1A3A5C;font-size:16px">${a.firstName} ${a.lastName}</strong><br/>
-            <span style="color:#64748b;font-size:13px">${a.email}</span>
+            <strong style="color:#1A3A5C;font-size:16px">${displayName}</strong><br/>
+            <span style="color:#64748b;font-size:13px">${displayEmail}</span>
           </td>
           <td style="padding:16px;text-align:center">
-            <img src="cid:${cid}" alt="QR Code for ${a.firstName} ${a.lastName}"
+            <img src="cid:${cid}" alt="QR Code for ${displayName}"
                  width="200" height="200"
                  style="display:block;margin:0 auto;border:1px solid #e5e7eb;border-radius:8px" />
             <p style="margin:8px 0 0;font-size:13px;font-weight:600;color:#1A3A5C;text-align:center">
-              ${a.firstName} ${a.lastName}
+              ${displayName}
             </p>
           </td>
         </tr>`;
@@ -1061,11 +1067,11 @@ export class EmailService implements OnModuleDestroy {
       to,
       `Registration cancelled — ${eventTitle}`,
       `<div style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:24px">
-        <h2 style="color:#1A3A5C">${eventTitle}</h2>
-        <p style="color:#374151">Hi ${firstName},</p>
-        <p style="color:#374151">Your registration <strong style="color:#7C3AED">${referenceNumber}</strong> has been cancelled.</p>
+        <h2 style="color:#1A3A5C">${this.escapeHtml(eventTitle)}</h2>
+        <p style="color:#374151">Hi ${this.escapeHtml(firstName)},</p>
+        <p style="color:#374151">Your registration <strong style="color:#7C3AED">${this.escapeHtml(referenceNumber)}</strong> has been cancelled.</p>
         <div style="background:#fef9f0;border-left:4px solid #EA6C00;padding:12px 16px;margin:16px 0;color:#92400e;border-radius:0 8px 8px 0">
-          <strong>Reason:</strong> ${reason}
+          <strong>Reason:</strong> ${this.escapeHtml(reason)}
         </div>
         <p style="color:#374151">If this was a mistake or if you want to register again, use the button below.</p>
         ${reRegisterBlock}
@@ -1086,11 +1092,11 @@ export class EmailService implements OnModuleDestroy {
       to,
       `We could not verify your payment — ${eventTitle}`,
       `<div style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:24px">
-        <h2 style="color:#1A3A5C">${eventTitle}</h2>
-        <p style="color:#374151">Hi ${firstName},</p>
-        <p style="color:#374151">We checked your payment screenshot for reference <strong style="color:#7C3AED">${referenceNumber}</strong>, but we could not approve it.</p>
+        <h2 style="color:#1A3A5C">${this.escapeHtml(eventTitle)}</h2>
+        <p style="color:#374151">Hi ${this.escapeHtml(firstName)},</p>
+        <p style="color:#374151">We checked your payment screenshot for reference <strong style="color:#7C3AED">${this.escapeHtml(referenceNumber)}</strong>, but we could not approve it.</p>
         <div style="background:#fef2f2;border-left:4px solid #dc2626;padding:12px 16px;margin:16px 0;color:#991b1b;border-radius:0 8px 8px 0">
-          <strong>Reason:</strong> ${reason}
+          <strong>Reason:</strong> ${this.escapeHtml(reason)}
         </div>
         <p style="color:#374151">Please upload a new, clearer screenshot of your payment. Make sure it shows:</p>
         <ul style="color:#374151;font-size:14px;padding-left:20px">

@@ -6,14 +6,15 @@ import { useAuthStore } from '@/store/auth.store';
 import api from '@/lib/api';
 import BirthdayPicker from '@/components/BirthdayPicker';
 import toast from 'react-hot-toast';
+import { safeRedirectPath } from '@/lib/safe-redirect';
 
 function CompleteProfileForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { isAuthenticated, isHydrating } = useAuthStore();
 
-  const rawReturnTo = searchParams.get('returnTo') ?? '';
-  const returnTo = rawReturnTo.startsWith('/') ? rawReturnTo : '/account/tickets';
+  // Only same-site paths are allowed ('//host' and '/\\host' would leave the site).
+  const returnTo = safeRedirectPath(searchParams.get('returnTo')) ?? '/account/tickets';
 
   const [birthday, setBirthday] = useState('');
   const [gender, setGender] = useState('');

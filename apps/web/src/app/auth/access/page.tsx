@@ -331,7 +331,7 @@ function AccessForm() {
       toast.success(`Welcome, ${updatedUser.firstName}!`);
       // Always send new users to complete-profile to collect demographics;
       // returnTo carries the original destination through.
-      const originalDest = searchParams.get('redirect') ?? '/account/tickets';
+      const originalDest = safeRedirectPath(searchParams.get('redirect')) ?? '/account/tickets';
       router.replace(`/account/complete-profile?returnTo=${encodeURIComponent(originalDest)}`);
     } catch (err: any) {
       const msg = err?.response?.data?.message ?? 'Could not save profile';

@@ -68,4 +68,18 @@ test.describe('Cybersecurity regression', () => {
     const text = await response.text();
     expect(text).not.toMatch(/at\s+[A-Za-z0-9_$]+\s+\(|\/Users\/|\/var\/task\/|node_modules/);
   });
+  test('profile completion does not redirect off-site via returnTo', async ({ page }) => {
+    // Anonymous visitors are bounced to /auth/access with the destination carried along;
+    // an off-site returnTo must be replaced by the safe default, a same-site one kept.
+    const bounced = async (returnTo: string) => {
+      await page.goto(`/account/complete-profile?returnTo=${encodeURIComponent(returnTo)}`);
+      await page.waitForURL(/\/auth\/access\?redirect=/);
+      const carried = new URL(page.url()).searchParams.get('redirect') ?? '';
+      return new URL(carried, 'http://placeholder.invalid').searchParams.get('returnTo');
+    };
+
+    expect(await bounced('//evil.example/phish')).toBe('/account/tickets');
+    expect(await bounced('/\\evil.example')).toBe('/account/tickets');
+    expect(await bounced('/events/demo-event')).toBe('/events/demo-event');
+  });
 });

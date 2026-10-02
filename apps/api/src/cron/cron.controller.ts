@@ -8,8 +8,17 @@ import {
   UnauthorizedException,
   Logger,
 } from '@nestjs/common';
+import { createHash, timingSafeEqual } from 'node:crypto';
 import { ReservationsService } from '../reservations/reservations.service';
 import { SchedulerService } from '../scheduler/scheduler.service';
+
+/** Constant-time string comparison (hashes first so length differences leak nothing). */
+export function safeEqual(candidate: string | undefined, expected: string): boolean {
+  if (!candidate) return false;
+  const a = createHash('sha256').update(candidate).digest();
+  const b = createHash('sha256').update(expected).digest();
+  return timingSafeEqual(a, b);
+}
 
 /**
  * HTTP-based cron trigger endpoints.
@@ -37,7 +46,7 @@ export class CronController {
   private verifySecret(secret: string | undefined, authorization?: string): void {
     const expected = process.env.CRON_SECRET;
     const bearer = authorization?.startsWith('Bearer ') ? authorization.slice(7) : undefined;
-    if (!expected || (secret !== expected && bearer !== expected)) {
+    if (!expected || !(safeEqual(secret, expected) || safeEqual(bearer, expected))) {
       throw new UnauthorizedException('Invalid or missing cron secret');
     }
   }

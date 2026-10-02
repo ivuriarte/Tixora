@@ -504,9 +504,9 @@ export class AdminService {
     });
     const header = 'Code,Name,Registration,Tier,Attendees,Discount (PHP),Final Total (PHP),Used At\n';
     return header + usages.map((usage) => [
-      this.escapeCsvCell(usage.referralCode.code),
+      this.csvField(usage.referralCode.code),
       `"${this.escapeCsvCell(usage.referralCode.name)}"`,
-      this.escapeCsvCell(usage.registration.referenceNumber),
+      this.csvField(usage.registration.referenceNumber),
       `"${this.escapeCsvCell(usage.registration.tierName ?? '')}"`,
       usage.attendeeCount,
       Number(usage.discountAmount).toFixed(2),
@@ -1997,8 +1997,15 @@ export class AdminService {
    * Prefixes values that start with formula-triggering characters with a tab.
    */
   private escapeCsvCell(value: string): string {
-    if (/^[=+\-@\t\r]/.test(value)) return `\t${value}`;
-    return value;
+    // Callers wrap the result in double quotes: double inner quotes, flatten line breaks
+    // (a value must not be able to start a new row/cell) and neutralise spreadsheet formulas.
+    const flat = String(value ?? '').replace(/[\r\n]+/g, ' ').replace(/"/g, '""');
+    return /^[=+\-@\t]/.test(flat) ? `\t${flat}` : flat;
+  }
+
+  /** A complete, safely quoted CSV field. */
+  private csvField(value: string): string {
+    return `"${this.escapeCsvCell(value)}"`;
   }
 
   async exportOrders(user: JwtPayload, eventId?: string): Promise<string> {
@@ -2043,7 +2050,7 @@ export class AdminService {
         o.id,
         `"${this.escapeCsvCell(o.event.title)}"`,
         `"${this.escapeCsvCell(`${o.user.firstName} ${o.user.lastName}`)}"`,
-        this.escapeCsvCell(o.user.email),
+        this.csvField(o.user.email),
         `"${this.escapeCsvCell(o.user.company ?? '')}"`,
         `"${this.escapeCsvCell(o.user.jobTitle ?? '')}"`,
         `"${this.escapeCsvCell(o.user.city ?? '')}"`,
@@ -2068,10 +2075,10 @@ export class AdminService {
           : anonymousBuyerLabel(r);
       return [
         'Manual (GCash/Bank)',
-        this.escapeCsvCell(r.referenceNumber),
+        this.csvField(r.referenceNumber),
         `"${this.escapeCsvCell(r.event.title)}"`,
         `"${this.escapeCsvCell(buyerName)}"`,
-        this.escapeCsvCell(lead?.email ?? r.user?.email ?? ''),
+        this.csvField(lead?.email ?? r.user?.email ?? ''),
         `"${this.escapeCsvCell(r.user?.company ?? '')}"`,
         `"${this.escapeCsvCell(r.user?.jobTitle ?? '')}"`,
         `"${this.escapeCsvCell(r.user?.city ?? '')}"`,
@@ -2080,7 +2087,7 @@ export class AdminService {
         r.attendeeCount,
         Number(r.subtotal).toFixed(2),
         Number(r.discount).toFixed(2),
-        this.escapeCsvCell((r.referralCodeSnapshot as any)?.code ?? ''),
+        this.csvField((r.referralCodeSnapshot as any)?.code ?? ''),
         Number(r.total).toFixed(2),
         r.paymentMethod ?? '',
         r.createdAt.toISOString(),
@@ -2143,26 +2150,26 @@ export class AdminService {
       return [
         a.id,
         `"${this.escapeCsvCell(`${a.firstName} ${a.lastName}`)}"`,
-        this.escapeCsvCell(a.email ?? ''),
-        this.escapeCsvCell(a.phone ?? ''),
+        this.csvField(a.email ?? ''),
+        this.csvField(a.phone ?? ''),
         `"${this.escapeCsvCell(a.company ?? '')}"`,
         `"${this.escapeCsvCell(a.jobTitle ?? '')}"`,
         a.birthday?.toISOString().slice(0, 10) ?? '',
-        this.escapeCsvCell(a.genderIdentity ?? a.gender ?? ''),
-        this.escapeCsvCell(a.raceDivision ?? ''),
-        this.escapeCsvCell(a.raceDistance ?? ''),
-        this.escapeCsvCell(a.bibNumber ?? ''),
-        this.escapeCsvCell(a.merchandiseSize ?? ''),
-        this.escapeCsvCell(a.claimMethod ?? ''),
+        this.csvField(a.genderIdentity ?? a.gender ?? ''),
+        this.csvField(a.raceDivision ?? ''),
+        this.csvField(a.raceDistance ?? ''),
+        this.csvField(a.bibNumber ?? ''),
+        this.csvField(a.merchandiseSize ?? ''),
+        this.csvField(a.claimMethod ?? ''),
         a.claimedAt ? 'Yes' : 'No',
         a.claimedAt?.toISOString() ?? '',
         `"${this.escapeCsvCell(a.city ?? a.registration.user?.city ?? '')}"`,
         `"${this.escapeCsvCell(a.registration.tierName ?? 'Registration')}"`,
         `"${this.escapeCsvCell(this.formatSelectedSubEvents(a.selectedSubEvents, a.subEventTitle, a.subEventTime) ?? '')}"`,
         a.registration.status === 'verified' ? 'paid' : 'pending',
-        this.escapeCsvCell(a.registration.paymentMethod ?? ''),
+        this.csvField(a.registration.paymentMethod ?? ''),
         Number(a.registration.discount).toFixed(2),
-        this.escapeCsvCell(referralCode),
+        this.csvField(referralCode),
         a.checkedInAt ? 'Yes' : 'No',
         a.checkedInAt?.toISOString() ?? '',
       ].join(',');
@@ -2171,8 +2178,8 @@ export class AdminService {
     const ticketRows = tickets.map((t) => [
       t.id,
       `"${this.escapeCsvCell(`${t.user.firstName} ${t.user.lastName}`)}"`,
-      this.escapeCsvCell(t.user.email),
-      this.escapeCsvCell(t.user.phone ?? ''),
+      this.csvField(t.user.email),
+      this.csvField(t.user.phone ?? ''),
       `"${this.escapeCsvCell(t.user.company ?? '')}"`,
       `"${this.escapeCsvCell(t.user.jobTitle ?? '')}"`,
       '',
@@ -2822,18 +2829,18 @@ export class AdminService {
       const referralCode = (reg.referralCodeSnapshot as { code?: string } | null)?.code ?? '';
 
       return [
-        this.escapeCsvCell(reg.referenceNumber),
+        this.csvField(reg.referenceNumber),
         `"${this.escapeCsvCell(lead?.firstName ?? '')}"`,
         `"${this.escapeCsvCell(lead?.lastName ?? '')}"`,
-        this.escapeCsvCell(lead?.email ?? ''),
-        this.escapeCsvCell(lead?.phone ?? ''),
+        this.csvField(lead?.email ?? ''),
+        this.csvField(lead?.phone ?? ''),
         `"${this.escapeCsvCell(reg.tierName ?? '')}"`,
         reg.attendeeCount,
         reg.status,
-        this.escapeCsvCell(reg.paymentMethod ?? ''),
+        this.csvField(reg.paymentMethod ?? ''),
         Number(reg.subtotal).toFixed(2),
         Number(reg.discount).toFixed(2),
-        this.escapeCsvCell(referralCode),
+        this.csvField(referralCode),
         Number(reg.total).toFixed(2),
         reg.createdAt.toISOString(),
         `${checkedInCount}/${reg.attendeeCount}`,

@@ -13,6 +13,15 @@ import { generateQrToken } from '@axon-tickets/utils';
 import { ConfigService } from '@nestjs/config';
 import { EmailService } from '../email/email.service';
 
+function escapeHtml(value: string | null | undefined): string {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+
 @Injectable()
 export class OrdersService {
   private readonly logger = new Logger(OrdersService.name);
@@ -266,7 +275,7 @@ export class OrdersService {
       .map(
         (t: (typeof order.tickets)[number]) =>
           `<tr>
-            <td style="padding:12px;border-bottom:1px solid #e5e7eb">${t.ticketTier.name}</td>
+            <td style="padding:12px;border-bottom:1px solid #e5e7eb">${escapeHtml(t.ticketTier.name)}</td>
             <td style="padding:12px;border-bottom:1px solid #e5e7eb;text-align:center">
               <img src="https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(t.qrCode)}"
                    alt="QR Code" width="150" height="150" />
@@ -282,9 +291,9 @@ export class OrdersService {
       `
         <div style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:24px">
           <h1 style="color:#EA6C00;margin-bottom:4px">You're going!</h1>
-          <h2 style="margin-top:0;color:#1A3A5C">${order.event.title}</h2>
-          <p style="color:#6b7280">${new Date(order.event.startsAt).toLocaleDateString('en-PH', { dateStyle: 'full' })} · ${order.event.venue}</p>
-          <p>Hi ${order.user.firstName}, here are your tickets. Show the QR code at the door.</p>
+          <h2 style="margin-top:0;color:#1A3A5C">${escapeHtml(order.event.title)}</h2>
+          <p style="color:#6b7280">${new Date(order.event.startsAt).toLocaleDateString('en-PH', { dateStyle: 'full' })} · ${escapeHtml(order.event.venue)}</p>
+          <p>Hi ${escapeHtml(order.user.firstName)}, here are your tickets. Show the QR code at the door.</p>
           <table style="width:100%;border-collapse:collapse;margin-top:16px">
             <thead>
               <tr style="background:#f9fafb">
