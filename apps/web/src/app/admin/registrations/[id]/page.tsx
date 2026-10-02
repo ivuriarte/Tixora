@@ -7,6 +7,8 @@ import api from '@/lib/api';
 import { formatManila, formatPHP } from '@axon-tickets/utils';
 import { ErrorState, ScreenSkeleton } from '@/components/ScreenState';
 import type { RegistrationLineItem } from '@axon-tickets/types';
+import ConfirmModal from '@/components/ConfirmModal';
+import { formatHoldDeadline } from '@/lib/guestHold';
 
 interface ProofRow {
   id: string;
@@ -32,6 +34,9 @@ interface AdminReg {
   rejectionReason: string | null;
   verifiedAt: string | null;
   createdAt: string;
+  paymentMethod?: string | null;
+  /** Unpaid guest holds only: when the seats are released automatically. */
+  holdExpiresAt?: string | null;
   event: { title: string; slug: string; startsAt: string; venue: string; address: string | null; landmark: string | null };
   user: { email: string; firstName: string | null; lastName: string | null } | null;
   attendees: Array<{
@@ -68,6 +73,9 @@ export default function AdminRegistrationDetailPage() {
   const [showReject, setShowReject] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [resendStatus, setResendStatus] = useState<string | null>(null);
+  const [releaseOpen, setReleaseOpen] = useState(false);
+  const [releaseBusy, setReleaseBusy] = useState(false);
+  const [releaseNotice, setReleaseNotice] = useState<{ kind: 'ok' | 'error'; text: string } | null>(null);
 
   const REJECT_REASONS = [
     'Amount does not match',
@@ -130,6 +138,25 @@ export default function AdminRegistrationDetailPage() {
     }
   };
 
+  const releaseHold = async () => {
+    setReleaseBusy(true);
+    setReleaseNotice(null);
+    try {
+      await api.patch(`/admin/registrations/${id}/release-hold`, {});
+      setReleaseOpen(false);
+      setReleaseNotice({ kind: 'ok', text: 'Hold released. The seats are available again.' });
+      await fetchReg();
+    } catch {
+      setReleaseOpen(false);
+      setReleaseNotice({
+        kind: 'error',
+        text: "Couldn't release this hold. It may already have a payment proof or have been cancelled. Refresh and try again.",
+      });
+    } finally {
+      setReleaseBusy(false);
+    }
+  };
+
   const resend = async () => {
     if (!confirm(`Resend QR code email to all ${reg?.attendees?.length ?? 'attendee(s)'}?`)) return;
     setActing(true);
@@ -173,7 +200,11 @@ export default function AdminRegistrationDetailPage() {
     ? `${lead.firstName} ${lead.lastName}`
     : reg.user
       ? [reg.user.firstName, reg.user.lastName].filter(Boolean).join(' ') || 'Unnamed buyer'
-      : 'Walk-in attendee';
+      : reg.paymentMethod === 'onsite_qr'
+        ? 'Walk-in attendee'
+        : reg.status === 'pending_payment'
+          ? 'Checkout started (no details yet)'
+          : 'Guest registration';
   const buyerEmail = lead?.email ?? reg.user?.email ?? '';
 
   return (
@@ -355,6 +386,50 @@ export default function AdminRegistrationDetailPage() {
             {formatManila(new Date(reg.verifiedAt))}</p>
           </div>
         )}
+
+        {reg.status === 'pending_payment' && (
+          <div className="bg-white border border-gray-200 rounded-2xl p-5 space-y-3">
+            <h2 className="font-semibold text-gray-900">Unpaid checkout</h2>
+            <p className="text-sm text-gray-600">
+              {reg.holdExpiresAt
+                ? `Seats held until ${formatHoldDeadline(reg.holdExpiresAt)}. `
+                : 'Seats are held for up to 24 hours after the checkout started. '}
+              No payment proof has been uploaded yet.
+            </p>
+            <button
+              type="button"
+              onClick={() => setReleaseOpen(true)}
+              className="min-h-[44px] px-4 py-2 rounded-lg border border-primary text-primary text-sm font-semibold hover:bg-primary/5"
+            >
+              Release hold
+            </button>
+          </div>
+        )}
+
+        {releaseNotice && (
+          <div
+            className={`rounded-xl border px-4 py-3 text-sm ${
+              releaseNotice.kind === 'ok'
+                ? 'border-green-200 bg-green-50 text-green-800'
+                : 'border-red-200 bg-red-50 text-red-800'
+            }`}
+            role={releaseNotice.kind === 'ok' ? 'status' : 'alert'}
+          >
+            {releaseNotice.text}
+          </div>
+        )}
+
+        <ConfirmModal
+          open={releaseOpen}
+          loading={releaseBusy}
+          variant="warning"
+          title="Release this hold?"
+          message="The seats go back on sale right away. The customer will see an expired message if they return."
+          confirmLabel="Release hold"
+          cancelLabel="Keep hold"
+          onConfirm={() => void releaseHold()}
+          onCancel={() => setReleaseOpen(false)}
+        />
 
         {reg.status === 'verified' && (
           <div className="bg-white border border-gray-200 rounded-2xl p-5 space-y-3">

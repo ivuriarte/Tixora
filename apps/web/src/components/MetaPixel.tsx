@@ -5,6 +5,8 @@ import Script from 'next/script';
 import { usePathname } from 'next/navigation';
 
 const EXCLUDED_PREFIXES = ['/admin', '/auth', '/account', '/profile', '/checkout', '/registrations'];
+// The resume page carries a reservation secret in its URL fragment: never send it to the pixel.
+const EXCLUDED_PATTERNS = [/^\/events\/[^/]+\/register\/resume\/?$/];
 
 declare global {
   interface Window {
@@ -19,7 +21,9 @@ export default function MetaPixel() {
   const pixelId = process.env.NEXT_PUBLIC_META_PIXEL_ID;
   const pageKey = useMemo(() => pathname, [pathname]);
 
-  const isExcludedRoute = EXCLUDED_PREFIXES.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`));
+  const isExcludedRoute =
+    EXCLUDED_PREFIXES.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`)) ||
+    EXCLUDED_PATTERNS.some((pattern) => pattern.test(pathname));
   const shouldTrack =
     process.env.NEXT_PUBLIC_APP_ENV === 'production' &&
     Boolean(pixelId) &&

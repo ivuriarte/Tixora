@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import Image from 'next/image';
 import { useParams, useRouter } from 'next/navigation';
 import { getAccessToken } from '@/lib/auth';
@@ -13,6 +13,17 @@ import { trackPixelCustomEvent, trackPixelEvent } from '@/lib/metaPixel';
 import { trackInternalFunnelEvent } from '@/lib/funnel';
 import { ErrorState, ScreenSkeleton } from '@/components/ScreenState';
 import FulfillmentInstructions from '@/components/FulfillmentInstructions';
+import ConfirmModal from '@/components/ConfirmModal';
+import HoldBanner from '@/components/guest-hold/HoldBanner';
+import PayLaterCard from '@/components/guest-hold/PayLaterCard';
+import ReservationEndState, { type ReservationEndVariant } from '@/components/guest-hold/ReservationEndState';
+import {
+  classifyMissingReservation,
+  forgetHold,
+  readApiFailure,
+  readRememberedDeadline,
+  rememberDeadline,
+} from '@/lib/guestHold';
 
 export default function PaymentStepPage() {
   const router = useRouter();
@@ -24,30 +35,108 @@ export default function PaymentStepPage() {
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState<string | null>(null);
   const [guestAccessToken, setGuestAccessToken] = useState<string | null>(null);
+  const [holdExpiresAt, setHoldExpiresAt] = useState<string | null>(null);
+  const [endState, setEndState] = useState<ReservationEndVariant | null>(null);
+  const [renewed, setRenewed] = useState(false);
+  const [showPayLater, setShowPayLater] = useState(false);
+  const [cancelOpen, setCancelOpen] = useState(false);
+  const [cancelBusy, setCancelBusy] = useState(false);
+  const [cancelProblem, setCancelProblem] = useState<'network' | 'proof' | 'throttled' | null>(null);
 
-  useEffect(() => {
-    const scopedGuestToken = window.sessionStorage.getItem(`axon_guest_registration_${registrationId}`);
-    setGuestAccessToken(scopedGuestToken);
-    if (!getAccessToken() && !scopedGuestToken) {
-      router.replace(`/auth/access?redirect=/events/${slug}/register/payment/${registrationId}`);
-      return;
-    }
-    (async () => {
+  const loadReservation = useCallback(
+    async (guestToken: string | null) => {
       try {
-        const res = scopedGuestToken
+        const res = guestToken
           ? await api.get(`/registrations/guest/${registrationId}`, {
-              headers: { 'x-registration-token': scopedGuestToken },
+              headers: { 'x-registration-token': guestToken },
             })
           : await api.get(`/registrations/${registrationId}`);
         const body = res.data?.data ?? res.data;
         setReg(body);
-      } catch {
-        setError('We could not load your registration.');
+        setError(null);
+        if (guestToken) {
+          const deadline = typeof body?.holdExpiresAt === 'string' ? body.holdExpiresAt : null;
+          setHoldExpiresAt(deadline);
+          rememberDeadline(window.sessionStorage, registrationId, deadline);
+        }
+        return body as Registration;
+      } catch (err) {
+        const failure = readApiFailure(err);
+        if (guestToken && failure.status === 404) {
+          // Missing, expired-and-removed, or opened on another device: the API cannot tell
+          // which, so use the last deadline this browser saw.
+          setEndState(classifyMissingReservation(readRememberedDeadline(window.sessionStorage, registrationId)));
+        } else if (failure.status === 429) {
+          setEndState('throttled');
+        } else {
+          setError('We could not load your registration.');
+        }
+        return null;
       } finally {
         setLoading(false);
       }
-    })();
-  }, [registrationId, router, slug]);
+    },
+    [registrationId],
+  );
+
+  useEffect(() => {
+    const scopedGuestToken = window.sessionStorage.getItem(`axon_guest_registration_${registrationId}`);
+    setGuestAccessToken(scopedGuestToken);
+    setRenewed(new URLSearchParams(window.location.search).get('renewed') === '1');
+    if (!getAccessToken() && !scopedGuestToken) {
+      router.replace(`/auth/access?redirect=/events/${slug}/register/payment/${registrationId}`);
+      return;
+    }
+    void loadReservation(scopedGuestToken);
+  }, [loadReservation, registrationId, router, slug]);
+
+  useEffect(() => {
+    if (endState !== 'expired') return;
+    void trackInternalFunnelEvent({ step: 'hold_expired_seen', status: 'abandoned' });
+  }, [endState]);
+
+  // The banner reached zero. The server may keep the seats a few minutes longer, so ask it
+  // before deciding: only show the expired screen once the reservation is really gone.
+  const handleHoldExpired = useCallback(async () => {
+    const latest = await loadReservation(guestAccessToken);
+    if (latest?.status === 'cancelled') setEndState('expired');
+  }, [guestAccessToken, loadReservation]);
+
+  const goToUpload = useCallback(() => {
+    setShowPayLater(false);
+    setCancelOpen(false);
+    requestAnimationFrame(() => {
+      const target = document.getElementById('upload-proof');
+      target?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      target?.focus();
+    });
+  }, []);
+
+  const cancelReservation = useCallback(async () => {
+    if (!guestAccessToken) return;
+    setCancelBusy(true);
+    setCancelProblem(null);
+    try {
+      await api.post(`/registrations/guest/${registrationId}/cancel`, undefined, {
+        headers: { 'x-registration-token': guestAccessToken },
+      });
+      const eventId = (reg as (Registration & { eventId?: string }) | null)?.eventId;
+      if (eventId) forgetHold(window.sessionStorage, eventId);
+      void trackInternalFunnelEvent({ eventId, step: 'hold_cancelled', status: 'abandoned' });
+      setCancelOpen(false);
+      setEndState('cancelled');
+    } catch (err) {
+      const failure = readApiFailure(err);
+      if (failure.code === 'HAS_PROOF') setCancelProblem('proof');
+      else if (failure.status === 429) setCancelProblem('throttled');
+      else if (failure.code === 'NOT_PENDING' || failure.status === 404) {
+        setCancelOpen(false);
+        void loadReservation(guestAccessToken);
+      } else setCancelProblem('network');
+    } finally {
+      setCancelBusy(false);
+    }
+  }, [guestAccessToken, loadReservation, reg, registrationId]);
 
   useEffect(() => {
     if (!reg) return;
@@ -122,10 +211,42 @@ export default function PaymentStepPage() {
     );
   }
 
+  if (endState) {
+    return (
+      <main className="min-h-screen bg-gray-50 py-10 flex items-center justify-center">
+        <div className="w-full max-w-lg px-4">
+          <ReservationEndState
+            variant={endState}
+            slug={slug}
+            onRetry={
+              endState === 'throttled'
+                ? () => {
+                    setEndState(null);
+                    setLoading(true);
+                    void loadReservation(guestAccessToken);
+                  }
+                : undefined
+            }
+          />
+        </div>
+      </main>
+    );
+  }
+
   if (error || !reg) {
     return (
       <main className="min-h-screen bg-gray-50 py-10 flex items-center justify-center">
         <div className="w-full max-w-lg px-4"><ErrorState title="Payment screen unavailable" message={error ?? 'This registration may have been removed or the link is incorrect.'} action={<button onClick={() => router.push(`/events/${slug}`)} className="axon-pill bg-primary text-xs text-white">Back to event</button>} /></div>
+      </main>
+    );
+  }
+
+  if (reg.status === 'cancelled' && guestAccessToken) {
+    return (
+      <main className="min-h-screen bg-gray-50 py-10 flex items-center justify-center">
+        <div className="w-full max-w-lg px-4">
+          <ReservationEndState variant="expired" slug={slug} />
+        </div>
       </main>
     );
   }
@@ -196,6 +317,10 @@ export default function PaymentStepPage() {
             · {ev.title}
           </p>
         </div>
+
+        {guestAccessToken && reg.status === 'pending_payment' && (
+          <HoldBanner deadlineIso={holdExpiresAt} onExpired={handleHoldExpired} renewed={renewed} />
+        )}
 
         {/* Amount due */}
         <div className="mb-5 rounded-lg border border-primary/20 bg-[#ede9fe] p-5">
@@ -408,7 +533,7 @@ export default function PaymentStepPage() {
         )}
 
         {/* Upload */}
-        <section className="rounded-2xl border border-gray-200 bg-white p-5 mb-5">
+        <section id="upload-proof" tabIndex={-1} className="rounded-2xl border border-gray-200 bg-white p-5 mb-5 outline-none">
           <header className="mb-3">
             <h2 className="font-semibold text-gray-900">Upload Your Payment Screenshot</h2>
             <p className="text-xs text-gray-500 mt-0.5">
@@ -421,6 +546,7 @@ export default function PaymentStepPage() {
             registrationId={registrationId}
             guestAccessToken={guestAccessToken ?? undefined}
             onUploaded={handleUploaded}
+            onExpired={guestAccessToken ? () => setEndState('expired') : undefined}
           />
         </section>
 
@@ -432,13 +558,44 @@ export default function PaymentStepPage() {
           </p>
         </aside>
 
+        {guestAccessToken && showPayLater && (
+          <PayLaterCard
+            registrationId={registrationId}
+            guestAccessToken={guestAccessToken}
+            eventId={(reg as Registration & { eventId?: string }).eventId}
+            eventSlug={slug}
+            holdExpiresAt={holdExpiresAt}
+            onHoldChanged={(deadline) => {
+              setHoldExpiresAt(deadline);
+              rememberDeadline(window.sessionStorage, registrationId, deadline);
+            }}
+            onExpired={() => setEndState('expired')}
+            onLeave={() => router.push(`/events/${slug}`)}
+            onUploadNow={goToUpload}
+          />
+        )}
+
         <div className="flex items-center justify-between text-xs text-gray-500">
-          <button
-            onClick={() => router.push(guestAccessToken ? `/events/${slug}` : `/registrations/${registrationId}`)}
-            className="min-h-[44px] font-medium hover:text-primary"
-          >
-            I will pay later
-          </button>
+          {guestAccessToken ? (
+            !showPayLater && reg.status === 'pending_payment' ? (
+              <button
+                type="button"
+                onClick={() => setShowPayLater(true)}
+                className="min-h-[44px] font-medium hover:text-primary"
+              >
+                I will pay later
+              </button>
+            ) : (
+              <span />
+            )
+          ) : (
+            <button
+              onClick={() => router.push(`/registrations/${registrationId}`)}
+              className="min-h-[44px] font-medium hover:text-primary"
+            >
+              I will pay later
+            </button>
+          )}
           <span>
             Need help?{' '}
             <a href="mailto:support@axontickets.online" className="text-primary hover:underline">
@@ -446,6 +603,54 @@ export default function PaymentStepPage() {
             </a>
           </span>
         </div>
+
+        {guestAccessToken && reg.status === 'pending_payment' && (
+          <div className="mt-2 border-t border-gray-200 pt-2">
+            <button
+              type="button"
+              onClick={() => {
+                setCancelProblem(null);
+                setCancelOpen(true);
+              }}
+              className="min-h-[44px] text-xs font-medium text-red-700 underline hover:text-red-900"
+            >
+              Cancel reservation
+            </button>
+          </div>
+        )}
+
+        <ConfirmModal
+          open={cancelOpen}
+          loading={cancelBusy}
+          variant="danger"
+          title={
+            cancelProblem === 'proof'
+              ? "This reservation can't be cancelled here"
+              : cancelProblem === 'throttled'
+                ? 'Too many attempts'
+                : cancelProblem === 'network'
+                  ? "We couldn't cancel your reservation"
+                  : 'Cancel this reservation?'
+          }
+          message={
+            cancelProblem === 'proof'
+              ? 'Your payment proof was already uploaded, so it is waiting for review.'
+              : cancelProblem === 'throttled'
+                ? 'Please wait a minute and try again.'
+                : cancelProblem === 'network'
+                  ? 'Check your connection and try again.'
+                  : 'Your seats go back on sale right away. Nothing was charged.'
+          }
+          confirmLabel={
+            cancelProblem === 'proof' ? 'Upload proof' : cancelProblem ? 'Try again' : 'Cancel reservation'
+          }
+          cancelLabel="Keep my seats"
+          onConfirm={() => (cancelProblem === 'proof' ? goToUpload() : void cancelReservation())}
+          onCancel={() => {
+            setCancelOpen(false);
+            setCancelProblem(null);
+          }}
+        />
       </div>
     </main>
   );

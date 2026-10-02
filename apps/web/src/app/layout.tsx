@@ -1,6 +1,6 @@
 import type { Metadata, Viewport } from 'next';
 import { preload } from 'react-dom';
-import { Analytics } from '@vercel/analytics/next';
+import ProductionAnalytics from '@/components/ProductionAnalytics';
 import { SpeedInsights } from '@vercel/speed-insights/next';
 import MetaPixel from '@/components/MetaPixel';
 import UatBanner from '@/components/UatBanner';
@@ -64,7 +64,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <UatBanner />
         <Providers>{children}</Providers>
         <MetaPixel />
-        {showAnalytics ? <Analytics /> : null}
+        {showAnalytics ? <ProductionAnalytics /> : null}
         {showAnalytics ? <SpeedInsights /> : null}
       </body>
     </html>

@@ -81,6 +81,16 @@ const nextConfig = {
           { key: 'X-DNS-Prefetch-Control', value: 'on' },
         ],
       },
+      {
+        // Token-bearing, private page: never indexed, and it sends no referrer anywhere.
+        // Declared after the global rule so these values win.
+        source: '/events/:slug/register/resume',
+        headers: [
+          { key: 'Referrer-Policy', value: 'no-referrer' },
+          { key: 'X-Robots-Tag', value: 'noindex, nofollow' },
+          { key: 'Cache-Control', value: 'no-store' },
+        ],
+      },
     ];
   },
 };

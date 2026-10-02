@@ -126,7 +126,7 @@ The fallback "Walk-in attendee" is replaced in all six places (`admin.service.ts
 
 ### D8. Funnel, analytics and tracker hygiene
 
-- New funnel steps `hold_email_saved`, `hold_resumed`, `hold_expired_seen`, `hold_cancelled` (additive). Payloads carry no email, token or registration id.
+- New funnel steps `hold_email_saved`, `hold_resumed`, `hold_expired_seen`, `hold_cancelled` (additive). Payloads carry no email address and no token. As for every funnel event, the tracker adds the page URL (path and query, never a fragment), so a payment-page event includes the registration id from that path; the id alone grants no access.
 - The internal funnel tracker, Sentry (breadcrumbs, transactions, replay) and the Meta Pixel must not receive URL fragments: `funnel.ts` sends `origin + pathname + search` only; Sentry gets `beforeSend`/`beforeBreadcrumb` scrubbers that strip `#…`; the resume route is added to the Pixel exclusion list; the resume page reads and removes the fragment (`history.replaceState`) before any analytics call.
 - Scrubbing covers both `#t=` and `#r=`. Sentry Replay URL masking is enabled, and Vercel Analytics gets a `beforeSend` that strips the fragment (via a small client wrapper). Any other script that reads `location.href` is checked at the frontend gate. The resume page calls `history.replaceState` before any network or analytics call and routes by status (it never offers upload unless the registration is `pending_payment`).
 - `Referrer-Policy: no-referrer` and `X-Robots-Tag: noindex, nofollow` headers for `/events/*/register/resume` in `next.config.mjs`; page metadata also `noindex, nofollow`.

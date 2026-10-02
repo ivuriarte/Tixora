@@ -1,5 +1,7 @@
 'use client';
 
+import { stripFragment } from './guestHold';
+
 const SESSION_KEY = 'axon_funnel_session_id';
 
 type FunnelStep =
@@ -17,7 +19,11 @@ type FunnelStep =
   | 'payment_started'
   | 'payment_submitted'
   | 'registration_submitted_for_review'
-  | 'ticket_issued';
+  | 'ticket_issued'
+  | 'hold_email_saved'
+  | 'hold_resumed'
+  | 'hold_expired_seen'
+  | 'hold_cancelled';
 
 type FunnelStatus = 'started' | 'success' | 'failed' | 'abandoned' | 'blocked';
 
@@ -67,7 +73,8 @@ export async function trackInternalFunnelEvent(payload: FunnelPayload): Promise<
     status: payload.status,
     metadata: {
       ...(payload.metadata ?? {}),
-      currentUrl: window.location.href,
+      // Never send a URL fragment: the resume page keeps a reservation secret there.
+      currentUrl: stripFragment(window.location.href),
       referrer: document.referrer || null,
     },
   };
