@@ -71,7 +71,7 @@ table.pdf{border-collapse:collapse;width:100%;font-size:12px;background:#fff}tab
             <a class="link44" href="#s1">View pending checkouts</a></div></div>
         <div class="mock"><span class="tag">only pending payment (today's screenshot)</span>
           <div class="row"><div class="meta"><b>WAIT… this song was on glee: A Cabaret</b><span class="muted">Fri, Feb 5, 2027</span></div>
-            <div class="counts" role="group" aria-label="Seat counts"><span class="chip sold"><span class="dot"></span>0 Sold</span><span class="chip held"><span class="dot"></span>7 Pending payment</span></div>
+            <div class="counts" role="group" aria-label="Seat counts"><span class="chip zero"><span class="dot"></span>0 Sold</span><span class="chip held"><span class="dot"></span>7 Pending payment</span></div>
             <a class="link44" href="#s1">View pending checkouts</a></div></div>
         <div class="mock"><span class="tag">singular + nothing yet</span>
           <div class="row"><div class="meta"><b>Open mic night</b><span class="muted">Mon, Mar 1, 2027</span></div>
@@ -103,7 +103,7 @@ table.pdf{border-collapse:collapse;width:100%;font-size:12px;background:#fff}tab
           <div class="actions"><button class="btn ghost">Edit</button><button class="btn ghost">Registrations</button><button class="btn ghost">Share</button><button class="btn ghost">More</button></div></div>
           <div class="legend"><span><b>Sold</b> paid and approved</span><span><b>Awaiting review</b> proof sent</span><span><b>Pending payment</b> no proof yet</span></div></div></div>
       <div><div class="frame-label">320 px · counts unavailable</div>
-        <div class="mock p320"><div class="row" style="display:grid"><div class="meta"><b>WAIT… this song was on glee</b></div><span class="muted">Counts unavailable</span></div></div></div>
+        <div class="mock p320"><div class="row" style="display:grid"><div class="meta"><b>WAIT… this song was on glee</b></div><span class="muted">Counts unavailable</span><button class="link44" style="background:none;border:0">Retry</button></div></div></div>
     </div>
   </div>
   <ul class="notes">
@@ -123,16 +123,16 @@ table.pdf{border-collapse:collapse;width:100%;font-size:12px;background:#fff}tab
         <div class="card"><span class="tag">tier card</span><b>February 7 – Balcony</b><span class="muted">Capacity 25 · ₱550</span>
           <div class="counts" role="group" aria-label="Seat counts"><span class="chip sold"><span class="dot"></span>3 Sold</span><span class="chip review"><span class="dot"></span>1 Awaiting review</span><span class="chip held"><span class="dot"></span>2 Pending payment</span></div>
           <span class="muted">Available to the public: 19 (capacity minus all three).</span></div>
-        <div class="banner err" role="alert"><span class="tag">capacity below reserved · 409</span><b>You can't go below 6.</b><span>3 Sold, 1 Awaiting review, 2 Pending payment. Wait for pending checkouts to expire, or release them in Transactions, then try again.</span><a class="link44" href="#s2">View pending checkouts</a></div>
+        <div class="banner err" role="alert"><span class="tag">capacity below reserved · 409</span><b>You can't go below 6.</b><span>3 sold, 1 awaiting review, 2 pending payment. Wait for pending checkouts to expire, or release them in Transactions.</span><a class="link44" href="#s2">View pending checkouts</a></div>
         <div class="banner err" role="alert"><span class="tag">delete a tier with reservations · 409</span><b>This tier can't be deleted yet.</b><span>It has 3 Sold, 1 Awaiting review and 2 Pending payment. Wait for pending checkouts to expire or release them in Transactions.</span><a class="link44" href="#s2">View pending checkouts</a></div>
         <div class="banner info"><span class="tag">new rule, plain words</span><b>Capacity can't be lowered below the seats already reserved.</b><span class="muted">Shown as help text under the Capacity field.</span></div>
       </div>
     </div>
     <div class="phones"><div><div class="frame-label">320 px</div>
       <div class="mock p320"><div class="card"><b>February 7 – Balcony</b><span class="muted">Capacity 25 · ₱550</span><div class="counts" role="group" aria-label="Seat counts"><span class="chip sold"><span class="dot"></span>3 Sold</span><span class="chip review"><span class="dot"></span>1 Awaiting review</span><span class="chip held"><span class="dot"></span>2 Pending payment</span></div></div>
-        <div class="banner err" role="alert"><b>You can't go below 6.</b><span>3 Sold, 1 Awaiting review, 2 Pending payment.</span><a class="link44" href="#s2">View pending checkouts</a></div></div></div></div>
+        <div class="banner err" role="alert"><b>You can't go below 6.</b><span>3 sold, 1 awaiting review, 2 pending payment. Wait for pending checkouts to expire, or release them in Transactions.</span><a class="link44" href="#s2">View pending checkouts</a></div></div></div></div>
   </div>
-  <ul class="notes"><li>The capacity guard is new (Ian approved it): the live reserved count is checked inside the same save, so a registration arriving at the same moment cannot slip under it. Delete stays blocked while any seats are reserved. Errors use <code>role="alert"</code>.</li></ul>
+  <ul class="notes"><li><b>Other states:</b> the tier card, the closeout download (generating, failed) and the logged-in payment page reuse their existing loading and error states; if the breakdown fails, the tier card shows "Counts unavailable" with Retry exactly as on Screen 1.</li><li>The capacity guard is new (Ian approved it): the live reserved count is checked inside the same save, so a registration arriving at the same moment cannot slip under it. Delete stays blocked while any seats are reserved. Errors use <code>role="alert"</code>.</li></ul>
 </section>
 
 <section class="screen" id="s3">

@@ -92,6 +92,8 @@ Tier cards show Sold, Awaiting review and Pending payment separately.
 - **New guard (Ian approved):** `PUT /admin/tiers/:tierId` rejects a capacity lower than the **live reserved** count with **409** and the message *"You can't go below 12: 5 sold, 2 awaiting review, 5 pending payment. Wait for pending checkouts to expire, or release them in Transactions."* The count is computed **inside the same transaction** as the update (row lock on the tier) so a concurrent registration cannot slip under it.
 - This **tightens an existing input** (previously accepted); it is a deliberate behavior change recorded in the ledger.
 - `DELETE /admin/tiers/:tierId` stays blocked while any reserved seats exist, and its error now uses the live breakdown.
+- Canonical string (spec and UI identical, lowercase counts): *"You can't go below 12: 5 sold, 2 awaiting review, 5 pending payment. Wait for pending checkouts to expire, or release them in Transactions."*
+- Other screens reuse existing loading/error states; the tier card shows "Counts unavailable" + Retry if the breakdown fails. Skeletons use `bg-gray-100 animate-pulse`.
 - Error panel next steps are plain and actionable; one link to the filtered Transactions page.
 
 ### D5. Closeout PDF
