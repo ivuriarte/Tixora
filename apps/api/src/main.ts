@@ -8,6 +8,7 @@ import * as Sentry from '@sentry/node';
 import { AppModule } from './app.module';
 import { TransformInterceptor } from './common/interceptors/transform.interceptor';
 import { SentryExceptionFilter } from './common/filters/sentry-exception.filter';
+import { scrubSentryEvent } from './common/logging/sentry-scrub';
 
 // Refuse to start the UAT instance if it is misconfigured in a way that
 // could affect production data.
@@ -44,6 +45,7 @@ async function bootstrap() {
       dsn: sentryDsn,
       environment: process.env.APP_ENV ?? 'development',
       tracesSampleRate: process.env.APP_ENV === 'production' ? 0.1 : 1.0,
+      beforeSend: scrubSentryEvent,
     });
   }
 

@@ -4,9 +4,10 @@ import { PrismaModule } from '../prisma/prisma.module';
 import { AuditModule } from '../audit/audit.module';
 import { UploadModule } from '../upload/upload.module';
 import { OptionalInclusionsModule } from '../optional-inclusions/optional-inclusions.module';
+import { GuestHoldModule } from '../registrations/guest-hold.module';
 
 @Module({
-  imports: [PrismaModule, AuditModule, UploadModule, OptionalInclusionsModule],
+  imports: [PrismaModule, AuditModule, UploadModule, OptionalInclusionsModule, GuestHoldModule],
   providers: [SchedulerService],
   exports: [SchedulerService],
 })

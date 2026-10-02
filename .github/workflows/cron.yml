@@ -39,8 +39,9 @@ jobs:
   cleanup-orphan-registrations:
     name: Cleanup orphan registrations
     runs-on: ubuntu-latest
-    # Cancels pending_payment registrations older than 24 hours (abandoned flows).
-    # Idempotent — safe to run every 5 minutes.
+    # Cancels expired unpaid holds: guest holds past holdExpiresAt (60 minutes by default,
+    # 24 hours after the guest saves an email) and other pending_payment registrations older
+    # than 24 hours. Idempotent — safe to run every 5 minutes.
     steps:
       - name: POST /cron/cleanup-orphan-registrations
         run: |
@@ -52,8 +53,9 @@ jobs:
   remind-pending-registrations:
     name: Remind pending payment registrations
     runs-on: ubuntu-latest
-    # Sends a payment reminder email to registrations that are 12–13 hours old (pending_payment).
-    # Idempotent — safe to run every 5 minutes.
+    # Sends each unpaid registration ONE payment reminder (a Redis marker prevents repeats
+    # across the 5-minute runs): 12–13 hours after creation, or about 12 hours before a
+    # guest hold expires. Idempotent — safe to run every 5 minutes.
     steps:
       - name: POST /cron/remind-pending-registrations
         run: |

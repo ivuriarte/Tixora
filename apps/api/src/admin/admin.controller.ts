@@ -25,7 +25,7 @@ import { JwtPayload } from '@axon-tickets/types';
 import { AdminService } from './admin.service';
 import { CreateEventDto, UpdateEventDto } from '../events/dto/event.dto';
 import { CreateTierDto, UpdateTierDto } from '../ticket-tiers/dto/tier.dto';
-import { AddOrganizerMemberDto, UpdateOrganizerMemberDto, CheckinDto, RejectRegistrationDto, BulkApproveDto, BulkRejectDto, RejectOrganizerDto, SetUserRoleDto, UpdatePlatformSettingsDto, ReassignRaceDistanceDto, SetOrganizerProfileVisibilityDto } from './dto/admin.dto';
+import { AddOrganizerMemberDto, UpdateOrganizerMemberDto, CheckinDto, RejectRegistrationDto, ReleaseHoldDto, BulkApproveDto, BulkRejectDto, RejectOrganizerDto, SetUserRoleDto, UpdatePlatformSettingsDto, ReassignRaceDistanceDto, SetOrganizerProfileVisibilityDto } from './dto/admin.dto';
 import { RegistrationsService } from '../registrations/registrations.service';
 import { CreateReferralCodeDto, SetReferralCodeStatusDto, UpdateReferralCodeDto } from './dto/referral-code.dto';
 import { ExecutiveAnalyticsService } from './executive-analytics.service';
@@ -518,6 +518,17 @@ export class AdminController {
   ) {
     await this.adminService.assertRegistrationAccess(id, user);
     return this.registrationsService.reject(id, user.sub, dto.reason, req.ip);
+  }
+
+  @Patch('registrations/:id/release-hold')
+  @ApiOperation({ summary: 'Release an unpaid hold so its seats go back on sale' })
+  async releaseRegistrationHold(
+    @Param('id') id: string,
+    @Body() dto: ReleaseHoldDto,
+    @CurrentUser() user: JwtPayload,
+  ) {
+    await this.adminService.assertRegistrationAccess(id, user);
+    return this.registrationsService.releaseHoldByAdmin(id, user.sub, dto.reason);
   }
 
   // ── Verifications Queue (cross-event) ─────────────────────────────────────

@@ -67,6 +67,14 @@ export class PaymentProofsService {
         throw new ForbiddenException('You do not own this registration');
       }
     }
+    if (reg.status === 'cancelled') {
+      // Hold expired, was cancelled, or was released. The web shows a friendly
+      // "start again" state keyed on this code instead of a raw error.
+      throw new BadRequestException({
+        message: 'This reservation expired or was cancelled. Please start again.',
+        code: 'HOLD_EXPIRED',
+      });
+    }
     if (!['pending_payment', 'rejected'].includes(reg.status)) {
       throw new BadRequestException(
         `Cannot upload proof for a ${reg.status} registration`,
@@ -80,52 +88,77 @@ export class PaymentProofsService {
       await this.upload.uploadPaymentProof(registrationId, buffer, mimeType);
 
     let auditWrittenInTransaction = false;
-    const proof = await this.prisma.$transaction(async (tx) => {
-      if (typeof tx.$queryRaw === 'function') {
-        await tx.$queryRaw(Prisma.sql`SELECT id FROM registrations WHERE id = ${registrationId} FOR UPDATE`);
-      }
-      const current = typeof tx.registration.findUnique === 'function'
-        ? await tx.registration.findUnique({
-            where: { id: registrationId },
-            select: { status: true, attendeesCompletedAt: true },
-          })
-        : { status: reg.status, attendeesCompletedAt: reg.attendeesCompletedAt };
-      if (!current || !['pending_payment', 'rejected'].includes(current.status)) {
-        throw new BadRequestException('Registration is no longer accepting payment proof');
-      }
-      if (current.status === 'rejected') {
-        await this.optionalInclusions?.assertReservationsCanResubmitTx(tx, registrationId);
-      }
-      const created = await tx.paymentProof.create({
-        data: {
-          registrationId,
-          imageUrl,
-          cloudinaryPublicId,
-          status: 'pending',
-        },
-      });
-      await tx.registration.update({
-        where: { id: registrationId },
-        data: {
-          status: current.attendeesCompletedAt ? 'pending_approval' : 'proof_submitted',
-          rejectionReason: null,
-        },
-      });
-      await this.optionalInclusions?.markProofSubmittedReviewTx(tx, registrationId);
-      if (typeof this.audit.logWith === 'function') {
-        await this.audit.logWith(tx, {
-          action: 'PROOF_SUBMITTED',
-          entityType: 'PaymentProof',
-          entityId: created.id,
-          registrationId,
-          performedById: userId ?? undefined,
-          ipAddress: ip,
-          metadata: { imageUrl },
+    let proof: Awaited<ReturnType<typeof this.prisma.paymentProof.create>>;
+    try {
+      proof = await this.prisma.$transaction(async (tx) => {
+        if (typeof tx.$queryRaw === 'function') {
+          await tx.$queryRaw(Prisma.sql`SELECT id FROM registrations WHERE id = ${registrationId} FOR UPDATE`);
+        }
+        const current = typeof tx.registration.findUnique === 'function'
+          ? await tx.registration.findUnique({
+              where: { id: registrationId },
+              select: { status: true, attendeesCompletedAt: true },
+            })
+          : { status: reg.status, attendeesCompletedAt: reg.attendeesCompletedAt };
+        if (current?.status === 'cancelled') {
+          // Lost a race with the hold cleanup or a cancel after the file was stored.
+          throw new BadRequestException({
+            message: 'This reservation expired or was cancelled. Please start again.',
+            code: 'HOLD_EXPIRED',
+          });
+        }
+        if (!current || !['pending_payment', 'rejected'].includes(current.status)) {
+          throw new BadRequestException('Registration is no longer accepting payment proof');
+        }
+        if (current.status === 'rejected') {
+          await this.optionalInclusions?.assertReservationsCanResubmitTx(tx, registrationId);
+        }
+        const created = await tx.paymentProof.create({
+          data: {
+            registrationId,
+            imageUrl,
+            cloudinaryPublicId,
+            status: 'pending',
+          },
         });
-        auditWrittenInTransaction = true;
-      }
-      return created;
-    });
+        await tx.registration.update({
+          where: { id: registrationId },
+          data: {
+            status: current.attendeesCompletedAt ? 'pending_approval' : 'proof_submitted',
+            rejectionReason: null,
+            // The unverified "pay later" contact is no longer needed once proof is in.
+            guestResumeEmail: null,
+          },
+        });
+        await this.optionalInclusions?.markProofSubmittedReviewTx(tx, registrationId);
+        if (typeof this.audit.logWith === 'function') {
+          await this.audit.logWith(tx, {
+            action: 'PROOF_SUBMITTED',
+            entityType: 'PaymentProof',
+            entityId: created.id,
+            registrationId,
+            performedById: userId ?? undefined,
+            ipAddress: ip,
+            metadata: { imageUrl },
+          });
+          auditWrittenInTransaction = true;
+        }
+        return created;
+      });
+    } catch (err) {
+      // The file is already stored but no proof row exists (for example the hold
+      // expired mid-upload). Remove it so nothing is orphaned; never mask the error.
+      await Promise.resolve()
+        .then(() => this.upload.deleteStoredImage(cloudinaryPublicId))
+        .catch((cleanupErr: unknown) =>
+          this.logger.warn({
+            msg: 'Could not remove an orphaned payment proof image',
+            registrationId,
+            err: cleanupErr instanceof Error ? cleanupErr.message : String(cleanupErr),
+          }),
+        );
+      throw err;
+    }
 
     if (!auditWrittenInTransaction) {
       await this.audit.log({

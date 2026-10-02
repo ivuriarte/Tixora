@@ -14,6 +14,11 @@ export const FUNNEL_STEPS = [
   'payment_submitted',
   'registration_submitted_for_review',
   'ticket_issued',
+  // Guest checkout hold (payloads carry no email, token or registration id).
+  'hold_email_saved',
+  'hold_resumed',
+  'hold_expired_seen',
+  'hold_cancelled',
 ] as const;
 
 export const FUNNEL_STATUSES = [

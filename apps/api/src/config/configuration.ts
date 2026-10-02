@@ -59,6 +59,14 @@ export default () => ({
     otpHourlyLimit: parseInt(process.env.OTP_HOURLY_LIMIT ?? '10', 10),
   },
 
+  // Unpaid guest checkout holds (guest-checkout-hold-and-resume-link spec).
+  guestHold: {
+    minutes: parseInt(process.env.GUEST_HOLD_MINUTES ?? '60', 10),
+    extendedHours: parseInt(process.env.GUEST_HOLD_EXTENDED_HOURS ?? '24', 10),
+    perIp: parseInt(process.env.GUEST_HOLDS_PER_IP ?? '5', 10),
+    extendedPerIp: parseInt(process.env.GUEST_EXTENDED_HOLDS_PER_IP ?? '2', 10),
+  },
+
   optionalInclusions: {
     enabled: process.env.OPTIONAL_INCLUSIONS_ENABLED === 'true',
     quoteTtlMinutes: parseInt(process.env.INCLUSION_QUOTE_TTL_MINUTES ?? '15', 10),

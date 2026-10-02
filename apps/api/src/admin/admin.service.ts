@@ -25,6 +25,7 @@ import { PDFDocument, PDFFont, PDFPage, StandardFonts, rgb } from 'pdf-lib';
 import { JwtPayload } from '@axon-tickets/types';
 import { CreateReferralCodeDto, UpdateReferralCodeDto } from './dto/referral-code.dto';
 import { OrganizationRole, organizationCapabilities, organizationRoleCan } from '../common/access/organization-capabilities';
+import { anonymousBuyerLabel } from '../registrations/registration-labels';
 
 type SelectedSubEventSnapshot = {
   id?: unknown;
@@ -719,7 +720,7 @@ export class AdminService {
         ? `${r.attendees[0].firstName} ${r.attendees[0].lastName}`
         : r.user
           ? `${r.user.firstName} ${r.user.lastName}`
-          : 'Walk-in attendee',
+          : anonymousBuyerLabel(r),
       eventTitle: r.event.title,
       eventSlug: r.event.slug,
       // Normalise to a UI-friendly status so the frontend badge logic is consistent.
@@ -1983,7 +1984,7 @@ export class AdminService {
         ? `${lead.firstName} ${lead.lastName}`
         : r.user
           ? `${r.user.firstName ?? ''} ${r.user.lastName ?? ''}`.trim()
-          : 'Walk-in attendee';
+          : anonymousBuyerLabel(r);
       return [
         'Manual (GCash/Bank)',
         this.escapeCsvCell(r.referenceNumber),

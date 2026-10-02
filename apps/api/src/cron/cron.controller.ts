@@ -77,7 +77,9 @@ export class CronController {
   /**
    * POST /api/v1/cron/cleanup-orphan-registrations
    * Triggered every hour by GitHub Actions.
-   * Cancels pending_payment registrations older than 2 hours (abandoned flows).
+   * Cancels expired unpaid holds: guest holds past their deadline (60 minutes by default,
+   * 24 hours once the guest saved an email) and other pending_payment registrations older
+   * than 24 hours. Capped at 100 rows per rule per run; safe to run every 5 minutes.
    */
   @Post('cleanup-orphan-registrations')
   @HttpCode(HttpStatus.OK)
@@ -93,7 +95,8 @@ export class CronController {
   /**
    * POST /api/v1/cron/remind-pending-registrations
    * Triggered every hour by GitHub Actions.
-   * Sends a reminder email to attendees whose pending_payment registration is 12–13 hours old.
+   * Sends each unpaid registration ONE reminder (Redis marker): lead-attendee registrations 12–13
+   * hours after creation, and guests who saved an email about 12 hours before their hold expires.
    */
   @Post('remind-pending-registrations')
   @HttpCode(HttpStatus.OK)
