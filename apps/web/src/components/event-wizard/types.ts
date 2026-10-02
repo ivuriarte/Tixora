@@ -112,6 +112,11 @@ export const STEPS: readonly StepMeta[] = [
 
 export type StepId = StepMeta['id'];
 
+/** Steps shown for this event: free events have no Payment step. */
+export function activeStepsFor(draft: Pick<EventDraft, 'isFree'>): readonly StepMeta[] {
+  return draft.isFree ? STEPS.filter((s) => s.id !== 'payment') : STEPS;
+}
+
 export function emptyTier(key: number): LocalTier {
   return {
     key,
@@ -328,18 +333,6 @@ export function stepIssues(
   }
 }
 
-export function validateBasics(d: EventDraft): string | null {
-  return basicsIssues(d)[0] ?? null;
-}
-
-export function validateLocation(d: EventDraft): string | null {
-  return locationIssues(d)[0] ?? null;
-}
-
-export function validateCapacity(d: EventDraft, tiers: LocalTier[]): string | null {
-  return capacityIssues(d, tiers)[0] ?? null;
-}
-
 export function validateStep(
   step: StepId,
   draft: EventDraft,
@@ -410,19 +403,4 @@ export function publishIssues(
   paymentMethods: LocalPaymentMethod[],
 ): PublishIssue[] {
   return steps.flatMap((s) => stepIssues(s.id, d, tiers, paymentMethods).map((message) => ({ step: s.id, message })));
-}
-
-/** Steps counted as ready, excluding Review. Optional steps with nothing entered count as ready. */
-export function readyStepCount(
-  steps: readonly StepMeta[],
-  d: EventDraft,
-  tiers: LocalTier[],
-  paymentMethods: LocalPaymentMethod[],
-): { ready: number; total: number } {
-  const counted = steps.filter((s) => s.id !== 'review');
-  const ready = counted.filter((s) => {
-    const status = stepStatus(s.id, d, tiers, paymentMethods);
-    return status === 'done' || status === 'optional';
-  }).length;
-  return { ready, total: counted.length };
 }

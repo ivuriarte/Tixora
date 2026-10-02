@@ -168,6 +168,15 @@ test.describe('Event setup: editing an existing event', () => {
     await expect(page.getByRole('alert').filter({ hasText: "isn't ready to publish" })).toBeVisible();
     await expect(page.getByText('A cover image is required before this event can be published').first()).toBeVisible();
     await expect(page.getByRole('dialog', { name: 'Publish this event?' })).toHaveCount(0);
+
+    await page.getByRole('button', { name: /^Fix: A cover image is required/ }).click();
+    await expect(page.getByRole('heading', { name: 'Basics' })).toBeVisible();
+    await expect(page.getByText('Still needed before publishing:')).toBeVisible();
+
+    const statusPut = page.waitForRequest((r) => EVENT_URL.test(r.url()) && r.method() === 'PUT', { timeout: 1500 }).catch(() => null);
+    await page.locator('select').filter({ has: page.locator('option[value="on_sale"]') }).first().selectOption('on_sale');
+    await expect(page.getByText("This event isn't ready to publish. Open Review to see what's left.")).toBeVisible();
+    expect(await statusPut).toBeNull();
     await page.context().close();
 
     const ready = await adminPage(browser);

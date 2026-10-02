@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, type ReactNode } from 'react';
 import type { EventDraft, LocalPaymentMethod, LocalTier, StepId } from '../types';
-import { STEPS, combineDatetime, publishIssues, validateStep } from '../types';
+import { STEPS, activeStepsFor, combineDatetime, publishIssues, validateStep } from '../types';
 
 interface ReviewStepProps {
   draft: EventDraft;
@@ -65,7 +65,7 @@ export default function ReviewStep({
   publishBlocked = false,
   serverIssues = [],
 }: ReviewStepProps) {
-  const steps = draft.isFree ? STEPS.filter((s) => s.id !== 'payment') : STEPS;
+  const steps = activeStepsFor(draft);
   const issues = publishIssues(steps, draft, tiers, paymentMethods);
   const checklistRef = useRef<HTMLDivElement>(null);
   useEffect(() => {

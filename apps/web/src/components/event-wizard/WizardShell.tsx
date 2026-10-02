@@ -4,7 +4,7 @@ import { useMemo, useState, type ReactNode } from 'react';
 import Stepper from './Stepper';
 import EventPreview from './EventPreview';
 import {
-  STEPS,
+  activeStepsFor,
   publishIssues,
   stepIssues,
   stepStatus,
@@ -69,10 +69,7 @@ export default function WizardShell({
   const [blockedSubmit, setBlockedSubmit] = useState(false);
   const [showPreviewMobile, setShowPreviewMobile] = useState(false);
 
-  const activeSteps = useMemo(
-    () => (draft.isFree ? STEPS.filter((item) => item.id !== 'payment') : [...STEPS]),
-    [draft.isFree],
-  );
+  const activeSteps = useMemo(() => activeStepsFor({ isFree: draft.isFree }), [draft.isFree]);
   const safeStep = activeSteps.some((item) => item.id === step) ? step : 'review';
   const currentIdx = activeSteps.findIndex((s) => s.id === safeStep);
   const currentStep = activeSteps[currentIdx];
@@ -97,7 +94,12 @@ export default function WizardShell({
     (blockedSubmit || (visited.has(safeStep) && statuses[safeStep] !== 'not_started'));
 
   function goTo(target: StepId) {
-    setVisited((prev) => new Set(prev).add(safeStep));
+    // Arriving from Review (a Fix link) should show what is missing on that step right away.
+    setVisited((prev) => {
+      const next = new Set(prev).add(safeStep);
+      if (safeStep === 'review') next.add(target);
+      return next;
+    });
     setStep(target);
     onStepChange?.(target);
     setBlockedSubmit(false);

@@ -27,8 +27,8 @@ import {
   emptyDraft,
   combineDatetime,
   toManilaParts,
+  activeStepsFor,
   publishIssues,
-  STEPS,
   type EventDraft,
   type LocalTier,
   type LocalPaymentMethod,
@@ -814,8 +814,7 @@ export default function AdminEventEditPage() {
   }
 
   function handlePublishClick() {
-    const steps = draft.isFree ? STEPS.filter((s) => s.id !== 'payment') : STEPS;
-    if (publishIssues(steps, draft, tiers, paymentMethods).length > 0) {
+    if (publishIssues(activeStepsFor(draft), draft, tiers, paymentMethods).length > 0) {
       setPublishAttempt((n) => n + 1);
       return;
     }
@@ -824,8 +823,11 @@ export default function AdminEventEditPage() {
 
   async function saveAndLeave() {
     const target = leaveTarget;
+    if (!target) return;
+    // The dialog stays open (showing progress) until the save settles; on failure the organizer stays here.
+    const ok = await save();
     setLeaveTarget(null);
-    if (target && (await save())) {
+    if (ok) {
       if (event) clearBackup(event.id);
       router.push(target);
     }
@@ -902,6 +904,14 @@ export default function AdminEventEditPage() {
                     statusMutation.mutate('cancelled');
                   },
                 });
+                return;
+              }
+              if (
+                status === 'draft' &&
+                (newStatus === 'on_sale' || newStatus === 'sold_out') &&
+                publishIssues(activeStepsFor(draft), draft, tiers, paymentMethods).length > 0
+              ) {
+                toast.error("This event isn't ready to publish. Open Review to see what's left.");
                 return;
               }
               setStatus(newStatus);
