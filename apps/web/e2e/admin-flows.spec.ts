@@ -937,3 +937,102 @@ test.describe('Admin tier cards and the capacity guard', () => {
     );
   });
 });
+
+test.describe('Admin Review block for an order whose buyer has not finished their details', () => {
+  test.skip(!IS_ADMIN_MOCKED, 'Uses a deterministic mocked registration.');
+
+  const registration = (overrides: Record<string, unknown>) => ({
+    id: 'reg-unfinished-1',
+    referenceNumber: 'AXN-2026-UNFIN',
+    status: 'proof_submitted',
+    tierName: 'Balcony',
+    attendeeCount: 1,
+    subtotal: 1000,
+    fees: 50,
+    discount: 0,
+    total: 1050,
+    currency: 'PHP',
+    rejectionReason: null,
+    verifiedAt: null,
+    createdAt: '2026-10-02T04:13:57.000Z',
+    paymentMethod: null,
+    holdExpiresAt: null,
+    attendeesCompletedAt: null,
+    event: { title: 'QA Event 2030', slug: 'qa-event-2030', startsAt: '2030-01-01T01:00:00.000Z', venue: 'QA Hall', address: null, landmark: null },
+    user: { id: 'user-1', email: 'buyer@example.com', firstName: 'Bea', lastName: 'Buyer' },
+    attendees: [],
+    proofs: [],
+    lineItems: [],
+    verifiedBy: null,
+    ...overrides,
+  });
+
+  async function mockRegistration(page: Page, body: Record<string, unknown>) {
+    await page.route('**/api/v1/admin/registrations/reg-unfinished-1**', async (route) => {
+      if (route.request().method() !== 'GET') return route.continue();
+      return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ success: true, data: body }) });
+    });
+  }
+
+  const lead = {
+    id: 'att-1', firstName: 'Bea', lastName: 'Buyer', email: 'buyer@example.com', phone: null,
+    company: null, jobTitle: null, isLead: true,
+  };
+
+  test('Approve is disabled and explains why; Reject stays available', async ({ adminPage: page }) => {
+    await mockRegistration(page, registration({}));
+    await gotoAdmin(page, '/admin/registrations/reg-unfinished-1');
+
+    const notice = page.getByRole('status').filter({ hasText: "Waiting for the buyer's details." });
+    await expect(notice).toBeVisible();
+    await expect(notice).toContainText('The payment proof is saved. You can approve once the buyer finishes their details.');
+    const approve = page.getByRole('button', { name: 'Approve & Verify' });
+    await expect(approve).toBeDisabled();
+    await expect(approve).toHaveAttribute('aria-describedby', 'details-pending-notice');
+    await expect(page.locator('#details-pending-notice')).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Reject' })).toBeEnabled();
+  });
+
+  test('fewer attendee rows than tickets is also unfinished (same test as the server)', async ({ adminPage: page }) => {
+    await mockRegistration(page, registration({ attendeeCount: 2, attendees: [lead], attendeesCompletedAt: '2026-10-02T05:00:00.000Z' }));
+    await gotoAdmin(page, '/admin/registrations/reg-unfinished-1');
+    await expect(page.getByRole('button', { name: 'Approve & Verify' })).toBeDisabled();
+    await expect(page.getByRole('status').filter({ hasText: "Waiting for the buyer's details." })).toBeVisible();
+  });
+
+  test('a complete order is unchanged: Approve is enabled and there is no notice', async ({ adminPage: page }) => {
+    await mockRegistration(page, registration({ status: 'pending_approval', attendees: [lead], attendeesCompletedAt: '2026-10-02T05:00:00.000Z' }));
+    await gotoAdmin(page, '/admin/registrations/reg-unfinished-1');
+    await expect(page.getByRole('button', { name: 'Approve & Verify' })).toBeEnabled();
+    await expect(page.getByRole('status').filter({ hasText: "Waiting for the buyer's details." })).toHaveCount(0);
+    await expect(page.locator('#details-pending-notice')).toHaveCount(0);
+  });
+
+  test('if the response has no attendeesCompletedAt field we cannot tell, so Approve is not blocked (the server still refuses)', async ({ adminPage: page }) => {
+    const { attendeesCompletedAt: _omitted, ...withoutField } = registration({});
+    await mockRegistration(page, withoutField);
+    await gotoAdmin(page, '/admin/registrations/reg-unfinished-1');
+    await expect(page.getByRole('button', { name: 'Approve & Verify' })).toBeEnabled();
+    await expect(page.locator('#details-pending-notice')).toHaveCount(0);
+  });
+
+  test('a finished order (verified) shows no review block and no notice', async ({ adminPage: page }) => {
+    await mockRegistration(page, registration({ status: 'verified', attendees: [lead], attendeesCompletedAt: '2026-10-02T05:00:00.000Z' }));
+    await gotoAdmin(page, '/admin/registrations/reg-unfinished-1');
+    await expect(page.getByRole('heading', { name: 'Review' })).toHaveCount(0);
+    await expect(page.locator('#details-pending-notice')).toHaveCount(0);
+  });
+
+  test('at 320 px the two buttons keep an equal-width row and nothing scrolls sideways', async ({ adminPage: page }) => {
+    await page.setViewportSize({ width: 320, height: 568 });
+    await mockRegistration(page, registration({}));
+    await gotoAdmin(page, '/admin/registrations/reg-unfinished-1');
+    const approve = page.getByRole('button', { name: 'Approve & Verify' });
+    const reject = page.getByRole('button', { name: 'Reject' });
+    await expect(approve).toBeVisible();
+    const [a, r] = [(await approve.boundingBox())!, (await reject.boundingBox())!];
+    expect(Math.abs(a.width - r.width)).toBeLessThanOrEqual(2);
+    expect(Math.abs(a.y - r.y)).toBeLessThanOrEqual(2);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)).toBeLessThanOrEqual(0);
+  });
+});

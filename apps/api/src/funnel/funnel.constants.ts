@@ -19,6 +19,12 @@ export const FUNNEL_STEPS = [
   'hold_resumed',
   'hold_expired_seen',
   'hold_cancelled',
+  // Checkout confirm step and blocked registrations. Our own metadata fields are a fixed
+  // shape: mode, httpStatus, code (fixed list, never an error message), where.
+  'details_confirm_started',
+  'details_confirm_succeeded',
+  'details_confirm_failed',
+  'order_not_owned_seen',
 ] as const;
 
 export const FUNNEL_STATUSES = [

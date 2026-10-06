@@ -25,6 +25,8 @@ interface AdminReg {
   status: string;
   tierName: string | null;
   attendeeCount: number;
+  /** Set once the buyer has saved everyone's details. NULL = the confirm step was never completed. */
+  attendeesCompletedAt?: string | null;
   subtotal: string | number;
   fees: string | number;
   discount: string | number;
@@ -195,6 +197,13 @@ export default function AdminRegistrationDetailPage() {
 
   const latestProof = reg.proofs?.[0];
   const canReview = reg.status === 'proof_submitted' || reg.status === 'pending_approval';
+  // Same test the server applies when approving (RegistrationsService.approve): attendee rows must
+  // equal the ticket count AND the details must be marked complete. If the field is absent from the
+  // response we cannot tell, so we do not block (the server still refuses).
+  const detailsIncomplete =
+    canReview &&
+    reg.attendeesCompletedAt !== undefined &&
+    (reg.attendees.length !== reg.attendeeCount || !reg.attendeesCompletedAt);
   const lead = reg.attendees.find((a) => a.isLead) ?? reg.attendees[0] ?? null;
   const buyerName = lead
     ? `${lead.firstName} ${lead.lastName}`
@@ -452,11 +461,23 @@ export default function AdminRegistrationDetailPage() {
             <h2 className="font-semibold text-gray-900">Review</h2>
             {error && <p className="text-sm text-red-600">{error}</p>}
 
+            {detailsIncomplete && !showReject && (
+              <div
+                id="details-pending-notice"
+                role="status"
+                className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800"
+              >
+                <p className="font-semibold">Waiting for the buyer&apos;s details.</p>
+                <p className="mt-0.5">The payment proof is saved. You can approve once the buyer finishes their details.</p>
+              </div>
+            )}
+
             {!showReject ? (
               <div className="flex gap-3">
                 <button
                   onClick={approve}
-                  disabled={acting}
+                  disabled={acting || detailsIncomplete}
+                  aria-describedby={detailsIncomplete ? 'details-pending-notice' : undefined}
                   className="flex-1 py-3 rounded-xl bg-green-600 text-white text-sm font-semibold hover:bg-green-700 disabled:opacity-50"
                 >
                   {acting ? 'Working…' : 'Approve & Verify'}

@@ -23,7 +23,11 @@ type FunnelStep =
   | 'hold_email_saved'
   | 'hold_resumed'
   | 'hold_expired_seen'
-  | 'hold_cancelled';
+  | 'hold_cancelled'
+  | 'details_confirm_started'
+  | 'details_confirm_succeeded'
+  | 'details_confirm_failed'
+  | 'order_not_owned_seen';
 
 type FunnelStatus = 'started' | 'success' | 'failed' | 'abandoned' | 'blocked';
 
@@ -39,6 +43,19 @@ function devDebug(...args: unknown[]) {
   if (process.env.NEXT_PUBLIC_APP_ENV !== 'development') return;
   // eslint-disable-next-line no-console
   console.debug('[Funnel]', ...args);
+}
+
+/** Fixed list of failure reasons for funnel metadata. Never derived from an error message. */
+export type FunnelFailureCode = 'not_found' | 'validation' | 'throttled' | 'network' | 'server' | 'other';
+
+/** Maps an HTTP status (undefined when the request never got an answer) to a fixed reason code. */
+export function funnelFailureCode(httpStatus: number | undefined): FunnelFailureCode {
+  if (httpStatus === undefined || httpStatus === 0) return 'network';
+  if (httpStatus === 404) return 'not_found';
+  if (httpStatus === 400 || httpStatus === 409 || httpStatus === 422) return 'validation';
+  if (httpStatus === 429) return 'throttled';
+  if (httpStatus >= 500) return 'server';
+  return 'other';
 }
 
 export function getOrCreateFunnelSessionId(): string {

@@ -44,8 +44,38 @@ export default function PaymentStepPage() {
   // True once this page has seen a hold deadline, so a cancelled read afterwards means "expired".
   const sawHold = useRef(false);
   const [cancelOpen, setCancelOpen] = useState(false);
+  // Event organizer for the "We couldn't open this registration" screen (Contact link).
+  const [organizer, setOrganizer] = useState<{ name: string; slug: string } | null>(null);
   const [cancelBusy, setCancelBusy] = useState(false);
   const [cancelProblem, setCancelProblem] = useState<'network' | 'proof' | 'throttled' | null>(null);
+
+  // A logged-in visitor asked for a registration that is not theirs (the API answers 404 either
+  // way). Show the clear screen. One extra event lookup, only here, finds the organizer page.
+  const notOwnedTrackedRef = useRef(false);
+  const showNotYours = useCallback(async () => {
+    // Look the organizer up BEFORE showing the screen (short timeout), so a paid customer never
+    // sees "Start again" alone first and then has the Contact button push it down.
+    let eventId: string | undefined;
+    try {
+      const res = await api.get(`/events/${slug}`, { timeout: 4000 });
+      const event = res.data?.data ?? res.data;
+      if (typeof event?.id === 'string') eventId = event.id;
+      if (event?.organizerSlug && event?.organizerName) {
+        setOrganizer({ name: event.organizerName, slug: event.organizerSlug });
+      }
+    } catch {
+      // The screen simply omits the Contact link.
+    }
+    setEndState('notyours');
+    if (notOwnedTrackedRef.current) return;
+    notOwnedTrackedRef.current = true;
+    void trackInternalFunnelEvent({
+      step: 'order_not_owned_seen',
+      status: 'blocked',
+      eventId,
+      metadata: { where: 'payment' },
+    });
+  }, [slug]);
 
   const loadReservation = useCallback(
     async (guestToken: string | null, options: { quiet?: boolean } = {}) => {
@@ -72,6 +102,9 @@ export default function PaymentStepPage() {
         } else if (options.quiet) {
           // A background re-check (the hold timer reached zero) must never replace the
           // page with an error screen because of a momentary network problem.
+        } else if (!guestToken && failure.status === 404) {
+          // Awaited so `loading` stays true (skeleton) until the screen is ready.
+          await showNotYours();
         } else if (failure.status === 429) {
           setEndState('throttled');
         } else {
@@ -82,7 +115,7 @@ export default function PaymentStepPage() {
         setLoading(false);
       }
     },
-    [registrationId],
+    [registrationId, showNotYours],
   );
 
   useEffect(() => {
@@ -239,6 +272,7 @@ export default function PaymentStepPage() {
             variant={endState}
             slug={slug}
             pageHeading
+            organizer={organizer}
             onRetry={
               endState === 'throttled'
                 ? () => {
