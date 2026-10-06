@@ -1036,3 +1036,80 @@ test.describe('Admin Review block for an order whose buyer has not finished thei
     expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)).toBeLessThanOrEqual(0);
   });
 });
+
+test.describe('Admin verification queue: no hidden date filter by default', () => {
+  test.skip(!IS_ADMIN_MOCKED, 'Uses deterministic mocked queue data.');
+
+  const OLD_ROW = {
+    id: 'reg-old-1',
+    referenceNumber: 'AXN-2026-QUEUE1',
+    status: 'pending_approval',
+    tierName: 'General Admission',
+    attendeeCount: 1,
+    total: 1050,
+    currency: 'PHP',
+    eventTitle: 'QA Queue Event',
+    eventSlug: 'qa-queue-event',
+    leadName: 'Bea Buyer',
+    leadEmail: 'buyer@example.com',
+    hasProof: true,
+    proofStatus: 'pending',
+    // Created three days ago: the old default (today only) hid exactly this kind of row.
+    createdAt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(),
+  };
+
+  async function mockQueue(page: Page, rows: Array<typeof OLD_ROW>) {
+    const requests: URL[] = [];
+    await page.route('**/api/v1/admin/**', async (route) => {
+      const url = new URL(route.request().url());
+      if (route.request().method() === 'GET' && url.pathname.endsWith('/admin/events')) {
+        return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ success: true, data: [{ id: 'event-queue', title: 'QA Queue Event' }] }) });
+      }
+      if (route.request().method() === 'GET' && url.pathname.endsWith('/admin/verifications')) {
+        requests.push(url);
+        const from = url.searchParams.get('dateFrom');
+        const shown = from ? rows.filter((r) => r.createdAt.slice(0, 10) >= from) : rows;
+        return route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({ success: true, data: { data: shown, meta: { total: shown.length, page: 1, limit: 50, totalPages: 1 } } }),
+        });
+      }
+      return route.fallback();
+    });
+    return requests;
+  }
+
+  test('an order from an earlier day is listed, and no date filter is sent', async ({ adminPage: page }) => {
+    const requests = await mockQueue(page, [OLD_ROW]);
+    await gotoAdmin(page, '/admin/verifications');
+    await page.getByLabel('Event').selectOption('event-queue');
+
+    await expect(page.getByText('AXN-2026-QUEUE1')).toBeVisible();
+    expect(requests.length).toBeGreaterThan(0);
+    const first = requests[0];
+    expect(first.searchParams.get('status')).toBe('pending_approval');
+    expect(first.searchParams.get('dateFrom')).toBeNull();
+    expect(first.searchParams.get('dateTo')).toBeNull();
+    await expect(page.getByLabel('Date From')).toHaveValue('');
+    await expect(page.getByLabel('Date To')).toHaveValue('');
+    await expect(page.getByRole('button', { name: 'Clear dates' })).toHaveCount(0);
+  });
+
+  test('choosing a date still filters, and Clear dates brings everything back', async ({ adminPage: page }) => {
+    const requests = await mockQueue(page, [OLD_ROW]);
+    await gotoAdmin(page, '/admin/verifications');
+    await page.getByLabel('Event').selectOption('event-queue');
+    await expect(page.getByText('AXN-2026-QUEUE1')).toBeVisible();
+
+    const tomorrow = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+    await page.getByLabel('Date From').fill(tomorrow);
+    await expect(page.getByText('No matching transactions')).toBeVisible();
+    await expect(page.getByText('Use "Clear dates" to see every transaction for this event')).toBeVisible();
+    expect(requests[requests.length - 1].searchParams.get('dateFrom')).toBe(tomorrow);
+
+    await page.getByRole('button', { name: 'Clear dates' }).click();
+    await expect(page.getByText('AXN-2026-QUEUE1')).toBeVisible();
+    expect(requests[requests.length - 1].searchParams.get('dateFrom')).toBeNull();
+  });
+});

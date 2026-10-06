@@ -71,16 +71,11 @@ export default function VerificationsQueuePage() {
   const [meta, setMeta] = useState<PageMeta>({ total: 0, page: 1, limit: 50, totalPages: 0 });
   const [eventId, setEventId] = useState<string>('');
   const [status, setStatus] = useState<string>('pending_approval');
-  const [dateFrom, setDateFrom] = useState<string>(() => {
-    const d = new Date();
-    const p = (n: number) => String(n).padStart(2, '0');
-    return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
-  });
-  const [dateTo, setDateTo] = useState<string>(() => {
-    const d = new Date();
-    const p = (n: number) => String(n).padStart(2, '0');
-    return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
-  });
+  // No date filter by default: the queue is "everything awaiting review". The API filters these dates
+  // on when the registration was CREATED, so defaulting to today hid every order created on an earlier
+  // day that was still waiting for review. The dates stay available as an optional filter.
+  const [dateFrom, setDateFrom] = useState<string>('');
+  const [dateTo, setDateTo] = useState<string>('');
   const [dateError, setDateError] = useState<string | null>(null);
   const [page, setPage] = useState(1);
   const [searchQ, setSearchQ] = useState('');
@@ -267,10 +262,11 @@ export default function VerificationsQueuePage() {
         {/* Filters */}
         <div className="bg-white border border-gray-200 rounded-2xl p-4 flex flex-wrap gap-3 items-end">
           <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">
+            <label htmlFor="queue-event" className="block text-xs font-medium text-gray-600 mb-1">
               Event <span className="text-red-500">*</span>
             </label>
             <select
+              id="queue-event"
               value={eventId}
               onChange={(e) => {
                 setEventId(e.target.value);
@@ -287,8 +283,9 @@ export default function VerificationsQueuePage() {
             </select>
           </div>
           <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">Status</label>
+            <label htmlFor="queue-status" className="block text-xs font-medium text-gray-600 mb-1">Status</label>
             <select
+              id="queue-status"
               value={status}
               onChange={(e) => {
                 setStatus(e.target.value);
@@ -304,8 +301,9 @@ export default function VerificationsQueuePage() {
             </select>
           </div>
           <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">Date From</label>
+            <label htmlFor="queue-date-from" className="block text-xs font-medium text-gray-600 mb-1">Date From</label>
             <input
+              id="queue-date-from"
               type="date"
               value={dateFrom}
               max={dateTo || undefined}
@@ -317,8 +315,9 @@ export default function VerificationsQueuePage() {
             />
           </div>
           <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">Date To</label>
+            <label htmlFor="queue-date-to" className="block text-xs font-medium text-gray-600 mb-1">Date To</label>
             <input
+              id="queue-date-to"
               type="date"
               value={dateTo}
               min={dateFrom || undefined}
@@ -330,8 +329,9 @@ export default function VerificationsQueuePage() {
             />
           </div>
           <div className="flex-1 min-w-[200px]">
-            <label className="block text-xs font-medium text-gray-600 mb-1">Search</label>
+            <label htmlFor="queue-search" className="block text-xs font-medium text-gray-600 mb-1">Search</label>
             <input
+              id="queue-search"
               type="text"
               placeholder="Search name, email, reference…"
               value={searchQ}
@@ -385,7 +385,14 @@ export default function VerificationsQueuePage() {
           ) : loading ? (
             <ScreenSkeleton rows={6} compact />
           ) : rows.length === 0 ? (
-            <EmptyState title="No matching transactions" message="Adjust the event, status, or date filters to see other transactions." />
+            <EmptyState
+              title="No matching transactions"
+              message={
+                dateFrom || dateTo
+                  ? 'Nothing matches these dates. Use "Clear dates" to see every transaction for this event, or adjust the status.'
+                  : 'Adjust the event or status to see other transactions.'
+              }
+            />
           ) : (
             <table className="w-full text-sm min-w-[800px]">
               <thead className="bg-gray-50 text-xs uppercase text-gray-500">
