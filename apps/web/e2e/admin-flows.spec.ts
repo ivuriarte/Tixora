@@ -1083,7 +1083,7 @@ test.describe('Admin verification queue: no hidden date filter by default', () =
   test('an order from an earlier day is listed, and no date filter is sent', async ({ adminPage: page }) => {
     const requests = await mockQueue(page, [OLD_ROW]);
     await gotoAdmin(page, '/admin/verifications');
-    await page.getByLabel('Event').selectOption('event-queue');
+    await page.locator('#queue-event').selectOption('event-queue');
 
     await expect(page.getByText('AXN-2026-QUEUE1')).toBeVisible();
     expect(requests.length).toBeGreaterThan(0);
@@ -1099,7 +1099,7 @@ test.describe('Admin verification queue: no hidden date filter by default', () =
   test('choosing a date still filters, and Clear dates brings everything back', async ({ adminPage: page }) => {
     const requests = await mockQueue(page, [OLD_ROW]);
     await gotoAdmin(page, '/admin/verifications');
-    await page.getByLabel('Event').selectOption('event-queue');
+    await page.locator('#queue-event').selectOption('event-queue');
     await expect(page.getByText('AXN-2026-QUEUE1')).toBeVisible();
 
     const tomorrow = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
@@ -1111,5 +1111,24 @@ test.describe('Admin verification queue: no hidden date filter by default', () =
     await page.getByRole('button', { name: 'Clear dates' }).click();
     await expect(page.getByText('AXN-2026-QUEUE1')).toBeVisible();
     expect(requests[requests.length - 1].searchParams.get('dateFrom')).toBeNull();
+  });
+
+  test('another status also lists everything with no date filter, and Date To alone is sent then cleared', async ({ adminPage: page }) => {
+    const requests = await mockQueue(page, [OLD_ROW]);
+    await gotoAdmin(page, '/admin/verifications');
+    await page.locator('#queue-event').selectOption('event-queue');
+    await expect(page.getByText('AXN-2026-QUEUE1')).toBeVisible();
+
+    await page.locator('#queue-status').selectOption('verified');
+    await expect.poll(() => requests[requests.length - 1].searchParams.get('status')).toBe('verified');
+    expect(requests[requests.length - 1].searchParams.get('dateFrom')).toBeNull();
+    expect(requests[requests.length - 1].searchParams.get('dateTo')).toBeNull();
+
+    const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+    await page.locator('#queue-date-to').fill(yesterday);
+    await expect.poll(() => requests[requests.length - 1].searchParams.get('dateTo')).toBe(yesterday);
+    expect(requests[requests.length - 1].searchParams.get('dateFrom')).toBeNull();
+    await page.getByRole('button', { name: 'Clear dates' }).click();
+    await expect.poll(() => requests[requests.length - 1].searchParams.get('dateTo')).toBeNull();
   });
 });
