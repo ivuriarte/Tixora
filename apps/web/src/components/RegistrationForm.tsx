@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { formatPHP } from '@axon-tickets/utils';
 import api from '@/lib/api';
 import { useAuthStore } from '@/store/auth.store';
+import { funnelFailureCode, trackInternalFunnelEvent, type FunnelFailureCode } from '@/lib/funnel';
 import OptionalAddOnsStep from '@/components/OptionalAddOnsStep';
 import type {
   CreateRegistrationDto,
@@ -12,6 +13,48 @@ import type {
   InclusionQuote,
   InclusionSelection,
 } from '@axon-tickets/types';
+
+// The "One last step" card names these buttons, so both read from the same strings.
+const REVIEW_DETAILS_BUTTON = 'Review Transaction Details';
+const CONFIRM_BUTTON_AUTHENTICATED = 'Confirm Transaction';
+const CONFIRM_BUTTON_WITH_CODE = 'Confirm and Send My Code';
+
+/**
+ * Rewritten "proof uploaded" card (spec D5). Shown only when a payment proof is stored for
+ * this registration, in the same position on both stages, plain content (no live region).
+ */
+function OneLastStepCard({
+  stage,
+  checkoutMode,
+}: {
+  stage: 'details' | 'confirmation';
+  checkoutMode?: 'authenticated' | 'guest' | 'account';
+}) {
+  const confirmLabel = checkoutMode === 'authenticated' ? CONFIRM_BUTTON_AUTHENTICATED : CONFIRM_BUTTON_WITH_CODE;
+  return (
+    <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-5" data-testid="one-last-step-card">
+      <p className="text-xs font-semibold uppercase tracking-wide text-emerald-700">Payment & Proof</p>
+      <h2 className="mt-1 font-semibold text-emerald-950">Thank you, we&apos;ve received your payment screenshot.</h2>
+      <p className="mt-1 text-sm text-emerald-800">
+        {stage === 'confirmation' ? (
+          <>
+            <strong>One last step:</strong> check your order below, then press <strong>{confirmLabel}</strong> at the
+            bottom.{' '}
+          </>
+        ) : (
+          <>
+            <strong>One last step:</strong> enter the details of everyone attending, then press{' '}
+            <strong>{REVIEW_DETAILS_BUTTON}</strong>. You&apos;ll check everything on the next screen.{' '}
+          </>
+        )}
+        <em>Until you finish, the organizer cannot see your registration.</em>
+        {stage === 'confirmation' && checkoutMode !== 'authenticated' && (
+          <> We&apos;ll then email you a 6-digit code to finish.</>
+        )}
+      </p>
+    </div>
+  );
+}
 
 interface ProfileData {
   firstName: string;
@@ -147,6 +190,13 @@ interface Props {
   onCheckoutStepChange?: (step: 'attendees' | 'addons') => void;
   /** Whether the registrant already gave partner-consent on the event page panel. */
   initialPartnerConsent?: boolean;
+  /** True when a payment proof is stored for this registration (the "One last step" card only shows then). */
+  proofUploaded?: boolean;
+  /**
+   * Called when saving the attendees is refused with 404, meaning this registration belongs to
+   * another account. The parent shows the "We couldn't open this registration" screen.
+   */
+  onOrderNotOwned?: () => void;
 }
 
 export default function RegistrationForm({
@@ -178,6 +228,8 @@ export default function RegistrationForm({
   optionalInclusions = [],
   onCheckoutStepChange,
   initialPartnerConsent,
+  proofUploaded = false,
+  onOrderNotOwned,
 }: Props) {
   const router = useRouter();
   const currentUser = useAuthStore((s) => s.user);
@@ -469,13 +521,37 @@ export default function RegistrationForm({
     }
   }
 
+  /**
+   * Confirm-step tracking (fire and forget). Our own metadata is a fixed shape: `mode`, and on
+   * failure `httpStatus` and `code` from a fixed list. Never an email, token or error message.
+   */
+  function trackConfirm(
+    step: 'details_confirm_started' | 'details_confirm_succeeded' | 'details_confirm_failed',
+    status: 'started' | 'success' | 'failed',
+    failure?: { httpStatus?: number; code: FunnelFailureCode },
+  ) {
+    void trackInternalFunnelEvent({
+      step,
+      status,
+      eventId,
+      metadata: { mode: checkoutMode ?? 'unknown', ...(failure ?? {}) },
+    });
+  }
+
+  function readHttpStatus(err: unknown): number | undefined {
+    const status = (err as { response?: { status?: unknown } })?.response?.status;
+    return typeof status === 'number' ? status : undefined;
+  }
+
   async function confirmPaidCheckout() {
     if (!registrationId || !checkoutMode || !guestAccessToken && checkoutMode !== 'authenticated') return;
     setLoading(true);
     setError(null);
+    trackConfirm('details_confirm_started', 'started');
     try {
       if (checkoutMode === 'authenticated') {
         await api.patch(`/registrations/${registrationId}/attendees`, attendeeUpdatePayload());
+        trackConfirm('details_confirm_succeeded', 'success');
         await syncAuthenticatedProfile();
         router.push(`/events/${eventSlug}/register/complete?registrationId=${registrationId}&scenario=authenticated`);
         return;
@@ -509,6 +585,19 @@ export default function RegistrationForm({
       setCheckoutOtp('');
       changeCheckoutStage('otp');
     } catch (err: unknown) {
+      const httpStatus = readHttpStatus(err);
+      trackConfirm('details_confirm_failed', 'failed', { httpStatus, code: funnelFailureCode(httpStatus) });
+      if (checkoutMode === 'authenticated' && httpStatus === 404 && onOrderNotOwned) {
+        // Not this account's registration: stop here, no retry, show the clear screen.
+        void trackInternalFunnelEvent({
+          step: 'order_not_owned_seen',
+          status: 'blocked',
+          eventId,
+          metadata: { where: 'confirm' },
+        });
+        onOrderNotOwned();
+        return;
+      }
       const responseData = (err as { response?: { data?: { message?: string | string[]; conflicts?: GuestDuplicateConflict[] } } })?.response?.data;
       if (responseData?.conflicts?.length) setDuplicateConflicts(responseData.conflicts);
       const message =
@@ -541,6 +630,7 @@ export default function RegistrationForm({
           { headers: { 'x-registration-token': guestAccessToken } },
         );
         const referenceNumber = response.data.data?.referenceNumber ?? response.data.referenceNumber ?? '';
+        trackConfirm('details_confirm_succeeded', 'success');
         router.push(`/events/${eventSlug}/register/complete?registrationId=${registrationId}&scenario=guest&reference=${encodeURIComponent(referenceNumber)}`);
         return;
       }
@@ -582,8 +672,11 @@ export default function RegistrationForm({
       );
       const referenceNumber = completion.data.data?.referenceNumber ?? completion.data.referenceNumber ?? '';
       window.sessionStorage.removeItem(`axon_guest_registration_${registrationId}`);
+      trackConfirm('details_confirm_succeeded', 'success');
       router.push(`/events/${eventSlug}/register/complete?registrationId=${registrationId}&scenario=account&reference=${encodeURIComponent(referenceNumber)}`);
     } catch (err: unknown) {
+      const httpStatus = readHttpStatus(err);
+      trackConfirm('details_confirm_failed', 'failed', { httpStatus, code: funnelFailureCode(httpStatus) });
       const message =
         (err as { response?: { data?: { message?: string | string[] } } })?.response?.data?.message ??
         'The code could not be verified.';
@@ -747,13 +840,7 @@ export default function RegistrationForm({
   if (isPaidCompletionFlow && checkoutStage === 'confirmation') {
     return (
       <div className="space-y-5">
-        <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-5">
-          <p className="text-xs font-semibold uppercase tracking-wide text-emerald-700">Payment & Proof</p>
-          <h2 className="mt-1 font-semibold text-emerald-950">Proof uploaded successfully</h2>
-          <p className="mt-1 text-sm text-emerald-800">
-            Review the complete order below. Nothing is finalized until you confirm.
-          </p>
-        </div>
+        {proofUploaded && <OneLastStepCard stage="confirmation" checkoutMode={checkoutMode} />}
 
         <section className="rounded-2xl border border-gray-200 bg-white p-5">
           <h2 className="font-semibold text-gray-900">Order Summary</h2>
@@ -845,7 +932,7 @@ export default function RegistrationForm({
         >
           {loading
             ? checkoutMode === 'authenticated' ? 'Confirming transaction…' : 'Sending confirmation code…'
-            : checkoutMode === 'authenticated' ? 'Confirm Transaction' : 'Confirm and Send My Code'}
+            : checkoutMode === 'authenticated' ? CONFIRM_BUTTON_AUTHENTICATED : CONFIRM_BUTTON_WITH_CODE}
         </button>
       </div>
     );
@@ -909,6 +996,9 @@ export default function RegistrationForm({
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
+      {isPaidCompletionFlow && checkoutStage === 'details' && proofUploaded && (
+        <OneLastStepCard stage="details" checkoutMode={checkoutMode} />
+      )}
       {inclusionCheckoutStage === 'attendees' ? (
         <>
       {/* Order summary */}
@@ -1543,7 +1633,7 @@ export default function RegistrationForm({
             : isPaymentIntentStep
               ? `Continue to payment — ${formatPHP(totalPesos)}`
               : registrationId
-                ? isPaidCompletionFlow ? 'Review Transaction Details' : 'Submit attendee details for review'
+                ? isPaidCompletionFlow ? REVIEW_DETAILS_BUTTON : 'Submit attendee details for review'
                 : `Confirm My Registration — ${isFreeRegistration ? 'Free' : formatPHP(totalPesos)}`}
         </button>
       )}

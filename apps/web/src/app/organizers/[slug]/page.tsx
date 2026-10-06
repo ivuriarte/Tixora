@@ -145,8 +145,8 @@ export default async function OrganizerProfilePage({
             </section>
           </div>
 
-          <aside className="h-fit rounded-2xl border border-[#e4dcf4] bg-white p-6">
-            <p className="axon-label text-[10px] text-[#756a92]">Official links</p>
+          <aside id="official-links" className="h-fit scroll-mt-24 rounded-2xl border border-[#e4dcf4] bg-white p-6">
+            <p className="axon-label text-sm text-[#756a92]">Official links</p>
             {socialLinks.length > 0 ? (
               <div className="mt-4 space-y-2">
                 {socialLinks.map(([label, href]) => (
