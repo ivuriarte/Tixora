@@ -32,11 +32,30 @@ export function EmptyState({ title, message, action }: { title: string; message:
   );
 }
 
-export function ErrorState({ title = 'Unable to load this screen', message, action }: { title?: string; message: string; action?: React.ReactNode }) {
+export function ErrorState({
+  title = 'Unable to load this screen',
+  message,
+  action,
+  className,
+  messageClassName,
+}: {
+  title?: string;
+  /** A plain string renders exactly as before. A node (several paragraphs) is rendered as given. */
+  message: React.ReactNode;
+  action?: React.ReactNode;
+  /** Replaces the default container classes (centered, px-6). Leave off to keep today's look. */
+  className?: string;
+  /** Replaces the default message classes (centered 14 px). Leave off to keep today's look. */
+  messageClassName?: string;
+}) {
   return (
-    <div className="rounded-lg border border-red-200 bg-red-50 px-6 py-10 text-center" role="alert">
+    <div className={className ?? 'rounded-lg border border-red-200 bg-red-50 px-6 py-10 text-center'} role="alert">
       <h2 className="axon-section-title text-lg text-red-800">{title}</h2>
-      <p className="mx-auto mt-2 max-w-md text-sm leading-relaxed text-red-700">{message}</p>
+      {typeof message === 'string' ? (
+        <p className={messageClassName ?? 'mx-auto mt-2 max-w-md text-sm leading-relaxed text-red-700'}>{message}</p>
+      ) : (
+        <div className={messageClassName ?? 'mx-auto mt-2 max-w-md text-sm leading-relaxed text-red-700'}>{message}</div>
+      )}
       {action && <div className="mt-5">{action}</div>}
     </div>
   );

@@ -106,6 +106,10 @@ function labelForStep(step: string) {
     payment_submitted: 'Payment submitted',
     registration_submitted_for_review: 'Submitted for review',
     ticket_issued: 'Ticket issued',
+    details_confirm_started: 'Confirm step started',
+    details_confirm_succeeded: 'Confirm step succeeded',
+    details_confirm_failed: 'Confirm step failed',
+    order_not_owned_seen: 'Registration could not be opened',
   };
   return map[step] ?? step;
 }

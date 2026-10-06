@@ -6,6 +6,7 @@ import { getAccessToken } from '@/lib/auth';
 import { useAuthStore } from '@/store/auth.store';
 import api from '@/lib/api';
 import ReservationEndState from '@/components/guest-hold/ReservationEndState';
+import { ScreenSkeleton } from '@/components/ScreenState';
 import { forgetHold, readApiFailure, readRememberedHold, rememberHold } from '@/lib/guestHold';
 import RegistrationForm from '@/components/RegistrationForm';
 import CheckoutStepper from '@/components/CheckoutStepper';
@@ -68,6 +69,9 @@ interface EventData {
     claimMethods?: Array<'self_claim' | 'delivery'>;
   } | null;
   optionalInclusions?: EventOptionalInclusion[];
+  /** Public organizer page, used by the "We couldn't open this registration" screen. */
+  organizerName?: string | null;
+  organizerSlug?: string | null;
 }
 
 interface AttendeeFields {
@@ -749,6 +753,13 @@ export default function RegisterPage() {
   const [intentProblem, setIntentProblem] = useState<'limit' | 'throttled' | null>(null);
   const intentStartedRef = useRef(false);
 
+  // Is this registration the logged-in account's? 'idle' until a login, a registration id in the
+  // address and no guest token are all present. 404 means it belongs to someone else (checkout dead end).
+  const [ownership, setOwnership] = useState<'idle' | 'checking' | 'ok' | 'notyours'>('idle');
+  const ownershipCheckedRef = useRef<string | null>(null);
+  const notOwnedTrackedRef = useRef(false);
+  const [proofUploaded, setProofUploaded] = useState(false);
+
   // Holds attendee data collected by GuestWizard so RegistrationForm can pre-fill after OTP success.
   const pendingGuestData = useRef<{
     attendees: AttendeeFields[];
@@ -808,10 +819,22 @@ export default function RegisterPage() {
             .then((r) => r.data?.data ?? r.data)
             .catch(() => null)
         : getAccessToken()
-          ? api
-              .get(`/registrations/${existingRegistrationId}`)
-              .then((r) => r.data?.data ?? r.data)
-              .catch(() => null)
+          ? (() => {
+              // This request is also the ownership check: the effect below must not repeat it.
+              ownershipCheckedRef.current = existingRegistrationId;
+              setOwnership('checking');
+              return api
+                .get(`/registrations/${existingRegistrationId}`)
+                .then((r) => {
+                  setOwnership('ok');
+                  return r.data?.data ?? r.data;
+                })
+                .catch((err: unknown) => {
+                  // 404 = not this account's registration. Any other failure: carry on as before.
+                  setOwnership(readApiFailure(err).status === 404 ? 'notyours' : 'ok');
+                  return null;
+                });
+            })()
           : Promise.resolve(null)
       : Promise.resolve(null);
 
@@ -819,6 +842,7 @@ export default function RegisterPage() {
       const [eventJson, regData] = await Promise.all([eventFetch, regFetch]);
       if (!eventJson) { router.replace(`/events/${params.slug}`); return; }
       setEvent(eventJson.data);
+      setProofUploaded(Array.isArray(regData?.proofs) && regData.proofs.length > 0);
 
       if (Array.isArray(regData?.attendees) && regData.attendees.length > 0) {
         const sorted = [...regData.attendees].sort(
@@ -855,6 +879,47 @@ export default function RegisterPage() {
   useEffect(() => {
     if (!isHydrating) void loadPage();
   }, [isHydrating, loadPage]);
+
+  // The page may load before the visitor logs in (the case in the production logs). Once there is a
+  // login, a registration id in the address and no guest token, ask once whether it is this
+  // account's before any form is shown. 404 = someone else's; any other failure: carry on.
+  useEffect(() => {
+    if (!isAuthenticated) {
+      ownershipCheckedRef.current = null;
+      setOwnership('idle');
+      return;
+    }
+    if (isHydrating || !existingRegistrationId) return;
+    const scopedGuestToken =
+      searchParams.guest === '1'
+        ? window.sessionStorage.getItem(`axon_guest_registration_${existingRegistrationId}`)
+        : null;
+    if (scopedGuestToken) return;
+    if (ownershipCheckedRef.current === existingRegistrationId) return;
+    ownershipCheckedRef.current = existingRegistrationId;
+    setOwnership('checking');
+    api
+      .get(`/registrations/${existingRegistrationId}`)
+      .then((r) => {
+        const registration = r.data?.data ?? r.data;
+        setProofUploaded(Array.isArray(registration?.proofs) && registration.proofs.length > 0);
+        setOwnership('ok');
+      })
+      .catch((err: unknown) => {
+        setOwnership(readApiFailure(err).status === 404 ? 'notyours' : 'ok');
+      });
+  }, [isAuthenticated, isHydrating, existingRegistrationId, searchParams.guest]);
+
+  useEffect(() => {
+    if (ownership !== 'notyours' || !event || notOwnedTrackedRef.current) return;
+    notOwnedTrackedRef.current = true;
+    void trackInternalFunnelEvent({
+      step: 'order_not_owned_seen',
+      status: 'blocked',
+      eventId: event.id,
+      metadata: { where: 'register' },
+    });
+  }, [ownership, event]);
 
   // After authentication (either OTP path), check if this user already has an
   // active registration for this event. If so, redirect them to the event page
@@ -1010,6 +1075,37 @@ export default function RegisterPage() {
     );
   }
 
+  if (ownership === 'checking') {
+    return (
+      <main className="min-h-screen bg-gray-50 py-10">
+        <div className="max-w-2xl mx-auto px-4 sm:px-6">
+          <h1 className="sr-only">Your registration</h1>
+          <ScreenSkeleton compact rows={3} />
+          <p role="status" className="text-sm text-gray-600">Checking your registration…</p>
+        </div>
+      </main>
+    );
+  }
+
+  if (ownership === 'notyours') {
+    return (
+      <main className="min-h-screen bg-gray-50 py-10">
+        <div className="max-w-2xl mx-auto px-4 sm:px-6">
+          <ReservationEndState
+            variant="notyours"
+            slug={event.slug}
+            pageHeading
+            organizer={
+              event.organizerSlug && event.organizerName
+                ? { name: event.organizerName, slug: event.organizerSlug }
+                : null
+            }
+          />
+        </div>
+      </main>
+    );
+  }
+
   const tierId = searchParams.tierId ?? event.tiers[0]?.id;
   const tier = event.tiers.find((t) => t.id === tierId);
   const subEvents: AgendaSubEvent[] = Array.isArray(event.agenda)
@@ -1063,6 +1159,12 @@ export default function RegisterPage() {
     optionalInclusions: eligibleOptionalInclusions,
     onCheckoutStepChange: setInclusionCheckoutStage,
     initialPartnerConsent: searchParams.partnerConsent === 'true',
+    proofUploaded,
+    onOrderNotOwned: () => {
+      // The form already sent the "confirm" tracking event for this block.
+      notOwnedTrackedRef.current = true;
+      setOwnership('notyours');
+    },
   };
   const isPaidEvent = !event.isFree;
   const isLoggedInSinglePaidCheckout = Boolean(

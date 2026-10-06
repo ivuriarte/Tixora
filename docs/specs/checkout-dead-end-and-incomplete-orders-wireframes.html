@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Checkout Dead End Wireframes</title>
+<style>
+:root{--bg:#faf8ff;--fg:#1a0533;--muted:#5f5177;--line:#e4dcf4;--panel:#fff;--accent:#6d28d9;--soft:#ede9fe;
+--ok-bg:#ecfdf5;--ok-fg:#047857;--ok-line:#a7f3d0;--warn-bg:#fffbeb;--warn-fg:#b45309;--warn-line:#fde68a;--err-bg:#fef2f2;--err-fg:#b91c1c;--err-line:#fecaca;--info-bg:#eff6ff;--info-fg:#1d4ed8;--info-line:#bfdbfe;
+--font:ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif}
+@media (prefers-color-scheme:dark){:root{--bg:#120a1f;--fg:#efe9fb;--muted:#b3a6cc;--line:#2e2345;--panel:#1a1029;--accent:#c4b5fd;--soft:#251838}}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.55 var(--font)}
+.wrap{max-width:1180px;margin:0 auto;padding:36px 18px 72px}
+h1{font-size:30px;margin:0 0 6px;line-height:1.2}h2{font-size:21px;margin:0}h3{font-size:15px;margin:0 0 6px}
+.lede{color:var(--muted);max-width:75ch}
+.tag{display:inline-block;font:600 11px ui-monospace,Menlo,monospace;background:var(--soft);color:var(--accent);border-radius:999px;padding:2px 9px;margin-bottom:6px}
+.banner{border:1px solid var(--warn-line);background:var(--warn-bg);color:var(--warn-fg);border-radius:12px;padding:10px 14px;margin:16px 0}
+section{padding-top:40px;display:grid;gap:14px}
+.cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:16px;align-items:start}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px}
+.card.today{border-color:var(--err-line)}.card.future{border-color:var(--ok-line)}
+.flow{display:grid;gap:8px;margin-top:8px}
+.step{border:1px solid var(--line);border-radius:10px;padding:8px 12px;background:var(--bg);font-size:14px}
+.step b{display:block;font-size:13px}
+.step.bad{background:var(--err-bg);border-color:var(--err-line);color:var(--err-fg)}
+.step.good{background:var(--ok-bg);border-color:var(--ok-line);color:var(--ok-fg)}
+.step.new{background:var(--info-bg);border-color:var(--info-line);color:var(--info-fg)}
+.step.warn{background:var(--warn-bg);border-color:var(--warn-line);color:var(--warn-fg)}
+.arrow{text-align:center;color:var(--muted);line-height:1;font-size:18px}
+.mock{background:#f5f0ff;color:#1a0533;border:1px solid var(--line);border-radius:14px;padding:14px;display:grid;gap:10px;font-size:14px}
+.mock .box{background:#fff;border:1px solid #e4dcf4;border-radius:12px;padding:12px}
+.mock .muted{color:#5b4b7a;font-size:12px}
+.btn{display:inline-flex;align-items:center;justify-content:center;min-height:44px;padding:0 18px;border-radius:999px;border:1px solid #7c3aed;background:#7c3aed;color:#fff;font-weight:600;font-size:13px}
+.btn.ghost{background:#fff;color:#7c3aed}.btn.off{background:#e5e7eb;border-color:#e5e7eb;color:#6b7280}
+.alert{border-radius:12px;padding:10px 12px;border:1px solid;font-size:13px}
+.alert.err{background:#fef2f2;border-color:#fecaca;color:#b91c1c}.alert.warn{background:#fffbeb;border-color:#fde68a;color:#92400e}.alert.ok{background:#ecfdf5;border-color:#a7f3d0;color:#047857}.alert.info{background:#eff6ff;border-color:#bfdbfe;color:#1e40af}
+.chip{display:inline-flex;align-items:center;gap:6px;border-radius:999px;padding:3px 10px;font-size:12px;font-weight:500}
+.chip i{width:6px;height:6px;border-radius:50%;background:currentColor;display:inline-block}
+.c-amber{background:#fffbeb;color:#b45309;border:1px solid #fde68a}.c-blue{background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe}.c-green{background:#ecfdf5;color:#047857;border:1px solid #a7f3d0}.c-gray{background:#f3f4f6;color:#4b5563;border:1px solid #e5e7eb}
+table.t{width:100%;border-collapse:collapse;font-size:13px}table.t th,table.t td{padding:6px 8px;border-bottom:1px solid #e4dcf4;text-align:left}table.t th{background:#ede9fe}
+.legend{font-size:13px;color:var(--muted);display:flex;gap:14px;flex-wrap:wrap}
+.legend span::before{content:"";display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:6px;vertical-align:middle}
+.l-bad::before{background:var(--err-bg);border:1px solid var(--err-line)}.l-good::before{background:var(--ok-bg);border:1px solid var(--ok-line)}.l-new::before{background:var(--info-bg);border:1px solid var(--info-line)}.l-warn::before{background:var(--warn-bg);border:1px solid var(--warn-line)}
+ul.notes{margin:0;padding-left:18px;color:var(--muted);font-size:14px;display:grid;gap:4px}
+</style>
+</head>
+<body><div class="wrap">
+<header>
+  <span class="tag">Release 1 · revision 2</span>
+  <h1>Checkout dead end and unfinished orders</h1>
+  <p class="lede">Spec: <code>checkout-dead-end-and-incomplete-orders.md</code>. Four screens change. Wording is a draft for design review. Sizes follow the existing shared components for consistency (a 16 px minimum is a separate decision). Buttons are at least 44 px and every state is also spelled out in words.</p>
+</header>
+
+<section id="s1">
+  <div><span class="tag">SCREEN 1</span><h2>"We couldn't open this registration" (D1, D2, D3, D4) · rev 2.5</h2></div>
+  <div class="cols">
+    <div class="mock"><span class="muted">Desktop · WITH an organizer page · Contact is the primary button · body, helper and buttons 16 px · left-aligned</span>
+      <div class="box" role="alert" style="border-color:#fecaca;background:#fef2f2;padding:12px"><h2 style="font-size:18px;margin:0 0 8px;color:#991b1b;text-align:left">We couldn't open this registration</h2>
+        <p style="font-size:16px;line-height:1.5;text-align:left">We're sorry for the trouble. This registration may have been started with a different email or account from the one you're using now, so we can't show it here.</p>
+        <p style="font-size:16px;line-height:1.5;text-align:left"><b>If you already paid:</b> please keep your payment receipt (a screenshot is fine). Note the amount, the time you paid, and the reference number on it. Then contact the organizer and share those details.</p>
+        <p style="font-size:16px;line-height:1.5;text-align:left"><b>If you haven't paid yet:</b> you can start again.</p>
+        <p style="margin:12px 0 0"><a id="contact-link" class="btn" aria-describedby="contact-help" href="/organizers/example-organizer#official-links" style="min-height:44px;height:auto;padding:8px 18px;text-align:center">Contact Example Organizer</a></p>
+        <p id="contact-help" style="margin:6px 0 0;font-size:16px;line-height:1.5;text-align:left">Opens their page. Look for "Official links" to reach them.</p>
+        <p style="margin:12px 0 0"><span class="btn ghost">Start again</span></p></div></div>
+    <div class="mock" style="max-width:320px"><span class="muted">320 px phone · WITH an organizer page · long organizer name wraps</span>
+      <div class="box" role="alert" style="border-color:#fecaca;background:#fef2f2;padding:12px 10px"><h2 style="font-size:18px;margin:0 0 8px;color:#991b1b;text-align:left">We couldn't open this registration</h2>
+        <p style="font-size:16px;line-height:1.5;text-align:left">We're sorry for the trouble. This registration may have been started with a different email or account from the one you're using now, so we can't show it here.</p>
+        <p style="font-size:16px;line-height:1.5;text-align:left"><b>If you already paid:</b> please keep your payment receipt (a screenshot is fine). Note the amount, the time you paid, and the reference number on it. Then contact the organizer and share those details.</p>
+        <p style="font-size:16px;line-height:1.5;text-align:left"><b>If you haven't paid yet:</b> you can start again.</p>
+        <p style="margin:12px 0 0"><a id="contact-link" class="btn" aria-describedby="contact-help" href="/organizers/example-organizer#official-links" style="min-height:44px;height:auto;padding:8px 18px;text-align:center;width:100%">Contact Example Organizer</a></p>
+        <p id="contact-help" style="margin:6px 0 0;font-size:16px;line-height:1.5;text-align:left">Opens their page. Look for "Official links" to reach them.</p>
+        <p style="margin:12px 0 0"><span class="btn ghost" style="width:100%">Start again</span></p></div></div>
+    <div class="mock"><span class="muted">Desktop · NO organizer page · Start again only (outlined) · no email shown</span>
+      <div class="box" role="alert" style="border-color:#fecaca;background:#fef2f2;padding:12px"><h2 style="font-size:18px;margin:0 0 8px;color:#991b1b;text-align:left">We couldn't open this registration</h2>
+        <p style="font-size:16px;line-height:1.5;text-align:left">We're sorry for the trouble. This registration may have been started with a different email or account from the one you're using now, so we can't show it here.</p>
+        <p style="font-size:16px;line-height:1.5;text-align:left"><b>If you already paid:</b> please keep your payment receipt (a screenshot is fine). Note the amount, the time you paid, and the reference number on it. Then get in touch with the people who run this event, using the page or post where you first found it.</p>
+        <p style="font-size:16px;line-height:1.5;text-align:left"><b>If you haven't paid yet:</b> you can start again.</p>
+        <p style="margin:12px 0 0"><span class="btn ghost">Start again</span></p></div>
+      <span class="muted">Known risk, accepted by Ian 2026-10-06: no route to a human from the screen itself; the customer contacts the organizer themselves.</span></div>
+    <div class="mock" style="max-width:320px"><span class="muted">320 px phone · NO organizer page</span>
+      <div class="box" role="alert" style="border-color:#fecaca;background:#fef2f2;padding:12px 10px"><h2 style="font-size:18px;margin:0 0 8px;color:#991b1b;text-align:left">We couldn't open this registration</h2>
+        <p style="font-size:16px;line-height:1.5;text-align:left">We're sorry for the trouble. This registration may have been started with a different email or account from the one you're using now, so we can't show it here.</p>
+        <p style="font-size:16px;line-height:1.5;text-align:left"><b>If you already paid:</b> please keep your payment receipt (a screenshot is fine). Note the amount, the time you paid, and the reference number on it. Then get in touch with the people who run this event, using the page or post where you first found it.</p>
+        <p style="font-size:16px;line-height:1.5;text-align:left"><b>If you haven't paid yet:</b> you can start again.</p>
+        <p style="margin:12px 0 0"><span class="btn ghost" style="width:100%">Start again</span></p></div></div>
+    <div class="mock"><span class="muted">While the page checks (existing skeleton, role="status")</span>
+      <div class="box"><div style="height:16px;width:60%;background:#eee;border-radius:6px"></div><div style="height:12px;width:80%;background:#eee;border-radius:6px;margin-top:8px"></div><p class="muted" style="margin-top:8px">Checking your registration…</p></div>
+      <span class="muted">If the check fails for another reason (network), the normal form is shown and the save step is the safety net.</span></div>
+  </div>
+  <ul class="notes"><li>Shown the moment a signed-in visitor opens a registration that isn't theirs, <b>before</b> any form, and also if the save is refused. No request is repeated.</li>
+  <li>The hidden page heading is "Your registration" on the payment page. It never shows another person's details. No sentence on this screen uses "sign-in", "order" or an email address.</li>
+  <li>For a customer who already paid, Contact is the main action and Start again is the quieter outlined button, so they are not drawn to pay twice.</li>
+  <li>The 16 px text applies to this screen only. Other end screens keep their 14 px text. At 320 px the text column is narrow, so the buttons sit below the first screen; the build measures the fold at 320x568.</li></ul>
+</section>
+
+<section id="s2">
+  <div><span class="tag">SCREEN 2</span><h2>The "one last step" card (D5): rewritten, not stacked</h2></div>
+  <div class="cols">
+    <div class="mock"><span class="muted">Confirmation stage, logged in (replaces the old "Proof uploaded successfully" card)</span>
+      <div class="box" style="border-color:#a7f3d0;background:#ecfdf5"><h2 style="font-size:16px;margin:0;color:#064e3b">Thank you, we've received your payment screenshot.</h2>
+        <p style="margin:6px 0 0"><b>One last step:</b> check your order below, then press <b>Confirm Transaction</b> at the bottom. <i>Until you finish, the organizer cannot see your registration.</i></p></div>
+      <div class="box"><b>Order Summary</b><p class="muted">…</p><p style="margin:8px 0 0"><span class="btn">Confirm Transaction</span></p></div></div>
+    <div class="mock"><span class="muted">Confirmation stage, guest or "use my account"</span>
+      <div class="box" style="border-color:#a7f3d0;background:#ecfdf5"><h2 style="font-size:16px;margin:0;color:#064e3b">Thank you, we've received your payment screenshot.</h2>
+        <p style="margin:6px 0 0"><b>One last step:</b> check your order below, then press <b>Confirm and Send My Code</b> at the bottom. We'll then email you a 6-digit code to finish. <i>Until you finish, the organizer cannot see your registration.</i></p></div>
+      <div class="box"><b>Order Summary</b><p class="muted">…</p><p style="margin:8px 0 0"><span class="btn">Confirm and Send My Code</span></p></div></div>
+    <div class="mock"><span class="muted">Details stage (groups, guests, "use my account"): same card, its own wording</span>
+      <div class="box" style="border-color:#a7f3d0;background:#ecfdf5"><h2 style="font-size:16px;margin:0;color:#064e3b">Thank you, we've received your payment screenshot.</h2>
+        <p style="margin:6px 0 0"><b>One last step:</b> enter the details of everyone attending, then press <b>Review Transaction Details</b>. You'll check everything on the next screen. <i>Until you finish, the organizer cannot see your registration.</i></p></div>
+      <div class="box"><b>Attendee Details</b><p class="muted">Name, email, mobile for each person</p><p style="margin:8px 0 0"><span class="btn">Review Transaction Details</span></p></div></div>
+    <div class="mock" style="max-width:320px"><span class="muted">320 px phone (confirmation stage, logged in)</span>
+      <div class="box" style="border-color:#a7f3d0;background:#ecfdf5"><h2 style="font-size:15px;margin:0;color:#064e3b">Thank you, we've received your payment screenshot.</h2>
+        <p style="margin:6px 0 0"><b>One last step:</b> check your order below, then press <b>Confirm Transaction</b> at the bottom. <i>Until you finish, the organizer cannot see your registration.</i></p></div></div>
+    <div class="mock"><span class="muted">Not shown</span><div class="box"><p class="muted">On the "enter your 6-digit code" step, or on the final "Transaction submitted" screen. The card has no live-region role, so it is not re-announced when the stage changes.</p></div></div>
+  </div>
+</section>
+
+<section id="s3">
+  <div><span class="tag">SCREEN 3</span><h2>Admin order page for an unfinished order (D7)</h2></div>
+  <div class="cols">
+    <div class="mock"><span class="muted">Desktop · order A before the buyer finishes</span>
+      <div class="box"><b>Review</b>
+        <div id="why" class="alert warn" role="status" style="margin:8px 0"><b>Waiting for the buyer's details.</b><br>The payment proof is saved. You can approve once the buyer finishes their details.</div>
+        <p style="margin:0;display:flex;gap:8px"><button class="btn off" disabled aria-describedby="why" style="flex:1">Approve &amp; Verify</button><button class="btn ghost" style="flex:1">Reject</button></p></div></div>
+    <div class="mock" style="max-width:320px"><span class="muted">320 px phone (equal-width buttons, as today)</span>
+      <div class="box"><b>Review</b>
+        <div class="alert warn" role="status" style="margin:8px 0"><b>Waiting for the buyer's details.</b><br>The payment proof is saved. You can approve once the buyer finishes their details.</div>
+        <p style="margin:0;display:flex;gap:8px"><button class="btn off" disabled style="flex:1;padding:0 6px">Approve &amp; Verify</button><button class="btn ghost" style="flex:1;padding:0 6px">Reject</button></p></div></div>
+    <div class="mock"><span class="muted">A complete order (unchanged)</span>
+      <div class="box"><b>Review</b><p style="margin:10px 0 0;display:flex;gap:8px"><span class="btn" style="background:#16a34a;border-color:#16a34a;flex:1">Approve &amp; Verify</span><span class="btn ghost" style="flex:1">Reject</span></p></div></div>
+  </div>
+  <ul class="notes"><li>Only this page changes. The Verification Queue is untouched and still lists only complete orders. The disabled button points at the notice (<code>aria-describedby</code>), so screen readers hear why.</li></ul>
+</section>
+
+<section id="s4">
+  <div><span class="tag">NOT A SCREEN</span><h2>Tracking (D6)</h2></div>
+  <div class="card"><table class="t"><tr><th>Step</th><th>When</th><th>Notes saved</th></tr>
+    <tr><td>details_confirm_started</td><td>Customer presses the confirm button</td><td>mode</td></tr>
+    <tr><td>details_confirm_succeeded</td><td>Details saved</td><td>mode</td></tr>
+    <tr><td>details_confirm_failed</td><td>Save refused or failed</td><td>mode, HTTP status, short code</td></tr>
+    <tr><td>order_not_owned_seen</td><td>Screen 1 is shown</td><td>where: register, payment or confirm</td></tr></table>
+    <p class="muted">No email, token or registration id in our own fields.</p></div>
+</section>
+</div></body></html>
