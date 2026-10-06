@@ -17,5 +17,5 @@
 
 ## Notes
 - Origin: found while investigating a stuck checkout (2026-10-06): the hotfix notes already said to "clear the date filters" to see the order.
-- Sizing: a read-only production query (kept local, not committed) counts awaiting-review registrations created before today, per event. Result to be filed here by Ian.
+- Sizing (2026-10-06, production, read-only): the count query returned **0 rows**, meaning no registration was awaiting review at that moment, so nothing was hidden by the default at the time. The defect is latent (it bites only when an order waits past midnight Manila time) and says nothing about past cases. Ship as a routine fix, no urgency.
 - Verified on branch: web tsc, next lint, next build, Playwright admin-mocked 58 passed (3 new queue tests).
