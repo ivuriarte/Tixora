@@ -39,7 +39,11 @@ jobs:
           echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" | sudo tee /etc/apt/sources.list.d/pgdg.list > /dev/null
           sudo apt-get update -qq
           sudo apt-get install -y -qq postgresql-client-17
-          pg_dump --version
+          # The runner image already ships a PostgreSQL 16 client, and the plain `pg_dump` on PATH
+          # picked that one (run 21: "server version: 17.6; pg_dump version: 16.15"). Put the 17
+          # binaries first for every later step, and fail early if 17 is not the one in use.
+          echo "/usr/lib/postgresql/17/bin" >> "$GITHUB_PATH"
+          /usr/lib/postgresql/17/bin/pg_dump --version
 
       - name: Check required secrets exist
         env:
@@ -58,6 +62,8 @@ jobs:
           BACKUP_ENCRYPTION_PASSPHRASE: ${{ secrets.BACKUP_ENCRYPTION_PASSPHRASE }}
         run: |
           set -euo pipefail
+          # Refuse to run with the wrong client: a 16 client cannot dump a 17 server.
+          pg_dump --version | grep -q ' 17\.' || { echo "::error::pg_dump on PATH is not version 17: $(pg_dump --version)"; exit 1; }
           TIMESTAMP=$(date -u +%Y%m%d_%H%M%S)
           FILENAME="axon-tickets-backup-${TIMESTAMP}.dump"
 
