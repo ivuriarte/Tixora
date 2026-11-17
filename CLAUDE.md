@@ -101,6 +101,7 @@ These come from the audit reports in `reports/`. Every code review must check th
 Regressions in these flows are P0 bugs.
 
 1. **Registration**: event page → register → OTP → profile → ticket select → payment proof upload → admin approve → QR email → check-in
+   - Run it twice: once as a guest/new sign-up, once **already signed in before checkout starts** (UAT-15). The logged-in path broke separately in Nov 2026.
 2. **Referral**: apply code → verify discount is server-calculated → confirm snapshot stored immutably
 3. **Admin verification**: login → queue → approve registration → confirm ticket issued + audit log written
 4. **Event creation**: create event → publish → verify visible on public event listing

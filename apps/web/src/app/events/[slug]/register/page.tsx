@@ -1,12 +1,13 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { getAccessToken } from '@/lib/auth';
 import { useAuthStore } from '@/store/auth.store';
 import api from '@/lib/api';
 import ReservationEndState from '@/components/guest-hold/ReservationEndState';
-import { ScreenSkeleton } from '@/components/ScreenState';
+import Link from 'next/link';
+import { ErrorState, ScreenSkeleton } from '@/components/ScreenState';
 import { forgetHold, readApiFailure, readRememberedHold, rememberHold } from '@/lib/guestHold';
 import RegistrationForm from '@/components/RegistrationForm';
 import CheckoutStepper from '@/components/CheckoutStepper';
@@ -714,6 +715,134 @@ function GuestWizard({ event, tier, qty, onOtpVerified, skipGate = false }: Gues
   );
 }
 
+// ── Tier of an existing order ─────────────────────────────────────────────────
+
+/** The ticket tier an existing order was bought on, as the order itself reports it. */
+interface OrderTier {
+  id: string;
+  name: string;
+  price: number;
+}
+
+function readOrderTier(registration: unknown): OrderTier | null {
+  const r = registration as { tierId?: unknown; tierName?: unknown; unitPrice?: unknown } | null | undefined;
+  if (!r || typeof r.tierId !== 'string' || !r.tierId) return null;
+  const price = Number(r.unitPrice ?? 0);
+  return {
+    id: r.tierId,
+    name: typeof r.tierName === 'string' && r.tierName ? r.tierName : 'Ticket',
+    price: Number.isFinite(price) ? price : 0,
+  };
+}
+
+/**
+ * Which tier the page shows.
+ *
+ * A new checkout uses the tier in the address (or the first one). An EXISTING order always uses its
+ * own tier: the address value is only a fallback, and an empty "tierId=" counts as missing. The old
+ * code treated "" as a real tier id, found nothing, and sent logged-in buyers back to the event page
+ * before the attendee-details step (the order stayed paid but unapprovable). A tier the organizer
+ * has since hidden is still the buyer's tier, so it is rebuilt from the order, never guessed.
+ */
+function resolveTier(
+  event: EventData,
+  existingRegistrationId: string | undefined,
+  urlTierId: string | undefined,
+  orderTier: OrderTier | null,
+  qty: number,
+): Tier | undefined {
+  if (!existingRegistrationId) {
+    const id = urlTierId ?? event.tiers[0]?.id;
+    return event.tiers.find((t) => t.id === id);
+  }
+  const id = orderTier?.id ?? (urlTierId || undefined);
+  if (!id) return undefined;
+  const listed = event.tiers.find((t) => t.id === id);
+  if (listed) return listed;
+  if (orderTier && orderTier.id === id) {
+    // Display only: shows the order's own tier when the public list no longer has it. `available`
+    // and `maxPerOrder` are placeholders and must not be read as stock on this path.
+    return { id, name: orderTier.name, price: orderTier.price, available: 0, maxPerOrder: qty };
+  }
+  return undefined;
+}
+
+/**
+ * Shown instead of a silent redirect when a registration that already exists cannot reach the
+ * attendee-details step. Plain words, no promise that anyone can fix it, and it says not to pay again.
+ */
+function DetailsUnavailable({ slug, organizer }: { slug: string; organizer: { name: string; slug: string } | null }) {
+  const helpId = useId();
+  const screenRef = useRef<HTMLDivElement>(null);
+  // Move focus to the message when it appears, so keyboard and screen-reader users land on it
+  // (same as the "We couldn't open this registration" screen).
+  useEffect(() => {
+    screenRef.current?.focus();
+  }, []);
+  // Same look as the "We couldn't open this registration" screen: 16 px, left-aligned, buttons that
+  // wrap safely around a long organizer name.
+  const primary =
+    'axon-pill h-auto min-h-[44px] max-w-full break-words bg-primary py-2 text-center text-base normal-case tracking-normal text-white';
+  const quiet =
+    'axon-pill h-auto min-h-[44px] max-w-full break-words border-2 border-primary bg-white py-2 text-center text-base normal-case tracking-normal text-primary';
+  return (
+    <main className="min-h-screen bg-gray-50 py-10">
+      <div ref={screenRef} tabIndex={-1} className="max-w-2xl mx-auto px-4 outline-none sm:px-6" data-testid="details-unavailable">
+        <h1 className="sr-only">Your registration</h1>
+        <ErrorState
+          title="We couldn't open the last step"
+          className="rounded-lg border border-red-200 bg-red-50 px-4 py-8 text-left sm:px-6"
+          messageClassName="mt-3 max-w-prose space-y-4 text-base leading-relaxed text-red-900"
+          message={
+            <>
+              <p>
+                <strong>Your registration is saved, so please don&apos;t pay again.</strong>
+              </p>
+              <p>
+                This last step is where you add the name of each person who is attending. Until it is done, your
+                tickets can&apos;t be confirmed.
+              </p>
+              <p>
+                Please try again in a moment. If it still doesn&apos;t open,{' '}
+                {organizer
+                  ? "contact the organizer and tell them you couldn't finish this step."
+                  : 'get in touch with the people who run this event, using the page or post where you first found it.'}{' '}
+                Please keep your payment receipt (a screenshot is fine), and note the amount, the time you paid, and
+                the reference number on it.
+              </p>
+            </>
+          }
+          action={
+            <div className="flex flex-col items-start gap-3">
+              <button type="button" className={primary} data-testid="details-unavailable-retry" onClick={() => window.location.reload()}>
+                Try again
+              </button>
+              {organizer && (
+                <>
+                  <Link
+                    href={`/organizers/${organizer.slug}#official-links`}
+                    aria-describedby={helpId}
+                    className={quiet}
+                    data-testid="details-unavailable-contact"
+                  >
+                    Contact {organizer.name}
+                  </Link>
+                  <p id={helpId} className="text-base leading-relaxed text-red-900">
+                    Opens their page. Look for &quot;Official links&quot; to reach them.
+                  </p>
+                </>
+              )}
+              <Link href={`/events/${slug}`} className={quiet} data-testid="details-unavailable-back">
+                Back to event
+              </Link>
+            </div>
+          }
+        />
+      </div>
+    </main>
+  );
+}
+
 // ── Main page ─────────────────────────────────────────────────────────────────
 
 export default function RegisterPage() {
@@ -741,6 +870,10 @@ export default function RegisterPage() {
   const [initialNotes, setInitialNotes] = useState<string | undefined>(undefined);
   const [initialIsFree, setInitialIsFree] = useState<boolean | undefined>(undefined);
   const [initialTotal, setInitialTotal] = useState<number | undefined>(undefined);
+  const [orderTier, setOrderTier] = useState<OrderTier | null>(null);
+  // The event could not be loaded for an order that already exists: show a message, do not redirect.
+  const [loadFailed, setLoadFailed] = useState(false);
+  const unavailableTrackedRef = useRef(false);
   const [inclusionCheckoutStage, setInclusionCheckoutStage] = useState<'attendees' | 'addons'>('attendees');
   const [guestAccessToken, setGuestAccessToken] = useState<string | null>(null);
   const [showAccountActivation, setShowAccountActivation] = useState(false);
@@ -840,9 +973,15 @@ export default function RegisterPage() {
 
     try {
       const [eventJson, regData] = await Promise.all([eventFetch, regFetch]);
-      if (!eventJson) { router.replace(`/events/${params.slug}`); return; }
+      if (!eventJson) {
+        if (existingRegistrationId) setLoadFailed(true);
+        else router.replace(`/events/${params.slug}`);
+        return;
+      }
+      setLoadFailed(false);
       setEvent(eventJson.data);
       setProofUploaded(Array.isArray(regData?.proofs) && regData.proofs.length > 0);
+      setOrderTier(readOrderTier(regData));
 
       if (Array.isArray(regData?.attendees) && regData.attendees.length > 0) {
         const sorted = [...regData.attendees].sort(
@@ -870,7 +1009,8 @@ export default function RegisterPage() {
         setInitialTotal(Number(regData.total ?? 0));
       }
     } catch {
-      router.replace(`/events/${params.slug}`);
+      if (existingRegistrationId) setLoadFailed(true);
+      else router.replace(`/events/${params.slug}`);
     } finally {
       setPageLoading(false);
     }
@@ -903,6 +1043,7 @@ export default function RegisterPage() {
       .then((r) => {
         const registration = r.data?.data ?? r.data;
         setProofUploaded(Array.isArray(registration?.proofs) && registration.proofs.length > 0);
+        setOrderTier(readOrderTier(registration));
         setOwnership('ok');
       })
       .catch((err: unknown) => {
@@ -920,6 +1061,40 @@ export default function RegisterPage() {
       metadata: { where: 'register' },
     });
   }, [ownership, event]);
+
+  // A registration that already exists could not reach the attendee-details step. Record why
+  // (our own fields are fixed values only, never messages; the tracker adds the page address and referrer), once per page view, so this can never go unseen again.
+  // The order was (or is being) read only for a signed-in buyer or a guest holding the order's
+  // private token. A visitor with neither never had the order read, so we do not claim it is saved.
+  const orderWasRead = isAuthenticated || Boolean(guestAccessToken);
+  const tierLookupId = orderWasRead ? existingRegistrationId : undefined;
+  // Signed in, but the ownership check has not started yet (one render after login/hydration).
+  const ownershipPending =
+    Boolean(existingRegistrationId) && isAuthenticated && !isHydrating && ownership === 'idle' && !guestAccessToken;
+  const unavailableReason: 'tier_missing' | 'event_load_failed' | null =
+    !existingRegistrationId || pageLoading || isHydrating
+      ? null
+      : loadFailed
+        ? 'event_load_failed'
+        : event &&
+            orderWasRead &&
+            !ownershipPending &&
+            ownership !== 'checking' &&
+            ownership !== 'notyours' &&
+            !resolveTier(event, tierLookupId, searchParams.tierId, orderTier, qty)
+          ? 'tier_missing'
+          : null;
+
+  useEffect(() => {
+    if (!unavailableReason || unavailableTrackedRef.current) return;
+    unavailableTrackedRef.current = true;
+    void trackInternalFunnelEvent({
+      step: 'details_step_unavailable',
+      status: 'blocked',
+      eventId: event?.id,
+      metadata: { where: 'register', reason: unavailableReason },
+    });
+  }, [unavailableReason, event]);
 
   // After authentication (either OTP path), check if this user already has an
   // active registration for this event. If so, redirect them to the event page
@@ -1063,6 +1238,10 @@ export default function RegisterPage() {
 
   // ── Loading skeleton ───────────────────────────────────────────────────────
 
+  if (!pageLoading && !isHydrating && loadFailed) {
+    return <DetailsUnavailable slug={params.slug} organizer={null} />;
+  }
+
   if (pageLoading || isHydrating || !event) {
     return (
       <main className="min-h-screen bg-gray-50 py-10">
@@ -1075,7 +1254,7 @@ export default function RegisterPage() {
     );
   }
 
-  if (ownership === 'checking') {
+  if (ownership === 'checking' || ownershipPending) {
     return (
       <main className="min-h-screen bg-gray-50 py-10">
         <div className="max-w-2xl mx-auto px-4 sm:px-6">
@@ -1106,8 +1285,7 @@ export default function RegisterPage() {
     );
   }
 
-  const tierId = searchParams.tierId ?? event.tiers[0]?.id;
-  const tier = event.tiers.find((t) => t.id === tierId);
+  const tier = resolveTier(event, tierLookupId, searchParams.tierId, orderTier, qty);
   const subEvents: AgendaSubEvent[] = Array.isArray(event.agenda)
     ? event.agenda
         .filter((item) => item?.isSubEvent === true && typeof item.id === 'string' && item.id.trim() && typeof item.title === 'string' && item.title.trim())
@@ -1119,6 +1297,15 @@ export default function RegisterPage() {
     : [];
 
   if (!tier) {
+    // An order that already exists is never sent away silently: say so, and say not to pay again.
+    if (existingRegistrationId && orderWasRead) {
+      return (
+        <DetailsUnavailable
+          slug={event.slug}
+          organizer={event.organizerSlug && event.organizerName ? { name: event.organizerName, slug: event.organizerSlug } : null}
+        />
+      );
+    }
     router.replace(`/events/${event.slug}`);
     return null;
   }

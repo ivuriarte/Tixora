@@ -400,6 +400,28 @@
 
 **Expected Outcome:** ✅ Custom sections preserve order and accessibility while legacy event content remains compatible.
 
+## UAT-15: Logged-in Buyer Reaches the Attendee-Details Step
+
+**Why this exists:** in Nov 2026 a paid, logged-in buyer was silently sent back to the event page before the attendee-details step, so the order could never be approved. Every earlier scenario used a guest or a fresh sign-up, so it was never caught. This scenario must be run with an account that is ALREADY signed in before the checkout starts.
+
+**Steps:**
+
+1. Sign in to UAT with an existing customer account (OTP login), THEN open a published event with a paid tier.
+2. Click **Register**, pick the tier, quantity **1**, and continue to the payment page.
+3. Upload a payment proof (screenshot).
+4. Expected: you land on the attendee-details / **Confirm Transaction** page for this order. You must NOT end up on the public event page.
+5. Press **Confirm Transaction**. Expected: the registration appears in Admin > Verification queue (status "Awaiting review") and can be approved.
+6. Repeat with quantity **2**. Expected: the **Review Transaction Details** form asks for two attendees and saves.
+7. Look at the address bar on step 4: it must contain `tierId=<some id>` (never `tierId=` with nothing after it).
+
+**Expected Outcome:** ✅ A logged-in buyer always reaches the details step after uploading proof. If a rare problem stops it, the buyer sees "We couldn't open the last step" with "don't pay again" guidance, never a silent redirect.
+
+**Verify:**
+- [ ] Single-ticket path ends in the Verification queue
+- [ ] Two-ticket path ends in the Verification queue
+- [ ] Address bar carried a real `tierId`
+- [ ] Admin > Analytics funnel shows no `Details step could not be opened` events for this test (or, if it does, the order is still completable)
+
 ## Quick Test Checklist
 
 Copy and paste for your testing session:
@@ -422,6 +444,7 @@ Tester: [NAME]
 - [ ] UAT-12: Demographic validation and privacy boundaries
 - [ ] UAT-13: Sponsor presentation and upload safety
 - [ ] UAT-14: Flexible custom event sections
+- [ ] UAT-15: Logged-in buyer reaches the attendee-details step
 
 All PASS: [ ] Ready for production
 Issues: [List any]

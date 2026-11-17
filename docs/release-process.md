@@ -33,7 +33,7 @@ Merge to `uat`
     ▼
 UAT Acceptance
     │  • Stakeholder tests against uat.axontickets.online
-    │  • All UAT-01 through UAT-14 scenarios pass
+    │  • All UAT-01 through UAT-15 scenarios pass
     │  • Sign-off record filed (build SHA, tester, date, outcome)
     ▼
 Merge to `main`  ← requires recorded UAT sign-off
@@ -88,6 +88,7 @@ hotfix/<name> branch (from main)
 - [ ] Database migration is backwards-compatible (or downtime window is agreed)
 - [ ] Confirm `20260704180000_add_product_packages_mvp` completed before the new API deployment
 - [ ] Verify referral redemption, demographics, sponsors, and custom sections using UAT test data
+- [ ] UAT-15 passed (logged-in buyer reaches the attendee-details step after uploading proof)
 - [ ] Event-day pre-flight checklist reviewed if near an event date
 
 ---

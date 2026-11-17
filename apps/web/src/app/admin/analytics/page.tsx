@@ -110,6 +110,7 @@ function labelForStep(step: string) {
     details_confirm_succeeded: 'Confirm step succeeded',
     details_confirm_failed: 'Confirm step failed',
     order_not_owned_seen: 'Registration could not be opened',
+    details_step_unavailable: 'Details step could not be opened',
   };
   return map[step] ?? step;
 }
