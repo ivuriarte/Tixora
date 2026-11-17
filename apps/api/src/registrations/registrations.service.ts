@@ -1706,6 +1706,9 @@ export class RegistrationsService {
       eventId: reg.eventId,
       referenceNumber: reg.referenceNumber,
       status: reg.status,
+      // The payment page puts this in the link to the attendee-details step. Leaving it out made
+      // that link carry an empty tierId, and logged-in buyers were bounced to the event page.
+      tierId: reg.tierId,
       tierName: reg.tierName,
       unitPrice: reg.unitPrice ? Number(reg.unitPrice) : null,
       attendeeCount: reg.attendeeCount,

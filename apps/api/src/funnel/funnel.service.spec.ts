@@ -8,6 +8,7 @@ const NEW_STEPS = [
   'details_confirm_succeeded',
   'details_confirm_failed',
   'order_not_owned_seen',
+  'details_step_unavailable',
 ] as const;
 
 function makeService() {
