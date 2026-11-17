@@ -27,7 +27,7 @@
     "clsx": "^2.1.1",
     "date-fns": "^3.6.0",
     "lucide-react": "^0.447.0",
-    "next": "^15.5.25",
+    "next": "^15.5.29",
     "qr-scanner": "^1.4.2",
     "qrcode.react": "^4.0.1",
     "react": "^18.3.1",
