@@ -25,6 +25,11 @@ export const FUNNEL_STEPS = [
   'details_confirm_succeeded',
   'details_confirm_failed',
   'order_not_owned_seen',
+  // A paid registration could not reach the attendee-details form (the buyer is shown a message
+  // instead of being sent away). The web sends two fixed fields of its own: where, and reason
+  // ('tier_missing' | 'event_load_failed'). The tracker also stores the page address and referrer.
+  // Nothing on this public endpoint enforces that shape; read the metadata as untrusted.
+  'details_step_unavailable',
 ] as const;
 
 export const FUNNEL_STATUSES = [
