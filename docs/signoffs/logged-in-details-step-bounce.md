@@ -21,3 +21,5 @@
 - Root cause, tests, deploy order and rollback: see the spec.
 - B5b, B6, B7 are drafts in the spec, not built.
 - Incident SQL is kept local (`scripts/sql/` is never committed: the repo is public).
+- 2026-11-17 (Ian): proceeded with UAT's post-deploy browser regression red. 4 homepage featured-hero tests fail because UAT currently has no featured event (the public featured list is empty); the last passing Deploy UAT run was 2026-10-06. Not related to this fix or to the dependency update (the other 107 browser tests, including checkout and admin, passed). Exception accepted by Ian; to be cleared by marking an upcoming On sale UAT event as Featured. Re-confirm before `uat` goes to `main`.
+- Dependency fix shipped separately first (PR #85 into `uat`): next, @sentry/nextjs, handlebars, multer, joi, body-parser, follow-redirects; it cleared both CI audit gates.
