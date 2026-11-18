@@ -76,6 +76,8 @@ interface MockCheckoutOptions {
   duplicateConflict?: boolean;
   beginWithProofSubmitted?: boolean;
   rejectFirstOtp?: boolean;
+  /** The first request for a code is refused as too soon, the way the API does it. */
+  cooldownOnCodeRequest?: { retryAfterSeconds: number; codeActive: boolean };
 }
 
 interface MockCheckoutState {
@@ -88,6 +90,9 @@ interface MockCheckoutState {
   accessCodeRequests: number;
   accessCodeVerifications: number;
   rejectedOtpAttempts: number;
+  codeRequestAttempts: number;
+  cooldownRejections: number;
+  codeRequestEmails: string[];
 }
 
 function json(route: Route, data: unknown, status = 200) {
@@ -159,7 +164,17 @@ async function installCheckoutApi(page: Page, options: MockCheckoutOptions = {})
     accessCodeRequests: 0,
     accessCodeVerifications: 0,
     rejectedOtpAttempts: 0,
+    codeRequestAttempts: 0,
+    cooldownRejections: 0,
+    codeRequestEmails: [],
   };
+  const cooldownBody = (extra: Record<string, unknown> = {}) => ({
+    message: `Please wait ${options.cooldownOnCodeRequest?.retryAfterSeconds} seconds before requesting a new code.`,
+    code: 'OTP_COOLDOWN',
+    retryAfterSeconds: options.cooldownOnCodeRequest?.retryAfterSeconds,
+    codeActive: options.cooldownOnCodeRequest?.codeActive,
+    ...extra,
+  });
   let attendees: Array<Record<string, unknown>> =
     options.authenticated && quantity === 1
       ? [
@@ -219,6 +234,12 @@ async function installCheckoutApi(page: Page, options: MockCheckoutOptions = {})
       });
     }
     if (path.endsWith('/auth/request-access') && method === 'POST') {
+      state.codeRequestAttempts += 1;
+      state.codeRequestEmails.push((request.postDataJSON() as { email?: string }).email ?? '');
+      if (options.cooldownOnCodeRequest && state.cooldownRejections === 0) {
+        state.cooldownRejections += 1;
+        return json(route, cooldownBody({ userId: 'user-account-qa' }), 400);
+      }
       state.accessCodeRequests += 1;
       return json(route, { userId: 'user-account-qa' });
     }
@@ -275,6 +296,12 @@ async function installCheckoutApi(page: Page, options: MockCheckoutOptions = {})
     }
     if (path.endsWith(`${guestRegistrationPath}/request-confirmation-code`) && method === 'POST') {
       state.guestHeaders.push(request.headers()['x-registration-token'] ?? '');
+      state.codeRequestAttempts += 1;
+      state.codeRequestEmails.push((request.postDataJSON() as { email?: string }).email ?? '');
+      if (options.cooldownOnCodeRequest && state.cooldownRejections === 0) {
+        state.cooldownRejections += 1;
+        return json(route, cooldownBody(), 400);
+      }
       state.confirmationCodeRequests += 1;
       return json(route, { message: 'Code sent' }, 201);
     }
@@ -746,6 +773,208 @@ test.describe('Critical checkout journeys', () => {
       expect.objectContaining({ firstName: 'Katherine', lastName: 'Johnson', email: 'account@example.com' }),
       expect.objectContaining({ firstName: 'Dorothy', lastName: 'Vaughan', email: 'dorothy@example.com' }),
     ]);
+    expectNoBrowserFailures(diagnostics);
+  });
+});
+
+async function fillAccountLead(page: Page) {
+  const accountInputs = page.locator('form').locator('input');
+  await accountInputs.nth(0).fill('account@example.com');
+  await accountInputs.nth(1).fill('account@example.com');
+  await accountInputs.nth(2).fill('Katherine');
+  await accountInputs.nth(3).fill('Johnson');
+  await accountInputs.nth(4).fill('+639171234567');
+}
+
+// Next.js keeps an empty role="alert" route announcer on every page, so "no error shown" means no
+// alert that carries text.
+
+/**
+ * Chromium logs a handled HTTP 400 as a console error. Tests that deliberately make the API
+ * refuse a request drop only those lines before the no-unhandled-errors guard runs.
+ */
+function dropHandledBadRequests(diagnostics: { consoleErrors: string[] }) {
+  diagnostics.consoleErrors = diagnostics.consoleErrors.filter(
+    (message) => !message.includes('400 (Bad Request)'),
+  );
+}
+
+async function openGuestReview(page: Page, options: MockCheckoutOptions = {}) {
+  const state = await openSubmittedGuestCheckout(page, options);
+  await page.getByRole('button', { name: /Continue as Guest/i }).click();
+  if ((options.quantity ?? 1) > 1) {
+    await fillGuestAttendee(page, 1, { email: 'lead@example.com', firstName: 'Lead', lastName: 'Registrant' });
+    await fillGuestAttendee(page, 2, { email: 'friend@example.com', firstName: 'Second', lastName: 'Attendee' });
+  } else {
+    await fillStandardGuestAttendee(page);
+  }
+  await page.getByRole('button', { name: 'Review Transaction Details' }).click();
+  await expect(page.getByRole('heading', { name: 'Order Summary' })).toBeVisible();
+  return state;
+}
+
+test.describe('Confirmation code cooldown on every checkout path', () => {
+  test('@critical guest review names the address the code goes to', async ({ page, diagnostics }) => {
+    await openGuestReview(page, { quantity: 2 });
+    await expect(page.getByTestId('code-recipient')).toContainText('lead@example.com');
+    await expect(page.getByTestId('code-recipient')).toContainText('Attendee 1');
+    expectNoBrowserFailures(diagnostics);
+  });
+
+  test('@critical guest asked too soon sees a countdown, not a stale red error, and nothing is sent while it runs', async ({
+    page,
+    diagnostics,
+  }) => {
+    const state = await openGuestReview(page, {
+      quantity: 2,
+      cooldownOnCodeRequest: { retryAfterSeconds: 30, codeActive: false },
+    });
+    await page.getByRole('button', { name: 'Confirm and Send My Code' }).click();
+
+    await expect(page.getByTestId('code-wait')).toContainText(/ask for a new code in (29|30)s/i);
+    await expect(page.getByRole('button', { name: /Send a new code in (29|30)s/ })).toBeDisabled();
+    await expect(page.getByRole('alert').filter({ hasText: /\S/ })).toHaveCount(0);
+    await expect(page.getByText(/Please wait \d+ seconds/)).toHaveCount(0);
+    await expect(page.getByRole('heading', { name: 'Confirm your email' })).toHaveCount(0);
+    expect(state.codeRequestAttempts).toBe(1);
+    expect(state.confirmationCodeRequests).toBe(0);
+
+    dropHandledBadRequests(diagnostics);
+    expectNoBrowserFailures(diagnostics);
+  });
+
+  test('@critical guest wait lifts by itself when the countdown ends', async ({ page, diagnostics }) => {
+    const state = await openGuestReview(page, {
+      cooldownOnCodeRequest: { retryAfterSeconds: 2, codeActive: false },
+    });
+    await page.getByRole('button', { name: 'Confirm and Send My Code' }).click();
+    await expect(page.getByTestId('code-wait')).toBeVisible();
+
+    await expect(page.getByTestId('code-wait')).toHaveCount(0, { timeout: 6000 });
+    const confirm = page.getByRole('button', { name: 'Confirm and Send My Code' });
+    await expect(confirm).toBeEnabled();
+    await confirm.click();
+    await expect(page.getByRole('heading', { name: 'Confirm your email' })).toBeVisible();
+    expect(state.confirmationCodeRequests).toBe(1);
+    expect(state.codeRequestAttempts).toBe(2);
+
+    dropHandledBadRequests(diagnostics);
+    expectNoBrowserFailures(diagnostics);
+  });
+
+  test('@critical guest who corrects the lead email can send straight away', async ({ page, diagnostics }) => {
+    const state = await openGuestReview(page, {
+      cooldownOnCodeRequest: { retryAfterSeconds: 60, codeActive: false },
+    });
+    await page.getByRole('button', { name: 'Confirm and Send My Code' }).click();
+    await expect(page.getByTestId('code-wait')).toBeVisible();
+
+    await page.getByRole('button', { name: 'Edit details' }).click();
+    await page.getByLabel('Email *', { exact: true }).fill('corrected@example.com');
+    await page.getByRole('button', { name: 'Review Transaction Details' }).click();
+
+    await expect(page.getByTestId('code-recipient')).toContainText('corrected@example.com');
+    await expect(page.getByTestId('code-wait')).toHaveCount(0);
+    await page.getByRole('button', { name: 'Confirm and Send My Code' }).click();
+    await expect(page.getByRole('heading', { name: 'Confirm your email' })).toBeVisible();
+    expect(state.codeRequestEmails).toEqual(['guest@example.com', 'corrected@example.com']);
+    expect(state.confirmationCodeRequests).toBe(1);
+
+    dropHandledBadRequests(diagnostics);
+    expectNoBrowserFailures(diagnostics);
+  });
+
+  test('@critical guest whose earlier code is still valid goes straight to entering it', async ({
+    page,
+    diagnostics,
+  }) => {
+    const state = await openGuestReview(page, {
+      quantity: 2,
+      cooldownOnCodeRequest: { retryAfterSeconds: 45, codeActive: true },
+    });
+    await page.getByRole('button', { name: 'Confirm and Send My Code' }).click();
+
+    await expect(page.getByRole('heading', { name: 'Confirm your email' })).toBeVisible();
+    await expect(page.getByTestId('otp-notice')).toContainText(/already sent to this address/i);
+    await expect(page.getByText(/check your spam folder/i)).toBeVisible();
+    await expect(page.getByRole('alert').filter({ hasText: /\S/ })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: /Send a new code in \d+s/ })).toBeDisabled();
+
+    await page.getByLabel('Six-digit confirmation code').fill('123456');
+    await expect(page).toHaveURL(/register\/complete\?/);
+    expect(state.confirmPayload?.attendees).toHaveLength(2);
+    expect(state.confirmationCodeRequests).toBe(0);
+
+    dropHandledBadRequests(diagnostics);
+    expectNoBrowserFailures(diagnostics);
+  });
+
+  test('@critical guest who steps back from the code screen can return to the code already sent', async ({
+    page,
+    diagnostics,
+  }) => {
+    const state = await openGuestReview(page, { quantity: 2 });
+    await page.getByRole('button', { name: 'Confirm and Send My Code' }).click();
+    await expect(page.getByRole('heading', { name: 'Confirm your email' })).toBeVisible();
+    await expect(page.getByText(/check your spam folder/i)).toBeVisible();
+
+    await page.getByRole('button', { name: /Back to review/ }).click();
+    await expect(page.getByTestId('code-wait')).toContainText(/code we already sent still works/i);
+    await expect(page.getByRole('button', { name: /Send a new code in \d+s/ })).toBeDisabled();
+
+    await page.getByTestId('use-sent-code').click();
+    await expect(page.getByRole('heading', { name: 'Confirm your email' })).toBeVisible();
+    await page.getByLabel('Six-digit confirmation code').fill('123456');
+    await expect(page).toHaveURL(/register\/complete\?/);
+    expect(state.codeRequestAttempts).toBe(1);
+    expect(state.confirmationCodeRequests).toBe(1);
+    expectNoBrowserFailures(diagnostics);
+  });
+
+  test('@critical account path asked too soon shows the countdown and sends nothing more', async ({
+    page,
+    diagnostics,
+  }) => {
+    const state = await openSubmittedGuestCheckout(page, {
+      cooldownOnCodeRequest: { retryAfterSeconds: 30, codeActive: false },
+    });
+    await page.getByRole('button', { name: /Sign In or Activate an Account/i }).click();
+    await fillAccountLead(page);
+    await page.getByRole('button', { name: 'Review Transaction Details' }).click();
+    await expect(page.getByTestId('code-recipient')).toContainText('account@example.com');
+    await page.getByRole('button', { name: 'Confirm and Send My Code' }).click();
+
+    await expect(page.getByTestId('code-wait')).toContainText(/ask for a new code in (29|30)s/i);
+    await expect(page.getByRole('button', { name: /Send a new code in (29|30)s/ })).toBeDisabled();
+    await expect(page.getByRole('alert').filter({ hasText: /\S/ })).toHaveCount(0);
+    expect(state.codeRequestAttempts).toBe(1);
+    expect(state.accessCodeRequests).toBe(0);
+
+    dropHandledBadRequests(diagnostics);
+    expectNoBrowserFailures(diagnostics);
+  });
+
+  test('@critical account path whose earlier code is still valid carries on to the code step and links the order', async ({
+    page,
+    diagnostics,
+  }) => {
+    const state = await openSubmittedGuestCheckout(page, {
+      cooldownOnCodeRequest: { retryAfterSeconds: 45, codeActive: true },
+    });
+    await page.getByRole('button', { name: /Sign In or Activate an Account/i }).click();
+    await fillAccountLead(page);
+    await page.getByRole('button', { name: 'Review Transaction Details' }).click();
+    await page.getByRole('button', { name: 'Confirm and Send My Code' }).click();
+
+    await expect(page.getByRole('heading', { name: 'Confirm your email' })).toBeVisible();
+    await expect(page.getByTestId('otp-notice')).toContainText(/already sent to this address/i);
+    await page.getByLabel('Six-digit confirmation code').fill('123456');
+
+    await expect(page).toHaveURL(/scenario=account/);
+    expect(state.accessCodeVerifications).toBe(1);
+    expect(state.claimPayload?.attendees).toHaveLength(1);
+
+    dropHandledBadRequests(diagnostics);
     expectNoBrowserFailures(diagnostics);
   });
 });

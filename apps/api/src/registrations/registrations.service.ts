@@ -37,6 +37,15 @@ const DUPLICATE_SUCCESSFUL_REGISTRATION_MESSAGE =
   'You have already successfully registered for this event. You cannot register twice for the same event.';
 const GUEST_CHECKOUT_OTP_TTL_SECONDS = 300;
 const GUEST_CHECKOUT_OTP_MAX_ATTEMPTS = 5;
+/** Wait between two codes to the SAME address for the same order. */
+const GUEST_CHECKOUT_OTP_COOLDOWN_SECONDS = 60;
+/** Most codes one order may request per hour, across every address it tries. */
+const GUEST_CHECKOUT_OTP_MAX_SENDS_PER_HOUR = 6;
+/**
+ * How long the request waits for the mail server before giving the buyer an answer. Below the
+ * platform's 30 s function limit, so a slow mail server never turns into a gateway timeout.
+ */
+const GUEST_CHECKOUT_OTP_SEND_BUDGET_MS = 20_000;
 /** Same reply whether or not an email was actually sent (no oracle for limits or addresses). */
 const SAVE_FOR_LATER_MESSAGE = 'If the address is right, your link is on its way.';
 const LEGACY_HOLD_MS = 24 * 60 * 60 * 1000;
@@ -918,28 +927,99 @@ export class RegistrationsService {
         conflicts,
       });
     }
-    const cooldownKey = `guest-checkout-otp-cooldown:${id}`;
-    const accepted = await this.redis.setIfNotExists(cooldownKey, '1', 60);
+    const emailHash = this.hashGuestEmail(normalizedEmail);
+    const otpKey = `guest-checkout-otp:${id}`;
+    // The cooldown belongs to this order AND this address. Fixing a typo in the address must
+    // not wait out the cooldown of the wrong one; the hourly cap below stops address-hopping.
+    const cooldownKey = this.guestOtpCooldownKey(id, emailHash);
+    const sendsKey = `guest-checkout-otp-sends:${id}`;
+    const accepted = await this.redis.setIfNotExists(
+      cooldownKey,
+      '1',
+      GUEST_CHECKOUT_OTP_COOLDOWN_SECONDS,
+    );
     if (!accepted) {
-      throw new BadRequestException('Please wait 60 seconds before requesting a new code.');
+      const remaining = await this.redis.ttl(cooldownKey);
+      const retryAfterSeconds = remaining > 0 ? remaining : GUEST_CHECKOUT_OTP_COOLDOWN_SECONDS;
+      throw new BadRequestException({
+        message: `Please wait ${retryAfterSeconds} seconds before requesting a new code.`,
+        code: 'OTP_COOLDOWN',
+        retryAfterSeconds,
+        // True when the code already sent to this address can still be entered.
+        codeActive: await this.guestCodeIsActive(otpKey, emailHash),
+      });
+    }
+    const sends = await this.redis.incrementWithTtl(sendsKey, 3600);
+    if (sends.count > GUEST_CHECKOUT_OTP_MAX_SENDS_PER_HOUR) {
+      await this.redis.del(cooldownKey);
+      throw new HttpException(
+        {
+          message: 'Too many codes were requested for this order. Please try again in about an hour.',
+          code: 'OTP_SEND_LIMIT',
+          retryAfterSeconds: sends.ttlSeconds,
+        },
+        HttpStatus.TOO_MANY_REQUESTS,
+      );
     }
 
     const code = randomInt(0, 1_000_000).toString().padStart(6, '0');
     const codeHash = await bcrypt.hash(code, 10);
-    const record = JSON.stringify({
-      codeHash,
-      emailHash: this.hashGuestEmail(normalizedEmail),
-    });
-    const otpKey = `guest-checkout-otp:${id}`;
+    const record = JSON.stringify({ codeHash, emailHash });
     await this.redis.set(otpKey, record, GUEST_CHECKOUT_OTP_TTL_SECONDS);
 
-    const sent = await this.emailService.sendOtpEmail(normalizedEmail, code);
-    if (!sent) {
-      await Promise.all([this.redis.del(otpKey), this.redis.del(cooldownKey)]);
+    const outcome = await this.sendGuestOtp(normalizedEmail, code);
+    if (outcome === 'failed') {
+      await Promise.all([
+        this.redis.del(otpKey),
+        this.redis.del(cooldownKey),
+        this.redis.decrementIfPositive(sendsKey),
+      ]);
       throw new BadRequestException('Could not send code right now. Please try again.');
+    }
+    if (outcome === 'timeout') {
+      // The mail may still arrive, so the stored code stays valid; only the wait is released so
+      // the buyer can ask again at once (a second code replaces the first).
+      this.logger.warn({ msg: 'Guest checkout code send exceeded its time budget', regId: id });
+      await this.redis.del(cooldownKey);
+      throw new BadRequestException(
+        'The code is taking longer than usual to send. Please try again in a moment.',
+      );
     }
 
     return { message: 'If the address is valid, a confirmation code has been sent.' };
+  }
+
+  private guestOtpCooldownKey(id: string, emailHash: string) {
+    return `guest-checkout-otp-cooldown:${id}:${emailHash.slice(0, 16)}`;
+  }
+
+  /** Whether a not-yet-expired code for exactly this address is stored for the order. */
+  private async guestCodeIsActive(otpKey: string, emailHash: string): Promise<boolean> {
+    try {
+      const raw = await this.redis.get(otpKey);
+      if (!raw) return false;
+      const stored = JSON.parse(raw) as { emailHash?: string };
+      return typeof stored.emailHash === 'string' && this.safeHashEquals(stored.emailHash, emailHash);
+    } catch {
+      return false;
+    }
+  }
+
+  /** Sends the code, but never waits longer than the time budget for the mail server. */
+  private async sendGuestOtp(email: string, code: string): Promise<'sent' | 'failed' | 'timeout'> {
+    const send = this.emailService
+      .sendOtpEmail(email, code)
+      .then((ok) => (ok ? 'sent' : 'failed') as 'sent' | 'failed')
+      .catch(() => 'failed' as const);
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const budget = new Promise<'timeout'>((resolve) => {
+      timer = setTimeout(() => resolve('timeout'), GUEST_CHECKOUT_OTP_SEND_BUDGET_MS);
+    });
+    try {
+      return await Promise.race([send, budget]);
+    } finally {
+      if (timer) clearTimeout(timer);
+    }
   }
 
   async confirmGuestCheckout(
@@ -1006,7 +1086,8 @@ export class RegistrationsService {
     await Promise.all([
       this.redis.del(otpKey),
       this.redis.del(attemptsKey),
-      this.redis.del(`guest-checkout-otp-cooldown:${id}`),
+      this.redis.del(this.guestOtpCooldownKey(id, record.emailHash)),
+      this.redis.del(`guest-checkout-otp-sends:${id}`),
     ]);
     await this.audit.log({
       action: 'GUEST_REGISTRATION_CONFIRMED',
@@ -1243,6 +1324,45 @@ export class RegistrationsService {
 
   private hashGuestEmail(email: string) {
     return createHash('sha256').update(email).digest('hex');
+  }
+
+  /**
+   * Guest email claims are unique per (event, email) and were never released, so an email used
+   * by an order that was later rejected or cancelled stayed blocked for the event: the buyer paid,
+   * passed the code check, then hit a conflict at the very last step. A claim now counts only
+   * while its order is still in an active status; anything else is dropped before claiming.
+   * A claim left by this same order (a retry) is dropped and made again.
+   */
+  private async releaseStaleGuestEmailClaimsTx(
+    tx: Prisma.TransactionClient,
+    eventId: string,
+    registrationId: string,
+    emailHashes: string[],
+  ) {
+    if (emailHashes.length === 0) return;
+    const existing = await tx.guestRegistrationEmailClaim.findMany({
+      where: { eventId, emailHash: { in: emailHashes } },
+      select: { id: true, registrationId: true },
+    });
+    if (existing.length === 0) return;
+
+    const otherOrderIds = [
+      ...new Set(existing.map((claim) => claim.registrationId).filter((owner) => owner !== registrationId)),
+    ];
+    const stillActive =
+      otherOrderIds.length > 0
+        ? await tx.registration.findMany({
+            where: { id: { in: otherOrderIds }, status: { in: [...ACTIVE_REGISTRATION_STATUSES] as any[] } },
+            select: { id: true },
+          })
+        : [];
+    const activeIds = new Set(stillActive.map((order) => order.id));
+    const staleClaimIds = existing
+      .filter((claim) => !activeIds.has(claim.registrationId))
+      .map((claim) => claim.id);
+    if (staleClaimIds.length > 0) {
+      await tx.guestRegistrationEmailClaim.deleteMany({ where: { id: { in: staleClaimIds } } });
+    }
   }
 
   private safeHashEquals(left: string, right: string) {
@@ -1826,13 +1946,17 @@ export class RegistrationsService {
     try {
       await this.prisma.$transaction(async (tx) => {
         if (claimGuestEmails) {
+          const emailHashes = [
+            ...new Set(dto.attendees.map((attendee) => attendee.email.trim().toLowerCase())),
+          ].map((email) => this.hashGuestEmail(email));
+          // A claim only protects an email while the order that made it is still active.
+          await this.releaseStaleGuestEmailClaimsTx(tx, reg.event.id, reg.id, emailHashes);
           await tx.guestRegistrationEmailClaim.createMany({
-            data: [...new Set(dto.attendees.map((attendee) => attendee.email.trim().toLowerCase()))]
-              .map((email) => ({
-                eventId: reg.event.id,
-                registrationId: reg.id,
-                emailHash: this.hashGuestEmail(email),
-              })),
+            data: emailHashes.map((emailHash) => ({
+              eventId: reg.event.id,
+              registrationId: reg.id,
+              emailHash,
+            })),
           });
         }
         if (reg.attendees.length === 0) {

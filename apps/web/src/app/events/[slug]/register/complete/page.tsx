@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import api from '@/lib/api';
 import { useAuthStore } from '@/store/auth.store';
+import { readOtpCooldown } from '@/lib/otpCooldown';
 
 type Scenario = 'authenticated' | 'guest' | 'account';
 
@@ -84,6 +85,14 @@ function CompleteContent() {
       setPendingUserId(response.data.data.userId);
       setActivationStep('otp');
     } catch (requestError: unknown) {
+      // Asked again within the wait: the code sent a moment ago still works, so go straight to
+      // the screen where it is entered instead of showing an error that outlives the wait.
+      const cooldown = readOtpCooldown(requestError);
+      if (cooldown?.userId && cooldown.codeActive) {
+        setPendingUserId(cooldown.userId);
+        setActivationStep('otp');
+        return;
+      }
       const message = (requestError as { response?: { data?: { message?: string | string[] } } })?.response?.data?.message ?? 'We could not send the verification code.';
       setError(Array.isArray(message) ? message.join(' ') : message);
     } finally {

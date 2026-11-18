@@ -14,6 +14,7 @@ import CheckoutStepper from '@/components/CheckoutStepper';
 import InAppBrowserBanner from '@/components/InAppBrowserBanner';
 import { trackPixelCustomEvent } from '@/lib/metaPixel';
 import { trackInternalFunnelEvent, getOrCreateFunnelSessionId } from '@/lib/funnel';
+import { readOtpCooldown } from '@/lib/otpCooldown';
 import toast from 'react-hot-toast';
 import { formatPHP } from '@axon-tickets/utils';
 import type { EventOptionalInclusion } from '@axon-tickets/types';
@@ -293,6 +294,18 @@ function GuestWizard({ event, tier, qty, onOtpVerified, skipGate = false }: Gues
         metadata: { eventSlug: event.slug, eventTitle: event.title },
       });
     } catch (err: any) {
+      // Asked again within the wait: the code sent a moment ago still works, so carry on to the
+      // screen where it is entered instead of leaving an error that outlives the wait.
+      const cooldown = readOtpCooldown(err);
+      if (cooldown?.userId && cooldown.codeActive) {
+        setEmail(normalizedEmail);
+        setPendingUserId(cooldown.userId);
+        setStep('verify');
+        startResendTimer();
+        setTimeout(() => otpInputRef.current?.focus(), 50);
+        toast('A code was already sent to this address a moment ago. Enter it below.');
+        return;
+      }
       const msg = err?.response?.data?.message ?? 'Could not send your code. Please try again.';
       setFieldError(Array.isArray(msg) ? msg.join(' ') : msg);
     } finally {
@@ -904,7 +917,9 @@ export default function RegisterPage() {
   const [dupCheck, setDupCheck] = useState<'idle' | 'checking' | 'duplicate' | 'clear'>('idle');
   const dupCheckRanRef = useRef(false);
 
-  const qty = Math.max(1, parseInt(searchParams.qty ?? '1', 10));
+  // A missing or garbled ?qty= means one ticket (Math.max(1, NaN) would be NaN).
+  const parsedQty = parseInt(searchParams.qty ?? '1', 10);
+  const qty = Number.isFinite(parsedQty) ? Math.max(1, parsedQty) : 1;
   const existingRegistrationId = searchParams.registrationId;
 
   const handleOtpVerified = useCallback(

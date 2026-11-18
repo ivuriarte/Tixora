@@ -18,7 +18,9 @@ function makeService() {
     set: jest.fn().mockResolvedValue(undefined),
     del: jest.fn().mockResolvedValue(undefined),
     setIfNotExists: jest.fn().mockResolvedValue(true),
-    incrementWithTtl: jest.fn(),
+    incrementWithTtl: jest.fn().mockResolvedValue({ count: 1, ttlSeconds: 3600 }),
+    decrementIfPositive: jest.fn().mockResolvedValue(0),
+    ttl: jest.fn().mockResolvedValue(42),
   };
   const guestHold = makeGuestHold();
   const service = new RegistrationsService(
@@ -222,6 +224,292 @@ describe('RegistrationsService guest access', () => {
       emailHash: createHash('sha256').update('guest@example.com').digest('hex'),
     });
     expect(prisma).not.toHaveProperty('user');
+  });
+
+  describe('guest confirmation code cooldown', () => {
+    const token = 'valid-registration-scoped-token';
+    const sha = (value: string) => createHash('sha256').update(value).digest('hex');
+
+    function readyOrder(prisma: ReturnType<typeof makeService>['prisma']) {
+      prisma.registration.findFirst.mockResolvedValue({
+        id: 'registration-1',
+        guestAccessTokenHash: sha(token),
+      });
+      prisma.registration.findUnique.mockResolvedValue({
+        status: 'proof_submitted',
+        total: 500,
+        attendeesCompletedAt: null,
+        eventId: 'event-1',
+      });
+    }
+
+    it('keeps one cooldown per order AND address, so a corrected address is not blocked', async () => {
+      const { service, prisma, redis } = makeService();
+      readyOrder(prisma);
+
+      await service.requestGuestConfirmationCode('registration-1', token, 'wrong@example.com');
+      await service.requestGuestConfirmationCode('registration-1', token, 'right@example.com');
+
+      const keys = redis.setIfNotExists.mock.calls.map((call) => call[0] as string);
+      expect(keys).toHaveLength(2);
+      expect(keys[0]).not.toBe(keys[1]);
+      keys.forEach((key) => expect(key).toMatch(/^guest-checkout-otp-cooldown:registration-1:[0-9a-f]{16}$/));
+      expect(keys.join()).not.toContain('example.com');
+    });
+
+    it('tells the buyer how many seconds are left and whether the sent code still works', async () => {
+      const { service, prisma, redis, email } = makeService();
+      readyOrder(prisma);
+      redis.setIfNotExists.mockResolvedValue(false);
+      redis.ttl.mockResolvedValue(37);
+      redis.get.mockResolvedValue(
+        JSON.stringify({ codeHash: 'x', emailHash: sha('guest@example.com') }),
+      );
+
+      const attempt = service.requestGuestConfirmationCode('registration-1', token, 'guest@example.com');
+
+      await expect(attempt).rejects.toBeInstanceOf(BadRequestException);
+      await attempt.catch((error: BadRequestException) => {
+        expect(error.getResponse()).toEqual({
+          message: 'Please wait 37 seconds before requesting a new code.',
+          code: 'OTP_COOLDOWN',
+          retryAfterSeconds: 37,
+          codeActive: true,
+        });
+      });
+      expect(email.sendOtpEmail).not.toHaveBeenCalled();
+    });
+
+    it('does not claim the earlier code is usable when it was sent to a different address', async () => {
+      const { service, prisma, redis } = makeService();
+      readyOrder(prisma);
+      redis.setIfNotExists.mockResolvedValue(false);
+      redis.get.mockResolvedValue(
+        JSON.stringify({ codeHash: 'x', emailHash: sha('someone-else@example.com') }),
+      );
+
+      await service
+        .requestGuestConfirmationCode('registration-1', token, 'guest@example.com')
+        .catch((error: BadRequestException) => {
+          expect(error.getResponse()).toEqual(expect.objectContaining({ codeActive: false }));
+        });
+    });
+
+    it('stops one order from trying more than six codes an hour across addresses', async () => {
+      const { service, prisma, redis, email } = makeService();
+      readyOrder(prisma);
+      redis.incrementWithTtl.mockResolvedValue({ count: 7, ttlSeconds: 1800 });
+
+      await expect(
+        service.requestGuestConfirmationCode('registration-1', token, 'seventh@example.com'),
+      ).rejects.toMatchObject({ status: 429 });
+      expect(email.sendOtpEmail).not.toHaveBeenCalled();
+      expect(redis.del).toHaveBeenCalledTimes(1);
+    });
+
+    it('gives the wait back when the mail server reports a failure', async () => {
+      const { service, prisma, redis, email } = makeService();
+      readyOrder(prisma);
+      email.sendOtpEmail.mockResolvedValue(false);
+
+      await expect(
+        service.requestGuestConfirmationCode('registration-1', token, 'guest@example.com'),
+      ).rejects.toBeInstanceOf(BadRequestException);
+
+      const deleted = redis.del.mock.calls.map((call) => call[0] as string);
+      expect(deleted).toContain('guest-checkout-otp:registration-1');
+      expect(deleted.some((key) => key.startsWith('guest-checkout-otp-cooldown:registration-1:'))).toBe(true);
+      expect(redis.decrementIfPositive).toHaveBeenCalledWith('guest-checkout-otp-sends:registration-1');
+    });
+
+    it('gives the wait back when the mail server throws', async () => {
+      const { service, prisma, redis, email } = makeService();
+      readyOrder(prisma);
+      email.sendOtpEmail.mockRejectedValue(new Error('socket hang up'));
+
+      await expect(
+        service.requestGuestConfirmationCode('registration-1', token, 'guest@example.com'),
+      ).rejects.toBeInstanceOf(BadRequestException);
+
+      const deleted = redis.del.mock.calls.map((call) => call[0] as string);
+      expect(deleted.some((key) => key.startsWith('guest-checkout-otp-cooldown:registration-1:'))).toBe(true);
+    });
+
+    it('answers within the time budget when the mail server hangs, and releases the wait only', async () => {
+      // Only the budget timer is faked; bcrypt needs the real setImmediate/nextTick to finish.
+      jest.useFakeTimers({ doNotFake: ['setImmediate', 'clearImmediate', 'nextTick', 'queueMicrotask'] });
+      try {
+        const { service, prisma, redis, email } = makeService();
+        readyOrder(prisma);
+        email.sendOtpEmail.mockReturnValue(new Promise<boolean>(() => undefined));
+
+        const attempt = service
+          .requestGuestConfirmationCode('registration-1', token, 'guest@example.com')
+          .catch((error: BadRequestException) => error);
+        // Wait until the request is actually waiting on the mail server, then let the budget run out.
+        while (email.sendOtpEmail.mock.calls.length === 0) {
+          await new Promise<void>((resolve) => setImmediate(resolve));
+        }
+        await jest.advanceTimersByTimeAsync(20_000);
+        const error = await attempt;
+
+        expect(error).toBeInstanceOf(BadRequestException);
+        expect((error as BadRequestException).message).toMatch(/taking longer than usual/);
+        const deleted = redis.del.mock.calls.map((call) => call[0] as string);
+        // The mail may still arrive, so the stored code is kept; only the wait is released.
+        expect(deleted).not.toContain('guest-checkout-otp:registration-1');
+        expect(deleted.some((key) => key.startsWith('guest-checkout-otp-cooldown:registration-1:'))).toBe(true);
+      } finally {
+        jest.useRealTimers();
+      }
+    });
+  });
+
+  describe('guest email claims', () => {
+    const sha = (value: string) => createHash('sha256').update(value).digest('hex');
+
+    function fakeTx(options: {
+      claims: Array<{ id: string; registrationId: string }>;
+      activeOrderIds: string[];
+    }) {
+      return {
+        guestRegistrationEmailClaim: {
+          findMany: jest.fn().mockResolvedValue(options.claims),
+          deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
+        },
+        registration: {
+          findMany: jest.fn().mockResolvedValue(options.activeOrderIds.map((id) => ({ id }))),
+        },
+      };
+    }
+
+    it('drops a claim left by an order that was rejected or cancelled', async () => {
+      const { service } = makeService();
+      const tx = fakeTx({ claims: [{ id: 'claim-1', registrationId: 'old-order' }], activeOrderIds: [] });
+
+      await (service as any).releaseStaleGuestEmailClaimsTx(tx, 'event-1', 'new-order', [sha('a@example.com')]);
+
+      expect(tx.guestRegistrationEmailClaim.deleteMany).toHaveBeenCalledWith({
+        where: { id: { in: ['claim-1'] } },
+      });
+    });
+
+    it('keeps a claim whose order is still active, so the database still refuses the duplicate', async () => {
+      const { service } = makeService();
+      const tx = fakeTx({ claims: [{ id: 'claim-1', registrationId: 'live-order' }], activeOrderIds: ['live-order'] });
+
+      await (service as any).releaseStaleGuestEmailClaimsTx(tx, 'event-1', 'new-order', [sha('a@example.com')]);
+
+      expect(tx.guestRegistrationEmailClaim.deleteMany).not.toHaveBeenCalled();
+    });
+
+    it('drops only the stale claims when an order has both kinds', async () => {
+      const { service } = makeService();
+      const tx = fakeTx({
+        claims: [
+          { id: 'claim-live', registrationId: 'live-order' },
+          { id: 'claim-old', registrationId: 'old-order' },
+        ],
+        activeOrderIds: ['live-order'],
+      });
+
+      await (service as any).releaseStaleGuestEmailClaimsTx(tx, 'event-1', 'new-order', [
+        sha('a@example.com'),
+        sha('b@example.com'),
+      ]);
+
+      expect(tx.guestRegistrationEmailClaim.deleteMany).toHaveBeenCalledWith({
+        where: { id: { in: ['claim-old'] } },
+      });
+    });
+
+    it('drops and remakes a claim this same order left behind by an earlier try', async () => {
+      const { service } = makeService();
+      const tx = fakeTx({ claims: [{ id: 'claim-own', registrationId: 'new-order' }], activeOrderIds: [] });
+
+      await (service as any).releaseStaleGuestEmailClaimsTx(tx, 'event-1', 'new-order', [sha('a@example.com')]);
+
+      expect(tx.registration.findMany).not.toHaveBeenCalled();
+      expect(tx.guestRegistrationEmailClaim.deleteMany).toHaveBeenCalledWith({
+        where: { id: { in: ['claim-own'] } },
+      });
+    });
+
+    it('clears stale claims before it claims, inside the same transaction as the attendee save', async () => {
+      const { service, prisma } = makeService();
+      const calls: string[] = [];
+      const tx = {
+        guestRegistrationEmailClaim: {
+          findMany: jest.fn().mockImplementation(async () => {
+            calls.push('look-for-claims');
+            return [{ id: 'claim-old', registrationId: 'old-order' }];
+          }),
+          deleteMany: jest.fn().mockImplementation(async () => {
+            calls.push('drop-stale-claims');
+            return { count: 1 };
+          }),
+          createMany: jest.fn().mockImplementation(async () => {
+            calls.push('claim-emails');
+            return { count: 2 };
+          }),
+        },
+        registration: {
+          findMany: jest.fn().mockResolvedValue([]),
+          update: jest.fn().mockImplementation(async () => {
+            calls.push('save-registration');
+          }),
+        },
+        attendee: {
+          createMany: jest.fn().mockImplementation(async () => {
+            calls.push('save-attendees');
+          }),
+        },
+      };
+      (prisma as any).$transaction = jest.fn().mockImplementation(async (run: (client: unknown) => unknown) => run(tx));
+      prisma.registration.findFirst.mockResolvedValue({
+        id: 'registration-1',
+        referenceNumber: 'REF-1',
+        status: 'proof_submitted',
+        userId: null,
+        attendeeCount: 2,
+        total: 500,
+        attendees: [],
+        event: { id: 'event-1', title: 'Event', slug: 'event', eventType: 'conference', runningConfig: null, startsAt: new Date() },
+      });
+      jest.spyOn(service as any, 'sendSubmissionEmails').mockResolvedValue(undefined);
+
+      await (service as any).updateAttendeesForRegistration(
+        'registration-1',
+        null,
+        {
+          attendees: [
+            { firstName: 'Ana', lastName: 'One', email: 'one@example.com' },
+            { firstName: 'Ben', lastName: 'Two', email: 'two@example.com' },
+          ],
+        },
+        true,
+      );
+
+      expect(calls.indexOf('drop-stale-claims')).toBeGreaterThan(-1);
+      expect(calls.indexOf('drop-stale-claims')).toBeLessThan(calls.indexOf('claim-emails'));
+      expect(calls.indexOf('claim-emails')).toBeLessThan(calls.indexOf('save-registration'));
+      expect(tx.guestRegistrationEmailClaim.createMany).toHaveBeenCalledWith({
+        data: [
+          { eventId: 'event-1', registrationId: 'registration-1', emailHash: sha('one@example.com') },
+          { eventId: 'event-1', registrationId: 'registration-1', emailHash: sha('two@example.com') },
+        ],
+      });
+    });
+
+    it('does nothing when no claim exists for the emails', async () => {
+      const { service } = makeService();
+      const tx = fakeTx({ claims: [], activeOrderIds: [] });
+
+      await (service as any).releaseStaleGuestEmailClaimsTx(tx, 'event-1', 'new-order', [sha('a@example.com')]);
+
+      expect(tx.registration.findMany).not.toHaveBeenCalled();
+      expect(tx.guestRegistrationEmailClaim.deleteMany).not.toHaveBeenCalled();
+    });
   });
 
   it('returns only masked duplicate details to a scoped guest checkout', async () => {
