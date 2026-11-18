@@ -86,7 +86,9 @@ export class AuthService {
     refreshToken: string;
   }> {
     const user = await this.prisma.user.findUnique({ where: { email: dto.email.toLowerCase() } });
-    if (!user || !user.passwordHash) {
+    // Password sign-in is only for platform admins; everyone else uses the email code (OTP) flow.
+    // Same message for every failure so nobody can tell which accounts exist.
+    if (!user || !user.passwordHash || !user.isAdmin) {
       throw new UnauthorizedException('Invalid email or password');
     }
 
