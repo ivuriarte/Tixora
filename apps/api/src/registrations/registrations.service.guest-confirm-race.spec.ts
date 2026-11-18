@@ -3,8 +3,9 @@
  * concurrency.
  *  - a failed try is counted atomically BEFORE the code is compared, so a burst of parallel
  *    guesses gets exactly MAX compares (not one per request)
- *  - the code is redeemed by deleting it from Redis BEFORE any attendee write, so of two parallel
- *    requests with the right code exactly one succeeds and the other writes nothing
+ *  - the code is redeemed by a compare-and-delete on the exact stored record BEFORE any attendee
+ *    write, so of two parallel requests with the right code exactly one succeeds and the other
+ *    writes nothing, and a code replaced mid-request is never consumed by the older request
  *  - a Redis failure fails closed
  *
  * The Redis here is a stateful fake (see guest-hold.testing.ts), not canned mock returns: the
@@ -37,6 +38,7 @@ type RedisMethod =
   | 'get'
   | 'set'
   | 'del'
+  | 'deleteIfEquals'
   | 'setIfNotExists'
   | 'incrementWithTtl'
   | 'decrementIfPositive'
@@ -52,6 +54,7 @@ class OtpRedis extends FakeRedis {
       'get',
       'set',
       'del',
+      'deleteIfEquals',
       'setIfNotExists',
       'incrementWithTtl',
       'decrementIfPositive',
@@ -64,6 +67,13 @@ class OtpRedis extends FakeRedis {
         return original(...args);
       };
     }
+  }
+
+  /** Same contract as RedisService.deleteIfEquals: delete only while the value is exactly `expected`. */
+  async deleteIfEquals(key: string, expected: string): Promise<number> {
+    if (this.store.get(key) !== expected) return 0;
+    this.store.delete(key);
+    return 1;
   }
 
   async ttl(key: string): Promise<number> {
@@ -107,6 +117,7 @@ function build() {
       findUnique: jest.fn().mockResolvedValue({ eventId: 'event-1' }),
       findMany: jest.fn().mockResolvedValue([]),
     },
+    $transaction: jest.fn(),
   };
   const audit = { log: jest.fn().mockResolvedValue(undefined) };
   const email = { sendOtpEmail: jest.fn().mockResolvedValue(true) };
@@ -304,6 +315,84 @@ describe('confirmGuestCheckout: single use under concurrency', () => {
     expect(redis.store.get(OTP_KEY)).toBe(newer);
   });
 
+  it('refuses a request whose code was replaced while it ran, and leaves the newer code alone', async () => {
+    const { redis, prisma, confirm, writeAttendees } = build();
+    const newer = JSON.stringify({ codeHash: 'newer-hash', emailHash: emailHash(EMAIL) });
+    // The buyer asks for a new code while this request is between its first read and its claim.
+    prisma.registration.findMany.mockImplementationOnce(async () => {
+      redis.store.set(OTP_KEY, newer);
+      return [];
+    });
+
+    await expect(confirm(dtoFor(RIGHT_CODE))).rejects.toThrow(ALREADY_USED);
+
+    expect(writeAttendees).not.toHaveBeenCalled();
+    expect(redis.store.get(OTP_KEY)).toBe(newer);
+  });
+
+  it('gives the code back for a full life when Redis cannot report the remaining time', async () => {
+    const { redis, confirm, writeAttendees, storedRecord } = build();
+    redis.ttls.delete(OTP_KEY); // ttl() now answers -1
+    writeAttendees.mockRejectedValueOnce(new BadRequestException('Expected 2 attendee(s) — cannot change quantity'));
+
+    await expect(confirm(dtoFor(RIGHT_CODE))).rejects.toThrow('Expected 2 attendee(s)');
+
+    expect(redis.store.get(OTP_KEY)).toBe(storedRecord);
+    expect(redis.ttls.get(OTP_KEY)).toBe(300); // the normal life of a code (5 minutes)
+  });
+
+  it('shows the buyer the original error, and logs no code, when the code cannot be given back', async () => {
+    const { service, redis, confirm, writeAttendees } = build();
+    const warn = jest
+      .spyOn((service as unknown as { logger: { warn: (...args: unknown[]) => void } }).logger, 'warn')
+      .mockImplementation(() => undefined);
+    writeAttendees.mockRejectedValueOnce(
+      new BadRequestException('Birthday must be a valid past date within the last 120 years.'),
+    );
+    redis.failOn.add('setIfNotExists');
+
+    await expect(confirm(dtoFor(RIGHT_CODE))).rejects.toThrow('Birthday must be a valid past date');
+
+    expect(redis.store.has(OTP_KEY)).toBe(false); // the buyer will have to ask for a new code
+    expect(warn).toHaveBeenCalledTimes(1);
+    const logged = JSON.stringify(warn.mock.calls);
+    expect(logged).toContain(REG_ID);
+    expect(logged).not.toContain(RIGHT_CODE);
+    expect(logged).not.toContain(rightHash);
+    expect(logged).not.toContain(EMAIL);
+  });
+
+  it('cannot save an order whose attendee details are already complete, even with the code given back', async () => {
+    const { redis, prisma, audit, writeAttendees, confirm } = build();
+    writeAttendees.mockRestore(); // use the real attendee save: its status check is the guard here
+    const completedOrder = {
+      id: REG_ID,
+      userId: null,
+      referenceNumber: 'AX-TEST-0001',
+      status: 'pending_approval',
+      total: 500,
+      attendeeCount: 1,
+      attendeesCompletedAt: new Date(),
+      attendees: [],
+      event: { id: 'event-1', title: 'Test event', slug: 'test-event', eventType: 'general', runningConfig: null, startsAt: new Date() },
+    };
+    prisma.registration.findFirst.mockImplementation(
+      async (args: { where: { guestAccessTokenHash?: unknown } }) =>
+        args.where.guestAccessTokenHash
+          ? { id: REG_ID, guestAccessTokenHash: createHash('sha256').update(TOKEN).digest('hex') }
+          : completedOrder,
+    );
+
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      await expect(confirm(dtoFor(RIGHT_CODE))).rejects.toThrow(
+        'Attendee details can only be completed before final approval review',
+      );
+      expect(redis.store.has(OTP_KEY)).toBe(true); // given back each time, and refused each time
+    }
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+    expect(audit.log).not.toHaveBeenCalled();
+  });
+
   it('does not give the code back to a request that lost the claim', async () => {
     const { redis, confirm, writeAttendees } = build();
 
@@ -317,7 +406,7 @@ describe('confirmGuestCheckout: single use under concurrency', () => {
 });
 
 describe('confirmGuestCheckout: Redis failure fails closed', () => {
-  it.each<RedisMethod>(['get', 'incrementWithTtl', 'decrementIfPositive', 'ttl', 'del'])(
+  it.each<RedisMethod>(['get', 'incrementWithTtl', 'decrementIfPositive', 'ttl', 'deleteIfEquals'])(
     'issues nothing and confirms nothing when Redis %s fails',
     async (method) => {
       const { redis, confirm, writeAttendees, audit } = build();

@@ -1113,29 +1113,37 @@ export class RegistrationsService {
       });
     }
 
-    // Single use: deleting the code is the claim. Redis DEL returns how many keys it removed, so
-    // of two parallel requests carrying the right code exactly one sees 1 and goes on; the other
-    // sees 0 and is refused here, before anything is written. (Claiming only after the attendee
-    // writes let both through.)
+    // Single use: deleting the code is the claim. It is a compare-and-delete on the exact record
+    // verified above, so of two parallel requests carrying the right code exactly one sees 1 and
+    // goes on; the other sees 0 and is refused here, before anything is written. (Claiming only
+    // after the attendee writes let both through.) Comparing the record, not just deleting the
+    // key, also means a request holding a code that was replaced while it ran cannot consume the
+    // buyer's newer code.
     const remainingTtl = await this.redis.ttl(otpKey);
-    const claimed = await this.redis.del(otpKey);
+    const claimed = await this.redis.deleteIfEquals(otpKey, rawRecord);
     if (claimed !== 1) {
       throw new BadRequestException('This code was already used. Request a new one.');
     }
 
     const result = await this.updateAttendeesForRegistration(id, null, dto, true).catch(
       async (error: unknown) => {
-        // Nothing was confirmed, so give the code back for the rest of its life: the buyer fixes
-        // the attendee form and submits again with the same code. Only if no newer code was issued
-        // meanwhile, so it never overwrites one. A repeat of a save that did commit is refused by
-        // the registration's own status check.
+        // The save failed, so give the code back for the rest of its life: the buyer fixes the
+        // attendee form and submits again with the same code. Only if no code is stored, so it
+        // never overwrites a newer one. If the save had in fact committed (the request died after
+        // it), a repeat is refused by the registration's own status check in
+        // updateAttendeesForRegistration: a committed save moves the order out of the statuses it
+        // accepts (pending_payment / proof_submitted, or a free guest order not yet completed).
         await this.redis
           .setIfNotExists(
             otpKey,
             rawRecord,
             remainingTtl > 0 ? remainingTtl : GUEST_CHECKOUT_OTP_TTL_SECONDS,
           )
-          .catch(() => undefined);
+          .catch(() => {
+            // The buyer will have to ask for a new code; say so for whoever is looking at the logs
+            // (never the code, its hash or the address).
+            this.logger.warn({ msg: 'Could not give a guest checkout code back after a failed save', regId: id });
+          });
         throw error;
       },
     );
