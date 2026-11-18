@@ -37,26 +37,38 @@ const eventBody = (withOrganizer: boolean, organizerName = ORGANIZER_NAME) => ({
   organizerSlug: withOrganizer ? ORGANIZER_SLUG : null,
 });
 
-const ownedRegistration = (qty: number, withProof: boolean) => ({
-  id: REGISTRATION_ID,
-  referenceNumber: 'AXN-QA-DEADEND',
-  status: 'proof_submitted',
-  isFree: false,
-  eventId: EVENT_ID,
-  tierId: 'tier-1',
-  tierName: 'General Admission',
-  unitPrice: 1000,
-  attendeeCount: qty,
-  subtotal: 1000 * qty,
-  fees: 50,
-  total: 1000 * qty + 50,
-  discount: 0,
-  notes: null,
-  holdExpiresAt: null,
-  attendees: [],
-  proofs: withProof ? [{ id: 'proof-1', status: 'pending', imageUrl: 'https://example.com/p.png' }] : [],
-  event: { title: 'QA Dead End Event', slug: EVENT_SLUG, startsAt: '2027-02-20T01:00:00.000Z', venue: 'QA Hall', paymentMethods: [] },
-});
+/**
+ * How the order describes its ticket tier:
+ * - listed: tier-1, which the public event also lists (the normal case);
+ * - none: no tierId at all (the API shape that caused the Nov 2026 incident);
+ * - hidden: a tier the organizer has since hidden, so the public event no longer lists it.
+ */
+type OrderTierMode = 'listed' | 'none' | 'hidden';
+
+const ownedRegistration = (qty: number, withProof: boolean, tierMode: OrderTierMode = 'listed') => {
+  const registration: Record<string, unknown> = {
+    id: REGISTRATION_ID,
+    referenceNumber: 'AXN-QA-DEADEND',
+    status: 'proof_submitted',
+    isFree: false,
+    eventId: EVENT_ID,
+    tierId: tierMode === 'hidden' ? 'tier-hidden' : 'tier-1',
+    tierName: tierMode === 'hidden' ? 'Hidden Tier' : 'General Admission',
+    unitPrice: tierMode === 'hidden' ? 800 : 1000,
+    attendeeCount: qty,
+    subtotal: 1000 * qty,
+    fees: 50,
+    total: 1000 * qty + 50,
+    discount: 0,
+    notes: null,
+    holdExpiresAt: null,
+    attendees: [],
+    proofs: withProof ? [{ id: 'proof-1', status: 'pending', imageUrl: 'https://example.com/p.png' }] : [],
+    event: { title: 'QA Dead End Event', slug: EVENT_SLUG, startsAt: '2027-02-20T01:00:00.000Z', venue: 'QA Hall', paymentMethods: [] },
+  };
+  if (tierMode === 'none') delete registration.tierId;
+  return registration;
+};
 
 interface ApiOptions {
   /** What GET /registrations/:id answers. */
@@ -72,10 +84,14 @@ interface ApiOptions {
   eventDelayMs?: number;
   /** Mocked guest read (for the guest-token-while-logged-in case). */
   guestRead?: boolean;
+  /** How the order reports its tier (default: listed). */
+  orderTier?: OrderTierMode;
+  /** Makes GET /events/:slug fail with this status. */
+  eventStatus?: number;
 }
 
 async function installApi(page: Page, options: ApiOptions) {
-  const { read, save = 200, qty = 1, withProof = true, withOrganizer = true, loggedIn = true, organizerName, eventDelayMs = 0, guestRead = false } = options;
+  const { read, save = 200, qty = 1, withProof = true, withOrganizer = true, loggedIn = true, organizerName, eventDelayMs = 0, guestRead = false, orderTier = 'listed', eventStatus = 200 } = options;
   if (loggedIn) {
     await page.addInitScript(() => {
       window.localStorage.setItem('axon_tickets_rt', 'qa-refresh-token');
@@ -104,6 +120,7 @@ async function installApi(page: Page, options: ApiOptions) {
     if (path.endsWith(`/events/${EVENT_SLUG}`) && method === 'GET') {
       seen.eventReads += 1;
       if (eventDelayMs) await new Promise((resolve) => setTimeout(resolve, eventDelayMs));
+      if (eventStatus !== 200) return json(route, { message: 'Boom' }, eventStatus);
       return json(route, eventBody(withOrganizer, organizerName));
     }
     if (path.endsWith(`/registrations/${REGISTRATION_ID}/attendees`) && method === 'PATCH') {
@@ -112,11 +129,11 @@ async function installApi(page: Page, options: ApiOptions) {
     }
     if (path.endsWith(`/registrations/guest/${REGISTRATION_ID}`) && method === 'GET') {
       seen.guestReads += 1;
-      return guestRead ? json(route, ownedRegistration(qty, withProof)) : json(route, { message: 'Not found' }, 404);
+      return guestRead ? json(route, ownedRegistration(qty, withProof, orderTier)) : json(route, { message: 'Not found' }, 404);
     }
     if (path.endsWith(`/registrations/${REGISTRATION_ID}`) && method === 'GET') {
       seen.reads += 1;
-      if (read === 'owned') return json(route, ownedRegistration(qty, withProof));
+      if (read === 'owned') return json(route, ownedRegistration(qty, withProof, orderTier));
       if (read === 'notFound') return json(route, { message: 'Registration not found' }, 404);
       return json(route, { message: 'Boom' }, 500);
     }
@@ -434,4 +451,154 @@ test.describe('confirm-step tracking', () => {
     expect(JSON.stringify(failed)).not.toMatch(/Registration not found|ada@example\.com/);
     expectOnlyExpectedNotFound(diagnostics);
   });
+});
+
+/**
+ * Nov 2026 incident: GET /registrations/:id left out tierId, so the payment
+ * page linked a logged-in buyer to ".../register?...&tierId=" (empty). The register page read the
+ * empty value as a real tier, found nothing and sent the buyer back to the event page BEFORE the
+ * attendee-details step. The order stayed paid but unapprovable. Every test above always put
+ * "tierId=tier-1" in the address, which is why this was never caught.
+ */
+test.describe('a paid order always reaches the attendee-details step (or is told why not)', () => {
+  const urlWith = (tierParam: string) =>
+    `/events/${EVENT_SLUG}/register?registrationId=${REGISTRATION_ID}${tierParam}&qty=1`;
+
+  test('an EMPTY tierId in the address still opens the form, with no redirect (the exact incident link)', async ({ page }) => {
+    const seen = await installApi(page, { read: 'owned' });
+    await page.goto(urlWith('&tierId='));
+    await expect(page.getByRole('button', { name: 'Confirm Transaction' })).toBeVisible();
+    await expect(page.getByTestId('details-unavailable')).toHaveCount(0);
+    expect(new URL(page.url()).pathname).toBe(`/events/${EVENT_SLUG}/register`);
+    expect(funnelSteps(seen)).not.toContain('details_step_unavailable');
+  });
+
+  test('a missing tierId in the address opens the form too', async ({ page }) => {
+    await installApi(page, { read: 'owned' });
+    await page.goto(urlWith(''));
+    await expect(page.getByRole('button', { name: 'Confirm Transaction' })).toBeVisible();
+    expect(new URL(page.url()).pathname).toBe(`/events/${EVENT_SLUG}/register`);
+  });
+
+  test('a tier the organizer has since hidden still opens the form, built from the order itself', async ({ page }) => {
+    const seen = await installApi(page, { read: 'owned', orderTier: 'hidden' });
+    await page.goto(urlWith('&tierId=tier-hidden'));
+    await expect(page.getByRole('button', { name: 'Confirm Transaction' })).toBeVisible();
+    await expect(page.getByTestId('details-unavailable')).toHaveCount(0);
+    expect(funnelSteps(seen)).not.toContain('details_step_unavailable');
+  });
+
+  test('if the tier truly cannot be found, the buyer sees a message (not the event page) and it is recorded', async ({ page }) => {
+    const seen = await installApi(page, { read: 'owned', orderTier: 'none' });
+    await page.goto(urlWith('&tierId='));
+
+    const screen = page.getByTestId('details-unavailable');
+    await expect(screen).toBeVisible();
+    await expect(screen.getByRole('heading', { name: "We couldn't open the last step" })).toBeVisible();
+    await expect(screen).toContainText("please don't pay again");
+    // Stays on the register page: no silent redirect to the event page.
+    expect(new URL(page.url()).pathname).toBe(`/events/${EVENT_SLUG}/register`);
+    await expect(page.getByRole('button', { name: 'Confirm Transaction' })).toHaveCount(0);
+
+    // Actions: try again, contact the organizer, back to the event; all at least 44 px tall.
+    const contact = screen.getByTestId('details-unavailable-contact');
+    await expect(contact).toHaveText(`Contact ${ORGANIZER_NAME}`);
+    await expect(contact).toHaveAttribute('href', `/organizers/${ORGANIZER_SLUG}#official-links`);
+    for (const id of ['details-unavailable-retry', 'details-unavailable-contact', 'details-unavailable-back']) {
+      const box = await screen.getByTestId(id).boundingBox();
+      expect(box!.height, id).toBeGreaterThanOrEqual(44);
+    }
+    // Plain words: no "order", no email address, no mailto link.
+    expect((await screen.innerText()).toLowerCase()).not.toMatch(/\border\b|@/);
+    await expect(page.locator('a[href^="mailto:"]')).toHaveCount(0);
+
+    // Recorded once, with the fixed fields only (plus the tracker's own currentUrl and referrer).
+    await expect.poll(() => funnelSteps(seen)).toContain('details_step_unavailable');
+    const recorded = seen.funnel.filter((body) => body.step === 'details_step_unavailable');
+    expect(recorded).toHaveLength(1);
+    expect(recorded[0].status).toBe('blocked');
+    const ours = Object.keys(recorded[0].metadata).filter((key) => !['currentUrl', 'referrer'].includes(key)).sort();
+    expect(ours).toEqual(['reason', 'where']);
+    expect(recorded[0].metadata).toMatchObject({ where: 'register', reason: 'tier_missing' });
+    expect(JSON.stringify(recorded[0])).not.toMatch(/ada@example\.com|qa-access-token|qa-refresh-token/);
+  });
+
+  test('without an organizer page the message has no Contact link, and "Back to event" still works', async ({ page }) => {
+    await installApi(page, { read: 'owned', orderTier: 'none', withOrganizer: false });
+    await page.goto(urlWith('&tierId='));
+    const screen = page.getByTestId('details-unavailable');
+    await expect(screen).toBeVisible();
+    await expect(screen.getByTestId('details-unavailable-contact')).toHaveCount(0);
+    await screen.getByTestId('details-unavailable-back').click();
+    await page.waitForURL(`**/events/${EVENT_SLUG}`);
+  });
+
+  test('if the event itself cannot be loaded for an existing order, the buyer sees the message and it is recorded', async ({ page }) => {
+    const seen = await installApi(page, { read: 'owned', eventStatus: 500 });
+    await page.goto(urlWith('&tierId=tier-1'));
+    const screen = page.getByTestId('details-unavailable');
+    await expect(screen).toBeVisible();
+    expect(new URL(page.url()).pathname).toBe(`/events/${EVENT_SLUG}/register`);
+    await expect(screen.getByTestId('details-unavailable-contact')).toHaveCount(0); // organizer unknown without the event
+    await expect.poll(() => funnelSteps(seen)).toContain('details_step_unavailable');
+    expect(seen.funnel.find((body) => body.step === 'details_step_unavailable')!.metadata).toMatchObject({ reason: 'event_load_failed' });
+  });
+
+  test('a NEW checkout (no registration yet) with an unknown tier still goes back to the event page', async ({ page }) => {
+    await installApi(page, { read: 'notFound', loggedIn: false });
+    await page.goto(`/events/${EVENT_SLUG}/register?tierId=does-not-exist&qty=1`);
+    await page.waitForURL(`**/events/${EVENT_SLUG}`);
+  });
+
+  test('payment page to details step: the link carries the tier id when the order reports it', async ({ page }) => {
+    await installApi(page, { read: 'owned' });
+    await page.goto(paymentUrl);
+    await page.waitForURL(`**/events/${EVENT_SLUG}/register?**`);
+    expect(page.url()).toContain(`registrationId=${REGISTRATION_ID}`);
+    expect(page.url()).toContain('tierId=tier-1');
+    await expect(page.getByRole('button', { name: 'Confirm Transaction' })).toBeVisible();
+  });
+
+  test('payment page to details step: with the old API shape the link has no empty tierId, and the buyer is told, not bounced', async ({ page }) => {
+    await installApi(page, { read: 'owned', orderTier: 'none' });
+    await page.goto(paymentUrl);
+    await page.waitForURL(`**/events/${EVENT_SLUG}/register?**`);
+    expect(page.url()).not.toContain('tierId=');
+    await expect(page.getByTestId('details-unavailable')).toBeVisible();
+  });
+});
+
+test.describe('"We couldn\'t open the last step" at 320 px', () => {
+  test.use({ viewport: { width: 320, height: 568 } });
+  const longName = 'The Very Long Named Davao Regional Association of Performing Arts and Cultural Heritage Organizers Incorporated';
+  const variants = [
+    { label: 'with organizer page', options: {} },
+    { label: 'with a very long organizer name', options: { organizerName: longName } },
+    { label: 'no organizer page', options: { withOrganizer: false } },
+  ] as const;
+
+  for (const { label, options } of variants) {
+    test(`readable, large text, buttons wrap, no sideways scroll (${label})`, async ({ page }, testInfo) => {
+      await installApi(page, { read: 'owned', orderTier: 'none', ...options });
+      await page.goto(`/events/${EVENT_SLUG}/register?registrationId=${REGISTRATION_ID}&tierId=&qty=1`);
+      const screen = page.getByTestId('details-unavailable');
+      await expect(screen).toBeVisible();
+      // Focus moves to the message when it appears.
+      await expect(screen).toBeFocused();
+
+      expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)).toBeLessThanOrEqual(0);
+      const paragraph = screen.locator('p').first();
+      expect(parseFloat(await paragraph.evaluate((el) => getComputedStyle(el).fontSize))).toBeGreaterThanOrEqual(16);
+      expect(await paragraph.evaluate((el) => getComputedStyle(el).textAlign)).toBe('left');
+      for (const id of ['details-unavailable-retry', 'details-unavailable-back', ...(options.hasOwnProperty('withOrganizer') ? [] : ['details-unavailable-contact'])]) {
+        const box = (await screen.getByTestId(id).boundingBox())!;
+        expect(box.width, id).toBeLessThanOrEqual(320);
+        expect(box.height, id).toBeGreaterThanOrEqual(44);
+      }
+      if (process.env.PW_SCREENSHOT_DIR) {
+        await page.screenshot({ path: `${process.env.PW_SCREENSHOT_DIR}/details-unavailable-320-${label.replace(/\W+/g, '-')}.png`, fullPage: true });
+      }
+      testInfo.annotations.push({ type: 'screen', description: label });
+    });
+  }
 });

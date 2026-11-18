@@ -34,7 +34,9 @@ jobs:
       - name: Run complete API portfolio
         run: npm test --workspace=apps/api -- --runInBand
       - name: Audit production dependencies
-        run: npm audit --omit=dev --audit-level=high
+        # Same bar as `npm audit --omit=dev --audit-level=high`, except advisories listed (with a
+        # reason and an expiry) in .github/audit-exceptions.json pass until they expire.
+        run: node scripts/ci/npm-audit-gate.mjs
 
   public-cross-browser:
     name: Public UAT regression (${{ matrix.browser }})

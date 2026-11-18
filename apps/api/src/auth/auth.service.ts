@@ -24,6 +24,7 @@ import { JwtPayload } from '@axon-tickets/types';
 
 const BCRYPT_COST = 12;
 const OTP_TTL_SECONDS = 300; // 5 minutes
+const OTP_RESEND_COOLDOWN_SECONDS = 60; // wait between two codes for the same account
 const OTP_DIGITS = 6;
 const OTP_MAX_ATTEMPTS = 5;
 const OTP_ATTEMPT_TTL = OTP_TTL_SECONDS + 60; // slightly longer than OTP TTL
@@ -95,7 +96,7 @@ export class AuthService {
     if (!user.isVerified) {
       // Throttle OTP resend within unverified login
       const recentOtp = await this.prisma.otpCode.findFirst({
-        where: { userId: user.id, type: 'email_verify', used: false, createdAt: { gt: new Date(Date.now() - 60_000) } },
+        where: { userId: user.id, type: 'email_verify', used: false, createdAt: { gt: new Date(Date.now() - OTP_RESEND_COOLDOWN_SECONDS * 1000) } },
       });
       if (!recentOtp) await this.sendOtp(user.id, user.email, 'email_verify');
       throw new HttpException(
@@ -194,11 +195,11 @@ export class AuthService {
         userId,
         type: 'email_verify',
         used: false,
-        createdAt: { gt: new Date(Date.now() - 60_000) },
+        createdAt: { gt: new Date(Date.now() - OTP_RESEND_COOLDOWN_SECONDS * 1000) },
       },
     });
     if (recentOtp) {
-      throw new BadRequestException('Please wait 60 seconds before requesting a new code');
+      throw this.otpCooldownError(recentOtp, userId);
     }
 
     await this.sendOtp(userId, user.email, 'email_verify');
@@ -274,7 +275,10 @@ export class AuthService {
    * Finds or creates a stub user by email, then sends a 6-digit OTP.
    * Always returns { userId } — never distinguishes new vs existing (prevents enumeration).
    */
-  async requestAccess(dto: RequestAccessDto, req?: Request): Promise<{ userId: string }> {
+  async requestAccess(
+    dto: RequestAccessDto,
+    req?: Request,
+  ): Promise<{ userId: string; retryAfterSeconds: number }> {
     await this.enforceOtpHourlyLimit(req);
 
     const email = dto.email.toLowerCase().trim();
@@ -320,7 +324,7 @@ export class AuthService {
         userId: user.id,
         type: 'email_verify',
         used: false,
-        createdAt: { gt: new Date(Date.now() - 60_000) },
+        createdAt: { gt: new Date(Date.now() - OTP_RESEND_COOLDOWN_SECONDS * 1000) },
       },
     });
     if (recentOtp) {
@@ -340,7 +344,7 @@ export class AuthService {
         },
         { userAgent, referrer },
       );
-      throw new BadRequestException('Please wait 60 seconds before requesting a new code');
+      throw this.otpCooldownError(recentOtp, user.id);
     }
 
     await this.funnel.track(
@@ -398,7 +402,7 @@ export class AuthService {
     );
 
     this.logger.log({ msg: 'OTP send success', userId: user.id, eventId: dto.eventId ?? null });
-    return { userId: user.id };
+    return { userId: user.id, retryAfterSeconds: OTP_RESEND_COOLDOWN_SECONDS };
   }
 
   /**
@@ -409,6 +413,29 @@ export class AuthService {
    * globally caused every API route (events, login, registration, health) to
    * inherit the 10 requests/hour ceiling.
    */
+  /**
+   * The 60 second wait between two codes for the same account. The reply says how many seconds
+   * are left, so the checkout screen can count down instead of showing a stale error.
+   */
+  private otpCooldownError(recentOtp: { createdAt?: Date | string | null } | null, userId?: string) {
+    const createdAt = recentOtp?.createdAt ? new Date(recentOtp.createdAt).getTime() : NaN;
+    const elapsedMs = Number.isFinite(createdAt) ? Date.now() - createdAt : 0;
+    const retryAfterSeconds = Math.min(
+      OTP_RESEND_COOLDOWN_SECONDS,
+      Math.max(1, Math.ceil((OTP_RESEND_COOLDOWN_SECONDS * 1000 - elapsedMs) / 1000)),
+    );
+    return new BadRequestException({
+      message: `Please wait ${retryAfterSeconds} seconds before requesting a new code`,
+      code: 'OTP_COOLDOWN',
+      retryAfterSeconds,
+      // An unused code newer than the cooldown exists for this account.
+      codeActive: true,
+      // The success reply of this same public endpoint already hands out the user id, so the
+      // checkout screens can carry on to the code step without a second request.
+      ...(userId ? { userId } : {}),
+    });
+  }
+
   private async enforceOtpHourlyLimit(req?: Request): Promise<void> {
     const tracker = this.getTrustedIp(req);
     const trackerHash = createHash('sha256').update(tracker).digest('hex');

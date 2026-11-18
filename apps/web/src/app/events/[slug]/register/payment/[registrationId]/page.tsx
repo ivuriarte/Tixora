@@ -239,8 +239,11 @@ export default function PaymentStepPage() {
       });
     }
     const guestQuery = guestAccessToken ? '&guest=1' : '';
+    // Leave tierId out when unknown. An empty "tierId=" used to be read as a real (unknown) tier
+    // and sent logged-in buyers back to the event page before the attendee-details step.
+    const tierQuery = reg?.tierId ? `&tierId=${encodeURIComponent(reg.tierId)}` : '';
     router.push(
-      `/events/${slug}/register?registrationId=${registrationId}&tierId=${reg?.tierId ?? ''}&qty=${reg?.attendeeCount ?? 1}${guestQuery}`,
+      `/events/${slug}/register?registrationId=${registrationId}${tierQuery}&qty=${reg?.attendeeCount ?? 1}${guestQuery}`,
     );
   };
 
@@ -308,8 +311,9 @@ export default function PaymentStepPage() {
 
   if (reg.status === 'proof_submitted') {
     const guestQuery = guestAccessToken ? '&guest=1' : '';
+    const tierQuery = reg.tierId ? `&tierId=${encodeURIComponent(reg.tierId)}` : '';
     router.replace(
-      `/events/${slug}/register?registrationId=${registrationId}&tierId=${reg.tierId ?? ''}&qty=${reg.attendeeCount}${guestQuery}`,
+      `/events/${slug}/register?registrationId=${registrationId}${tierQuery}&qty=${reg.attendeeCount}${guestQuery}`,
     );
     return null;
   }

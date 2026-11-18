@@ -214,12 +214,39 @@ describe('AuthService.requestAccess — profile pre-filling', () => {
     expect(prisma.otpCode.create).not.toHaveBeenCalled();
   });
 
+  it('U-A6b: the rate-limit reply says how many seconds are left so the screen can count down', async () => {
+    const { prisma, service } = buildMocks();
+    const existingFull = makeUser({ id: 'user_r', firstName: 'Rate', isVerified: true });
+    prisma.user.findUnique.mockResolvedValue(existingFull);
+    prisma.otpCode.findFirst.mockResolvedValue({
+      id: 'recent_otp',
+      createdAt: new Date(Date.now() - 45_000),
+    });
+
+    const attempt = service.requestAccess({ ...BASE_DTO });
+
+    await expect(attempt).rejects.toBeInstanceOf(BadRequestException);
+    await attempt.catch((error: BadRequestException) => {
+      const body = error.getResponse() as {
+        code: string;
+        retryAfterSeconds: number;
+        codeActive: boolean;
+        userId: string;
+      };
+      expect(body.code).toBe('OTP_COOLDOWN');
+      expect(body.userId).toBe('user_r');
+      expect(body.retryAfterSeconds).toBeGreaterThanOrEqual(14);
+      expect(body.retryAfterSeconds).toBeLessThanOrEqual(15);
+      expect(body.codeActive).toBe(true);
+    });
+  });
+
   it('U-A7: returns { userId } for new user after OTP is sent', async () => {
     const { service, createdUser } = buildMocks();
 
     const result = await service.requestAccess({ ...BASE_DTO, firstName: 'Ben' });
 
-    expect(result).toEqual({ userId: createdUser.id });
+    expect(result).toEqual({ userId: createdUser.id, retryAfterSeconds: 60 });
   });
 
   it('U-A8: returns { userId } for returning user after OTP is sent', async () => {
@@ -229,7 +256,7 @@ describe('AuthService.requestAccess — profile pre-filling', () => {
 
     const result = await service.requestAccess({ ...BASE_DTO });
 
-    expect(result).toEqual({ userId: 'returning_user' });
+    expect(result).toEqual({ userId: 'returning_user', retryAfterSeconds: 60 });
   });
 
   it('U-A9: applies the distributed hourly limiter only inside OTP send flows', async () => {

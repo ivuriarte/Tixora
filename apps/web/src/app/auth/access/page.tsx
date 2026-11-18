@@ -8,6 +8,7 @@ import toast from 'react-hot-toast';
 import api from '@/lib/api';
 import { setLoginPortal } from '@/lib/auth';
 import { safeRedirectPath } from '@/lib/safe-redirect';
+import { DEFAULT_OTP_WAIT_SECONDS, canResumeCode, readOtpCooldown } from '@/lib/otpCooldown';
 import { useAuthStore } from '@/store/auth.store';
 import { useIsInAppBrowser } from '@/lib/useIsInAppBrowser';
 import { getOrCreateFunnelSessionId, trackInternalFunnelEvent } from '@/lib/funnel';
@@ -17,7 +18,7 @@ import InAppBrowserBanner from '@/components/InAppBrowserBanner';
 import { USER_TERMS, PRIVACY_POLICY } from '@/lib/legal';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.axontickets.online/api/v1';
-const RESEND_COOLDOWN = 60;
+const RESEND_COOLDOWN = DEFAULT_OTP_WAIT_SECONDS;
 
 type Step = 'email' | 'code' | 'profile';
 
@@ -157,6 +158,17 @@ function AccessForm() {
         event_name: eventName ?? eventSlug ?? 'Unknown Event',
       });
     } catch (err: any) {
+      // Asked again within the wait: the code sent a moment ago still works, so carry on to the
+      // screen where it is entered.
+      const cooldown = readOtpCooldown(err);
+      if (canResumeCode(cooldown)) {
+        setPendingAuth({ userId: cooldown.userId, accessToken: '', refreshToken: '' });
+        setStep('code');
+        startResendTimer();
+        setTimeout(() => otpInputRef.current?.focus(), 50);
+        toast('A code was already sent to this address a moment ago. Enter it below.');
+        return;
+      }
       const isTimeout = err?.code === 'ECONNABORTED' || err?.code === 'ERR_NETWORK';
       const msg = err?.response?.data?.message ?? (isTimeout ? 'Request timed out. Please try again.' : 'Could not send code. Please try again.');
       toast.error(Array.isArray(msg) ? msg.join(', ') : msg);

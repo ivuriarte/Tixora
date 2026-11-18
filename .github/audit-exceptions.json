@@ -1,0 +1,10 @@
+[
+  {
+    "advisory": "GHSA-fc5q-39xc-vjpf",
+    "package": "picomatch",
+    "reason": "ReDoS in glob matching. No patched version exists (every release up to the latest, 4.0.7, is affected). Reached only through @sentry/nextjs build plugins (@rollup/plugin-commonjs, fdir), which match build-time file paths in our own build, never request data. The only automatic 'fix' npm offers is a breaking @sentry/nextjs downgrade.",
+    "approvedBy": "Ian (owner)",
+    "approvedOn": "2026-11-18",
+    "expires": "2026-12-18"
+  }
+]

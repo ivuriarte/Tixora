@@ -6,6 +6,8 @@ import { formatPHP } from '@axon-tickets/utils';
 import api from '@/lib/api';
 import { useAuthStore } from '@/store/auth.store';
 import { funnelFailureCode, trackInternalFunnelEvent, type FunnelFailureCode } from '@/lib/funnel';
+import { OTP_LIFETIME_MS, readOtpCooldown, readSendWaitSeconds } from '@/lib/otpCooldown';
+import { useSecondsUntil } from '@/lib/useSecondsUntil';
 import OptionalAddOnsStep from '@/components/OptionalAddOnsStep';
 import type {
   CreateRegistrationDto,
@@ -264,6 +266,30 @@ export default function RegistrationForm({
   const [checkoutOtp, setCheckoutOtp] = useState('');
   const [pendingUserId, setPendingUserId] = useState('');
   const [duplicateConflicts, setDuplicateConflicts] = useState<GuestDuplicateConflict[]>([]);
+  // When the next code may be asked for. The wait belongs to one address: correcting the lead
+  // email lifts it, because the API keeps its cooldown per order and per address.
+  const [codeWait, setCodeWait] = useState<{ email: string; until: number }>({ email: '', until: 0 });
+  // The last code that went out from this screen, so a buyer who steps back to the review
+  // screen can return to it instead of having to ask for another one.
+  const [lastCodeSent, setLastCodeSent] = useState<{ email: string; at: number } | null>(null);
+  const [otpNotice, setOtpNotice] = useState<string | null>(null);
+  const leadAddress = (attendees[0]?.email ?? '').trim().toLowerCase();
+  const codeWaitSeconds = useSecondsUntil(codeWait.email === leadAddress ? codeWait.until : 0);
+  const sentCodeStillUsable =
+    lastCodeSent !== null &&
+    lastCodeSent.email === leadAddress &&
+    Date.now() - lastCodeSent.at < OTP_LIFETIME_MS &&
+    (checkoutMode === 'guest' || (checkoutMode === 'account' && pendingUserId !== ''));
+  // One re-render when the code's five minutes are up, so the "I already have the code" button
+  // goes away by itself even when no countdown is running.
+  const [, setCodeExpiryTick] = useState(0);
+  useEffect(() => {
+    if (!lastCodeSent) return;
+    const remainingMs = lastCodeSent.at + OTP_LIFETIME_MS - Date.now();
+    if (remainingMs <= 0) return;
+    const id = setTimeout(() => setCodeExpiryTick((tick) => tick + 1), remainingMs + 50);
+    return () => clearTimeout(id);
+  }, [lastCodeSent]);
   const otpVerificationRef = useRef(false);
   const [inclusionCheckoutStage, setInclusionCheckoutStage] = useState<'attendees' | 'addons'>('attendees');
   const [inclusionSelections, setInclusionSelections] = useState<InclusionSelection[]>([]);
@@ -301,6 +327,7 @@ export default function RegistrationForm({
     setCheckoutStage(stage);
     onCheckoutStageChange?.(stage);
     setError(null);
+    setOtpNotice(null);
   };
 
   const updateInclusionQuantity = (
@@ -558,6 +585,7 @@ export default function RegistrationForm({
       }
 
       const leadEmail = attendees[0]?.email.trim().toLowerCase();
+      let waitSeconds = readSendWaitSeconds(null);
       if (checkoutMode === 'guest') {
         const duplicateResponse = await api.post<{ data?: { conflicts: GuestDuplicateConflict[] }; conflicts?: GuestDuplicateConflict[] }>(
           `/registrations/guest/${registrationId}/check-duplicates`,
@@ -569,24 +597,49 @@ export default function RegistrationForm({
           setDuplicateConflicts(conflicts);
           return;
         }
-        await api.post(
+        const sent = await api.post(
           `/registrations/guest/${registrationId}/request-confirmation-code`,
           { email: leadEmail },
           { headers: { 'x-registration-token': guestAccessToken } },
         );
+        waitSeconds = readSendWaitSeconds(sent.data);
       } else {
-        const response = await api.post<{ data: { userId: string } }>('/auth/request-access', {
+        const response = await api.post<{ data: { userId: string; retryAfterSeconds?: number } }>('/auth/request-access', {
           email: leadEmail,
           eventId,
           eventSlug,
         });
         setPendingUserId(response.data.data.userId);
+        waitSeconds = readSendWaitSeconds(response.data);
       }
+      setLastCodeSent({ email: leadEmail, at: Date.now() });
+      setCodeWait({ email: leadEmail, until: Date.now() + waitSeconds * 1000 });
       setCheckoutOtp('');
       changeCheckoutStage('otp');
     } catch (err: unknown) {
       const httpStatus = readHttpStatus(err);
-      trackConfirm('details_confirm_failed', 'failed', { httpStatus, code: funnelFailureCode(httpStatus) });
+      const cooldown = checkoutMode === 'authenticated' ? null : readOtpCooldown(err);
+      // Asking again within the wait is normal behaviour, not a failed confirmation.
+      if (!cooldown) {
+        trackConfirm('details_confirm_failed', 'failed', { httpStatus, code: funnelFailureCode(httpStatus) });
+      }
+      if (cooldown) {
+        // Asked too soon. Show how long is left (and lift it the moment it ends) instead of a
+        // red error that stays on screen. If the code sent a moment ago can still be used,
+        // take the buyer straight to the screen where it is entered.
+        const address = attendees[0]?.email.trim().toLowerCase() ?? '';
+        setCodeWait({ email: address, until: Date.now() + cooldown.retryAfterSeconds * 1000 });
+        if (cooldown.userId) setPendingUserId(cooldown.userId);
+        const canResume =
+          cooldown.codeActive && (checkoutMode === 'guest' || Boolean(cooldown.userId || pendingUserId));
+        if (canResume) {
+          setLastCodeSent((previous) => (previous && previous.email === address ? previous : { email: address, at: Date.now() }));
+          setCheckoutOtp('');
+          changeCheckoutStage('otp');
+          setOtpNotice('A code was already sent to this address a moment ago. Enter it below, or ask for a new one when the wait ends.');
+        }
+        return;
+      }
       if (checkoutMode === 'authenticated' && httpStatus === 404 && onOrderNotOwned) {
         // Not this account's registration: stop here, no retry, show the clear screen.
         void trackInternalFunnelEvent({
@@ -894,10 +947,20 @@ export default function RegistrationForm({
             {checkoutMode === 'guest'
               ? 'After you confirm, Axon will send a one-time code to the lead attendee email. The code locks this transaction without creating an account.'
               : 'After you confirm, Axon will send a one-time code to the lead attendee email. Only after verification will the order be linked and the profile created or updated.'}
+            <p className="mt-2" data-testid="code-recipient">
+              The code goes to <span className="font-semibold text-gray-900">{attendees[0]?.email.trim()}</span> (Attendee 1).
+              If that is wrong, choose <strong>Edit details</strong> above and correct it first.
+            </p>
           </div>
         )}
 
         {error && <div role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>}
+        {checkoutMode !== 'authenticated' && codeWaitSeconds > 0 && (
+          <p role="status" data-testid="code-wait" className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+            You can ask for a new code in <span className="font-semibold tabular-nums">{codeWaitSeconds}s</span>.
+            {sentCodeStillUsable && ' The code we already sent still works.'}
+          </p>
+        )}
         {!confirmationReady && skipDetailsForAuthenticatedSingle && (
           <div role="status" className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">Loading the registrant details from your verified profile…</div>
         )}
@@ -926,14 +989,32 @@ export default function RegistrationForm({
 
         <button
           type="button"
-          disabled={loading || !confirmationReady}
+          disabled={loading || !confirmationReady || (checkoutMode !== 'authenticated' && codeWaitSeconds > 0)}
           onClick={() => void confirmPaidCheckout()}
           className="w-full rounded-xl bg-primary py-3 text-sm font-semibold text-white transition hover:bg-primary/90 disabled:opacity-50"
         >
           {loading
             ? checkoutMode === 'authenticated' ? 'Confirming transaction…' : 'Sending confirmation code…'
-            : checkoutMode === 'authenticated' ? CONFIRM_BUTTON_AUTHENTICATED : CONFIRM_BUTTON_WITH_CODE}
+            : checkoutMode === 'authenticated'
+              ? CONFIRM_BUTTON_AUTHENTICATED
+              : codeWaitSeconds > 0
+                ? `Send a new code in ${codeWaitSeconds}s`
+                : CONFIRM_BUTTON_WITH_CODE}
         </button>
+        {checkoutMode !== 'authenticated' && sentCodeStillUsable && (
+          <button
+            type="button"
+            data-testid="use-sent-code"
+            disabled={loading}
+            onClick={() => {
+              setCheckoutOtp('');
+              changeCheckoutStage('otp');
+            }}
+            className="min-h-[44px] w-full text-sm font-semibold text-primary hover:underline disabled:opacity-50"
+          >
+            I already have the code we sent to {attendees[0]?.email.trim()}
+          </button>
+        )}
       </div>
     );
   }
@@ -949,7 +1030,15 @@ export default function RegistrationForm({
           <p className="mt-1 text-xs text-gray-400">
             The order is not locked until this code is verified.
           </p>
+          <p className="mt-1 text-xs text-gray-400">
+            It can take a minute to arrive, so check your spam folder too. Only the newest code works.
+          </p>
         </div>
+        {otpNotice && (
+          <p role="status" data-testid="otp-notice" className="rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 text-center text-sm text-sky-800">
+            {otpNotice}
+          </p>
+        )}
         <input
           type="text"
           inputMode="numeric"
@@ -972,11 +1061,11 @@ export default function RegistrationForm({
         <div className="flex flex-col items-center gap-1">
           <button
             type="button"
-            disabled={loading}
+            disabled={loading || codeWaitSeconds > 0}
             onClick={() => void confirmPaidCheckout()}
-            className="min-h-[44px] text-sm font-semibold text-primary hover:underline disabled:opacity-50"
+            className="min-h-[44px] text-sm font-semibold text-primary hover:underline disabled:opacity-50 disabled:no-underline"
           >
-            Send a new code
+            {codeWaitSeconds > 0 ? `Send a new code in ${codeWaitSeconds}s` : 'Send a new code'}
           </button>
           <button
             type="button"

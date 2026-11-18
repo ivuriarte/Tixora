@@ -27,7 +27,8 @@ type FunnelStep =
   | 'details_confirm_started'
   | 'details_confirm_succeeded'
   | 'details_confirm_failed'
-  | 'order_not_owned_seen';
+  | 'order_not_owned_seen'
+  | 'details_step_unavailable';
 
 type FunnelStatus = 'started' | 'success' | 'failed' | 'abandoned' | 'blocked';
 
