@@ -322,6 +322,20 @@ describe('RegistrationsService guest access', () => {
       expect(redis.decrementIfPositive).toHaveBeenCalledWith('guest-checkout-otp-sends:registration-1');
     });
 
+    it('gives the wait back when Redis fails before anything is sent', async () => {
+      const { service, prisma, redis, email } = makeService();
+      readyOrder(prisma);
+      redis.incrementWithTtl.mockRejectedValue(new Error('redis unavailable'));
+
+      await expect(
+        service.requestGuestConfirmationCode('registration-1', token, 'guest@example.com'),
+      ).rejects.toThrow('redis unavailable');
+
+      const deleted = redis.del.mock.calls.map((call) => call[0] as string);
+      expect(deleted.some((key) => key.startsWith('guest-checkout-otp-cooldown:registration-1:'))).toBe(true);
+      expect(email.sendOtpEmail).not.toHaveBeenCalled();
+    });
+
     it('gives the wait back when the mail server throws', async () => {
       const { service, prisma, redis, email } = makeService();
       readyOrder(prisma);

@@ -949,23 +949,30 @@ export class RegistrationsService {
         codeActive: await this.guestCodeIsActive(otpKey, emailHash),
       });
     }
-    const sends = await this.redis.incrementWithTtl(sendsKey, 3600);
-    if (sends.count > GUEST_CHECKOUT_OTP_MAX_SENDS_PER_HOUR) {
-      await this.redis.del(cooldownKey);
-      throw new HttpException(
-        {
-          message: 'Too many codes were requested for this order. Please try again in about an hour.',
-          code: 'OTP_SEND_LIMIT',
-          retryAfterSeconds: sends.ttlSeconds,
-        },
-        HttpStatus.TOO_MANY_REQUESTS,
-      );
-    }
+    let code: string;
+    try {
+      const sends = await this.redis.incrementWithTtl(sendsKey, 3600);
+      if (sends.count > GUEST_CHECKOUT_OTP_MAX_SENDS_PER_HOUR) {
+        throw new HttpException(
+          {
+            message: 'Too many codes were requested for this order. Please try again in about an hour.',
+            code: 'OTP_SEND_LIMIT',
+            retryAfterSeconds: sends.ttlSeconds,
+          },
+          HttpStatus.TOO_MANY_REQUESTS,
+        );
+      }
 
-    const code = randomInt(0, 1_000_000).toString().padStart(6, '0');
-    const codeHash = await bcrypt.hash(code, 10);
-    const record = JSON.stringify({ codeHash, emailHash });
-    await this.redis.set(otpKey, record, GUEST_CHECKOUT_OTP_TTL_SECONDS);
+      code = randomInt(0, 1_000_000).toString().padStart(6, '0');
+      const codeHash = await bcrypt.hash(code, 10);
+      const record = JSON.stringify({ codeHash, emailHash });
+      await this.redis.set(otpKey, record, GUEST_CHECKOUT_OTP_TTL_SECONDS);
+    } catch (error) {
+      // Nothing was sent, so the wait must not outlive this request (a Redis or hashing failure
+      // would otherwise block this address for a minute with no code on its way).
+      await this.redis.del(cooldownKey).catch(() => undefined);
+      throw error;
+    }
 
     const outcome = await this.sendGuestOtp(normalizedEmail, code);
     if (outcome === 'failed') {

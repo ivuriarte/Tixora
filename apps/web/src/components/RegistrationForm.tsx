@@ -605,8 +605,11 @@ export default function RegistrationForm({
       changeCheckoutStage('otp');
     } catch (err: unknown) {
       const httpStatus = readHttpStatus(err);
-      trackConfirm('details_confirm_failed', 'failed', { httpStatus, code: funnelFailureCode(httpStatus) });
       const cooldown = checkoutMode === 'authenticated' ? null : readOtpCooldown(err);
+      // Asking again within the wait is normal behaviour, not a failed confirmation.
+      if (!cooldown) {
+        trackConfirm('details_confirm_failed', 'failed', { httpStatus, code: funnelFailureCode(httpStatus) });
+      }
       if (cooldown) {
         // Asked too soon. Show how long is left (and lift it the moment it ends) instead of a
         // red error that stays on screen. If the code sent a moment ago can still be used,
