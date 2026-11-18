@@ -198,7 +198,7 @@ export class AuthService {
       },
     });
     if (recentOtp) {
-      throw new BadRequestException('Please wait 60 seconds before requesting a new code');
+      throw this.otpCooldownError(recentOtp, userId);
     }
 
     await this.sendOtp(userId, user.email, 'email_verify');
@@ -340,7 +340,7 @@ export class AuthService {
         },
         { userAgent, referrer },
       );
-      throw new BadRequestException('Please wait 60 seconds before requesting a new code');
+      throw this.otpCooldownError(recentOtp, user.id);
     }
 
     await this.funnel.track(
@@ -409,6 +409,26 @@ export class AuthService {
    * globally caused every API route (events, login, registration, health) to
    * inherit the 10 requests/hour ceiling.
    */
+  /**
+   * The 60 second wait between two codes for the same account. The reply says how many seconds
+   * are left, so the checkout screen can count down instead of showing a stale error.
+   */
+  private otpCooldownError(recentOtp: { createdAt?: Date | string | null } | null, userId?: string) {
+    const createdAt = recentOtp?.createdAt ? new Date(recentOtp.createdAt).getTime() : NaN;
+    const elapsedMs = Number.isFinite(createdAt) ? Date.now() - createdAt : 0;
+    const retryAfterSeconds = Math.min(60, Math.max(1, Math.ceil((60_000 - elapsedMs) / 1000)));
+    return new BadRequestException({
+      message: `Please wait ${retryAfterSeconds} seconds before requesting a new code`,
+      code: 'OTP_COOLDOWN',
+      retryAfterSeconds,
+      // An unused code newer than the cooldown exists for this account.
+      codeActive: true,
+      // The success reply of this same public endpoint already hands out the user id, so the
+      // checkout screens can carry on to the code step without a second request.
+      ...(userId ? { userId } : {}),
+    });
+  }
+
   private async enforceOtpHourlyLimit(req?: Request): Promise<void> {
     const tracker = this.getTrustedIp(req);
     const trackerHash = createHash('sha256').update(tracker).digest('hex');
