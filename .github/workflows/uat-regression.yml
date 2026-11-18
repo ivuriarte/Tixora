@@ -29,6 +29,11 @@ jobs:
         run: npm ci --workspaces
       - name: Generate Prisma client
         run: npx prisma generate --schema apps/api/prisma/schema.prisma
+      - name: Build shared packages
+        # The API imports @axon-tickets/types and @axon-tickets/utils from their built output.
+        # ci.yml and deploy-uat.yml build them first; without this step the type-check below
+        # fails with TS2307 "Cannot find module" on every run.
+        run: npx turbo build --filter=@axon-tickets/types --filter=@axon-tickets/utils
       - name: Type-check API
         run: npm run typecheck --workspace=apps/api
       - name: Run complete API portfolio
