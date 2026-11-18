@@ -40,6 +40,11 @@ Do not announce or test until both deploys are green.
 ### Rollback
 Code revert only; **no schema change**. Roll the **web** back first if needed (Vercel: promote the previous deployment); the extra `tierId` field in the API is harmless and can stay. **Never roll back only the API**: with the new web live and no `tierId` from the API, every logged-in buyer would see the message instead of the form. Do not drop anything in the database.
 
+### Release 2026-11-18: web half combined with the OTP fix (supersedes "Deploy order" and "Rollback" above)
+The API half (PR #86) was already in production first (`main` = `efbe1e9`). The `uat` to `main` promotion (PR #88) is **not web-only**. It carries the web half (#87), the confirmation-code cooldown fix (#89 and its review follow-ups #90: API **and** web: `registrations.service.ts`, `auth.service.ts`, checkout screens) and a UAT-only CI change (#91). No migration, no schema change, no new environment variable or dependency.
+- **Deploy order does not matter.** A push to `main` starts the web deploy, the API Git deploy and `ci.yml` `deploy-api` in parallel. New web on the old API: a reply without `code` is read as "not a cooldown" and a send reply without `retryAfterSeconds` falls back to 60 seconds, which is the old behaviour. Old web on the new API: `message` is still a string and the new fields are additive.
+- **Rollback:** code revert only. Either project can be rolled back alone (Vercel: promote the previous deployment). Never roll the **API** back below `efbe1e9` while the web with #87 is live (it needs `tierId`). The stale email-claim cleanup deletes claim rows; a rollback does not restore them, which is harmless (they were stale).
+
 ### Tests
 - API: 3 new contract tests (one checks every scalar field of the shared `Registration` type at compile time); full API suite passed.
 - Web e2e (`checkout-dead-end.spec.ts`): 27 passed, 9 of them new. Run against the **old** page code, 6 of the new ones fail, including the exact incident link (empty `tierId=`).
