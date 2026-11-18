@@ -12,6 +12,9 @@
  *  U-66  includes events with status 'sold_out'
  *  U-67  orders by featuredOrder ASC (nulls last), then startsAt ASC
  *  U-68  maps lowestPrice and totalAvailable from tiers correctly
+ *
+ * Also covers the 3-slot cap in EventsService.update(): only events the homepage would
+ * show (flagged, on_sale or sold_out, featuredUntil null or in the future) hold a slot.
  */
 
 import { BadRequestException } from '@nestjs/common';
@@ -239,23 +242,34 @@ type FeaturedRow = {
  * the fake cannot evaluate fails loudly instead of silently counting everything.
  */
 function countWhere(rows: FeaturedRow[], where: Record<string, any>): number {
+  const keysOf = (value: unknown): string => Object.keys(value as object).sort().join(',');
+  const unsupported = (what: string, value: unknown): never => {
+    throw new Error(`countWhere fake cannot evaluate ${what}: ${JSON.stringify(value)}`);
+  };
   const matches = (row: FeaturedRow): boolean =>
     Object.entries(where).every(([key, cond]) => {
       switch (key) {
         case 'id':
+          if (keysOf(cond) !== 'not') return unsupported('id condition', cond);
           return row.id !== cond.not;
         case 'isFeatured':
+          if (typeof cond !== 'boolean') return unsupported('isFeatured condition', cond);
           return row.isFeatured === cond;
         case 'status':
+          if (keysOf(cond) !== 'in') return unsupported('status condition', cond);
           return (cond.in as string[]).includes(row.status);
         case 'OR':
           return (cond as Array<Record<string, any>>).some((branch) => {
+            if (keysOf(branch) !== 'featuredUntil') return unsupported('OR branch', branch);
             const until = branch.featuredUntil;
             if (until === null) return row.featuredUntil === null;
+            if (keysOf(until) !== 'gt' || !(until.gt instanceof Date)) {
+              return unsupported('featuredUntil condition', until);
+            }
             return row.featuredUntil !== null && row.featuredUntil > until.gt;
           });
         default:
-          throw new Error(`countWhere fake cannot evaluate "${key}"`);
+          return unsupported('filter key', key);
       }
     });
   return rows.filter(matches).length;
@@ -282,6 +296,10 @@ describe('EventsService.update() featured slot cap', () => {
     status,
     featuredUntil,
   });
+  const unflagged = (id: string, status: string): FeaturedRow => ({
+    ...row(id, status),
+    isFeatured: false,
+  });
 
   beforeEach(() => {
     table = [];
@@ -301,7 +319,12 @@ describe('EventsService.update() featured slot cap', () => {
 
   it('allows featuring when completed events still carry the flag', async () => {
     // The 2026-11-18 UAT state: three completed events flagged, nothing visible on the homepage.
-    table = [row('old-1', 'completed'), row('old-2', 'completed'), row('old-3', 'completed')];
+    table = [
+      row('old-1', 'completed'),
+      row('old-2', 'completed'),
+      row('old-3', 'completed'),
+      unflagged('plain-1', 'on_sale'),
+    ];
 
     await expect(service.update('event-new', { isFeatured: true })).resolves.toBeDefined();
     expect(mockEventUpdate).toHaveBeenCalledWith({
@@ -315,6 +338,16 @@ describe('EventsService.update() featured slot cap', () => {
 
     await expect(service.update('event-new', { isFeatured: true })).resolves.toBeDefined();
     expect(mockEventUpdate).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not count on-sale events that were never flagged as featured', async () => {
+    table = [
+      unflagged('plain-1', 'on_sale'),
+      unflagged('plain-2', 'on_sale'),
+      unflagged('plain-3', 'sold_out'),
+    ];
+
+    await expect(service.update('event-new', { isFeatured: true })).resolves.toBeDefined();
   });
 
   it('does not count draft events, which the homepage does not show either', async () => {
