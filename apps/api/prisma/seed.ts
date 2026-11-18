@@ -158,7 +158,7 @@ async function main() {
   });
 
   process.stdout.write(
-    `✅ Test users: testuser1@axon.uat, testuser2@axon.uat  (password: Test1234!)\n`,
+    `✅ Test users: testuser1@axon.uat, testuser2@axon.uat  (password sign-in is admin-only; these cannot sign in by password)\n`,
   );
 
   // ── Event 1: Leadership Conference ──────────────────────────────────────
