@@ -246,7 +246,7 @@ describe('AuthService.requestAccess — profile pre-filling', () => {
 
     const result = await service.requestAccess({ ...BASE_DTO, firstName: 'Ben' });
 
-    expect(result).toEqual({ userId: createdUser.id });
+    expect(result).toEqual({ userId: createdUser.id, retryAfterSeconds: 60 });
   });
 
   it('U-A8: returns { userId } for returning user after OTP is sent', async () => {
@@ -256,7 +256,7 @@ describe('AuthService.requestAccess — profile pre-filling', () => {
 
     const result = await service.requestAccess({ ...BASE_DTO });
 
-    expect(result).toEqual({ userId: 'returning_user' });
+    expect(result).toEqual({ userId: 'returning_user', retryAfterSeconds: 60 });
   });
 
   it('U-A9: applies the distributed hourly limiter only inside OTP send flows', async () => {
