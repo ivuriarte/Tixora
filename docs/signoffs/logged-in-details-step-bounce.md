@@ -42,4 +42,16 @@
 2. Dependency audit: picomatch `GHSA-fc5q-39xc-vjpf` (high, ReDoS, no patched version exists) is allowed in the two UAT workflows only, through `.github/audit-exceptions.json` and `scripts/ci/npm-audit-gate.mjs` (PR #91). It expires on **2026-12-18** and the build fails again after that until someone re-checks for a patch. Any other high or critical advisory still fails the build. The production pipeline (`ci.yml`) never had an audit step and is unchanged.
 
 **After deploy, verify on production (read-only):** both Vercel deployments (`api` and `tixora-online-ticket-app`) Ready on the merge commit; `ci.yml` and the e2e smoke green; no 5xx on the confirmation-code and sign-in code endpoints; a signed-in buyer's `payment_submitted` is followed by `details_confirm_started`, not `event_page_viewed`; `details_step_unavailable` stays at 0; no OTP codes in logs.
-**Production outcome:** to be filled in after the deploy.
+**Production outcome (2026-11-18):** `uat` was merged into `main` through PR #88 as `5bf609f` (build code `78cfce1`).
+
+| Check | Result |
+|---|---|
+| `ci.yml` run #187 on `5bf609f` | **Passed**: Lint & Type-check, API Unit Tests, Migrate prod database, E2E Smoke Test (public flows) and Deploy API to Vercel all succeeded. |
+| Test & Build run #273 | **Passed** (Test API, Test Web, Validate Prisma Schema). |
+| Vercel production deployments | `api` and `tixora-online-ticket-app` both reported "Deployment has completed" for the merge commit. |
+| Production API health | `/api/v1/health` returned `ok` for database and Redis after the deploy. |
+| Admin dashboard and analytics | Load normally in production; the analytics page showed no failed funnel events. |
+| Logged-in `payment_submitted` followed by `details_confirm_started` | **Not yet observed.** No signed-in buyer has gone through checkout since the deploy, and the analytics page is per event. Check this after the first signed-in order. |
+| `details_step_unavailable` stays at 0, no 5xx on the code and sign-in endpoints, no OTP codes in logs | **Not yet checked.** Needs the Vercel runtime logs, which are not readable without a Vercel sign-in. Ian to check, or read after the first signed-in order. |
+
+Rollback, if needed, follows the "Release 2026-11-18" section of `docs/specs/logged-in-details-step-bounce.md`: revert the web code, and never roll the API below `efbe1e9` while web PR #87 is live.
