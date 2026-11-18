@@ -1,5 +1,12 @@
 import { expect, test } from '@playwright/test';
-import { OTP_LIFETIME_MS, readOtpCooldown, secondsUntil } from '../src/lib/otpCooldown';
+import {
+  DEFAULT_OTP_WAIT_SECONDS,
+  OTP_LIFETIME_MS,
+  canResumeCode,
+  readOtpCooldown,
+  readSendWaitSeconds,
+  secondsUntil,
+} from '../src/lib/otpCooldown';
 
 function apiError(data: Record<string, unknown>) {
   return { response: { status: 400, data } };
@@ -70,5 +77,22 @@ test.describe('OTP cooldown helpers', () => {
 
   test('a code lives for five minutes, matching the API', () => {
     expect(OTP_LIFETIME_MS).toBe(300_000);
+  });
+
+  test('reads the wait from a send reply, with or without the data envelope, and falls back to 60', () => {
+    expect(readSendWaitSeconds({ data: { retryAfterSeconds: 45 } })).toBe(45);
+    expect(readSendWaitSeconds({ retryAfterSeconds: 30 })).toBe(30);
+    expect(readSendWaitSeconds({ data: { retryAfterSeconds: 2.2 } })).toBe(3);
+    expect(readSendWaitSeconds({ data: { retryAfterSeconds: 9999 } })).toBe(300);
+    for (const unreadable of [null, undefined, {}, { data: {} }, { data: { retryAfterSeconds: 0 } }, { retryAfterSeconds: 'soon' }]) {
+      expect(readSendWaitSeconds(unreadable)).toBe(DEFAULT_OTP_WAIT_SECONDS);
+    }
+  });
+
+  test('only resumes when the earlier code still works and the API named the account', () => {
+    expect(canResumeCode({ retryAfterSeconds: 9, codeActive: true, userId: 'user-1' })).toBe(true);
+    expect(canResumeCode({ retryAfterSeconds: 9, codeActive: false, userId: 'user-1' })).toBe(false);
+    expect(canResumeCode({ retryAfterSeconds: 9, codeActive: true, userId: null })).toBe(false);
+    expect(canResumeCode(null)).toBe(false);
   });
 });

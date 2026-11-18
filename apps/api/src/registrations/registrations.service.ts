@@ -920,6 +920,17 @@ export class RegistrationsService {
     }
 
     const normalizedEmail = email.trim().toLowerCase();
+    const emailHash = this.hashGuestEmail(normalizedEmail);
+    const otpKey = `guest-checkout-otp:${id}`;
+    // The cooldown belongs to this order AND this address. Fixing a typo in the address must
+    // not wait out the cooldown of the wrong one; the hourly cap below stops address-hopping.
+    const cooldownKey = this.guestOtpCooldownKey(id, emailHash);
+    const sendsKey = `guest-checkout-otp-sends:${id}`;
+    const attemptsKey = `guest-checkout-otp-attempts:${id}`;
+    // Cheap early answer from Redis alone, before the duplicate query. The atomic
+    // setIfNotExists below stays the authority.
+    const waiting = await this.redis.ttl(cooldownKey);
+    if (waiting > 0) throw await this.guestCooldownError(waiting, otpKey, emailHash);
     const conflicts = await this.findGuestDuplicateConflicts(id, [normalizedEmail]);
     if (conflicts.length > 0) {
       throw new ConflictException({
@@ -927,27 +938,13 @@ export class RegistrationsService {
         conflicts,
       });
     }
-    const emailHash = this.hashGuestEmail(normalizedEmail);
-    const otpKey = `guest-checkout-otp:${id}`;
-    // The cooldown belongs to this order AND this address. Fixing a typo in the address must
-    // not wait out the cooldown of the wrong one; the hourly cap below stops address-hopping.
-    const cooldownKey = this.guestOtpCooldownKey(id, emailHash);
-    const sendsKey = `guest-checkout-otp-sends:${id}`;
     const accepted = await this.redis.setIfNotExists(
       cooldownKey,
       '1',
       GUEST_CHECKOUT_OTP_COOLDOWN_SECONDS,
     );
     if (!accepted) {
-      const remaining = await this.redis.ttl(cooldownKey);
-      const retryAfterSeconds = remaining > 0 ? remaining : GUEST_CHECKOUT_OTP_COOLDOWN_SECONDS;
-      throw new BadRequestException({
-        message: `Please wait ${retryAfterSeconds} seconds before requesting a new code.`,
-        code: 'OTP_COOLDOWN',
-        retryAfterSeconds,
-        // True when the code already sent to this address can still be entered.
-        codeActive: await this.guestCodeIsActive(otpKey, emailHash),
-      });
+      throw await this.guestCooldownError(await this.redis.ttl(cooldownKey), otpKey, emailHash);
     }
     let code: string;
     try {
@@ -967,6 +964,9 @@ export class RegistrationsService {
       const codeHash = await bcrypt.hash(code, 10);
       const record = JSON.stringify({ codeHash, emailHash });
       await this.redis.set(otpKey, record, GUEST_CHECKOUT_OTP_TTL_SECONDS);
+      // A new code starts with a fresh attempts counter. The cooldown and the hourly send cap
+      // above already bound how many guesses an order gets per hour.
+      await this.redis.del(attemptsKey);
     } catch (error) {
       // Nothing was sent, so the wait must not outlive this request (a Redis or hashing failure
       // would otherwise block this address for a minute with no code on its way).
@@ -993,7 +993,21 @@ export class RegistrationsService {
       );
     }
 
-    return { message: 'If the address is valid, a confirmation code has been sent.' };
+    return {
+      message: 'If the address is valid, a confirmation code has been sent.',
+      retryAfterSeconds: GUEST_CHECKOUT_OTP_COOLDOWN_SECONDS,
+    };
+  }
+
+  private async guestCooldownError(remaining: number, otpKey: string, emailHash: string) {
+    const retryAfterSeconds = remaining > 0 ? remaining : GUEST_CHECKOUT_OTP_COOLDOWN_SECONDS;
+    return new BadRequestException({
+      message: `Please wait ${retryAfterSeconds} seconds before requesting a new code.`,
+      code: 'OTP_COOLDOWN',
+      retryAfterSeconds,
+      // True when the code already sent to this address can still be entered.
+      codeActive: await this.guestCodeIsActive(otpKey, emailHash),
+    });
   }
 
   private guestOtpCooldownKey(id: string, emailHash: string) {

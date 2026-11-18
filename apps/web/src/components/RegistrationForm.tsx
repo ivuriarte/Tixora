@@ -6,7 +6,7 @@ import { formatPHP } from '@axon-tickets/utils';
 import api from '@/lib/api';
 import { useAuthStore } from '@/store/auth.store';
 import { funnelFailureCode, trackInternalFunnelEvent, type FunnelFailureCode } from '@/lib/funnel';
-import { OTP_LIFETIME_MS, readOtpCooldown } from '@/lib/otpCooldown';
+import { OTP_LIFETIME_MS, readOtpCooldown, readSendWaitSeconds } from '@/lib/otpCooldown';
 import { useSecondsUntil } from '@/lib/useSecondsUntil';
 import OptionalAddOnsStep from '@/components/OptionalAddOnsStep';
 import type {
@@ -280,6 +280,16 @@ export default function RegistrationForm({
     lastCodeSent.email === leadAddress &&
     Date.now() - lastCodeSent.at < OTP_LIFETIME_MS &&
     (checkoutMode === 'guest' || (checkoutMode === 'account' && pendingUserId !== ''));
+  // One re-render when the code's five minutes are up, so the "I already have the code" button
+  // goes away by itself even when no countdown is running.
+  const [, setCodeExpiryTick] = useState(0);
+  useEffect(() => {
+    if (!lastCodeSent) return;
+    const remainingMs = lastCodeSent.at + OTP_LIFETIME_MS - Date.now();
+    if (remainingMs <= 0) return;
+    const id = setTimeout(() => setCodeExpiryTick((tick) => tick + 1), remainingMs + 50);
+    return () => clearTimeout(id);
+  }, [lastCodeSent]);
   const otpVerificationRef = useRef(false);
   const [inclusionCheckoutStage, setInclusionCheckoutStage] = useState<'attendees' | 'addons'>('attendees');
   const [inclusionSelections, setInclusionSelections] = useState<InclusionSelection[]>([]);
@@ -575,6 +585,7 @@ export default function RegistrationForm({
       }
 
       const leadEmail = attendees[0]?.email.trim().toLowerCase();
+      let waitSeconds = readSendWaitSeconds(null);
       if (checkoutMode === 'guest') {
         const duplicateResponse = await api.post<{ data?: { conflicts: GuestDuplicateConflict[] }; conflicts?: GuestDuplicateConflict[] }>(
           `/registrations/guest/${registrationId}/check-duplicates`,
@@ -586,21 +597,23 @@ export default function RegistrationForm({
           setDuplicateConflicts(conflicts);
           return;
         }
-        await api.post(
+        const sent = await api.post(
           `/registrations/guest/${registrationId}/request-confirmation-code`,
           { email: leadEmail },
           { headers: { 'x-registration-token': guestAccessToken } },
         );
+        waitSeconds = readSendWaitSeconds(sent.data);
       } else {
-        const response = await api.post<{ data: { userId: string } }>('/auth/request-access', {
+        const response = await api.post<{ data: { userId: string; retryAfterSeconds?: number } }>('/auth/request-access', {
           email: leadEmail,
           eventId,
           eventSlug,
         });
         setPendingUserId(response.data.data.userId);
+        waitSeconds = readSendWaitSeconds(response.data);
       }
       setLastCodeSent({ email: leadEmail, at: Date.now() });
-      setCodeWait({ email: leadEmail, until: Date.now() + 60_000 });
+      setCodeWait({ email: leadEmail, until: Date.now() + waitSeconds * 1000 });
       setCheckoutOtp('');
       changeCheckoutStage('otp');
     } catch (err: unknown) {

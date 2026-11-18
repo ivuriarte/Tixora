@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import api from '@/lib/api';
 import { useAuthStore } from '@/store/auth.store';
-import { readOtpCooldown } from '@/lib/otpCooldown';
+import { canResumeCode, readOtpCooldown } from '@/lib/otpCooldown';
 
 type Scenario = 'authenticated' | 'guest' | 'account';
 
@@ -88,7 +88,7 @@ function CompleteContent() {
       // Asked again within the wait: the code sent a moment ago still works, so go straight to
       // the screen where it is entered instead of showing an error that outlives the wait.
       const cooldown = readOtpCooldown(requestError);
-      if (cooldown?.userId && cooldown.codeActive) {
+      if (canResumeCode(cooldown)) {
         setPendingUserId(cooldown.userId);
         setActivationStep('otp');
         return;

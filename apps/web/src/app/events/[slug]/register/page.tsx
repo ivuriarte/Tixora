@@ -14,12 +14,12 @@ import CheckoutStepper from '@/components/CheckoutStepper';
 import InAppBrowserBanner from '@/components/InAppBrowserBanner';
 import { trackPixelCustomEvent } from '@/lib/metaPixel';
 import { trackInternalFunnelEvent, getOrCreateFunnelSessionId } from '@/lib/funnel';
-import { readOtpCooldown } from '@/lib/otpCooldown';
+import { DEFAULT_OTP_WAIT_SECONDS, canResumeCode, readOtpCooldown } from '@/lib/otpCooldown';
 import toast from 'react-hot-toast';
 import { formatPHP } from '@axon-tickets/utils';
 import type { EventOptionalInclusion } from '@axon-tickets/types';
 
-const RESEND_COOLDOWN = 60;
+const RESEND_COOLDOWN = DEFAULT_OTP_WAIT_SECONDS;
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -297,7 +297,7 @@ function GuestWizard({ event, tier, qty, onOtpVerified, skipGate = false }: Gues
       // Asked again within the wait: the code sent a moment ago still works, so carry on to the
       // screen where it is entered instead of leaving an error that outlives the wait.
       const cooldown = readOtpCooldown(err);
-      if (cooldown?.userId && cooldown.codeActive) {
+      if (canResumeCode(cooldown)) {
         setEmail(normalizedEmail);
         setPendingUserId(cooldown.userId);
         setStep('verify');

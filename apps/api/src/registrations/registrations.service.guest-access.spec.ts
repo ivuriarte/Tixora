@@ -20,7 +20,7 @@ function makeService() {
     setIfNotExists: jest.fn().mockResolvedValue(true),
     incrementWithTtl: jest.fn().mockResolvedValue({ count: 1, ttlSeconds: 3600 }),
     decrementIfPositive: jest.fn().mockResolvedValue(0),
-    ttl: jest.fn().mockResolvedValue(42),
+    ttl: jest.fn().mockResolvedValue(-2), // -2: the key does not exist
   };
   const guestHold = makeGuestHold();
   const service = new RegistrationsService(
@@ -320,6 +320,30 @@ describe('RegistrationsService guest access', () => {
       expect(deleted).toContain('guest-checkout-otp:registration-1');
       expect(deleted.some((key) => key.startsWith('guest-checkout-otp-cooldown:registration-1:'))).toBe(true);
       expect(redis.decrementIfPositive).toHaveBeenCalledWith('guest-checkout-otp-sends:registration-1');
+    });
+
+    it('answers a retry inside the wait from Redis alone, before any database lookup', async () => {
+      const { service, prisma, redis, email } = makeService();
+      readyOrder(prisma);
+      redis.ttl.mockResolvedValue(30);
+
+      await expect(
+        service.requestGuestConfirmationCode('registration-1', token, 'guest@example.com'),
+      ).rejects.toMatchObject({ response: expect.objectContaining({ code: 'OTP_COOLDOWN', retryAfterSeconds: 30 }) });
+
+      expect(prisma.registration.findMany).not.toHaveBeenCalled();
+      expect(redis.setIfNotExists).not.toHaveBeenCalled();
+      expect(email.sendOtpEmail).not.toHaveBeenCalled();
+    });
+
+    it('starts a new code with a fresh attempts counter and tells the client how long to wait', async () => {
+      const { service, prisma, redis } = makeService();
+      readyOrder(prisma);
+
+      const result = await service.requestGuestConfirmationCode('registration-1', token, 'guest@example.com');
+
+      expect(redis.del).toHaveBeenCalledWith('guest-checkout-otp-attempts:registration-1');
+      expect(result).toEqual(expect.objectContaining({ retryAfterSeconds: 60 }));
     });
 
     it('gives the wait back when Redis fails before anything is sent', async () => {
