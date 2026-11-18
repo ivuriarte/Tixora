@@ -1065,8 +1065,19 @@ export class RegistrationsService {
       throw new BadRequestException('Code expired or invalid. Request a new one.');
     }
 
+    // Cheap early exit from a plain read. It is only a shortcut: the atomic count below is what
+    // actually enforces the limit.
     const attempts = Number.parseInt((await this.redis.get(attemptsKey)) ?? '0', 10);
     if (attempts >= GUEST_CHECKOUT_OTP_MAX_ATTEMPTS) {
+      throw new BadRequestException('Too many failed attempts. Request a new code.');
+    }
+
+    // Count this attempt atomically BEFORE comparing. Reading the counter, comparing and only
+    // then writing it back loses updates under concurrency: a burst of parallel guesses would
+    // all read the same low number and every one of them would get its own compare. Each
+    // request now gets its own number here, and only the first MAX of them go on to compare.
+    const { count } = await this.redis.incrementWithTtl(attemptsKey, GUEST_CHECKOUT_OTP_TTL_SECONDS);
+    if (count > GUEST_CHECKOUT_OTP_MAX_ATTEMPTS) {
       throw new BadRequestException('Too many failed attempts. Request a new code.');
     }
 
@@ -1076,16 +1087,15 @@ export class RegistrationsService {
     );
     const codeMatches = emailMatches && (await bcrypt.compare(dto.otp, record.codeHash));
     if (!codeMatches) {
-      const next = await this.redis.incrementWithTtl(
-        attemptsKey,
-        GUEST_CHECKOUT_OTP_TTL_SECONDS,
-      );
-      if (next.count >= GUEST_CHECKOUT_OTP_MAX_ATTEMPTS) {
+      if (count >= GUEST_CHECKOUT_OTP_MAX_ATTEMPTS) {
         await this.redis.del(otpKey);
         throw new BadRequestException('Too many failed attempts. Request a new code.');
       }
       throw new BadRequestException('Incorrect code. Please try again.');
     }
+    // A right code is not a failed guess. Give the try back, so a buyer who fixes a mistake in the
+    // attendee form and submits again is not locked out by the validation errors below.
+    await this.redis.decrementIfPositive(attemptsKey);
 
     const leadEmail = dto.attendees[0]?.email?.trim().toLowerCase();
     if (!leadEmail || leadEmail !== normalizedEmail) {
@@ -1103,9 +1113,41 @@ export class RegistrationsService {
       });
     }
 
-    const result = await this.updateAttendeesForRegistration(id, null, dto, true);
+    // Single use: deleting the code is the claim. It is a compare-and-delete on the exact record
+    // verified above, so of two parallel requests carrying the right code exactly one sees 1 and
+    // goes on; the other sees 0 and is refused here, before anything is written. (Claiming only
+    // after the attendee writes let both through.) Comparing the record, not just deleting the
+    // key, also means a request holding a code that was replaced while it ran cannot consume the
+    // buyer's newer code.
+    const remainingTtl = await this.redis.ttl(otpKey);
+    const claimed = await this.redis.deleteIfEquals(otpKey, rawRecord);
+    if (claimed !== 1) {
+      throw new BadRequestException('This code was already used. Request a new one.');
+    }
+
+    const result = await this.updateAttendeesForRegistration(id, null, dto, true).catch(
+      async (error: unknown) => {
+        // The save failed, so give the code back for the rest of its life: the buyer fixes the
+        // attendee form and submits again with the same code. Only if no code is stored, so it
+        // never overwrites a newer one. If the save had in fact committed (the request died after
+        // it), a repeat is refused by the registration's own status check in
+        // updateAttendeesForRegistration: a committed save moves the order out of the statuses it
+        // accepts (pending_payment / proof_submitted, or a free guest order not yet completed).
+        await this.redis
+          .setIfNotExists(
+            otpKey,
+            rawRecord,
+            remainingTtl > 0 ? remainingTtl : GUEST_CHECKOUT_OTP_TTL_SECONDS,
+          )
+          .catch(() => {
+            // The buyer will have to ask for a new code; say so for whoever is looking at the logs
+            // (never the code, its hash or the address).
+            this.logger.warn({ msg: 'Could not give a guest checkout code back after a failed save', regId: id });
+          });
+        throw error;
+      },
+    );
     await Promise.all([
-      this.redis.del(otpKey),
       this.redis.del(attemptsKey),
       this.redis.del(this.guestOtpCooldownKey(id, record.emailHash)),
       this.redis.del(`guest-checkout-otp-sends:${id}`),

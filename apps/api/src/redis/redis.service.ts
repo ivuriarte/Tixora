@@ -54,6 +54,27 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
     return this.client.del(key);
   }
 
+  /**
+   * Deletes the key only while it still holds exactly `expected` (compare-and-delete in one Lua
+   * script, so nothing can change it between the check and the delete). Returns 1 when this call
+   * removed it, 0 when the key was missing or holds something else. The value travels as ARGV,
+   * never inside the script text.
+   */
+  async deleteIfEquals(key: string, expected: string): Promise<number> {
+    const result = await this.client.eval(
+      `
+        if redis.call('GET', KEYS[1]) == ARGV[1] then
+          return redis.call('DEL', KEYS[1])
+        end
+        return 0
+      `,
+      1,
+      key,
+      expected,
+    );
+    return Number(result);
+  }
+
   async exists(key: string): Promise<boolean> {
     const result = await this.client.exists(key);
     return result > 0;
