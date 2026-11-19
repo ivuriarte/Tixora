@@ -5,7 +5,8 @@ import { useRouter } from 'next/navigation';
 import { formatPHP } from '@axon-tickets/utils';
 import api from '@/lib/api';
 import { useAuthStore } from '@/store/auth.store';
-import { funnelFailureCode, trackInternalFunnelEvent, type FunnelFailureCode } from '@/lib/funnel';
+import { trackInternalFunnelEvent, type FunnelFailureCode } from '@/lib/funnel';
+import { checkoutErrorMessage, LOST_ORDER_MESSAGE, readCheckoutFailure } from '@/lib/checkoutErrors';
 import { OTP_LIFETIME_MS, readOtpCooldown, readSendWaitSeconds } from '@/lib/otpCooldown';
 import { useSecondsUntil } from '@/lib/useSecondsUntil';
 import OptionalAddOnsStep from '@/components/OptionalAddOnsStep';
@@ -291,6 +292,16 @@ export default function RegistrationForm({
     return () => clearTimeout(id);
   }, [lastCodeSent]);
   const otpVerificationRef = useRef(false);
+  // When an error appears, bring it into view and focus it. On a phone the message can sit
+  // below the fold, and a buyer who sees nothing happen presses the button again and again.
+  const errorRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    const element = errorRef.current;
+    if (!error || !element) return;
+    const reduceMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+    element.scrollIntoView({ block: 'center', behavior: reduceMotion ? 'auto' : 'smooth' });
+    element.focus({ preventScroll: true });
+  }, [error]);
   const [inclusionCheckoutStage, setInclusionCheckoutStage] = useState<'attendees' | 'addons'>('attendees');
   const [inclusionSelections, setInclusionSelections] = useState<InclusionSelection[]>([]);
   const [quote, setQuote] = useState<InclusionQuote | null>(null);
@@ -565,13 +576,14 @@ export default function RegistrationForm({
     });
   }
 
-  function readHttpStatus(err: unknown): number | undefined {
-    const status = (err as { response?: { status?: unknown } })?.response?.status;
-    return typeof status === 'number' ? status : undefined;
-  }
-
   async function confirmPaidCheckout() {
-    if (!registrationId || !checkoutMode || !guestAccessToken && checkoutMode !== 'authenticated') return;
+    if (!registrationId || !checkoutMode || (!guestAccessToken && checkoutMode !== 'authenticated')) {
+      // The page no longer knows which order this is (for example the guest token was lost with
+      // the tab). Say so, and record it, instead of doing nothing.
+      trackConfirm('details_confirm_failed', 'failed', { code: 'no_session' });
+      setError(LOST_ORDER_MESSAGE);
+      return;
+    }
     setLoading(true);
     setError(null);
     trackConfirm('details_confirm_started', 'started');
@@ -617,11 +629,12 @@ export default function RegistrationForm({
       setCheckoutOtp('');
       changeCheckoutStage('otp');
     } catch (err: unknown) {
-      const httpStatus = readHttpStatus(err);
+      const failure = readCheckoutFailure(err);
+      const httpStatus = failure.httpStatus;
       const cooldown = checkoutMode === 'authenticated' ? null : readOtpCooldown(err);
       // Asking again within the wait is normal behaviour, not a failed confirmation.
       if (!cooldown) {
-        trackConfirm('details_confirm_failed', 'failed', { httpStatus, code: funnelFailureCode(httpStatus) });
+        trackConfirm('details_confirm_failed', 'failed', { httpStatus, code: failure.code });
       }
       if (cooldown) {
         // Asked too soon. Show how long is left (and lift it the moment it ends) instead of a
@@ -653,10 +666,7 @@ export default function RegistrationForm({
       }
       const responseData = (err as { response?: { data?: { message?: string | string[]; conflicts?: GuestDuplicateConflict[] } } })?.response?.data;
       if (responseData?.conflicts?.length) setDuplicateConflicts(responseData.conflicts);
-      const message =
-        responseData?.message ??
-        'We could not send the confirmation code.';
-      setError(Array.isArray(message) ? message.join(' ') : message);
+      setError(checkoutErrorMessage(failure, 'We could not send the confirmation code.'));
     } finally {
       setLoading(false);
     }
@@ -728,12 +738,9 @@ export default function RegistrationForm({
       trackConfirm('details_confirm_succeeded', 'success');
       router.push(`/events/${eventSlug}/register/complete?registrationId=${registrationId}&scenario=account&reference=${encodeURIComponent(referenceNumber)}`);
     } catch (err: unknown) {
-      const httpStatus = readHttpStatus(err);
-      trackConfirm('details_confirm_failed', 'failed', { httpStatus, code: funnelFailureCode(httpStatus) });
-      const message =
-        (err as { response?: { data?: { message?: string | string[] } } })?.response?.data?.message ??
-        'The code could not be verified.';
-      setError(Array.isArray(message) ? message.join(' ') : message);
+      const failure = readCheckoutFailure(err);
+      trackConfirm('details_confirm_failed', 'failed', { httpStatus: failure.httpStatus, code: failure.code });
+      setError(checkoutErrorMessage(failure, 'The code could not be verified.'));
       setCheckoutOtp('');
       otpVerificationRef.current = false;
     } finally {
@@ -954,7 +961,7 @@ export default function RegistrationForm({
           </div>
         )}
 
-        {error && <div role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>}
+        {error && <div ref={errorRef} tabIndex={-1} role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 outline-none">{error}</div>}
         {checkoutMode !== 'authenticated' && codeWaitSeconds > 0 && (
           <p role="status" data-testid="code-wait" className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
             You can ask for a new code in <span className="font-semibold tabular-nums">{codeWaitSeconds}s</span>.
@@ -963,6 +970,11 @@ export default function RegistrationForm({
         )}
         {!confirmationReady && skipDetailsForAuthenticatedSingle && (
           <div role="status" className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">Loading the registrant details from your verified profile…</div>
+        )}
+        {!confirmationReady && !skipDetailsForAuthenticatedSingle && (
+          <div role="status" data-testid="details-incomplete" className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+            The button below is greyed out because some attendee details are missing. Choose <strong>Edit details</strong> above and fill in every name and email.
+          </div>
         )}
 
         {duplicateConflicts.length > 0 && (
@@ -1057,7 +1069,7 @@ export default function RegistrationForm({
           className="w-full rounded-xl border border-gray-300 px-4 py-4 text-center font-mono text-3xl tracking-[0.45em] focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/30 disabled:opacity-50"
         />
         {loading && <p className="text-center text-sm text-gray-500">Verifying and locking your transaction…</p>}
-        {error && <div role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-center text-sm text-red-700">{error}</div>}
+        {error && <div ref={errorRef} tabIndex={-1} role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-center text-sm text-red-700 outline-none">{error}</div>}
         <div className="flex flex-col items-center gap-1">
           <button
             type="button"
