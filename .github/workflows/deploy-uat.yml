@@ -211,7 +211,7 @@ jobs:
         run: test -n "$VERCEL_AUTOMATION_BYPASS_SECRET"
 
       - name: Install Playwright Chromium
-        run: npx playwright install --with-deps chromium
+        run: bash "$GITHUB_WORKSPACE/scripts/ci/install-playwright.sh" chromium
 
       - name: Run public, checkout, admin UI, accessibility, and performance suites
         run: >-
@@ -276,7 +276,7 @@ jobs:
           test -n "$VERCEL_AUTOMATION_BYPASS_SECRET"
 
       - name: Install Playwright Chromium
-        run: npx playwright install --with-deps chromium
+        run: bash "$GITHUB_WORKSPACE/scripts/ci/install-playwright.sh" chromium
 
       - name: Run authenticated admin suite
         run: >-
@@ -341,7 +341,7 @@ jobs:
           test -n "$VERCEL_AUTOMATION_BYPASS_SECRET"
 
       - name: Install Playwright Chromium
-        run: npx playwright install --with-deps chromium
+        run: bash "$GITHUB_WORKSPACE/scripts/ci/install-playwright.sh" chromium
 
       - name: Run real customer OTP and stored-session suite
         run: npx playwright test e2e/customer-flows.spec.ts --project=customer
