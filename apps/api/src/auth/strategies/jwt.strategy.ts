@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
 import { ConfigService } from '@nestjs/config';
@@ -20,7 +20,12 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
     });
   }
 
-  validate(payload: JwtPayload): JwtPayload {
+  validate(payload: JwtPayload & { jti?: string }): JwtPayload {
+    // Refresh tokens carry a `jti` and are signed with the same key. They may only be exchanged
+    // at POST /auth/refresh; they must never work as a bearer token on normal API routes.
+    if (payload.jti) {
+      throw new UnauthorizedException('Invalid token type');
+    }
     return {
       sub: payload.sub,
       email: payload.email,
