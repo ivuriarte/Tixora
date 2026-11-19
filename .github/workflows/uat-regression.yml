@@ -78,7 +78,7 @@ jobs:
         run: test -n "$VERCEL_AUTOMATION_BYPASS_SECRET"
 
       - name: Install Playwright browser
-        run: npx playwright install --with-deps ${{ matrix.browser }}
+        run: bash "$GITHUB_WORKSPACE/scripts/ci/install-playwright.sh" ${{ matrix.browser }}
 
       - name: Run public regression
         run: >-
@@ -129,7 +129,7 @@ jobs:
       - name: Validate UAT browser access
         run: test -n "$VERCEL_AUTOMATION_BYPASS_SECRET"
       - name: Install Playwright Chromium
-        run: npx playwright install --with-deps chromium
+        run: bash "$GITHUB_WORKSPACE/scripts/ci/install-playwright.sh" chromium
       - name: Run deterministic organizer and super-admin scenarios
         run: npx playwright test e2e/admin-flows.spec.ts --project=admin-mocked
       - name: Upload admin UI Playwright evidence
@@ -174,7 +174,7 @@ jobs:
           test -n "$TEST_ADMIN_PASSWORD"
           test -n "$VERCEL_AUTOMATION_BYPASS_SECRET"
       - name: Install Playwright Chromium
-        run: npx playwright install --with-deps chromium
+        run: bash "$GITHUB_WORKSPACE/scripts/ci/install-playwright.sh" chromium
       - name: Run admin regression
         run: >-
           npx playwright test
@@ -227,7 +227,7 @@ jobs:
           test -n "$TEST_GMAIL_REFRESH_TOKEN"
           test -n "$VERCEL_AUTOMATION_BYPASS_SECRET"
       - name: Install Playwright Chromium
-        run: npx playwright install --with-deps chromium
+        run: bash "$GITHUB_WORKSPACE/scripts/ci/install-playwright.sh" chromium
       - name: Run customer OTP regression
         run: npx playwright test e2e/customer-flows.spec.ts --project=customer
       - name: Upload customer Playwright evidence
