@@ -47,7 +47,14 @@ function devDebug(...args: unknown[]) {
 }
 
 /** Fixed list of failure reasons for funnel metadata. Never derived from an error message. */
-export type FunnelFailureCode = 'not_found' | 'validation' | 'throttled' | 'network' | 'server' | 'other';
+export type FunnelFailureCode =
+  | 'not_found'
+  | 'validation'
+  | 'throttled'
+  | 'network'
+  | 'server'
+  | 'no_session'
+  | 'other';
 
 /** Maps an HTTP status (undefined when the request never got an answer) to a fixed reason code. */
 export function funnelFailureCode(httpStatus: number | undefined): FunnelFailureCode {
