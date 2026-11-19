@@ -74,7 +74,7 @@ interface ApiOptions {
   /** What GET /registrations/:id answers. */
   read: 'owned' | 'notFound' | 'serverError';
   /** What PATCH /registrations/:id/attendees answers. */
-  save?: 200 | 404;
+  save?: 200 | 404 | 429 | 500 | 'abort';
   qty?: number;
   withProof?: boolean;
   withOrganizer?: boolean;
@@ -125,6 +125,9 @@ async function installApi(page: Page, options: ApiOptions) {
     }
     if (path.endsWith(`/registrations/${REGISTRATION_ID}/attendees`) && method === 'PATCH') {
       seen.saves += 1;
+      if (save === 'abort') return route.abort('connectionreset');
+      if (save === 429) return json(route, { statusCode: 429, message: 'ThrottlerException: Too Many Requests' }, 429);
+      if (save === 500) return json(route, { statusCode: 500, message: 'Internal server error' }, 500);
       return save === 200 ? json(route, { message: 'Attendees updated', registrationId: REGISTRATION_ID }) : json(route, { message: 'Registration not found' }, 404);
     }
     if (path.endsWith(`/registrations/guest/${REGISTRATION_ID}`) && method === 'GET') {
@@ -447,10 +450,45 @@ test.describe('confirm-step tracking', () => {
     const failed = seen.funnel.find((entry) => entry.step === 'details_confirm_failed')!;
     const ours = Object.keys(failed.metadata).filter((key) => !['currentUrl', 'referrer'].includes(key)).sort();
     expect(ours).toEqual(['code', 'httpStatus', 'mode']);
-    expect(['not_found', 'validation', 'throttled', 'network', 'server', 'other']).toContain(failed.metadata.code);
+    expect(['not_found', 'validation', 'throttled', 'network', 'server', 'no_session', 'other']).toContain(failed.metadata.code);
     expect(JSON.stringify(failed)).not.toMatch(/Registration not found|ada@example\.com/);
     expectOnlyExpectedNotFound(diagnostics);
   });
+});
+
+/**
+ * Nov 2026 incident follow-up: a buyer pressed "Confirm and Send My Code" again and again and
+ * "nothing happened". Every way the confirm request can fail must put plain words on screen,
+ * bring them into view, and record the reason with a code from the fixed list.
+ */
+test.describe('a failed confirm always tells the buyer what happened', () => {
+  const failureCases: Array<{ name: string; save: 429 | 500 | 'abort'; text: RegExp; code: string; status?: number }> = [
+    { name: 'a rate limit', save: 429, text: /Too many tries in a short time\. Please wait a minute/, code: 'throttled', status: 429 },
+    { name: 'a server error', save: 500, text: /Something went wrong on our side\. Your payment screenshot is safe/, code: 'server', status: 500 },
+    { name: 'a lost connection', save: 'abort', text: /We couldn't reach the server\. Check your internet connection/, code: 'network' },
+  ];
+
+  for (const failureCase of failureCases) {
+    test(`${failureCase.name}: plain message, in view and focused, never the raw server text`, async ({ page }) => {
+      const seen = await installApi(page, { read: 'owned', save: failureCase.save });
+      await page.goto(registerUrl(1));
+      await page.getByRole('button', { name: 'Confirm Transaction' }).click();
+
+      const alert = page.getByRole('alert').filter({ hasText: /\S/ });
+      await expect(alert).toHaveCount(1);
+      await expect(alert).toContainText(failureCase.text);
+      await expect(alert).not.toContainText(/ThrottlerException|Internal server error/);
+      await expect(alert).toBeInViewport();
+      await expect(alert).toBeFocused();
+
+      await expect.poll(() => funnelSteps(seen)).toContain('details_confirm_failed');
+      const failed = seen.funnel.find((entry) => entry.step === 'details_confirm_failed')!;
+      expect(failed.metadata.code).toBe(failureCase.code);
+      expect(failed.metadata.httpStatus).toBe(failureCase.status);
+      // The button is usable again so the buyer can try once more.
+      await expect(page.getByRole('button', { name: 'Confirm Transaction' })).toBeEnabled();
+    });
+  }
 });
 
 /**
