@@ -57,6 +57,8 @@ k6 run load-tests/health.js
 
 ## Step 2 — Authenticated endpoint (event listing)
 
+> Note: `POST /auth/login` accepts platform admin accounts only, so `YOUR_TEST_EMAIL` / `YOUR_TEST_PASSWORD` below must belong to an admin.
+
 ```js
 // load-tests/events.js
 import http from 'k6/http';

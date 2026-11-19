@@ -60,15 +60,9 @@ RESEND_FROM_NAME=Axon Tickets
 
 ```bash
 # API endpoint to test
-curl -X POST https://api-tau-six-59.vercel.app/api/v1/auth/register \
+curl -X POST https://api-tau-six-59.vercel.app/api/v1/auth/request-access \
   -H "Content-Type: application/json" \
-  -d '{
-    "email": "test@example.com",
-    "password": "TestPass123!",
-    "firstName": "Test",
-    "lastName": "User",
-    "captchaToken": "10000000-aaaa-bbbb-cccc-000000000001"
-  }'
+  -d '{ "email": "test@example.com" }'
 ```
 
 Check inbox (and spam folder) for OTP email.
