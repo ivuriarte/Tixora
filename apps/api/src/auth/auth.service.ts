@@ -145,11 +145,16 @@ export class AuthService {
 
     if (!otpRecord) throw new BadRequestException('OTP expired or invalid. Request a new one.');
 
+    // Count this attempt atomically BEFORE comparing, so a burst of parallel guesses cannot all
+    // slip past the limit (the read above is only a cheap early exit; a read-then-write counter
+    // loses updates under concurrency).
+    const { count: newCount } = await this.redis.incrementWithTtl(attemptsKey, OTP_ATTEMPT_TTL);
+    if (newCount > OTP_MAX_ATTEMPTS) {
+      throw new BadRequestException('Too many failed attempts. Request a new verification code.');
+    }
+
     const match = await bcrypt.compare(dto.otp, otpRecord.codeHash);
     if (!match) {
-      // Increment failure counter
-      const newCount = attempts + 1;
-      await this.redis.set(attemptsKey, String(newCount), OTP_ATTEMPT_TTL);
       if (newCount >= OTP_MAX_ATTEMPTS) {
         // Invalidate the OTP so attacker cannot succeed even if throttle is bypassed
         await this.prisma.otpCode.update({ where: { id: otpRecord.id }, data: { used: true } });
@@ -161,11 +166,8 @@ export class AuthService {
     // Clear attempt counter on success
     await this.redis.del(attemptsKey);
 
-    // Mark OTP as used and verify user atomically
-    await this.prisma.$transaction([
-      this.prisma.otpCode.update({ where: { id: otpRecord.id }, data: { used: true } }),
-      this.prisma.user.update({ where: { id: dto.userId }, data: { isVerified: true } }),
-    ]);
+    // Mark OTP as used (single use) and verify user atomically
+    await this.consumeOtpAndVerifyUser(otpRecord.id, user.id);
 
     await this.acceptPendingOrganizationInvitation(user.id, user.email);
 
@@ -536,10 +538,26 @@ export class AuthService {
       throw new BadRequestException('Code expired or invalid. Request a new one.');
     }
 
+    // Count this attempt atomically BEFORE comparing (see verifyOtp).
+    const { count: newCount } = await this.redis.incrementWithTtl(attemptsKey, OTP_ATTEMPT_TTL);
+    if (newCount > OTP_MAX_ATTEMPTS) {
+      await this.funnel.track(
+        {
+          eventId: dto.eventId,
+          sessionId: dto.sessionId,
+          userId: dto.userId,
+          email: user.email,
+          step: 'otp_verification_failed',
+          status: 'blocked',
+          metadata: { reason: 'too_many_attempts' },
+        },
+        { userAgent, referrer },
+      );
+      throw new BadRequestException('Too many failed attempts. Request a new code.');
+    }
+
     const match = await bcrypt.compare(dto.otp, otpRecord.codeHash);
     if (!match) {
-      const newCount = attempts + 1;
-      await this.redis.set(attemptsKey, String(newCount), OTP_ATTEMPT_TTL);
       await this.funnel.track(
         {
           eventId: dto.eventId,
@@ -563,10 +581,7 @@ export class AuthService {
 
     const isNewUser = user.firstName === null;
 
-    await this.prisma.$transaction([
-      this.prisma.otpCode.update({ where: { id: otpRecord.id }, data: { used: true } }),
-      this.prisma.user.update({ where: { id: dto.userId }, data: { isVerified: true } }),
-    ]);
+    await this.consumeOtpAndVerifyUser(otpRecord.id, user.id);
 
     await this.acceptPendingOrganizationInvitation(user.id, user.email);
 
@@ -693,6 +708,25 @@ export class AuthService {
     await this.prisma.organizationInvitation.update({
       where: { id: invitation.id },
       data: { status: 'accepted', acceptedAt: new Date() },
+    });
+  }
+
+  /**
+   * Marks the OTP as used and the user as verified, in one transaction.
+   * The OTP is consumed with a conditional update (`used: false` in the WHERE), so the same code
+   * can never be redeemed twice: with two parallel requests carrying the right code, only one
+   * wins and the other is rejected before the user row is touched.
+   */
+  private async consumeOtpAndVerifyUser(otpId: string, userId: string): Promise<void> {
+    await this.prisma.$transaction(async (tx) => {
+      const consumed = await tx.otpCode.updateMany({
+        where: { id: otpId, used: false },
+        data: { used: true },
+      });
+      if (consumed.count !== 1) {
+        throw new BadRequestException('This code was already used. Request a new one.');
+      }
+      await tx.user.update({ where: { id: userId }, data: { isVerified: true } });
     });
   }
 
