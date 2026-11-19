@@ -4,11 +4,10 @@ import { ConfigService } from '@nestjs/config';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { Logger } from 'nestjs-pino';
 import helmet from 'helmet';
-import * as Sentry from '@sentry/node';
 import { AppModule } from './app.module';
 import { TransformInterceptor } from './common/interceptors/transform.interceptor';
 import { SentryExceptionFilter } from './common/filters/sentry-exception.filter';
-import { scrubSentryEvent } from './common/logging/sentry-scrub';
+import { initSentry } from './common/logging/sentry-init';
 
 // Refuse to start the UAT instance if it is misconfigured in a way that
 // could affect production data.
@@ -39,16 +38,7 @@ async function bootstrap() {
 
   // Initialise Sentry before anything else so all errors (including bootstrap
   // failures) are captured. No-op when SENTRY_DSN is not set.
-  const sentryDsn = process.env.SENTRY_DSN;
-  if (sentryDsn) {
-    Sentry.init({
-      dsn: sentryDsn,
-      environment: process.env.APP_ENV ?? 'development',
-      tracesSampleRate: process.env.APP_ENV === 'production' ? 0.1 : 1.0,
-      beforeSend: scrubSentryEvent,
-      beforeSendTransaction: scrubSentryEvent,
-    });
-  }
+  initSentry();
 
   const app = await NestFactory.create(AppModule, {
     bufferLogs: true,

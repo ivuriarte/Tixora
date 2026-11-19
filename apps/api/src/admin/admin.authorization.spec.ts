@@ -1,4 +1,9 @@
-import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  HttpException,
+  NotFoundException,
+} from '@nestjs/common';
 import type { ExecutionContext } from '@nestjs/common';
 import { AdminController } from './admin.controller';
 import { AdminGuard } from '../common/guards/admin.guard';
@@ -90,6 +95,20 @@ describe('Admin and super-admin authorization portfolio', () => {
     await expect(
       controller.exportExecutiveAnalytics(organizer, undefined, undefined, undefined, {} as any),
     ).rejects.toThrow('Platform admin access required');
+  });
+
+  it('lets only a platform admin raise the Sentry test error, and organizers get a 403 instead', () => {
+    const controller = new AdminController({} as any, {} as any, {} as any, {} as any);
+    // A plain Error (not an HttpException) is what the global filter reports to Sentry.
+    expect(() => controller.raiseSentryTestError(superAdmin)).toThrow(
+      'Sentry API verification test (safe to resolve)',
+    );
+    try {
+      controller.raiseSentryTestError(superAdmin);
+    } catch (err) {
+      expect(err).not.toBeInstanceOf(HttpException);
+    }
+    expect(() => controller.raiseSentryTestError(organizer)).toThrow(ForbiddenException);
   });
 
   it('allows super admin platform governance but prevents self-removal of its own role', async () => {
