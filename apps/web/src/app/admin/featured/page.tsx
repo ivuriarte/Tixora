@@ -6,6 +6,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import api from '@/lib/api';
 import toast from 'react-hot-toast';
 import { EmptyState, ScreenSkeleton } from '@/components/ScreenState';
+import { takesFeaturedSlot } from '@/lib/featuredSlots';
 
 const FEATURED_LIMIT = 3;
 const MIN_WIDTH = 1200;
@@ -286,7 +287,9 @@ export default function FeaturedEventsPage() {
   });
 
   const featured = events.filter((event) => event.isFeatured);
-  const activeFeaturedCount = featured.filter((event) => !event.featuredUntil || new Date(event.featuredUntil) > new Date()).length;
+  // Same rule as the server cap: only events the homepage would show take a slot, so stale
+  // completed or cancelled events that still carry the flag no longer block featuring a new one.
+  const activeFeaturedCount = featured.filter((event) => takesFeaturedSlot(event)).length;
   const notFeatured = events.filter((event) => !event.isFeatured && event.status !== 'cancelled');
 
   return (
