@@ -36,6 +36,21 @@ const EVENT_CATEGORIES = [
   'parties',
 ] as const;
 const DAY_MS = 24 * 60 * 60 * 1000;
+const MAX_FEATURED_EVENTS = 3;
+
+/**
+ * Which events hold a homepage featured slot: flagged, on sale (or sold out), and not
+ * past their featuredUntil date. Both the carousel query (findFeatured) and the slot cap
+ * in update() build their filter from here, so the cap can never count an event that the
+ * homepage would not show (for example a completed event that still carries the flag).
+ */
+function visibleFeaturedWhere(now: Date): Prisma.EventWhereInput {
+  return {
+    isFeatured: true,
+    status: { in: ['on_sale', 'sold_out'] },
+    OR: [{ featuredUntil: null }, { featuredUntil: { gt: now } }],
+  };
+}
 
 type TierInventory = {
   id: string;
@@ -1145,14 +1160,12 @@ export class EventsService {
       }
     }
     if (dto.isFeatured === true && !existing.isFeatured) {
+      // Only events the homepage would actually show count toward the cap. Completed or
+      // cancelled events keep their flag but must not hold a slot.
       const activeFeaturedCount = await this.prisma.event.count({
-        where: {
-          id: { not: id },
-          isFeatured: true,
-          OR: [{ featuredUntil: null }, { featuredUntil: { gt: new Date() } }],
-        },
+        where: { ...visibleFeaturedWhere(new Date()), id: { not: id } },
       });
-      if (activeFeaturedCount >= 3) {
+      if (activeFeaturedCount >= MAX_FEATURED_EVENTS) {
         throw new BadRequestException(
           'The homepage supports up to 3 featured events. Disable one before adding another.',
         );
@@ -1241,13 +1254,9 @@ export class EventsService {
   async findFeatured() {
     const now = new Date();
     const events = await this.prisma.event.findMany({
-      where: {
-        isFeatured: true,
-        status: { in: ['on_sale', 'sold_out'] as any[] },
-        OR: [{ featuredUntil: null }, { featuredUntil: { gt: now } }],
-      },
+      where: visibleFeaturedWhere(now),
       orderBy: [{ featuredOrder: { sort: 'asc', nulls: 'last' } }, { startsAt: 'asc' }],
-      take: 3,
+      take: MAX_FEATURED_EVENTS,
       include: {
         tiers: {
           where: { isVisible: true },

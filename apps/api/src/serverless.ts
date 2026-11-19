@@ -9,10 +9,16 @@ import type { Express } from 'express';
 import type { IncomingMessage, ServerResponse } from 'http';
 import { AppModule } from './app.module';
 import { TransformInterceptor } from './common/interceptors/transform.interceptor';
+import { SentryExceptionFilter } from './common/filters/sentry-exception.filter';
+import { initSentry } from './common/logging/sentry-init';
 
 let cachedApp: Express | null = null;
 
 async function buildApp(): Promise<Express> {
+  // This is the entry point Vercel runs for UAT and production, so Sentry must start
+  // here too (main.ts is not used). No-op when SENTRY_DSN is not set.
+  initSentry();
+
   const expressApp = express();
 
   const app = await NestFactory.create(
@@ -46,6 +52,9 @@ async function buildApp(): Promise<Express> {
 
   // Global response envelope: { success: true, data: ... }
   app.useGlobalInterceptors(new TransformInterceptor());
+
+  // Forward unhandled 500+ errors to Sentry (client errors below 500 are not reported)
+  app.useGlobalFilters(new SentryExceptionFilter());
 
   app.useGlobalPipes(
     new ValidationPipe({

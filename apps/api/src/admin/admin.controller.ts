@@ -49,6 +49,20 @@ export class AdminController {
     }
   }
 
+  /**
+   * Deliberately fails with an unexpected (non-HTTP) error so a platform admin can confirm
+   * that API errors reach Sentry. It reads and writes no data. The reply is a 500 by design.
+   */
+  @Post('diagnostics/sentry-test')
+  @ApiOperation({
+    summary: 'Raise a test server error to verify Sentry reporting (platform admin only; always returns 500)',
+  })
+  @ApiResponse({ status: 500, description: 'Expected: the deliberate test error' })
+  raiseSentryTestError(@CurrentUser() user: JwtPayload): never {
+    this.requirePlatformAdmin(user);
+    throw new Error('Sentry API verification test (safe to resolve)');
+  }
+
   @Get('analytics/executive/definitions')
   @ApiOperation({ summary: 'Get the versioned executive metric dictionary' })
   getExecutiveMetricDefinitions(@CurrentUser() user: JwtPayload) {

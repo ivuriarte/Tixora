@@ -73,16 +73,10 @@ Using Resend sandbox domain `onboarding@resend.dev`, which can only send to pre-
 cd apps/api
 npm run start:dev
 
-# Register new user
-curl -X POST http://localhost:3001/api/v1/auth/register \
+# Ask for an email code (password sign-up was retired: POST /auth/register now returns 410)
+curl -X POST http://localhost:3001/api/v1/auth/request-access \
   -H "Content-Type: application/json" \
-  -d '{
-    "email": "test@example.com",
-    "password": "TestPass123!",
-    "firstName": "Test",
-    "lastName": "User",
-    "captchaToken": "10000000-aaaa-bbbb-cccc-000000000001"
-  }'
+  -d '{ "email": "test@example.com" }'
 ```
 
 Check logs for:
